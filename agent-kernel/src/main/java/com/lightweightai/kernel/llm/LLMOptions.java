@@ -1,0 +1,88 @@
+package com.lightweightai.kernel.llm;
+
+import com.lightweightai.kernel.plugin.PluginFunction;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Options for LLM requests
+ */
+public class LLMOptions {
+
+    private Double temperature;
+    private Integer maxTokens;
+    private List<PluginFunction> tools;
+    private List<Map<String, Object>> toolDefinitions;  // Raw tool definitions for API
+    private String systemPrompt;
+
+    private LLMOptions(Builder builder) {
+        this.temperature = builder.temperature;
+        this.maxTokens = builder.maxTokens;
+        this.tools = builder.tools != null ? new ArrayList<>(builder.tools) : new ArrayList<>();
+        this.toolDefinitions = builder.toolDefinitions != null ? new ArrayList<>(builder.toolDefinitions) : new ArrayList<>();
+        this.systemPrompt = builder.systemPrompt;
+    }
+
+    public Double getTemperature() {
+        return temperature;
+    }
+
+    public Integer getMaxTokens() {
+        return maxTokens;
+    }
+
+    public List<PluginFunction> getTools() {
+        return tools;
+    }
+
+    public List<Map<String, Object>> getToolDefinitions() {
+        return toolDefinitions;
+    }
+
+    public String getSystemPrompt() {
+        return systemPrompt;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private Double temperature;
+        private Integer maxTokens;
+        private List<PluginFunction> tools;
+        private List<Map<String, Object>> toolDefinitions;
+        private String systemPrompt;
+
+        public Builder temperature(double temperature) {
+            this.temperature = temperature;
+            return this;
+        }
+
+        public Builder maxTokens(int maxTokens) {
+            this.maxTokens = maxTokens;
+            return this;
+        }
+
+        public Builder tools(List<PluginFunction> tools) {
+            this.tools = tools;
+            return this;
+        }
+
+        public Builder toolDefinitions(List<Map<String, Object>> toolDefinitions) {
+            this.toolDefinitions = toolDefinitions;
+            return this;
+        }
+
+        public Builder systemPrompt(String systemPrompt) {
+            this.systemPrompt = systemPrompt;
+            return this;
+        }
+
+        public LLMOptions build() {
+            return new LLMOptions(this);
+        }
+    }
+}
