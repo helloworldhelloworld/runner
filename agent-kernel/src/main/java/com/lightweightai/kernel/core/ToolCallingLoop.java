@@ -6,6 +6,7 @@ import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles the tool calling loop for LLM conversations.
@@ -84,6 +85,76 @@ public class ToolCallingLoop {
             "Tool calling loop exceeded maximum iterations: " + maxIterations +
             ". This may indicate an infinite loop or the LLM is stuck calling tools."
         );
+    }
+
+    /**
+     * Execute a conversation with tool calling support (Async Non-blocking version)
+     *
+     * This method uses CompletableFuture composition to avoid blocking threads.
+     * Even though tasks have dependencies (LLM -> Tool -> LLM), this uses
+     * an async reactive model with thenCompose for chaining dependent operations.
+     *
+     * @param messages     Initial conversation messages
+     * @param options      LLM options (including tools definition)
+     * @return CompletableFuture of the final LLM response
+     */
+    public CompletableFuture<LLMResponse> executeWithToolsAsync(
+        List<ConversationMessage> messages,
+        LLMOptions options
+    ) {
+        return executeWithToolsAsync(new ArrayList<>(messages), options, 0);
+    }
+
+    /**
+     * Internal async recursive method with iteration tracking
+     */
+    private CompletableFuture<LLMResponse> executeWithToolsAsync(
+        List<ConversationMessage> conversation,
+        LLMOptions options,
+        int iteration
+    ) {
+        // Check iteration limit
+        if (iteration >= maxIterations) {
+            return CompletableFuture.failedFuture(
+                new RuntimeException(
+                    "Tool calling loop exceeded maximum iterations: " + maxIterations +
+                    ". This may indicate an infinite loop or the LLM is stuck calling tools."
+                )
+            );
+        }
+
+        // Step 1: Call LLM asynchronously (non-blocking)
+        return provider.completeAsync(conversation, options)
+            .thenCompose(response -> {
+                // Step 2: Check if LLM wants to use tools
+                if (!response.hasToolCalls() || response.getToolCalls().isEmpty()) {
+                    // No tools needed, return final response
+                    return CompletableFuture.completedFuture(response);
+                }
+
+                // Step 3: Execute tools asynchronously (non-blocking)
+                List<ToolCall> toolCalls = response.getToolCalls();
+                return toolExecutor.executeToolCallsAsync(toolCalls)
+                    .thenCompose(toolResults -> {
+                        // Step 4: Add assistant's response and tool results to conversation
+                        conversation.add(response.getMessage());
+
+                        for (ToolResult toolResult : toolResults) {
+                            ConversationMessage toolResultMessage =
+                                createToolResultMessage(toolResult);
+                            conversation.add(toolResultMessage);
+                        }
+
+                        // Step 5: Recursively continue the conversation (async)
+                        // This is the key: we chain dependent async operations
+                        // without blocking any thread
+                        return executeWithToolsAsync(conversation, options, iteration + 1);
+                    });
+            })
+            .exceptionally(error -> {
+                // Handle any errors in the chain
+                throw new RuntimeException("Tool calling loop failed: " + error.getMessage(), error);
+            });
     }
 
     /**
