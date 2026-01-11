@@ -16,6 +16,7 @@
     <modules>
         <module>agent-kernel</module>
         <module>agent-sdk</module>
+        <module>agent-web</module>
     </modules>
 
     <properties>

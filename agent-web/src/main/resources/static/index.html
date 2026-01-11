@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lightweight AI Kernel - Debug Console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .message {
+            animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                🤖 Lightweight AI Kernel - Debug Console
+            </h1>
+            <p class="text-gray-600">
+                测试和调试 Claude Skills、Tool Calling 和 Instruction Packages
+            </p>
+            <div class="mt-4 flex gap-4">
+                <div class="bg-green-100 px-3 py-1 rounded-full text-sm">
+                    <span class="font-semibold">Provider:</span> <span id="provider-status">Loading...</span>
+                </div>
+                <div class="bg-blue-100 px-3 py-1 rounded-full text-sm">
+                    <span class="font-semibold">Skills:</span> <span id="skills-count">0</span>
+                </div>
+                <div class="bg-purple-100 px-3 py-1 rounded-full text-sm">
+                    <span class="font-semibold">Tools:</span> <span id="tools-count">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Panel: Configuration -->
+            <div class="lg:col-span-1">
+                <!-- Skills Panel -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <h2 class="text-xl font-bold mb-4 text-gray-800">📚 Claude Skills</h2>
+                    <div id="skills-list" class="space-y-2">
+                        <p class="text-gray-500 text-sm">Loading skills...</p>
+                    </div>
+                </div>
+
+                <!-- Tools Panel -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <h2 class="text-xl font-bold mb-4 text-gray-800">🔧 Tools</h2>
+                    <div class="mb-4">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="use-tool-calling" class="w-4 h-4">
+                            <span class="text-sm font-medium">Enable Tool Calling</span>
+                        </label>
+                    </div>
+                    <div id="tools-list" class="space-y-2">
+                        <p class="text-gray-500 text-sm">Loading tools...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Chat -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg shadow-md flex flex-col" style="height: calc(100vh - 200px);">
+                    <!-- Chat Header -->
+                    <div class="p-4 border-b">
+                        <h2 class="text-xl font-bold text-gray-800">💬 Chat</h2>
+                    </div>
+
+                    <!-- Messages -->
+                    <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+                        <div class="text-center text-gray-500 text-sm">
+                            发送消息开始对话...
+                        </div>
+                    </div>
+
+                    <!-- Input -->
+                    <div class="p-4 border-t">
+                        <div class="flex gap-2">
+                            <input
+                                type="text"
+                                id="message-input"
+                                placeholder="输入消息..."
+                                class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                onkeypress="if(event.key === 'Enter') sendMessage()"
+                            >
+                            <button
+                                onclick="sendMessage()"
+                                class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition"
+                            >
+                                发送
+                            </button>
+                            <button
+                                onclick="clearChat()"
+                                class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition"
+                            >
+                                清空
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let skills = [];
+        let tools = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSkills();
+            loadTools();
+            checkHealth();
+        });
+
+        // Load skills
+        async function loadSkills() {
+            try {
+                const response = await fetch('/api/skills');
+                skills = await response.json();
+
+                const skillsList = document.getElementById('skills-list');
+                skillsList.innerHTML = skills.map(skill => `
+                    <label class="flex items-start space-x-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" value="${skill.name}" class="skill-checkbox mt-1" />
+                        <div class="flex-1">
+                            <div class="font-medium text-sm">${skill.name}</div>
+                            <div class="text-xs text-gray-500">${skill.description}</div>
+                        </div>
+                    </label>
+                `).join('');
+
+                document.getElementById('skills-count').textContent = skills.length;
+            } catch (error) {
+                console.error('Failed to load skills:', error);
+            }
+        }
+
+        // Load tools
+        async function loadTools() {
+            try {
+                const response = await fetch('/api/tools');
+                tools = await response.json();
+
+                const toolsList = document.getElementById('tools-list');
+                toolsList.innerHTML = tools.map(tool => `
+                    <div class="text-sm p-2 bg-gray-50 rounded">
+                        <div class="font-medium">${tool.name}</div>
+                        <div class="text-xs text-gray-500">${tool.description || 'No description'}</div>
+                    </div>
+                `).join('');
+
+                document.getElementById('tools-count').textContent = tools.length;
+            } catch (error) {
+                console.error('Failed to load tools:', error);
+            }
+        }
+
+        // Check health
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const health = await response.json();
+                document.getElementById('provider-status').textContent = 'Mock (No API Key)';
+            } catch (error) {
+                document.getElementById('provider-status').textContent = 'Error';
+            }
+        }
+
+        // Send message
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Get selected skills
+            const activeSkills = Array.from(document.querySelectorAll('.skill-checkbox:checked'))
+                .map(cb => cb.value);
+
+            // Get tool calling preference
+            const useToolCalling = document.getElementById('use-tool-calling').checked;
+
+            // Add user message to UI
+            addMessage('user', message);
+            input.value = '';
+
+            // Show loading
+            const loadingId = addMessage('assistant', '<div class="loading"></div>');
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message,
+                        activeSkills,
+                        useToolCalling
+                    })
+                });
+
+                const data = await response.json();
+
+                // Remove loading
+                document.getElementById(loadingId).remove();
+
+                // Add assistant message
+                if (data.error) {
+                    addMessage('error', `Error: ${data.error}`);
+                } else {
+                    addMessage('assistant', data.response, data);
+                }
+            } catch (error) {
+                document.getElementById(loadingId).remove();
+                addMessage('error', `Network error: ${error.message}`);
+            }
+        }
+
+        // Add message to UI
+        function addMessage(role, content, metadata) {
+            const messages = document.getElementById('messages');
+            const id = 'msg-' + Date.now();
+
+            const messageDiv = document.createElement('div');
+            messageDiv.id = id;
+            messageDiv.className = `message flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+
+            let bgColor = 'bg-blue-500 text-white';
+            let label = '👤 You';
+
+            if (role === 'assistant') {
+                bgColor = 'bg-gray-200 text-gray-800';
+                label = '🤖 Assistant';
+            } else if (role === 'error') {
+                bgColor = 'bg-red-100 text-red-800';
+                label = '❌ Error';
+            }
+
+            let metadataHtml = '';
+            if (metadata) {
+                const badges = [];
+                if (metadata.skillsApplied && metadata.skillsApplied.length > 0) {
+                    badges.push(`<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">Skills: ${metadata.skillsApplied.join(', ')}</span>`);
+                }
+                if (metadata.toolCallsUsed && metadata.toolCallsUsed.length > 0) {
+                    badges.push(`<span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">Tools: ${metadata.toolCallsUsed.join(', ')}</span>`);
+                }
+                if (badges.length > 0) {
+                    metadataHtml = `<div class="mt-2 space-x-2">${badges.join('')}</div>`;
+                }
+            }
+
+            messageDiv.innerHTML = `
+                <div class="max-w-lg">
+                    <div class="text-xs text-gray-500 mb-1">${label}</div>
+                    <div class="${bgColor} rounded-lg px-4 py-2">
+                        ${content}
+                    </div>
+                    ${metadataHtml}
+                </div>
+            `;
+
+            messages.appendChild(messageDiv);
+            messages.scrollTop = messages.scrollHeight;
+
+            return id;
+        }
+
+        // Clear chat
+        function clearChat() {
+            const messages = document.getElementById('messages');
+            messages.innerHTML = '<div class="text-center text-gray-500 text-sm">发送消息开始对话...</div>';
+        }
+    </script>
+</body>
+</html>

@@ -150,6 +150,17 @@ public class ToolExecutor {
     }
 
     /**
+     * Get tool definitions in JSON schema format for LLM
+     *
+     * @return List of tool definitions as Map
+     */
+    public List<Map<String, Object>> getToolDefinitions() {
+        return functionRegistry.values().stream()
+            .map(PluginFunction::toJsonSchema)
+            .collect(Collectors.toList());
+    }
+
+    /**
      * Clear all registered functions
      */
     public void clear() {
