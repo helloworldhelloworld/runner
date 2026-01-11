@@ -14,6 +14,25 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Skill registration and lookup
  * - Skill activation/deactivation
  * - Context injection for conversations
+ *
+ * @deprecated This is a Claude-specific implementation. For provider-agnostic
+ *             instruction management, use {@link com.lightweightai.kernel.instruction.InstructionRegistry}
+ *             with {@link com.lightweightai.kernel.instruction.claude.ClaudeSkillAdapter}.
+ *
+ * Note: This class is maintained for backward compatibility with existing code.
+ * It works perfectly for Claude-only applications. For multi-provider support,
+ * migrate to the new instruction package.
+ *
+ * Migration example:
+ * <pre>{@code
+ * // Old (Claude-specific)
+ * SkillRegistry registry = new SkillRegistry();
+ * registry.registerSkill(skill);
+ *
+ * // New (Provider-agnostic)
+ * InstructionRegistry registry = new InstructionRegistry(ProviderAdapterFactory.claude());
+ * registry.registerPackage(new ClaudeSkillAdapter(skill));
+ * }</pre>
  */
 public class SkillRegistry {
 
