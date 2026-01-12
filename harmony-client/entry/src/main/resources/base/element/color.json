@@ -1,0 +1,48 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "background_color",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "primary_text",
+      "value": "#1D1D1F"
+    },
+    {
+      "name": "secondary_text",
+      "value": "#86868B"
+    },
+    {
+      "name": "accent_color",
+      "value": "#F4D9C6"
+    },
+    {
+      "name": "accent_light",
+      "value": "#FFF5ED"
+    },
+    {
+      "name": "user_message_bg",
+      "value": "#007AFF"
+    },
+    {
+      "name": "assistant_message_bg",
+      "value": "#F2F2F7"
+    },
+    {
+      "name": "divider_color",
+      "value": "#E5E5EA"
+    },
+    {
+      "name": "input_background",
+      "value": "#F2F2F7"
+    },
+    {
+      "name": "white",
+      "value": "#FFFFFF"
+    }
+  ]
+}
