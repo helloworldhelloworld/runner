@@ -78,7 +78,7 @@ public class ChatController {
      * Get session summary (soul comfort mode)
      */
     @GetMapping("/session/{sessionId}/summary")
-    public Map<String, Object> getSessionSummary(@PathVariable String sessionId) {
+    public Map<String, Object> getSessionSummary(@PathVariable("sessionId") String sessionId) {
         logger.info("Getting session summary for: {}", sessionId);
         return soulComfortChatService.getSessionSummary(sessionId);
     }
@@ -87,7 +87,7 @@ public class ChatController {
      * Clear session (soul comfort mode)
      */
     @DeleteMapping("/session/{sessionId}")
-    public Map<String, Object> clearSession(@PathVariable String sessionId) {
+    public Map<String, Object> clearSession(@PathVariable("sessionId") String sessionId) {
         logger.info("Clearing session: {}", sessionId);
         soulComfortChatService.clearSession(sessionId);
         return Map.of("status", "cleared", "sessionId", sessionId);
