@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
--------------------------------------------------------------------------------
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.898 s - in com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest

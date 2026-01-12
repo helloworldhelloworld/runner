@@ -21,9 +21,12 @@ public class ChatController {
     private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
 
     private final ChatService chatService;
+    private final com.lightweightai.web.service.SoulComfortChatService soulComfortChatService;
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService,
+                         com.lightweightai.web.service.SoulComfortChatService soulComfortChatService) {
         this.chatService = chatService;
+        this.soulComfortChatService = soulComfortChatService;
     }
 
     /**
@@ -31,7 +34,14 @@ public class ChatController {
      */
     @PostMapping("/chat")
     public ChatResponse chat(@RequestBody ChatRequest request) {
-        logger.info("Received chat request");
+        logger.info("Received chat request (soul comfort mode: {})", request.isSoulComfortMode());
+
+        // 使用心灵引导模式
+        if (request.isSoulComfortMode()) {
+            return soulComfortChatService.chat(request);
+        }
+
+        // 使用普通模式
         return chatService.chat(request);
     }
 
@@ -59,7 +69,27 @@ public class ChatController {
         return Map.of(
             "status", "UP",
             "skills", chatService.getAvailableSkills().size(),
-            "tools", chatService.getAvailableTools().size()
+            "tools", chatService.getAvailableTools().size(),
+            "soulComfortMode", "enabled"
         );
+    }
+
+    /**
+     * Get session summary (soul comfort mode)
+     */
+    @GetMapping("/session/{sessionId}/summary")
+    public Map<String, Object> getSessionSummary(@PathVariable String sessionId) {
+        logger.info("Getting session summary for: {}", sessionId);
+        return soulComfortChatService.getSessionSummary(sessionId);
+    }
+
+    /**
+     * Clear session (soul comfort mode)
+     */
+    @DeleteMapping("/session/{sessionId}")
+    public Map<String, Object> clearSession(@PathVariable String sessionId) {
+        logger.info("Clearing session: {}", sessionId);
+        soulComfortChatService.clearSession(sessionId);
+        return Map.of("status", "cleared", "sessionId", sessionId);
     }
 }

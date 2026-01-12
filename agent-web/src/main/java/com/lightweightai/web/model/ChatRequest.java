@@ -11,6 +11,8 @@ public class ChatRequest {
     private List<String> activeSkills;
     private boolean useToolCalling;
     private Map<String, Object> options;
+    private String sessionId;
+    private boolean soulComfortMode;
 
     public String getMessage() {
         return message;
@@ -42,5 +44,21 @@ public class ChatRequest {
 
     public void setOptions(Map<String, Object> options) {
         this.options = options;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public boolean isSoulComfortMode() {
+        return soulComfortMode;
+    }
+
+    public void setSoulComfortMode(boolean soulComfortMode) {
+        this.soulComfortMode = soulComfortMode;
     }
 }
