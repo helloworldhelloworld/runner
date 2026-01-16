@@ -23,6 +23,11 @@ logging:
 # 应用配置
 app:
   mock-mode: true  # 默认使用 mock 模式，不需要真实 API Key
+  provider-type: ${PROVIDER_TYPE:mock}  # 可选: mock, api, pro
   claude:
+    # 官方API配置
     api-key: ${ANTHROPIC_API_KEY:}  # 从环境变量读取，为空则使用 mock
     model: claude-3-5-sonnet-20241022
+    # Claude Pro配置（使用网页版会员）
+    session-key: ${CLAUDE_SESSION_KEY:}  # 从浏览器Cookie获取的sessionKey
+    organization-id: ${CLAUDE_ORG_ID:}  # 可选，会自动获取

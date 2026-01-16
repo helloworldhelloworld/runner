@@ -7,6 +7,7 @@ import com.lightweightai.kernel.instruction.ProviderAdapterFactory;
 import com.lightweightai.kernel.instruction.claude.ClaudeSkillAdapter;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.claude.ClaudeProvider;
+import com.lightweightai.kernel.llm.claude.ClaudeProProvider;
 import com.lightweightai.kernel.plugin.FunctionResult;
 import com.lightweightai.kernel.skill.Skill;
 import com.lightweightai.kernel.skill.SkillLoader;
@@ -30,20 +31,57 @@ public class AgentConfig {
     @Value("${app.mock-mode:true}")
     private boolean mockMode;
 
+    @Value("${app.provider-type:mock}")
+    private String providerType;
+
     @Value("${app.claude.api-key:}")
     private String claudeApiKey;
 
     @Value("${app.claude.model:claude-3-5-sonnet-20241022}")
     private String claudeModel;
 
+    @Value("${app.claude.session-key:}")
+    private String claudeSessionKey;
+
+    @Value("${app.claude.organization-id:}")
+    private String claudeOrgId;
+
     @Bean
     public LLMProvider llmProvider() {
-        if (mockMode || claudeApiKey == null || claudeApiKey.isEmpty()) {
+        // 优先使用provider-type配置
+        String type = providerType.toLowerCase();
+
+        // 如果是旧配置（mock-mode），兼容处理
+        if (mockMode && type.equals("mock")) {
             logger.info("Using Mock LLM Provider (no API key configured)");
             return new MockLLMProvider();
-        } else {
-            logger.info("Using Claude LLM Provider with model: {}", claudeModel);
-            return new ClaudeProvider(claudeApiKey, claudeModel);
+        }
+
+        switch (type) {
+            case "pro":
+                if (claudeSessionKey == null || claudeSessionKey.isEmpty()) {
+                    logger.warn("Claude Pro mode selected but no session key provided, falling back to Mock");
+                    return new MockLLMProvider();
+                }
+                logger.info("Using Claude Pro Provider (session-based, using Pro member account)");
+                ClaudeProProvider proProvider = new ClaudeProProvider(claudeSessionKey);
+                if (claudeOrgId != null && !claudeOrgId.isEmpty()) {
+                    proProvider.setOrganizationId(claudeOrgId);
+                }
+                return proProvider;
+
+            case "api":
+                if (claudeApiKey == null || claudeApiKey.isEmpty()) {
+                    logger.warn("API mode selected but no API key provided, falling back to Mock");
+                    return new MockLLMProvider();
+                }
+                logger.info("Using Claude API Provider with model: {}", claudeModel);
+                return new ClaudeProvider(claudeApiKey, claudeModel);
+
+            case "mock":
+            default:
+                logger.info("Using Mock LLM Provider");
+                return new MockLLMProvider();
         }
     }
 
