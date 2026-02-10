@@ -13,6 +13,7 @@ public class ChatRequest {
     private Map<String, Object> options;
     private String sessionId;
     private boolean soulComfortMode;
+    private String model;  // Dynamic model selection (e.g., "anthropic/claude-3.5-sonnet", "openai/gpt-4-turbo")
 
     public String getMessage() {
         return message;
@@ -60,5 +61,13 @@ public class ChatRequest {
 
     public void setSoulComfortMode(boolean soulComfortMode) {
         this.soulComfortMode = soulComfortMode;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
     }
 }
