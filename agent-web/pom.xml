@@ -27,12 +27,18 @@
             <artifactId>agent-sdk</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.lightweightai</groupId>
+            <artifactId>kernel-memory</artifactId>
+        </dependency>
+
         <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- WebSocket Support for Streaming -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>

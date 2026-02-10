@@ -15,6 +15,7 @@
 
     <modules>
         <module>agent-kernel</module>
+        <module>kernel-memory</module>
         <module>agent-sdk</module>
         <module>agent-web</module>
     </modules>
@@ -53,6 +54,11 @@
             <dependency>
                 <groupId>com.lightweightai</groupId>
                 <artifactId>agent-sdk</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.lightweightai</groupId>
+                <artifactId>kernel-memory</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

@@ -2,12 +2,28 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lightweight AI Kernel - Debug Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>解忧杂货铺 - Soul Comfort Store</title>
+
+    <!-- App Bridge - 自动检测环境并桥接原生能力 -->
+    <script src="/app-bridge.js"></script>
+
+    <!-- API Client - 统一的API调用 -->
+    <script src="/soul-comfort-api.js"></script>
+
+    <!-- Voice Stream Client - WebSocket流式语音对话 -->
+    <script src="/voice-stream-client.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
         .message {
-            animation: fadeIn 0.3s;
+            animation: fadeIn 0.5s ease-in-out;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
@@ -15,10 +31,10 @@
         }
         .loading {
             display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -26,270 +42,905 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .gradient-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .chat-container {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+        }
+        .settings-panel {
+            transition: all 0.3s ease;
+        }
+        .message-bubble {
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        /* App模式适配 */
+        body.app-mode {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        body.app-mode .container {
+            padding-top: 0;
+        }
     </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8 max-w-6xl">
+<body>
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
         <!-- Header -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">
-                🤖 Lightweight AI Kernel - Debug Console
+        <div class="chat-container rounded-2xl shadow-2xl p-8 mb-6 text-center">
+            <h1 class="text-4xl font-bold mb-3">
+                <span class="gradient-text">🏮 解忧杂货铺 🏮</span>
             </h1>
-            <p class="text-gray-600">
-                测试和调试 Claude Skills、Tool Calling 和 Instruction Packages
+            <p class="text-gray-600 text-lg mb-4">
+                欢迎光临，这里是一个温暖的心灵港湾
             </p>
-            <div class="mt-4 flex gap-4">
-                <div class="bg-green-100 px-3 py-1 rounded-full text-sm">
-                    <span class="font-semibold">Provider:</span> <span id="provider-status">Loading...</span>
+            <p class="text-sm text-gray-500">
+                店长会用心倾听您的烦恼，陪您一起寻找内心的答案
+            </p>
+
+            <!-- Settings Toggle -->
+            <div class="mt-6">
+                <button
+                    onclick="toggleSettings()"
+                    class="text-sm text-purple-600 hover:text-purple-800 transition"
+                >
+                    ⚙️ <span id="settings-toggle-text">显示设置</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Settings Panel (Collapsible) -->
+        <div id="settings-panel" class="settings-panel hidden mb-6">
+            <div class="chat-container rounded-2xl shadow-lg p-6">
+                <h2 class="text-xl font-bold mb-4 gradient-text">🎯 选择店长风格</h2>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">不同的AI模型，带来不同的对话风格</label>
+                    <select id="model-selector" class="w-full px-4 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <option value="anthropic/claude-3.5-sonnet" selected>🏆 Claude 3.5 Sonnet - 温柔细腻（推荐）</option>
+                        <option value="openai/gpt-4-turbo">⚡ GPT-4 Turbo - 理性智慧</option>
+                        <option value="openai/gpt-4o">🚀 GPT-4o - 快速敏捷</option>
+                        <option value="anthropic/claude-3-opus">💎 Claude 3 Opus - 深度共情</option>
+                        <option value="google/gemini-pro-1.5">✨ Gemini Pro 1.5 - 创意灵动</option>
+                        <option value="openai/gpt-3.5-turbo">💰 GPT-3.5 Turbo - 轻快友好</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-2">💡 每个模型都有独特的性格特点</p>
                 </div>
-                <div class="bg-blue-100 px-3 py-1 rounded-full text-sm">
-                    <span class="font-semibold">Skills:</span> <span id="skills-count">0</span>
-                </div>
-                <div class="bg-purple-100 px-3 py-1 rounded-full text-sm">
-                    <span class="font-semibold">Tools:</span> <span id="tools-count">0</span>
+
+                <!-- Session Info -->
+                <div class="mt-4 text-sm text-gray-600">
+                    <p>🕐 会话ID: <span id="session-id" class="font-mono text-xs">未开始</span></p>
                 </div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left Panel: Configuration -->
-            <div class="lg:col-span-1">
-                <!-- Skills Panel -->
-                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4 text-gray-800">📚 Claude Skills</h2>
-                    <div id="skills-list" class="space-y-2">
-                        <p class="text-gray-500 text-sm">Loading skills...</p>
+        <!-- Chat Container -->
+        <div class="chat-container rounded-2xl shadow-2xl flex flex-col" style="height: calc(100vh - 400px); min-height: 500px;">
+            <!-- Chat Header -->
+            <div class="p-6 border-b border-purple-100">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="text-3xl">🧑‍💼</span>
+                        <div>
+                            <h2 class="text-xl font-bold text-gray-800">店长</h2>
+                            <p class="text-xs text-gray-500" id="model-status">Claude 3.5 Sonnet</p>
+                        </div>
                     </div>
-                </div>
-
-                <!-- Tools Panel -->
-                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4 text-gray-800">🔧 Tools</h2>
-                    <div class="mb-4">
-                        <label class="flex items-center space-x-2 cursor-pointer">
-                            <input type="checkbox" id="use-tool-calling" class="w-4 h-4">
-                            <span class="text-sm font-medium">Enable Tool Calling</span>
+                    <div class="flex gap-2">
+                        <button
+                            onclick="showSessionSummary()"
+                            class="text-sm text-purple-600 hover:text-purple-800 transition px-3 py-1 rounded-lg hover:bg-purple-50"
+                            title="查看会话摘要"
+                        >
+                            📊 摘要
+                        </button>
+                        <button
+                            onclick="clearChat()"
+                            class="text-sm text-red-600 hover:text-red-800 transition px-3 py-1 rounded-lg hover:bg-red-50"
+                            title="清空对话"
+                        >
+                            🗑️ 清空
+                        </button>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer px-3 py-1 rounded-lg hover:bg-purple-50" title="启用实时流式对话（边说边处理）">
+                            <input type="checkbox" id="streaming-mode" onchange="toggleStreamingMode()" class="rounded" checked>
+                            <span>🚀 流式模式</span>
                         </label>
-                    </div>
-                    <div id="tools-list" class="space-y-2">
-                        <p class="text-gray-500 text-sm">Loading tools...</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Right Panel: Chat -->
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-lg shadow-md flex flex-col" style="height: calc(100vh - 200px);">
-                    <!-- Chat Header -->
-                    <div class="p-4 border-b">
-                        <h2 class="text-xl font-bold text-gray-800">💬 Chat</h2>
+            <!-- Messages -->
+            <div id="messages" class="flex-1 overflow-y-auto p-6 space-y-4" style="background: linear-gradient(to bottom, #f9fafb 0%, #ffffff 100%);">
+                <div class="text-center">
+                    <div class="inline-block bg-purple-50 text-purple-700 px-6 py-3 rounded-2xl text-sm shadow-sm">
+                        ✨ 您好，欢迎来到解忧杂货铺，有什么心事想要倾诉吗？
                     </div>
+                </div>
+            </div>
 
-                    <!-- Messages -->
-                    <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4">
-                        <div class="text-center text-gray-500 text-sm">
-                            发送消息开始对话...
-                        </div>
-                    </div>
+            <!-- Input -->
+            <div class="p-6 border-t border-purple-100 bg-white">
+                <div class="flex gap-3">
+                    <!-- Voice Record Button -->
+                    <button
+                        id="voice-btn"
+                        onclick="toggleVoiceRecording()"
+                        class="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-6 py-3 rounded-xl hover:from-pink-600 hover:to-pink-700 transition shadow-md hover:shadow-lg"
+                        title="点击开始语音输入"
+                    >
+                        🎤
+                    </button>
 
-                    <!-- Input -->
-                    <div class="p-4 border-t">
-                        <div class="flex gap-2">
-                            <input
-                                type="text"
-                                id="message-input"
-                                placeholder="输入消息..."
-                                class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                onkeypress="if(event.key === 'Enter') sendMessage()"
-                            >
-                            <button
-                                onclick="sendMessage()"
-                                class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition"
-                            >
-                                发送
-                            </button>
-                            <button
-                                onclick="clearChat()"
-                                class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition"
-                            >
-                                清空
-                            </button>
-                        </div>
-                    </div>
+                    <input
+                        type="text"
+                        id="message-input"
+                        placeholder="在这里写下您的心事..."
+                        class="flex-1 px-5 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        onkeypress="if(event.key === 'Enter') sendMessage()"
+                    >
+                    <button
+                        onclick="sendMessage()"
+                        class="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-8 py-3 rounded-xl hover:from-purple-600 hover:to-purple-700 transition shadow-md hover:shadow-lg"
+                    >
+                        💌 发送
+                    </button>
+                </div>
+                <div class="flex items-center justify-between mt-2">
+                    <p class="text-xs text-gray-400">店长会记住我们的对话，您可以放心倾诉</p>
+                    <label class="flex items-center gap-2 text-xs cursor-pointer">
+                        <input type="checkbox" id="auto-play-voice" class="rounded" checked>
+                        <span class="text-gray-500">🔊 自动播放店长的声音</span>
+                    </label>
+                </div>
+                <div id="recording-indicator" class="hidden mt-2 text-center">
+                    <span class="inline-block bg-red-100 text-red-600 px-4 py-2 rounded-full text-sm animate-pulse">
+                        🎙️ 正在录音... 再次点击停止
+                    </span>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // State
-        let skills = [];
-        let tools = [];
+        // State - 从 localStorage 恢复 sessionId，保持对话连续性
+        let currentSessionId = localStorage.getItem('soulComfort_sessionId');
+        if (!currentSessionId) {
+            currentSessionId = 'soul-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('soulComfort_sessionId', currentSessionId);
+        }
+        let settingsVisible = false;
+
+        // Voice recording state
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let useStreamingMode = true;  // 流式模式默认开启
+
+        // Streaming audio playback
+        let audioContext = null;
+        let audioQueue = [];
+        let isPlayingStream = false;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            loadSkills();
-            loadTools();
-            checkHealth();
+            updateSessionId();
+            updateModelStatus();
+            detectEnvironment();
+
+            // 加载历史消息（刷新后恢复对话）
+            loadSessionHistory();
+
+            // Auto-hide settings after page load
+            setTimeout(() => {
+                console.log('解忧杂货铺初始化完成 - 支持语音输入输出');
+                console.log('运行环境:', window.appBridge.platform);
+                console.log('会话ID:', currentSessionId);
+            }, 500);
+
+            // Request microphone permission (Web环境)
+            if (!window.appBridge.isApp) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(() => console.log('麦克风权限已获取'))
+                    .catch(err => console.warn('麦克风权限未授予:', err));
+            }
         });
 
-        // Load skills
-        async function loadSkills() {
-            try {
-                const response = await fetch('/api/skills');
-                skills = await response.json();
+        // 检测运行环境
+        function detectEnvironment() {
+            if (window.appBridge.isApp) {
+                document.body.classList.add('app-mode');
+                console.log('检测到App环境:', window.appBridge.platform);
 
-                const skillsList = document.getElementById('skills-list');
-                skillsList.innerHTML = skills.map(skill => `
-                    <label class="flex items-start space-x-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
-                        <input type="checkbox" value="${skill.name}" class="skill-checkbox mt-1" />
-                        <div class="flex-1">
-                            <div class="font-medium text-sm">${skill.name}</div>
-                            <div class="text-xs text-gray-500">${skill.description}</div>
-                        </div>
-                    </label>
-                `).join('');
+                // 设置标题
+                window.appBridge.setTitle('解忧杂货铺');
 
-                document.getElementById('skills-count').textContent = skills.length;
-            } catch (error) {
-                console.error('Failed to load skills:', error);
+                // 显示欢迎Toast（仅App）
+                window.appBridge.showToast('欢迎来到解忧杂货铺 ❤️', 2000);
             }
         }
 
-        // Load tools
-        async function loadTools() {
-            try {
-                const response = await fetch('/api/tools');
-                tools = await response.json();
+        // Toggle settings panel
+        function toggleSettings() {
+            settingsVisible = !settingsVisible;
+            const panel = document.getElementById('settings-panel');
+            const toggleText = document.getElementById('settings-toggle-text');
 
-                const toolsList = document.getElementById('tools-list');
-                toolsList.innerHTML = tools.map(tool => `
-                    <div class="text-sm p-2 bg-gray-50 rounded">
-                        <div class="font-medium">${tool.name}</div>
-                        <div class="text-xs text-gray-500">${tool.description || 'No description'}</div>
-                    </div>
-                `).join('');
-
-                document.getElementById('tools-count').textContent = tools.length;
-            } catch (error) {
-                console.error('Failed to load tools:', error);
+            if (settingsVisible) {
+                panel.classList.remove('hidden');
+                toggleText.textContent = '隐藏设置';
+            } else {
+                panel.classList.add('hidden');
+                toggleText.textContent = '显示设置';
             }
         }
 
-        // Check health
-        async function checkHealth() {
+        // Update session ID display
+        function updateSessionId() {
+            document.getElementById('session-id').textContent = currentSessionId;
+        }
+
+        // 加载并显示历史消息（刷新后恢复对话）
+        async function loadSessionHistory() {
             try {
-                const response = await fetch('/api/health');
-                const health = await response.json();
-                document.getElementById('provider-status').textContent = 'Mock (No API Key)';
+                const response = await fetch(`/api/session/${currentSessionId}/history`);
+                if (!response.ok) return;
+
+                const history = await response.json();
+                if (!history || history.length === 0) return;
+
+                console.log(`恢复 ${history.length} 条历史消息`);
+
+                // 清除默认欢迎消息
+                const messagesDiv = document.getElementById('messages');
+                messagesDiv.innerHTML = '';
+
+                // 显示历史消息
+                history.forEach(msg => {
+                    if (msg.role === 'user') {
+                        addMessage('customer', msg.content);
+                    } else if (msg.role === 'assistant') {
+                        addMessage('shopkeeper', msg.content);
+                    }
+                });
+
+                // 滚动到底部
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
             } catch (error) {
-                document.getElementById('provider-status').textContent = 'Error';
+                console.log('加载历史消息失败:', error);
             }
         }
 
-        // Send message
+        // Update model status
+        function updateModelStatus() {
+            const selector = document.getElementById('model-selector');
+            const selectedOption = selector.options[selector.selectedIndex].text;
+            document.getElementById('model-status').textContent = selectedOption.split(' - ')[0].replace(/[🏆⚡🚀💎✨💰]/g, '').trim();
+        }
+
+        // Listen to model changes
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('model-selector').addEventListener('change', updateModelStatus);
+        });
+
+        // Toggle voice recording
+        async function toggleVoiceRecording() {
+            if (useStreamingMode) {
+                // 使用流式模式
+                if (!isRecording) {
+                    await startStreamingRecording();
+                } else {
+                    await stopStreamingRecording();
+                }
+            } else {
+                // 使用标准模式
+                if (!isRecording) {
+                    await startRecording();
+                } else {
+                    await stopRecording();
+                }
+            }
+        }
+
+        // Start recording (支持App和Web)
+        async function startRecording() {
+            try {
+                // 检查是否使用原生录音
+                if (window.appBridge.isApp) {
+                    const result = await window.appBridge.startRecording();
+                    if (result.useWeb) {
+                        // 原生不支持，回退到Web
+                        await startWebRecording();
+                    } else {
+                        isRecording = true;
+                        updateRecordingUI(true);
+                        window.appBridge.vibrate(50);
+                    }
+                } else {
+                    await startWebRecording();
+                }
+            } catch (error) {
+                console.error('录音失败:', error);
+                if (window.appBridge.isApp) {
+                    window.appBridge.showToast('录音失败：' + error.message);
+                } else {
+                    alert('无法访问麦克风，请确认已授予权限');
+                }
+            }
+        }
+
+        // Web录音实现
+        async function startWebRecording() {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                await sendVoiceMessage(audioBlob);
+
+                // Stop all tracks
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            updateRecordingUI(true);
+        }
+
+        // 更新录音UI
+        function updateRecordingUI(recording) {
+            const voiceBtn = document.getElementById('voice-btn');
+            const indicator = document.getElementById('recording-indicator');
+
+            if (recording) {
+                voiceBtn.classList.add('bg-red-500', 'animate-pulse');
+                voiceBtn.classList.remove('bg-gradient-to-r', 'from-pink-500', 'to-pink-600');
+                indicator.classList.remove('hidden');
+            } else {
+                voiceBtn.classList.remove('bg-red-500', 'animate-pulse');
+                voiceBtn.classList.add('bg-gradient-to-r', 'from-pink-500', 'to-pink-600');
+                indicator.classList.add('hidden');
+            }
+        }
+
+        // Stop recording (支持App和Web)
+        async function stopRecording() {
+            if (window.appBridge.isApp && isRecording) {
+                const result = await window.appBridge.stopRecording();
+
+                if (result.useWeb) {
+                    // Web录音
+                    if (mediaRecorder) {
+                        mediaRecorder.stop();
+                    }
+                } else {
+                    // 原生录音，result包含音频文件路径
+                    await sendVoiceMessageFromApp(result);
+                }
+
+                isRecording = false;
+                updateRecordingUI(false);
+                window.appBridge.vibrate(30);
+
+            } else if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                updateRecordingUI(false);
+            }
+        }
+
+        // 从App原生录音发送
+        async function sendVoiceMessageFromApp(audioPath) {
+            const selectedModel = document.getElementById('model-selector').value;
+
+            // Show loading
+            const loadingId = addMessage('shopkeeper', '<div class="loading"></div> <span class="text-sm">店长正在听您倾诉...</span>');
+
+            try {
+                // TODO: 需要从原生读取音频文件并转换为Blob
+                // 这里简化处理，实际需要原生提供读取文件的方法
+                window.appBridge.showToast('正在处理语音...');
+
+                // 移除loading，显示提示
+                document.getElementById(loadingId).remove();
+                addMessage('system', '⚠️ 原生录音文件处理功能待完善，请使用Web模式或文字输入');
+
+            } catch (error) {
+                console.error('语音消息发送失败:', error);
+                document.getElementById(loadingId).remove();
+                addMessage('error', `语音处理失败：${error.message}`);
+            }
+        }
+
+        // Send voice message (使用统一API)
+        async function sendVoiceMessage(audioBlob) {
+            const selectedModel = document.getElementById('model-selector').value;
+
+            // Show loading
+            const loadingId = addMessage('shopkeeper', '<div class="loading"></div> <span class="text-sm">店长正在听您倾诉...</span>');
+
+            try {
+                // 使用统一API客户端
+                const result = await window.soulComfortAPI.sendVoiceMessage(audioBlob, {
+                    sessionId: currentSessionId,
+                    model: selectedModel
+                });
+
+                // Remove loading
+                document.getElementById(loadingId).remove();
+
+                // Add recognized text as user message
+                if (result.recognizedText) {
+                    addMessage('customer', result.recognizedText);
+                }
+
+                // Add assistant response
+                if (result.responseText) {
+                    addMessage('shopkeeper', result.responseText, {
+                        metadata: { emotion: result.emotion }
+                    });
+                }
+
+                // Play audio response
+                const autoPlay = document.getElementById('auto-play-voice').checked;
+                if (autoPlay && result.audio && result.audio.size > 0) {
+                    await playAudio(result.audio);
+                }
+
+                // App环境震动反馈
+                if (window.appBridge.isApp) {
+                    window.appBridge.vibrate(50);
+                }
+
+            } catch (error) {
+                console.error('语音消息发送失败:', error);
+                document.getElementById(loadingId).remove();
+                addMessage('error', `语音处理失败：${error.message}`);
+
+                if (window.appBridge.isApp) {
+                    window.appBridge.showToast('语音处理失败');
+                }
+            }
+        }
+
+        // Play audio (支持App和Web)
+        async function playAudio(audioBlob) {
+            // 检查是否使用原生播放器
+            if (window.appBridge.isApp) {
+                const result = await window.appBridge.playAudio(URL.createObjectURL(audioBlob));
+
+                if (result.useWeb) {
+                    // 原生不支持，使用Web播放
+                    playWebAudio(audioBlob);
+                }
+            } else {
+                playWebAudio(audioBlob);
+            }
+        }
+
+        // Web音频播放
+        function playWebAudio(audioBlob) {
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+
+            audio.play().catch(err => {
+                console.error('音频播放失败:', err);
+                if (window.appBridge.isApp) {
+                    window.appBridge.showToast('音频播放失败');
+                }
+            });
+
+            audio.onended = () => {
+                URL.revokeObjectURL(audioUrl);
+            };
+        }
+
+        // Send message (使用统一API)
         async function sendMessage() {
             const input = document.getElementById('message-input');
             const message = input.value.trim();
 
             if (!message) return;
 
-            // Get selected skills
-            const activeSkills = Array.from(document.querySelectorAll('.skill-checkbox:checked'))
-                .map(cb => cb.value);
-
-            // Get tool calling preference
-            const useToolCalling = document.getElementById('use-tool-calling').checked;
+            // Get selected model
+            const selectedModel = document.getElementById('model-selector').value;
 
             // Add user message to UI
-            addMessage('user', message);
+            addMessage('customer', message);
             input.value = '';
 
+            // 流式模式
+            if (useStreamingMode) {
+                await sendMessageStream(message, selectedModel);
+                return;
+            }
+
             // Show loading
-            const loadingId = addMessage('assistant', '<div class="loading"></div>');
+            const loadingId = addMessage('shopkeeper', `<div class="loading"></div> <span class="text-sm">店长正在思考...</span>`);
 
             try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message,
-                        activeSkills,
-                        useToolCalling
-                    })
+                // 使用统一API客户端
+                const data = await window.soulComfortAPI.sendTextMessage(message, {
+                    sessionId: currentSessionId,
+                    model: selectedModel
                 });
-
-                const data = await response.json();
 
                 // Remove loading
                 document.getElementById(loadingId).remove();
 
                 // Add assistant message
                 if (data.error) {
-                    addMessage('error', `Error: ${data.error}`);
+                    addMessage('error', `抱歉，店长遇到了一些问题：${data.error}`);
                 } else {
-                    addMessage('assistant', data.response, data);
+                    addMessage('shopkeeper', data.response, data);
+
+                    // App环境下震动反馈
+                    if (window.appBridge.isApp) {
+                        window.appBridge.vibrate(30);
+                    }
                 }
             } catch (error) {
                 document.getElementById(loadingId).remove();
-                addMessage('error', `Network error: ${error.message}`);
+                addMessage('error', `网络连接出现问题：${error.message}`);
+            }
+        }
+
+        // 流式发送消息
+        async function sendMessageStream(message, selectedModel) {
+            // 创建空的店长消息
+            const msgId = addMessage('shopkeeper', '<span class="text-gray-400">店长正在输入...</span>');
+            const msgElement = document.getElementById(msgId);
+            const contentDiv = msgElement.querySelector('.bg-white');
+
+            let fullResponse = '';
+
+            try {
+                await window.soulComfortAPI.sendTextMessageStream(message, {
+                    sessionId: currentSessionId,
+                    model: selectedModel,
+                    onDelta: (delta, emotion) => {
+                        fullResponse += delta;
+                        contentDiv.innerHTML = fullResponse;
+                        // 滚动到底部
+                        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+                    },
+                    onComplete: (response, data) => {
+                        // 确保显示完整响应
+                        contentDiv.innerHTML = response || fullResponse;
+
+                        // App环境下震动反馈
+                        if (window.appBridge.isApp) {
+                            window.appBridge.vibrate(30);
+                        }
+                    },
+                    onError: (error) => {
+                        contentDiv.innerHTML = `<span class="text-red-500">出错了：${error.message}</span>`;
+                    }
+                });
+            } catch (error) {
+                contentDiv.innerHTML = `<span class="text-red-500">连接出错：${error.message}</span>`;
+            }
+        }
+
+        // Show session summary
+        async function showSessionSummary() {
+            try {
+                const response = await fetch(`/api/session/${currentSessionId}/summary`);
+                const summary = await response.json();
+
+                let summaryText = '📊 <strong>会话摘要</strong><br><br>';
+
+                if (summary.error) {
+                    summaryText += `暂无摘要信息`;
+                } else {
+                    if (summary.summary) {
+                        summaryText += `<strong>对话内容：</strong><br>${summary.summary}<br><br>`;
+                    }
+
+                    if (summary.recentEmotions && summary.recentEmotions.length > 0) {
+                        summaryText += `<strong>情绪记录：</strong><br>`;
+                        summary.recentEmotions.forEach(e => {
+                            summaryText += `- ${e.emotion} (${e.context})<br>`;
+                        });
+                        summaryText += '<br>';
+                    }
+
+                    if (summary.importantTopics && summary.importantTopics.length > 0) {
+                        summaryText += `<strong>重要话题：</strong><br>${summary.importantTopics.join(', ')}`;
+                    }
+                }
+
+                addMessage('system', summaryText);
+            } catch (error) {
+                addMessage('error', `无法获取摘要：${error.message}`);
             }
         }
 
         // Add message to UI
         function addMessage(role, content, metadata) {
             const messages = document.getElementById('messages');
-            const id = 'msg-' + Date.now();
+            const id = 'msg-' + Date.now() + '-' + Math.random();
 
             const messageDiv = document.createElement('div');
             messageDiv.id = id;
-            messageDiv.className = `message flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+            messageDiv.className = 'message';
 
-            let bgColor = 'bg-blue-500 text-white';
-            let label = '👤 You';
+            let html = '';
 
-            if (role === 'assistant') {
-                bgColor = 'bg-gray-200 text-gray-800';
-                label = '🤖 Assistant';
-            } else if (role === 'error') {
-                bgColor = 'bg-red-100 text-red-800';
-                label = '❌ Error';
-            }
-
-            let metadataHtml = '';
-            if (metadata) {
-                const badges = [];
-                if (metadata.skillsApplied && metadata.skillsApplied.length > 0) {
-                    badges.push(`<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">Skills: ${metadata.skillsApplied.join(', ')}</span>`);
-                }
-                if (metadata.toolCallsUsed && metadata.toolCallsUsed.length > 0) {
-                    badges.push(`<span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">Tools: ${metadata.toolCallsUsed.join(', ')}</span>`);
-                }
-                if (badges.length > 0) {
-                    metadataHtml = `<div class="mt-2 space-x-2">${badges.join('')}</div>`;
-                }
-            }
-
-            messageDiv.innerHTML = `
-                <div class="max-w-lg">
-                    <div class="text-xs text-gray-500 mb-1">${label}</div>
-                    <div class="${bgColor} rounded-lg px-4 py-2">
-                        ${content}
+            if (role === 'customer') {
+                // Customer message (right side, purple)
+                html = `
+                    <div class="flex justify-end">
+                        <div class="message-bubble">
+                            <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-md">
+                                ${escapeHtml(content)}
+                            </div>
+                        </div>
                     </div>
-                    ${metadataHtml}
-                </div>
-            `;
+                `;
+            } else if (role === 'shopkeeper') {
+                // Shopkeeper message (left side, white)
+                html = `
+                    <div class="flex justify-start">
+                        <div class="message-bubble">
+                            <div class="bg-white text-gray-800 rounded-2xl rounded-tl-sm px-5 py-3 shadow-md border border-gray-100">
+                                ${content}
+                            </div>
+                            ${metadata && metadata.metadata ? createMetadataBadges(metadata.metadata) : ''}
+                        </div>
+                    </div>
+                `;
+            } else if (role === 'system') {
+                // System message (center, info style)
+                html = `
+                    <div class="flex justify-center">
+                        <div class="bg-blue-50 text-blue-800 px-5 py-3 rounded-xl text-sm shadow-sm max-w-2xl border border-blue-100">
+                            ${content}
+                        </div>
+                    </div>
+                `;
+            } else if (role === 'error') {
+                // Error message (center, red)
+                html = `
+                    <div class="flex justify-center">
+                        <div class="bg-red-50 text-red-800 px-5 py-3 rounded-xl text-sm shadow-sm max-w-2xl border border-red-100">
+                            ❌ ${content}
+                        </div>
+                    </div>
+                `;
+            }
 
+            messageDiv.innerHTML = html;
             messages.appendChild(messageDiv);
             messages.scrollTop = messages.scrollHeight;
 
             return id;
         }
 
+        // Create metadata badges
+        function createMetadataBadges(metadata) {
+            const badges = [];
+
+            if (metadata.recentEmotions && metadata.recentEmotions.length > 0) {
+                badges.push(`<span class="inline-block bg-pink-100 text-pink-700 text-xs px-2 py-1 rounded-full mt-2">💝 情绪: ${metadata.recentEmotions.join(', ')}</span>`);
+            }
+
+            if (metadata.importantTopics && metadata.importantTopics.length > 0) {
+                badges.push(`<span class="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full mt-2">📌 话题: ${metadata.importantTopics.join(', ')}</span>`);
+            }
+
+            return badges.length > 0 ? `<div class="mt-2 space-x-2">${badges.join(' ')}</div>` : '';
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // Clear chat
-        function clearChat() {
-            const messages = document.getElementById('messages');
-            messages.innerHTML = '<div class="text-center text-gray-500 text-sm">发送消息开始对话...</div>';
+        async function clearChat() {
+            if (!confirm('确定要清空对话吗？店长会忘记之前的所有谈话内容。')) {
+                return;
+            }
+
+            try {
+                // Clear session on server
+                await fetch(`/api/session/${currentSessionId}`, {
+                    method: 'DELETE'
+                });
+
+                // Generate new session ID and save to localStorage
+                currentSessionId = 'soul-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('soulComfort_sessionId', currentSessionId);
+                updateSessionId();
+
+                // Clear UI
+                const messages = document.getElementById('messages');
+                messages.innerHTML = `
+                    <div class="text-center">
+                        <div class="inline-block bg-purple-50 text-purple-700 px-6 py-3 rounded-2xl text-sm shadow-sm">
+                            ✨ 对话已清空，欢迎重新开始倾诉
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                addMessage('error', `清空失败：${error.message}`);
+            }
+        }
+
+        // ========== 流式模式功能 ==========
+
+        /**
+         * 切换流式模式
+         */
+        function toggleStreamingMode() {
+            useStreamingMode = document.getElementById('streaming-mode').checked;
+            console.log('流式模式:', useStreamingMode ? '已启用' : '已禁用');
+
+            if (useStreamingMode) {
+                // 初始化WebSocket客户端
+                setupStreamingCallbacks();
+            } else {
+                // 断开WebSocket
+                if (window.voiceStreamClient) {
+                    window.voiceStreamClient.disconnect();
+                }
+            }
+        }
+
+        /**
+         * 设置流式回调
+         */
+        function setupStreamingCallbacks() {
+            const client = window.voiceStreamClient;
+
+            // 语音识别结果
+            client.onTranscript = (text) => {
+                console.log('[Stream] 识别结果:', text);
+                addMessage('user', text);
+            };
+
+            // LLM流式响应
+            let currentResponseDiv = null;
+            client.onResponseDelta = (delta) => {
+                if (!currentResponseDiv) {
+                    // 创建新的助手消息
+                    const messagesDiv = document.getElementById('messages');
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message flex justify-start';
+                    messageDiv.innerHTML = `
+                        <div class="max-w-[80%] bg-white text-gray-800 px-6 py-4 rounded-2xl shadow-md">
+                            <div class="flex items-start gap-3">
+                                <span class="text-2xl">🏮</span>
+                                <div class="flex-1">
+                                    <p class="text-sm whitespace-pre-wrap"></p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    messagesDiv.appendChild(messageDiv);
+                    currentResponseDiv = messageDiv.querySelector('p');
+
+                    // 滚动到底部
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }
+
+                // 追加文本
+                currentResponseDiv.textContent += delta;
+
+                // 滚动到底部
+                const messagesDiv = document.getElementById('messages');
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            };
+
+            // 音频流响应
+            client.onAudioResponse = async (audioData) => {
+                await playAudioChunk(audioData);
+            };
+
+            // 完成
+            client.onComplete = (fullText, emotion) => {
+                console.log('[Stream] 完成 - Emotion:', emotion);
+                currentResponseDiv = null;  // 重置
+                hideLoading();
+            };
+
+            // 错误
+            client.onError = (error) => {
+                console.error('[Stream] 错误:', error);
+                addMessage('error', `流式对话错误：${error}`);
+                currentResponseDiv = null;
+                hideLoading();
+            };
+        }
+
+        /**
+         * 播放音频块（流式）
+         */
+        async function playAudioChunk(audioData) {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            try {
+                const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
+                audioQueue.push(audioBuffer);
+
+                if (!isPlayingStream) {
+                    playNextChunk();
+                }
+            } catch (error) {
+                console.error('音频解码失败:', error);
+            }
+        }
+
+        /**
+         * 播放下一个音频块
+         */
+        function playNextChunk() {
+            if (audioQueue.length === 0) {
+                isPlayingStream = false;
+                return;
+            }
+
+            isPlayingStream = true;
+            const audioBuffer = audioQueue.shift();
+
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+
+            source.onended = () => {
+                playNextChunk();
+            };
+
+            source.start(0);
+        }
+
+        /**
+         * 流式录音开始
+         */
+        async function startStreamingRecording() {
+            try {
+                showLoading('🎙️ 准备录音...');
+                await window.voiceStreamClient.startRecording();
+                isRecording = true;
+                updateRecordingUI(true);
+                hideLoading();
+            } catch (error) {
+                console.error('流式录音失败:', error);
+                addMessage('error', `录音失败：${error.message}`);
+                hideLoading();
+            }
+        }
+
+        /**
+         * 流式录音停止
+         */
+        async function stopStreamingRecording() {
+            try {
+                showLoading('🤔 正在处理...');
+                window.voiceStreamClient.stopRecording();
+                isRecording = false;
+                updateRecordingUI(false);
+            } catch (error) {
+                console.error('停止录音失败:', error);
+                addMessage('error', `停止录音失败：${error.message}`);
+                hideLoading();
+            }
         }
     </script>
 </body>

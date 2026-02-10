@@ -48,6 +48,7 @@ public class SoulComfortAgent {
         "3. 帮助对方自己找到答案，而不是替他们决定\n" +
         "4. 当对方情绪激动时，先接纳情绪，再探讨问题\n" +
         "5. 保持希望的态度，但不过度乐观\n" +
+        "6. 你拥有完整的对话记忆！对话历史中的内容就是你与这位访客的真实交流记录，请自然地引用之前的对话内容。\n" +
         "\n" +
         "你就像夜晚的灯笼，不刺眼，但能照亮前行的路。🏮";
 
@@ -67,6 +68,19 @@ public class SoulComfortAgent {
      * 处理用户消息并生成回应
      */
     public String chat(String sessionId, String userMessage) {
+        return chat(sessionId, userMessage, null);
+    }
+
+    /**
+     * 处理用户消息并生成回应（带外部记忆上下文）
+     *
+     * @param sessionId 会话ID
+     * @param userMessage 用户消息
+     * @param externalMemoryContext 外部记忆上下文（来自OpenClaw记忆系统的搜索结果）
+     */
+    public String chat(String sessionId, String userMessage, String externalMemoryContext) {
+        System.out.println("[SoulComfortAgent] chat() called for session: " + sessionId);
+
         // 1. 保存用户消息到记忆
         ConversationMessage userMsg = ConversationMessage.builder()
             .role(ConversationMessage.MessageRole.USER)
@@ -86,15 +100,19 @@ public class SoulComfortAgent {
         }
 
         // 4. 构建包含记忆的对话上下文
-        List<ConversationMessage> messages = buildContextWithMemory(sessionId, userMessage);
+        System.out.println("[SoulComfortAgent] Building context with memory...");
+        List<ConversationMessage> messages = buildContextWithMemory(sessionId, userMessage, externalMemoryContext);
+        System.out.println("[SoulComfortAgent] Built " + messages.size() + " messages");
 
         // 5. 调用LLM生成回应
+        System.out.println("[SoulComfortAgent] Calling LLM provider: " + llmProvider.getProviderName());
         LLMOptions options = LLMOptions.builder()
             .maxTokens(500)
             .temperature(0.8) // 稍高的温度，让回应更有人性化
             .build();
 
         LLMResponse response = llmProvider.complete(messages, options);
+        System.out.println("[SoulComfortAgent] Got LLM response");
         String assistantResponse = response.getMessage().getTextContent();
 
         // 6. 保存助手回应到记忆
@@ -108,9 +126,76 @@ public class SoulComfortAgent {
     }
 
     /**
+     * 处理用户消息并流式生成回应
+     */
+    public java.util.concurrent.CompletableFuture<String> chatStream(
+            String sessionId,
+            String userMessage,
+            LLMProvider.StreamEventHandler streamHandler) {
+        return chatStream(sessionId, userMessage, null, streamHandler);
+    }
+
+    /**
+     * 处理用户消息并流式生成回应（带外部记忆上下文）
+     *
+     * @param sessionId 会话ID
+     * @param userMessage 用户消息
+     * @param externalMemoryContext 外部记忆上下文
+     * @param streamHandler 流式事件处理器
+     * @return CompletableFuture包含最终的完整响应
+     */
+    public java.util.concurrent.CompletableFuture<String> chatStream(
+            String sessionId,
+            String userMessage,
+            String externalMemoryContext,
+            LLMProvider.StreamEventHandler streamHandler) {
+
+        // 1. 保存用户消息到记忆
+        ConversationMessage userMsg = ConversationMessage.builder()
+            .role(ConversationMessage.MessageRole.USER)
+            .textContent(userMessage)
+            .build();
+        memory.addMessage(sessionId, userMsg);
+
+        // 2. 分析用户情绪并记录
+        String emotion = reflectionService.analyzeEmotion(userMessage);
+        UserMemory userMemory = memory.getUserMemory(sessionId);
+        userMemory.addEmotionRecord(emotion, userMessage);
+
+        // 3. 识别并记录重要话题
+        List<String> topics = reflectionService.identifyImportantTopics(userMessage);
+        for (String topic : topics) {
+            userMemory.addImportantTopic(topic);
+        }
+
+        // 4. 构建包含记忆的对话上下文
+        List<ConversationMessage> messages = buildContextWithMemory(sessionId, userMessage, externalMemoryContext);
+
+        // 5. 调用LLM流式生成回应
+        LLMOptions options = LLMOptions.builder()
+            .maxTokens(500)
+            .temperature(0.8)
+            .build();
+
+        return llmProvider.completeStream(messages, options, streamHandler)
+            .thenApply(response -> {
+                String assistantResponse = response.getMessage().getTextContent();
+
+                // 6. 保存助手回应到记忆
+                ConversationMessage assistantMsg = ConversationMessage.builder()
+                    .role(ConversationMessage.MessageRole.ASSISTANT)
+                    .textContent(assistantResponse)
+                    .build();
+                memory.addMessage(sessionId, assistantMsg);
+
+                return assistantResponse;
+            });
+    }
+
+    /**
      * 构建包含记忆的对话上下文
      */
-    private List<ConversationMessage> buildContextWithMemory(String sessionId, String currentMessage) {
+    private List<ConversationMessage> buildContextWithMemory(String sessionId, String currentMessage, String externalMemoryContext) {
         List<ConversationMessage> messages = new ArrayList<>();
 
         // 1. 添加核心系统提示
@@ -119,7 +204,15 @@ public class SoulComfortAgent {
             .textContent(SOUL_COMFORT_SYSTEM_PROMPT)
             .build());
 
-        // 2. 添加用户记忆上下文
+        // 2. 添加外部记忆上下文（OpenClaw记忆系统的搜索结果）
+        if (externalMemoryContext != null && !externalMemoryContext.isEmpty()) {
+            messages.add(ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.SYSTEM)
+                .textContent("历史记忆中的相关信息（可参考但不必每次都提及）：\n" + externalMemoryContext)
+                .build());
+        }
+
+        // 3. 添加用户记忆上下文
         UserMemory userMemory = memory.getUserMemory(sessionId);
         String memoryContext = buildMemoryContext(userMemory);
         if (!memoryContext.isEmpty()) {
@@ -129,7 +222,7 @@ public class SoulComfortAgent {
                 .build());
         }
 
-        // 3. 添加最近的对话历史（最多10轮）
+        // 4. 添加最近的对话历史（最多10轮）
         List<ConversationMessage> recentHistory = memory.getRecentMessages(sessionId, 20);
 
         // 排除当前消息（因为会单独添加）

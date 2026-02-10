@@ -23,7 +23,7 @@ logging:
 # 应用配置
 app:
   mock-mode: true  # 默认使用 mock 模式，不需要真实 API Key
-  provider-type: ${PROVIDER_TYPE:mock}  # 可选: mock, api, pro
+  provider-type: ${PROVIDER_TYPE:mock}  # 可选: mock, api, pro, openrouter
   claude:
     # 官方API配置
     api-key: ${ANTHROPIC_API_KEY:}  # 从环境变量读取，为空则使用 mock
@@ -31,3 +31,19 @@ app:
     # Claude Pro配置（使用网页版会员）
     session-key: ${CLAUDE_SESSION_KEY:}  # 从浏览器Cookie获取的sessionKey
     organization-id: ${CLAUDE_ORG_ID:}  # 可选，会自动获取
+  openrouter:
+    # OpenRouter配置（支持多种模型）
+    api-key: ${OPENROUTER_API_KEY:}  # OpenRouter API Key
+    model: ${OPENROUTER_MODEL:anthropic/claude-3.5-sonnet}  # 模型选择
+  speech:
+    # 语音服务配置
+    provider: ${SPEECH_PROVIDER:openai}  # 可选: azure, openai, mock
+    azure:
+      # Azure Speech Services（推荐中文情感TTS）
+      api-key: ${AZURE_SPEECH_KEY:}
+      region: ${AZURE_SPEECH_REGION:eastasia}  # eastasia, southeastasia
+      voice: ${AZURE_SPEECH_VOICE:zh-CN-XiaoxiaoNeural}  # 晓晓(女声)
+    openai:
+      # OpenAI Speech (Whisper + TTS)
+      api-key: ${OPENAI_SPEECH_KEY:}  # 为空则使用OpenRouter Key
+      voice: ${OPENAI_SPEECH_VOICE:nova}  # nova=温柔, shimmer=活泼, alloy=平衡
