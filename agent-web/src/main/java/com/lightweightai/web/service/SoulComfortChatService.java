@@ -115,7 +115,7 @@ public class SoulComfortChatService {
 
             // 2. 搜索相关记忆（提供上下文）
             List<SearchResult> memoryContext = memoryManager.search(userMessage);
-            String contextInfo = formatMemoryContext(memoryContext);
+            String contextInfo = formatMemoryContext(memoryContext, memoryManager.readDurable());
 
             // 3. 获取对应模型的Agent，并设置观察者
             logger.info("DEBUG: Getting agent for model: {}", model);
@@ -220,7 +220,7 @@ public class SoulComfortChatService {
 
         // 搜索相关记忆
         List<SearchResult> memoryContext = memoryManager.search(message);
-        String contextInfo = formatMemoryContext(memoryContext);
+        String contextInfo = formatMemoryContext(memoryContext, memoryManager.readDurable());
         if (!memoryContext.isEmpty()) {
             logger.debug("Found {} memory items for context", memoryContext.size());
         }
@@ -444,16 +444,28 @@ public class SoulComfortChatService {
     }
 
     private String formatMemoryContext(List<SearchResult> results) {
-        if (results.isEmpty()) {
-            return "";
+        return formatMemoryContext(results, "");
+    }
+
+    private String formatMemoryContext(List<SearchResult> results, String durableMemory) {
+        StringBuilder sb = new StringBuilder();
+
+        // 1. 始终注入 Durable 记忆（用户姓名、关注话题等结构化信息）
+        if (durableMemory != null && !durableMemory.isBlank()) {
+            sb.append("【长期记忆 - 关于这位访客的已知信息】\n");
+            sb.append(summarize(durableMemory, 600)).append("\n\n");
         }
 
-        StringBuilder sb = new StringBuilder("相关记忆:\n");
-        for (int i = 0; i < Math.min(3, results.size()); i++) {
-            SearchResult r = results.get(i);
-            sb.append("- ").append(summarize(r.getSnippet(), 100)).append("\n");
+        // 2. 附加检索到的相关对话片段（top 5）
+        if (!results.isEmpty()) {
+            sb.append("【相关对话记忆】\n");
+            for (int i = 0; i < Math.min(5, results.size()); i++) {
+                SearchResult r = results.get(i);
+                sb.append("- ").append(summarize(r.getSnippet(), 150)).append("\n");
+            }
         }
-        return sb.toString();
+
+        return sb.toString().trim();
     }
 
     private String summarize(String text, int maxLen) {

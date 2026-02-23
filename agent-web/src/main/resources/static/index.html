@@ -671,8 +671,8 @@
             addMessage('customer', message);
             input.value = '';
 
-            // 流式模式
-            if (useStreamingMode) {
+            // 流式模式（debug模式下跳过，使用普通模式以展示调试信息）
+            if (useStreamingMode && !debugMode) {
                 await sendMessageStream(message, selectedModel);
                 return;
             }
