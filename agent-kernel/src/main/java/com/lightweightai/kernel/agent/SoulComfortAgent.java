@@ -24,6 +24,7 @@ public class SoulComfortAgent {
     private final LLMProvider llmProvider;
     private final ConversationMemory memory;
     private final ReflectionService reflectionService;
+    private AgentObserver observer; // 可观测性支持
 
     // 心灵引导的核心系统提示
     private static final String SOUL_COMFORT_SYSTEM_PROMPT =
@@ -65,6 +66,20 @@ public class SoulComfortAgent {
     }
 
     /**
+     * 设置观察者（用于 LLM 调用可观测性）
+     */
+    public void setObserver(AgentObserver observer) {
+        this.observer = observer;
+    }
+
+    /**
+     * 获取当前观察者
+     */
+    public AgentObserver getObserver() {
+        return observer;
+    }
+
+    /**
      * 处理用户消息并生成回应
      */
     public String chat(String sessionId, String userMessage) {
@@ -81,48 +96,75 @@ public class SoulComfortAgent {
     public String chat(String sessionId, String userMessage, String externalMemoryContext) {
         System.out.println("[SoulComfortAgent] chat() called for session: " + sessionId);
 
-        // 1. 保存用户消息到记忆
-        ConversationMessage userMsg = ConversationMessage.builder()
-            .role(ConversationMessage.MessageRole.USER)
-            .textContent(userMessage)
-            .build();
-        memory.addMessage(sessionId, userMsg);
-
-        // 2. 分析用户情绪并记录
-        String emotion = reflectionService.analyzeEmotion(userMessage);
-        UserMemory userMemory = memory.getUserMemory(sessionId);
-        userMemory.addEmotionRecord(emotion, userMessage);
-
-        // 3. 识别并记录重要话题
-        List<String> topics = reflectionService.identifyImportantTopics(userMessage);
-        for (String topic : topics) {
-            userMemory.addImportantTopic(topic);
+        // 通知观察者：Agent 开始
+        if (observer != null) {
+            observer.onAgentStart(userMessage, sessionId);
         }
 
-        // 4. 构建包含记忆的对话上下文
-        System.out.println("[SoulComfortAgent] Building context with memory...");
-        List<ConversationMessage> messages = buildContextWithMemory(sessionId, userMessage, externalMemoryContext);
-        System.out.println("[SoulComfortAgent] Built " + messages.size() + " messages");
+        try {
+            // 1. 保存用户消息到记忆
+            ConversationMessage userMsg = ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.USER)
+                .textContent(userMessage)
+                .build();
+            memory.addMessage(sessionId, userMsg);
 
-        // 5. 调用LLM生成回应
-        System.out.println("[SoulComfortAgent] Calling LLM provider: " + llmProvider.getProviderName());
-        LLMOptions options = LLMOptions.builder()
-            .maxTokens(500)
-            .temperature(0.8) // 稍高的温度，让回应更有人性化
-            .build();
+            // 2. 使用默认情绪（避免额外的 LLM 调用延迟）
+            UserMemory userMemory = memory.getUserMemory(sessionId);
+            String emotion = "温柔"; // 默认情绪
+            userMemory.addEmotionRecord(emotion, userMessage);
 
-        LLMResponse response = llmProvider.complete(messages, options);
-        System.out.println("[SoulComfortAgent] Got LLM response");
-        String assistantResponse = response.getMessage().getTextContent();
+            // 3. 跳过话题识别（避免额外的 LLM 调用延迟）
 
-        // 6. 保存助手回应到记忆
-        ConversationMessage assistantMsg = ConversationMessage.builder()
-            .role(ConversationMessage.MessageRole.ASSISTANT)
-            .textContent(assistantResponse)
-            .build();
-        memory.addMessage(sessionId, assistantMsg);
+            // 4. 构建包含记忆的对话上下文
+            System.out.println("[SoulComfortAgent] Building context with memory...");
+            List<ConversationMessage> messages = buildContextWithMemory(sessionId, userMessage, externalMemoryContext);
+            System.out.println("[SoulComfortAgent] Built " + messages.size() + " messages");
 
-        return assistantResponse;
+            // 通知观察者：LLM 请求
+            if (observer != null) {
+                observer.onLLMRequest(messages);
+            }
+
+            // 5. 调用LLM生成回应
+            System.out.println("[SoulComfortAgent] Calling LLM provider: " + llmProvider.getProviderName());
+            LLMOptions options = LLMOptions.builder()
+                .maxTokens(500)
+                .temperature(0.8) // 稍高的温度，让回应更有人性化
+                .build();
+
+            LLMResponse response = llmProvider.complete(messages, options);
+            System.out.println("[SoulComfortAgent] Got LLM response");
+
+            // 通知观察者：LLM 响应
+            if (observer != null) {
+                observer.onLLMResponse(response);
+            }
+
+            String assistantResponse = response.getMessage().getTextContent();
+
+            // 6. 保存助手回应到记忆
+            ConversationMessage assistantMsg = ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.ASSISTANT)
+                .textContent(assistantResponse)
+                .build();
+            memory.addMessage(sessionId, assistantMsg);
+
+            // 通知观察者：Agent 完成
+            if (observer != null) {
+                AgentResponse agentResponse = AgentResponse.builder().text(assistantResponse).build();
+                observer.onAgentComplete(agentResponse);
+            }
+
+            return assistantResponse;
+
+        } catch (Exception e) {
+            // 通知观察者：错误
+            if (observer != null) {
+                observer.onError(e);
+            }
+            throw e;
+        }
     }
 
     /**
@@ -157,16 +199,13 @@ public class SoulComfortAgent {
             .build();
         memory.addMessage(sessionId, userMsg);
 
-        // 2. 分析用户情绪并记录
-        String emotion = reflectionService.analyzeEmotion(userMessage);
+        // 2. 分析用户情绪并记录（简化处理，避免额外 LLM 调用）
         UserMemory userMemory = memory.getUserMemory(sessionId);
+        String emotion = "温柔"; // 默认情绪，避免额外的 LLM 调用
         userMemory.addEmotionRecord(emotion, userMessage);
 
-        // 3. 识别并记录重要话题
-        List<String> topics = reflectionService.identifyImportantTopics(userMessage);
-        for (String topic : topics) {
-            userMemory.addImportantTopic(topic);
-        }
+        // 3. 跳过话题识别（避免额外 LLM 调用）
+        // 话题可以在主对话中自然处理
 
         // 4. 构建包含记忆的对话上下文
         List<ConversationMessage> messages = buildContextWithMemory(sessionId, userMessage, externalMemoryContext);

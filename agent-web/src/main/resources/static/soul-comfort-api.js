@@ -93,7 +93,8 @@ class SoulComfortAPI {
                 message,
                 sessionId: options.sessionId,
                 model: options.model,
-                soulComfortMode: true
+                soulComfortMode: true,
+                debug: options.debug || false
             })
         });
     }
@@ -260,6 +261,113 @@ class SoulComfortAPI {
      */
     async checkHealth() {
         return this.request('/api/health');
+    }
+
+    // ========== Gateway API (统一入口) ==========
+
+    /**
+     * 通过 Gateway 发送消息（同步）
+     */
+    async gatewaySend(message, options = {}) {
+        return this.request('/gateway/chat', {
+            method: 'POST',
+            body: JSON.stringify({
+                message,
+                session_id: options.sessionId,
+                model: options.model,
+                stream: false,
+                client_type: this.detectClientType(),
+                extra: options.extra
+            })
+        });
+    }
+
+    /**
+     * 通过 Gateway 发送消息（流式）
+     */
+    async gatewaySendStream(message, options = {}) {
+        const url = this.baseURL + '/gateway/chat/stream';
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message,
+                    session_id: options.sessionId,
+                    model: options.model,
+                    stream: true,
+                    client_type: this.detectClientType(),
+                    extra: options.extra
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data:')) {
+                        try {
+                            const data = JSON.parse(line.slice(5).trim());
+
+                            // 统一响应格式
+                            if (data.type === 'DELTA' && options.onDelta) {
+                                options.onDelta(data.content, data.metadata?.emotion);
+                            } else if (data.type === 'COMPLETE' && options.onComplete) {
+                                options.onComplete(data.content, data);
+                            } else if (data.type === 'ERROR' && options.onError) {
+                                options.onError(new Error(data.error_message));
+                            }
+                        } catch (e) {
+                            // Ignore parse errors
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[Gateway] Stream request failed:', error);
+            if (options.onError) {
+                options.onError(error);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * 检测客户端类型
+     */
+    detectClientType() {
+        if (window.appBridge) {
+            if (window.appBridge.platform === 'harmonyos') return 'HARMONYOS';
+            if (window.appBridge.platform === 'ios') return 'IOS';
+            if (window.appBridge.platform === 'android') return 'ANDROID';
+        }
+
+        // 小程序检测
+        if (typeof wx !== 'undefined') return 'MINIPROGRAM';
+
+        return 'WEB';
+    }
+
+    /**
+     * Gateway 健康检查
+     */
+    async gatewayHealth() {
+        return this.request('/gateway/health');
     }
 }
 

@@ -24,6 +24,7 @@ public class ReflectionService {
      * 分析用户情绪
      */
     public String analyzeEmotion(String userMessage) {
+        System.out.println("[ReflectionService] analyzeEmotion called");
         List<ConversationMessage> messages = new ArrayList<>();
 
         // 系统提示
@@ -39,14 +40,19 @@ public class ReflectionService {
             .build());
 
         try {
+            System.out.println("[ReflectionService] Building LLM options...");
             LLMOptions options = LLMOptions.builder()
                 .maxTokens(50)
                 .temperature(0.3)
                 .build();
 
+            System.out.println("[ReflectionService] Calling llmProvider.complete()...");
             LLMResponse response = llmProvider.complete(messages, options);
+            System.out.println("[ReflectionService] Got LLM response");
             return response.getMessage().getTextContent().trim();
         } catch (Exception e) {
+            System.out.println("[ReflectionService] Error: " + e.getMessage());
+            e.printStackTrace();
             return "未知";
         }
     }

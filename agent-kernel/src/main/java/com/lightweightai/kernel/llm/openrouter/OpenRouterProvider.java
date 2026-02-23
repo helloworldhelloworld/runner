@@ -49,6 +49,7 @@ public class OpenRouterProvider implements LLMProvider {
         this.apiKey = apiKey;
         this.model = model;
         // 使用系统默认设置，添加超时
+        // 注意：使用系统代理以避免地区限制
         this.httpClient = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)

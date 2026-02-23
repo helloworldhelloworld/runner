@@ -109,38 +109,8 @@ public class ClaudeProvider implements LLMProvider {
         LLMOptions options,
         StreamEventHandler handler
     ) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                // Build request with streaming enabled
-                String requestBody = buildRequestBody(messages, options, true);
-
-                // Make HTTP request
-                Request request = new Request.Builder()
-                    .url(API_BASE_URL + "/messages")
-                    .header("x-api-key", apiKey)
-                    .header("anthropic-version", API_VERSION)
-                    .header("content-type", "application/json")
-                    .post(RequestBody.create(requestBody, JSON))
-                    .build();
-
-                handler.onStart();
-
-                try (Response response = httpClient.newCall(request).execute()) {
-                    if (!response.isSuccessful()) {
-                        throw new RuntimeException("API call failed: " + response.code() + " " + response.message());
-                    }
-
-                    // Parse SSE stream
-                    LLMResponse finalResponse = parseStreamingResponse(response.body(), handler);
-                    handler.onComplete(finalResponse);
-                    return finalResponse;
-                }
-
-            } catch (Exception e) {
-                handler.onError(e);
-                throw new RuntimeException("Failed to stream from Claude API", e);
-            }
-        });
+        // TODO: Implement streaming
+        throw new UnsupportedOperationException("Streaming not yet implemented");
     }
 
     @Override
@@ -157,13 +127,6 @@ public class ClaudeProvider implements LLMProvider {
      * Build request body for Claude API
      */
     private String buildRequestBody(List<ConversationMessage> messages, LLMOptions options) throws IOException {
-        return buildRequestBody(messages, options, false);
-    }
-
-    /**
-     * Build request body for Claude API with optional streaming
-     */
-    private String buildRequestBody(List<ConversationMessage> messages, LLMOptions options, boolean stream) throws IOException {
         ObjectNode root = objectMapper.createObjectNode();
 
         // Model
@@ -178,11 +141,6 @@ public class ClaudeProvider implements LLMProvider {
         // Temperature
         if (options != null && options.getTemperature() != null) {
             root.put("temperature", options.getTemperature());
-        }
-
-        // Streaming
-        if (stream) {
-            root.put("stream", true);
         }
 
         // System prompt (separate from messages in Claude API)
@@ -309,171 +267,5 @@ public class ClaudeProvider implements LLMProvider {
             .stopReason(stopReason)
             .usage(usageInfo)
             .build();
-    }
-
-    /**
-     * Parse streaming response using Server-Sent Events
-     */
-    private LLMResponse parseStreamingResponse(ResponseBody responseBody, StreamEventHandler handler) throws IOException {
-        StringBuilder textContent = new StringBuilder();
-        List<ToolCall> toolCalls = new ArrayList<>();
-        String stopReason = null;
-        LLMResponse.UsageInfo usageInfo = null;
-
-        // For tracking tool use blocks being built
-        Map<Integer, ToolCallBuilder> toolCallBuilders = new HashMap<>();
-
-        // Parse SSE events line by line
-        try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                new java.io.InputStreamReader(responseBody.byteStream()))) {
-
-            String line;
-            String eventType = null;
-            StringBuilder dataBuilder = new StringBuilder();
-
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith("event: ")) {
-                    // New event type
-                    eventType = line.substring(7).trim();
-                } else if (line.startsWith("data: ")) {
-                    // Event data
-                    dataBuilder.append(line.substring(6));
-                } else if (line.isEmpty() && eventType != null) {
-                    // End of event - process it
-                    String data = dataBuilder.toString();
-                    if (!data.isEmpty()) {
-                        processStreamEvent(eventType, data, textContent, toolCalls,
-                                         toolCallBuilders, handler);
-                    }
-
-                    // Reset for next event
-                    eventType = null;
-                    dataBuilder = new StringBuilder();
-                }
-            }
-        }
-
-        // Build final response
-        ConversationMessage message = ConversationMessage.builder()
-            .role(MessageRole.ASSISTANT)
-            .textContent(textContent.toString())
-            .build();
-
-        return LLMResponse.builder()
-            .message(message)
-            .toolCalls(toolCalls)
-            .stopReason(stopReason)
-            .usage(usageInfo)
-            .build();
-    }
-
-    /**
-     * Process a single SSE event
-     */
-    private void processStreamEvent(
-        String eventType,
-        String data,
-        StringBuilder textContent,
-        List<ToolCall> toolCalls,
-        Map<Integer, ToolCallBuilder> toolCallBuilders,
-        StreamEventHandler handler
-    ) throws IOException {
-        JsonNode eventData = objectMapper.readTree(data);
-
-        switch (eventType) {
-            case "message_start":
-                // Message started - nothing to do
-                break;
-
-            case "content_block_start":
-                // New content block starting
-                int index = eventData.get("index").asInt();
-                JsonNode contentBlock = eventData.get("content_block");
-                String type = contentBlock.get("type").asText();
-
-                if ("tool_use".equals(type)) {
-                    // Start building a tool call
-                    String id = contentBlock.get("id").asText();
-                    String name = contentBlock.get("name").asText();
-                    toolCallBuilders.put(index, new ToolCallBuilder(id, name));
-                }
-                break;
-
-            case "content_block_delta":
-                // Content delta
-                int deltaIndex = eventData.get("index").asInt();
-                JsonNode delta = eventData.get("delta");
-                String deltaType = delta.get("type").asText();
-
-                if ("text_delta".equals(deltaType)) {
-                    // Text content
-                    String text = delta.get("text").asText();
-                    textContent.append(text);
-                    handler.onTextDelta(text);
-                } else if ("input_json_delta".equals(deltaType)) {
-                    // Tool call input delta
-                    String partialJson = delta.get("partial_json").asText();
-                    ToolCallBuilder builder = toolCallBuilders.get(deltaIndex);
-                    if (builder != null) {
-                        builder.appendInput(partialJson);
-                    }
-                }
-                break;
-
-            case "content_block_stop":
-                // Content block finished
-                int stopIndex = eventData.get("index").asInt();
-                ToolCallBuilder builder = toolCallBuilders.get(stopIndex);
-                if (builder != null) {
-                    // Finalize tool call
-                    ToolCall toolCall = builder.build(objectMapper);
-                    toolCalls.add(toolCall);
-                    handler.onToolCallDelta(toolCall);
-                    toolCallBuilders.remove(stopIndex);
-                }
-                break;
-
-            case "message_delta":
-                // Message metadata delta (usually stop_reason)
-                JsonNode messageDelta = eventData.get("delta");
-                if (messageDelta.has("stop_reason")) {
-                    // Stop reason updated
-                }
-                break;
-
-            case "message_stop":
-                // Message complete
-                break;
-
-            default:
-                // Unknown event type - ignore
-                break;
-        }
-    }
-
-    /**
-     * Helper class for building tool calls incrementally
-     */
-    private static class ToolCallBuilder {
-        private final String id;
-        private final String name;
-        private final StringBuilder inputJson = new StringBuilder();
-
-        public ToolCallBuilder(String id, String name) {
-            this.id = id;
-            this.name = name;
-        }
-
-        public void appendInput(String partialJson) {
-            inputJson.append(partialJson);
-        }
-
-        public ToolCall build(ObjectMapper mapper) throws IOException {
-            Map<String, Object> arguments = mapper.readValue(
-                inputJson.toString(),
-                new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {}
-            );
-            return new ToolCall(id, name, arguments);
-        }
     }
 }

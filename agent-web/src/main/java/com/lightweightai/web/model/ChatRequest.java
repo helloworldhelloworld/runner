@@ -14,6 +14,7 @@ public class ChatRequest {
     private String sessionId;
     private boolean soulComfortMode;
     private String model;  // Dynamic model selection (e.g., "anthropic/claude-3.5-sonnet", "openai/gpt-4-turbo")
+    private boolean debug;  // 是否开启调试模式，返回 LLM 请求/响应详情
 
     public String getMessage() {
         return message;
@@ -69,5 +70,13 @@ public class ChatRequest {
 
     public void setModel(String model) {
         this.model = model;
+    }
+
+    public boolean isDebug() {
+        return debug;
+    }
+
+    public void setDebug(boolean debug) {
+        this.debug = debug;
     }
 }

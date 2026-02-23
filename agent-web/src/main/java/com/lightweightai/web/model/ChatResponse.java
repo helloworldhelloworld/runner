@@ -1,5 +1,7 @@
 package com.lightweightai.web.model;
 
+import com.lightweightai.web.observer.DebugInfo;
+
 import java.util.List;
 import java.util.Map;
 
@@ -12,6 +14,9 @@ public class ChatResponse {
     private List<String> skillsApplied;
     private Map<String, Object> metadata;
     private String error;
+
+    // LLM 可观测调试信息（仅在调试模式下返回）
+    private DebugInfo debug;
 
     public static ChatResponse success(String response) {
         ChatResponse resp = new ChatResponse();
@@ -63,5 +68,13 @@ public class ChatResponse {
 
     public void setError(String error) {
         this.error = error;
+    }
+
+    public DebugInfo getDebug() {
+        return debug;
+    }
+
+    public void setDebug(DebugInfo debug) {
+        this.debug = debug;
     }
 }

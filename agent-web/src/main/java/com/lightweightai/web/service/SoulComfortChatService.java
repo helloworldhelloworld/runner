@@ -12,6 +12,8 @@ import com.lightweightai.kernel.memory.queue.LaneQueueManager;
 import com.lightweightai.kernel.memory.tools.MemoryToolkit;
 import com.lightweightai.web.model.ChatRequest;
 import com.lightweightai.web.model.ChatResponse;
+import com.lightweightai.web.observer.DebugAgentObserver;
+import com.lightweightai.web.observer.DebugInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -97,11 +99,15 @@ public class SoulComfortChatService {
     }
 
     private ChatResponse processChatInternal(ChatRequest request, String sessionId) {
+        // 创建调试观察者
+        DebugAgentObserver debugObserver = new DebugAgentObserver();
+        boolean debugMode = request.isDebug(); // 是否开启调试模式（声明在 try 外以便 catch 访问）
+
         try {
             String userMessage = request.getMessage();
             String model = request.getModel();
 
-            logger.info("Processing chat for session: {} with model: {}", sessionId, model);
+            logger.info("Processing chat for session: {} with model: {}, debug: {}", sessionId, model, debugMode);
 
             // 1. 获取或创建会话转录
             SessionTranscript transcript = getOrCreateSession(sessionId);
@@ -111,11 +117,21 @@ public class SoulComfortChatService {
             List<SearchResult> memoryContext = memoryManager.search(userMessage);
             String contextInfo = formatMemoryContext(memoryContext);
 
-            // 3. 获取对应模型的Agent
+            // 3. 获取对应模型的Agent，并设置观察者
+            logger.info("DEBUG: Getting agent for model: {}", model);
             SoulComfortAgent agent = getAgentForModel(model);
+            logger.info("DEBUG: Got agent, setting observer");
+            agent.setObserver(debugObserver);
+            System.out.println("[SERVICE-DEBUG] Observer set, about to call chat()");
+            System.out.flush();
 
             // 4. 使用心灵引导Agent处理消息（注入记忆上下文）
+            logger.info("DEBUG: Calling agent.chat() with contextInfo length: {}", contextInfo != null ? contextInfo.length() : 0);
+            System.out.println("[SERVICE-DEBUG] Calling agent.chat() now...");
+            System.out.flush();
             String response = agent.chat(sessionId, userMessage, contextInfo);
+            System.out.println("[SERVICE-DEBUG] Got response from agent");
+            logger.info("DEBUG: Got response from agent");
 
             // 5. 保存助手响应到转录
             transcript.append(TranscriptEntry.assistantMessage(response));
@@ -164,12 +180,23 @@ public class SoulComfortChatService {
 
             chatResponse.setMetadata(metadata);
 
+            // 添加调试信息（如果开启调试模式）
+            if (debugMode) {
+                chatResponse.setDebug(debugObserver.getDebugInfo());
+            }
+
             logger.info("Chat completed - session: {}, memory context: {} items", sessionId, memoryContext.size());
             return chatResponse;
 
         } catch (Exception e) {
             logger.error("Chat failed", e);
-            return ChatResponse.error(e.getMessage());
+            ChatResponse errorResponse = ChatResponse.error(e.getMessage());
+            // 即使出错也返回调试信息
+            if (debugMode) {
+                debugObserver.onError(e);
+                errorResponse.setDebug(debugObserver.getDebugInfo());
+            }
+            return errorResponse;
         }
     }
 
