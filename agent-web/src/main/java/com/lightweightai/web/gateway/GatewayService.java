@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Gateway 服务层 - 统一入口
@@ -59,6 +60,10 @@ public class GatewayService {
 
     /**
      * 处理聊天请求（流式）
+     *
+     * 修复：链式 thenAccept 在 future 完成后调 callback.onComplete()，
+     * 让 GatewayController 可以发送 COMPLETE 事件并关闭 SSE emitter。
+     * 空 delta（SoulComfortChatService 的内部完成信号）被过滤，不转发给客户端。
      */
     public CompletableFuture<String> chatStream(
             ChatRequest request,
@@ -70,23 +75,77 @@ public class GatewayService {
         logger.info("Gateway stream - mode: {}, session: {}", mode, sessionId);
 
         switch (mode) {
-            case "soul-comfort":
-                return soulComfortService.chat(
+            case "soul-comfort": {
+                CompletableFuture<String> future = soulComfortService.chat(
                     request.getMessage(),
                     sessionId,
-                    chunk -> callback.onDelta(chunk.getDelta(), chunk.getEmotion())
+                    chunk -> {
+                        if (!chunk.getDelta().isEmpty()) {
+                            callback.onDelta(chunk.getDelta(), chunk.getEmotion());
+                        }
+                    }
                 );
+                future.thenAccept(fullText -> {
+                    ChatResponse cr = new ChatResponse();
+                    cr.setResponse(fullText);
+                    cr.setSkillsApplied(List.of("soul-comfort", "openclaw-memory"));
+                    Map<String, Object> meta = new HashMap<>();
+                    meta.put("mode", "soul-comfort");
+                    meta.put("hasMemory", true);
+                    cr.setMetadata(meta);
+                    callback.onComplete(cr);
+                }).exceptionally(e -> {
+                    callback.onError(e);
+                    return null;
+                });
+                return future;
+            }
 
             case "gateway":
                 return handleStreamViaGateway(request, callback);
 
-            default:
-                return soulComfortService.chat(
+            default: {
+                CompletableFuture<String> future = soulComfortService.chat(
                     request.getMessage(),
                     sessionId,
-                    chunk -> callback.onDelta(chunk.getDelta(), chunk.getEmotion())
+                    chunk -> {
+                        if (!chunk.getDelta().isEmpty()) {
+                            callback.onDelta(chunk.getDelta(), chunk.getEmotion());
+                        }
+                    }
                 );
+                future.thenAccept(fullText -> {
+                    ChatResponse cr = new ChatResponse();
+                    cr.setResponse(fullText);
+                    callback.onComplete(cr);
+                }).exceptionally(e -> {
+                    callback.onError(e);
+                    return null;
+                });
+                return future;
+            }
         }
+    }
+
+    /**
+     * 获取会话历史（委托给 SoulComfortChatService）
+     */
+    public List<Map<String, String>> getSessionHistory(String sessionId) {
+        return soulComfortService.getSessionHistory(sessionId);
+    }
+
+    /**
+     * 获取会话摘要（委托给 SoulComfortChatService）
+     */
+    public Map<String, Object> getSessionSummary(String sessionId) {
+        return soulComfortService.getSessionSummary(sessionId);
+    }
+
+    /**
+     * 清空会话（委托给 SoulComfortChatService）
+     */
+    public void clearSession(String sessionId) {
+        soulComfortService.clearSession(sessionId);
     }
 
     /**

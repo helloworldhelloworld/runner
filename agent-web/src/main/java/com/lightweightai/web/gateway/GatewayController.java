@@ -179,13 +179,31 @@ public class GatewayController {
      * 获取会话历史
      */
     @GetMapping("/session/{sessionId}/history")
-    public Map<String, Object> getSessionHistory(@PathVariable String sessionId) {
+    public Map<String, Object> getSessionHistory(@PathVariable("sessionId") String sessionId) {
         logger.info("Gateway get history - session: {}", sessionId);
-        // 委托给 SoulComfortChatService
         return Map.of(
             "sessionId", sessionId,
-            "history", gatewayService.chat(new ChatRequest()) // TODO: 实现历史获取
+            "history", gatewayService.getSessionHistory(sessionId)
         );
+    }
+
+    /**
+     * 获取会话摘要（含记忆统计）
+     */
+    @GetMapping("/session/{sessionId}/summary")
+    public Map<String, Object> getSessionSummary(@PathVariable("sessionId") String sessionId) {
+        logger.info("Gateway get summary - session: {}", sessionId);
+        return gatewayService.getSessionSummary(sessionId);
+    }
+
+    /**
+     * 清空会话
+     */
+    @DeleteMapping("/session/{sessionId}")
+    public Map<String, Object> clearSession(@PathVariable("sessionId") String sessionId) {
+        logger.info("Gateway clear session: {}", sessionId);
+        gatewayService.clearSession(sessionId);
+        return Map.of("sessionId", sessionId, "cleared", true);
     }
 
     // ==================== 私有方法 ====================
