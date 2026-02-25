@@ -32,6 +32,28 @@
             <artifactId>kernel-memory</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.lightweightai</groupId>
+            <artifactId>soul-safety</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.lightweightai</groupId>
+            <artifactId>soul-assessment</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.lightweightai</groupId>
+            <artifactId>soul-user</artifactId>
+        </dependency>
+
+        <!-- SQLite for soul-user / soul-assessment -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.44.1.0</version>
+        </dependency>
+
         <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

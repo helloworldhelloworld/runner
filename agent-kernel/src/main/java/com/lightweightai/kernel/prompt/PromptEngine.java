@@ -187,29 +187,55 @@ public class PromptEngine {
     }
 
     /**
-     * 加载记忆上下文
+     * 加载记忆上下文（OpenClaw 双层格式）
+     *
+     * Layer 1: 长期记忆（Durable）—— 始终注入，包含用户姓名/关注话题等结构化信息
+     * Layer 2: 相关对话记忆（BM25+Vector 搜索结果）—— 按相关度注入
      */
     private String loadMemoryContext(PromptRequest request, List<String> buildLog) {
-        if (memoryProvider == null || request.getUserMessage().isEmpty()) {
-            return "";
-        }
-
-        List<MemorySearchResult> results = memoryProvider.search(request.getUserMessage());
-
-        if (results.isEmpty()) {
-            buildLog.add("No relevant memory found");
+        if (memoryProvider == null) {
             return "";
         }
 
         StringBuilder sb = new StringBuilder();
-        int count = Math.min(request.getMaxMemoryResults(), results.size());
-        for (int i = 0; i < count; i++) {
-            MemorySearchResult result = results.get(i);
-            sb.append("- ").append(result.getSnippet(150)).append("\n");
+
+        // Layer 1: 长期记忆（始终注入）
+        String durable = memoryProvider.readDurable();
+        if (durable != null && !durable.isBlank()) {
+            sb.append("【长期记忆 — 关于这位访客的已知信息】\n");
+            sb.append(truncate(durable, 600)).append("\n\n");
+            buildLog.add("Injected durable memory (" + durable.length() + " chars)");
         }
 
-        buildLog.add(String.format("Loaded %d memory items", count));
-        return sb.toString();
+        // Layer 2: 混合搜索结果
+        if (!request.getUserMessage().isEmpty()) {
+            List<MemorySearchResult> results = memoryProvider.search(request.getUserMessage());
+            if (!results.isEmpty()) {
+                sb.append("【相关对话记忆】\n");
+                int count = Math.min(request.getMaxMemoryResults(), results.size());
+                for (int i = 0; i < count; i++) {
+                    sb.append("- ").append(results.get(i).getSnippet(150)).append("\n");
+                }
+                buildLog.add(String.format("Found %d relevant memory snippets", count));
+            } else {
+                buildLog.add("No relevant memory snippets found");
+            }
+        }
+
+        return sb.toString().trim();
+    }
+
+    private static String truncate(String text, int maxLen) {
+        if (text == null) return "";
+        text = text.strip();
+        return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
+    }
+
+    /**
+     * 获取 MemoryProvider（供外部访问，如 Agent 层保存消息）
+     */
+    public MemoryProvider getMemoryProvider() {
+        return memoryProvider;
     }
 
     /**

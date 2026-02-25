@@ -10,6 +10,7 @@ import com.lightweightai.kernel.llm.claude.ClaudeProvider;
 import com.lightweightai.kernel.llm.claude.ClaudeProProvider;
 import com.lightweightai.kernel.llm.openrouter.OpenRouterProvider;
 import com.lightweightai.kernel.plugin.FunctionResult;
+import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.skill.Skill;
 import com.lightweightai.kernel.skill.SkillLoader;
 import com.lightweightai.kernel.speech.SpeechProvider;
@@ -22,6 +23,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -115,6 +117,87 @@ public class AgentConfig {
                 logger.info("Using Mock LLM Provider");
                 return new MockLLMProvider();
         }
+    }
+
+    // ─── 心灵港湾 SoulHarbor — 系统提示（OpenClaw 基础提示，Skills 可在此之上叠加）────
+    private static final String SOUL_HARBOR_BASE_PROMPT =
+        "你是「心灵港湾」⚓ 的引导者，一位温暖、富有同理心的倾听者。\n" +
+        "\n" +
+        "你的使命：\n" +
+        "- 用心倾听每一个来访者的心声\n" +
+        "- 提供温暖、包容、不评判的陪伴\n" +
+        "- 帮助他们理清思路，找到内心的答案\n" +
+        "- 给予希望和力量，而不是简单的建议\n" +
+        "\n" +
+        "你的风格：\n" +
+        "- 语气温和、真诚、不做作\n" +
+        "- 善于提出启发性的问题\n" +
+        "- 尊重对方的感受和选择\n" +
+        "- 回应简洁而有力量（通常 2-4 句话）\n" +
+        "\n" +
+        "重要原则：\n" +
+        "1. 永远不要轻视对方的感受\n" +
+        "2. 不要给出具体行动建议（除非对方明确请求）\n" +
+        "3. 帮助对方自己找到答案，而不是替他们决定\n" +
+        "4. 当对方情绪激动时，先接纳情绪，再探讨问题\n" +
+        "5. 你拥有完整的对话记忆，请自然引用之前的对话内容\n" +
+        "6. 若对话记忆中提到用户姓名、过去的困扰、情绪模式，请主动运用这些信息建立连接";
+
+    /**
+     * PromptEngine Bean（OpenClaw 核心，管理 Skill + 记忆检索 + Prompt 组装）
+     *
+     * 基础提示：SOUL_HARBOR_BASE_PROMPT
+     * 注册 Skill：soul-comfort（核心）、emotion-guide（情绪支持）、sleep-helper（睡眠辅导）
+     * MemoryProvider：FileMemoryAdapter（桥接 FileMemoryManager + ConversationMemory）
+     */
+    @Bean
+    public PromptEngine promptEngine(FileMemoryAdapter fileMemoryAdapter) {
+        PromptEngine engine = PromptEngine.builder()
+            .memoryProvider(fileMemoryAdapter)
+            .baseSystemPrompt(SOUL_HARBOR_BASE_PROMPT)
+            .build();
+
+        // 核心心灵引导 Skill（始终激活，priority=0）
+        engine.registerSkill(com.lightweightai.kernel.prompt.Skill.builder()
+            .name("soul-comfort")
+            .description("心灵引导：倾听与共情")
+            .systemPrompt("") // 基础提示已覆盖，此 Skill 不额外追加
+            .priority(0)
+            .build());
+
+        // 情绪支持 Skill（触发词：焦虑、害怕、担心、紧张、压力、崩溃、无助）
+        engine.registerSkill(com.lightweightai.kernel.prompt.Skill.builder()
+            .name("emotion-guide")
+            .description("情绪支持与调节")
+            .systemPrompt(
+                "当用户表达焦虑、恐惧或压力时：\n" +
+                "- 先验证并接纳他们的情绪（「这种感觉完全可以理解」）\n" +
+                "- 引导他们说出具体是什么让他们感到害怕或焦虑\n" +
+                "- 可以温和介绍「注意力转移」「腹式呼吸」等简单方法\n" +
+                "- 不要急于给出解决方案"
+            )
+            .triggers(List.of("焦虑", "害怕", "担心", "紧张", "压力", "崩溃", "无助", "恐惧"))
+            .priority(1)
+            .build());
+
+        // 睡眠辅导 Skill（触发词：失眠、睡不着、睡眠、做梦）
+        engine.registerSkill(com.lightweightai.kernel.prompt.Skill.builder()
+            .name("sleep-helper")
+            .description("睡眠困扰辅导")
+            .systemPrompt(
+                "当用户提到失眠或睡眠问题时：\n" +
+                "- 先了解他们睡眠困扰的具体情况（入睡困难、多梦、早醒？）\n" +
+                "- 探索可能的原因（压力、焦虑、作息？）\n" +
+                "- 可以提及睡前放松技巧，但重点是倾听和理解，不是给教程\n" +
+                "- 若问题持续严重，温和建议考虑专业帮助"
+            )
+            .triggers(List.of("失眠", "睡不着", "睡眠", "做梦", "噩梦", "入睡"))
+            .priority(2)
+            .build());
+
+        logger.info("PromptEngine initialized with {} skills: {}",
+            engine.getRegisteredSkills().size(), engine.getRegisteredSkills());
+        return engine;
     }
 
     @Bean

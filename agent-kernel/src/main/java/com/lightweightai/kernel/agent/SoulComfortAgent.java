@@ -4,31 +4,49 @@ import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.memory.ConversationMemory;
+import com.lightweightai.kernel.memory.MemoryProvider;
+import com.lightweightai.kernel.memory.Message;
 import com.lightweightai.kernel.memory.UserMemory;
+import com.lightweightai.kernel.prompt.PromptContext;
+import com.lightweightai.kernel.prompt.PromptEngine;
+import com.lightweightai.kernel.prompt.PromptRequest;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
- * 心灵引导Agent - 解忧杂货铺的核心AI
+ * 心灵引导 Agent（OpenClaw 重构版）
  *
- * 具备能力：
- * 1. 记忆能力 - 记住用户的对话历史和个人信息
- * 2. 反思能力 - 深度理解用户的情绪和需求
- * 3. 共情能力 - 提供温暖、包容的回应
- * 4. 引导能力 - 帮助用户理清思路，找到答案
+ * Prompt 组装完全委托给 PromptEngine：
+ *   1. 激活 Skill（按触发词自动检测）
+ *   2. 组装单条 System Message（base prompt + skill prompts + memory context）
+ *   3. 追加会话历史（来自 MemoryProvider.getHistory）
+ *
+ * 三种构造模式：
+ *   - OpenClaw 模式（推荐）：SoulComfortAgent(llmProvider, promptEngine, tools)
+ *   - OpenClaw 无工具：SoulComfortAgent(llmProvider, promptEngine)
+ *   - 兼容模式：SoulComfortAgent(llmProvider) / SoulComfortAgent(llmProvider, memory)
  */
 public class SoulComfortAgent {
 
-    private final LLMProvider llmProvider;
-    private final ConversationMemory memory;
-    private final ReflectionService reflectionService;
-    private AgentObserver observer; // 可观测性支持
+    private static final int MAX_TOOL_ITERATIONS = 5;
 
-    // 心灵引导的核心系统提示
-    private static final String SOUL_COMFORT_SYSTEM_PROMPT =
-        "你是「解忧杂货铺」的店主，一位温暖、富有同理心的心灵引导者。\n" +
+    private final LLMProvider llmProvider;
+    private final PromptEngine promptEngine;   // OpenClaw 模式
+    private final ConversationMemory memory;   // 兼容模式回退
+    private final ReflectionService reflectionService;
+    private final List<Tool> tools;
+    private AgentObserver observer;
+
+    // 兼容模式的系统提示（PromptEngine 缺席时使用）
+    private static final String FALLBACK_SYSTEM_PROMPT =
+        "你是「心灵港湾」的引导者，一位温暖、富有同理心的倾听者。\n" +
         "\n" +
         "你的使命：\n" +
         "- 用心倾听每一个来访者的心声\n" +
@@ -36,312 +54,387 @@ public class SoulComfortAgent {
         "- 帮助他们理清思路，找到内心的答案\n" +
         "- 给予希望和力量，而不是简单的建议\n" +
         "\n" +
-        "你的风格：\n" +
-        "- 语气温和、真诚、不做作\n" +
-        "- 善于提出启发性的问题\n" +
-        "- 会适当分享智慧，但不说教\n" +
-        "- 尊重对方的感受和选择\n" +
-        "- 回应简洁而有力量（通常2-4句话）\n" +
+        "你的风格：语气温和、真诚；善于提出启发性的问题；回应简洁而有力量（通常 2-4 句话）。\n" +
         "\n" +
         "重要原则：\n" +
         "1. 永远不要轻视对方的感受\n" +
-        "2. 不要给出具体的行动建议（除非对方明确请求）\n" +
+        "2. 不要给出具体行动建议（除非对方明确请求）\n" +
         "3. 帮助对方自己找到答案，而不是替他们决定\n" +
         "4. 当对方情绪激动时，先接纳情绪，再探讨问题\n" +
-        "5. 保持希望的态度，但不过度乐观\n" +
-        "6. 你拥有完整的对话记忆！对话历史中的内容就是你与这位访客的真实交流记录，请自然地引用之前的对话内容。\n" +
-        "\n" +
-        "你就像夜晚的灯笼，不刺眼，但能照亮前行的路。🏮";
+        "5. 你拥有完整的对话记忆，请自然引用之前的对话内容 ⚓";
 
+    // ==================== 构造器 ====================
+
+    /**
+     * OpenClaw 模式（推荐）：PromptEngine 负责 prompt 组装和记忆检索，带工具列表
+     */
+    public SoulComfortAgent(LLMProvider llmProvider, PromptEngine promptEngine, List<Tool> tools) {
+        this.llmProvider = llmProvider;
+        this.promptEngine = promptEngine;
+        this.memory = null;
+        this.tools = tools != null ? new ArrayList<>(tools) : new ArrayList<>();
+        this.reflectionService = new ReflectionService(llmProvider);
+    }
+
+    /**
+     * OpenClaw 模式（无工具）
+     */
+    public SoulComfortAgent(LLMProvider llmProvider, PromptEngine promptEngine) {
+        this(llmProvider, promptEngine, List.of());
+    }
+
+    /**
+     * 兼容模式：仅用于测试，无文件记忆
+     */
     public SoulComfortAgent(LLMProvider llmProvider) {
         this.llmProvider = llmProvider;
+        this.promptEngine = null;
         this.memory = new ConversationMemory();
+        this.tools = new ArrayList<>();
         this.reflectionService = new ReflectionService(llmProvider);
     }
 
+    /**
+     * 兼容模式（外部传入 ConversationMemory）
+     */
     public SoulComfortAgent(LLMProvider llmProvider, ConversationMemory memory) {
         this.llmProvider = llmProvider;
+        this.promptEngine = null;
         this.memory = memory;
+        this.tools = new ArrayList<>();
         this.reflectionService = new ReflectionService(llmProvider);
     }
 
-    /**
-     * 设置观察者（用于 LLM 调用可观测性）
-     */
-    public void setObserver(AgentObserver observer) {
-        this.observer = observer;
-    }
+    // ==================== 可观测性 ====================
 
-    /**
-     * 获取当前观察者
-     */
-    public AgentObserver getObserver() {
-        return observer;
-    }
+    public void setObserver(AgentObserver observer) { this.observer = observer; }
+    public AgentObserver getObserver() { return observer; }
 
-    /**
-     * 处理用户消息并生成回应
-     */
+    // ==================== Chat ====================
+
     public String chat(String sessionId, String userMessage) {
         return chat(sessionId, userMessage, null);
     }
 
     /**
-     * 处理用户消息并生成回应（带外部记忆上下文）
+     * 同步对话（含工具调用循环）
      *
-     * @param sessionId 会话ID
-     * @param userMessage 用户消息
-     * @param externalMemoryContext 外部记忆上下文（来自OpenClaw记忆系统的搜索结果）
+     * @param externalMemoryContext 兼容旧调用，OpenClaw 模式下忽略（PromptEngine 自行搜索）
      */
     public String chat(String sessionId, String userMessage, String externalMemoryContext) {
-        System.out.println("[SoulComfortAgent] chat() called for session: " + sessionId);
-
-        // 通知观察者：Agent 开始
-        if (observer != null) {
-            observer.onAgentStart(userMessage, sessionId);
-        }
+        if (observer != null) observer.onAgentStart(userMessage, sessionId);
 
         try {
-            // 1. 保存用户消息到记忆
-            ConversationMessage userMsg = ConversationMessage.builder()
-                .role(ConversationMessage.MessageRole.USER)
-                .textContent(userMessage)
-                .build();
-            memory.addMessage(sessionId, userMsg);
+            List<ConversationMessage> messages = buildMessages(sessionId, userMessage, externalMemoryContext);
 
-            // 2. 使用默认情绪（避免额外的 LLM 调用延迟）
-            UserMemory userMemory = memory.getUserMemory(sessionId);
-            String emotion = "温柔"; // 默认情绪
-            userMemory.addEmotionRecord(emotion, userMessage);
+            if (observer != null) observer.onLLMRequest(messages);
 
-            // 3. 跳过话题识别（避免额外的 LLM 调用延迟）
-
-            // 4. 构建包含记忆的对话上下文
-            System.out.println("[SoulComfortAgent] Building context with memory...");
-            List<ConversationMessage> messages = buildContextWithMemory(sessionId, userMessage, externalMemoryContext);
-            System.out.println("[SoulComfortAgent] Built " + messages.size() + " messages");
-
-            // 通知观察者：LLM 请求
-            if (observer != null) {
-                observer.onLLMRequest(messages);
-            }
-
-            // 5. 调用LLM生成回应
-            System.out.println("[SoulComfortAgent] Calling LLM provider: " + llmProvider.getProviderName());
-            LLMOptions options = LLMOptions.builder()
+            List<Map<String, Object>> toolDefs = buildToolDefinitions();
+            LLMOptions.Builder optBuilder = LLMOptions.builder()
                 .maxTokens(500)
-                .temperature(0.8) // 稍高的温度，让回应更有人性化
-                .build();
-
-            LLMResponse response = llmProvider.complete(messages, options);
-            System.out.println("[SoulComfortAgent] Got LLM response");
-
-            // 通知观察者：LLM 响应
-            if (observer != null) {
-                observer.onLLMResponse(response);
+                .temperature(0.8);
+            if (!toolDefs.isEmpty()) {
+                optBuilder.toolDefinitions(toolDefs);
             }
 
-            String assistantResponse = response.getMessage().getTextContent();
+            int iterations = 0;
+            while (iterations < MAX_TOOL_ITERATIONS) {
+                LLMResponse response = llmProvider.complete(messages, optBuilder.build());
 
-            // 6. 保存助手回应到记忆
-            ConversationMessage assistantMsg = ConversationMessage.builder()
-                .role(ConversationMessage.MessageRole.ASSISTANT)
-                .textContent(assistantResponse)
-                .build();
-            memory.addMessage(sessionId, assistantMsg);
+                if (observer != null) observer.onLLMResponse(response);
 
-            // 通知观察者：Agent 完成
-            if (observer != null) {
-                AgentResponse agentResponse = AgentResponse.builder().text(assistantResponse).build();
-                observer.onAgentComplete(agentResponse);
+                if (!response.hasToolCalls()) {
+                    String text = response.getMessage().getTextContent();
+                    saveAssistantMessage(sessionId, text);
+
+                    if (observer != null) {
+                        observer.onAgentComplete(AgentResponse.builder().text(text).build());
+                    }
+                    return text;
+                }
+
+                // Execute tools and append results as context for the next LLM call
+                System.out.println("[SoulComfortAgent] Executing " + response.getToolCalls().size() + " tool call(s)");
+                messages.add(executeTools(response.getToolCalls()));
+                iterations++;
             }
 
-            return assistantResponse;
+            throw new RuntimeException("Max tool iterations (" + MAX_TOOL_ITERATIONS + ") exceeded");
 
         } catch (Exception e) {
-            // 通知观察者：错误
-            if (observer != null) {
-                observer.onError(e);
-            }
+            if (observer != null) observer.onError(e);
             throw e;
         }
     }
 
-    /**
-     * 处理用户消息并流式生成回应
-     */
-    public java.util.concurrent.CompletableFuture<String> chatStream(
-            String sessionId,
-            String userMessage,
-            LLMProvider.StreamEventHandler streamHandler) {
-        return chatStream(sessionId, userMessage, null, streamHandler);
+    public CompletableFuture<String> chatStream(String sessionId, String userMessage,
+                                                 LLMProvider.StreamEventHandler handler) {
+        return chatStream(sessionId, userMessage, null, handler);
     }
 
     /**
-     * 处理用户消息并流式生成回应（带外部记忆上下文）
+     * 流式对话（probe-first 模式）
      *
-     * @param sessionId 会话ID
-     * @param userMessage 用户消息
-     * @param externalMemoryContext 外部记忆上下文
-     * @param streamHandler 流式事件处理器
-     * @return CompletableFuture包含最终的完整响应
+     * 有工具时：先同步 complete() 检测是否需要工具调用，执行完再流式输出最终回答。
+     * 无工具时：直接流式输出。
      */
-    public java.util.concurrent.CompletableFuture<String> chatStream(
-            String sessionId,
-            String userMessage,
-            String externalMemoryContext,
-            LLMProvider.StreamEventHandler streamHandler) {
+    public CompletableFuture<String> chatStream(String sessionId, String userMessage,
+                                                 String externalMemoryContext,
+                                                 LLMProvider.StreamEventHandler handler) {
+        List<ConversationMessage> messages = buildMessages(sessionId, userMessage, externalMemoryContext);
 
-        // 1. 保存用户消息到记忆
+        // Probe phase: synchronously check for tool calls before streaming
+        if (!tools.isEmpty()) {
+            try {
+                LLMResponse probe = llmProvider.complete(messages,
+                    LLMOptions.builder()
+                        .maxTokens(500)
+                        .temperature(0.8)
+                        .toolDefinitions(buildToolDefinitions())
+                        .build());
+
+                if (probe.hasToolCalls()) {
+                    System.out.println("[SoulComfortAgent] chatStream probe: " + probe.getToolCalls().size() + " tool call(s) detected");
+                    messages.add(executeTools(probe.getToolCalls()));
+                }
+            } catch (Exception e) {
+                System.err.println("[SoulComfortAgent] chatStream probe failed: " + e.getMessage());
+                // Continue with streaming, tool results simply won't be included
+            }
+        }
+
+        LLMOptions options = LLMOptions.builder()
+            .maxTokens(500)
+            .temperature(0.8)
+            .build();
+
+        return llmProvider.completeStream(messages, options, handler)
+            .thenApply(response -> {
+                String text = response.getMessage().getTextContent();
+                saveAssistantMessage(sessionId, text);
+                return text;
+            });
+    }
+
+    // ==================== Tool Helpers ====================
+
+    /**
+     * Build tool definitions in OpenAI function-calling format (used by OpenRouter).
+     */
+    private List<Map<String, Object>> buildToolDefinitions() {
+        if (tools.isEmpty()) return List.of();
+        return tools.stream().map(t -> {
+            Map<String, Object> function = new LinkedHashMap<>();
+            function.put("name", t.getName());
+            function.put("description", t.getDescription());
+            function.put("parameters", t.getSchema().toMap());
+
+            Map<String, Object> def = new LinkedHashMap<>();
+            def.put("type", "function");
+            def.put("function", function);
+            return def;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * Execute all tool calls, return a USER message containing all results.
+     */
+    private ConversationMessage executeTools(List<ToolCall> toolCalls) {
+        StringBuilder sb = new StringBuilder();
+        for (ToolCall tc : toolCalls) {
+            Tool tool = tools.stream()
+                .filter(t -> t.getName().equals(tc.getName()))
+                .findFirst().orElse(null);
+
+            String content;
+            if (tool != null) {
+                try {
+                    content = tool.execute(tc.getArguments()).getContent();
+                } catch (Exception e) {
+                    content = "[Tool error: " + e.getMessage() + "]";
+                }
+            } else {
+                content = "[Tool not found: " + tc.getName() + "]";
+            }
+
+            sb.append("## Tool result: ").append(tc.getName()).append("\n")
+              .append(content).append("\n\n");
+        }
+
+        return ConversationMessage.builder()
+            .role(ConversationMessage.MessageRole.USER)
+            .textContent(sb.toString().trim())
+            .build();
+    }
+
+    // ==================== Prompt 组装 ====================
+
+    /**
+     * 统一入口：根据构造模式选择 PromptEngine 路径或兼容路径
+     */
+    private List<ConversationMessage> buildMessages(String sessionId, String userMessage,
+                                                     String externalMemoryContext) {
+        if (promptEngine != null) {
+            return buildMessagesViaPromptEngine(sessionId, userMessage);
+        } else {
+            return buildMessagesFallback(sessionId, userMessage, externalMemoryContext);
+        }
+    }
+
+    /**
+     * OpenClaw 路径：委托 PromptEngine 完成 Skill 激活 + 记忆检索 + 历史加载
+     *
+     * 输出为标准的单条 system + 多轮对话 messages。
+     */
+    private List<ConversationMessage> buildMessagesViaPromptEngine(String sessionId, String userMessage) {
+        MemoryProvider mp = promptEngine.getMemoryProvider();
+
+        // 先把当前用户消息写入会话历史，PromptEngine.loadHistory() 会把它包含进来
+        mp.addMessage(sessionId, Message.user(userMessage));
+
+        PromptRequest request = PromptRequest.builder()
+            .sessionId(sessionId)
+            .userMessage(userMessage)
+            .autoDetectSkills(true)
+            .maxHistoryMessages(20)
+            .maxMemoryResults(5)
+            .build();
+
+        PromptContext ctx = promptEngine.build(request);
+
+        List<ConversationMessage> messages = new ArrayList<>();
+
+        // 单条 System Message（base prompt + memory context）
+        StringBuilder sys = new StringBuilder(ctx.getSystemPrompt());
+        if (ctx.hasMemoryContext()) {
+            sys.append("\n\n").append(ctx.getMemoryContext());
+        }
+        messages.add(ConversationMessage.builder()
+            .role(ConversationMessage.MessageRole.SYSTEM)
+            .textContent(sys.toString())
+            .build());
+
+        // 会话历史（已包含刚添加的用户消息）
+        ctx.getHistoryMessages().stream()
+            .filter(m -> !"system".equals(m.getRole()))
+            .map(Message::toConversationMessage)
+            .forEach(messages::add);
+
+        return messages;
+    }
+
+    /**
+     * 兼容路径（无 PromptEngine 时）：行为与旧版 buildContextWithMemory 相同
+     */
+    private List<ConversationMessage> buildMessagesFallback(String sessionId, String userMessage,
+                                                              String externalMemoryContext) {
         ConversationMessage userMsg = ConversationMessage.builder()
             .role(ConversationMessage.MessageRole.USER)
             .textContent(userMessage)
             .build();
         memory.addMessage(sessionId, userMsg);
 
-        // 2. 分析用户情绪并记录（简化处理，避免额外 LLM 调用）
-        UserMemory userMemory = memory.getUserMemory(sessionId);
-        String emotion = "温柔"; // 默认情绪，避免额外的 LLM 调用
-        userMemory.addEmotionRecord(emotion, userMessage);
-
-        // 3. 跳过话题识别（避免额外 LLM 调用）
-        // 话题可以在主对话中自然处理
-
-        // 4. 构建包含记忆的对话上下文
-        List<ConversationMessage> messages = buildContextWithMemory(sessionId, userMessage, externalMemoryContext);
-
-        // 5. 调用LLM流式生成回应
-        LLMOptions options = LLMOptions.builder()
-            .maxTokens(500)
-            .temperature(0.8)
-            .build();
-
-        return llmProvider.completeStream(messages, options, streamHandler)
-            .thenApply(response -> {
-                String assistantResponse = response.getMessage().getTextContent();
-
-                // 6. 保存助手回应到记忆
-                ConversationMessage assistantMsg = ConversationMessage.builder()
-                    .role(ConversationMessage.MessageRole.ASSISTANT)
-                    .textContent(assistantResponse)
-                    .build();
-                memory.addMessage(sessionId, assistantMsg);
-
-                return assistantResponse;
-            });
-    }
-
-    /**
-     * 构建包含记忆的对话上下文
-     */
-    private List<ConversationMessage> buildContextWithMemory(String sessionId, String currentMessage, String externalMemoryContext) {
         List<ConversationMessage> messages = new ArrayList<>();
 
-        // 1. 添加核心系统提示
+        // System: 基础提示
         messages.add(ConversationMessage.builder()
             .role(ConversationMessage.MessageRole.SYSTEM)
-            .textContent(SOUL_COMFORT_SYSTEM_PROMPT)
+            .textContent(FALLBACK_SYSTEM_PROMPT)
             .build());
 
-        // 2. 添加外部记忆上下文（OpenClaw记忆系统的搜索结果）
-        if (externalMemoryContext != null && !externalMemoryContext.isEmpty()) {
+        // System: 外部记忆上下文（来自旧版 SoulComfortChatService.formatMemoryContext）
+        if (externalMemoryContext != null && !externalMemoryContext.isBlank()) {
             messages.add(ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.SYSTEM)
                 .textContent("历史记忆中的相关信息（可参考但不必每次都提及）：\n" + externalMemoryContext)
                 .build());
         }
 
-        // 3. 添加用户记忆上下文
+        // System: 用户记忆（UserMemory）
         UserMemory userMemory = memory.getUserMemory(sessionId);
-        String memoryContext = buildMemoryContext(userMemory);
-        if (!memoryContext.isEmpty()) {
+        userMemory.addEmotionRecord("温柔", userMessage);
+        String memCtx = buildLegacyUserMemoryContext(userMemory);
+        if (!memCtx.isBlank()) {
             messages.add(ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.SYSTEM)
-                .textContent("关于这位访客的记忆：\n" + memoryContext)
+                .textContent("关于这位访客的记忆：\n" + memCtx)
                 .build());
         }
 
-        // 4. 添加最近的对话历史（最多10轮）
-        List<ConversationMessage> recentHistory = memory.getRecentMessages(sessionId, 20);
-
-        // 排除当前消息（因为会单独添加）
-        for (ConversationMessage msg : recentHistory) {
-            if (msg.getRole() != ConversationMessage.MessageRole.SYSTEM) {
-                messages.add(msg);
-            }
-        }
+        // 会话历史
+        memory.getRecentMessages(sessionId, 20).stream()
+            .filter(m -> m.getRole() != ConversationMessage.MessageRole.SYSTEM)
+            .forEach(messages::add);
 
         return messages;
     }
 
-    /**
-     * 构建用户记忆的上下文描述
-     */
-    private String buildMemoryContext(UserMemory userMemory) {
-        StringBuilder context = new StringBuilder();
+    private void saveAssistantMessage(String sessionId, String text) {
+        if (promptEngine != null) {
+            promptEngine.getMemoryProvider().addMessage(sessionId, Message.assistant(text));
+        } else {
+            ConversationMessage msg = ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.ASSISTANT)
+                .textContent(text)
+                .build();
+            memory.addMessage(sessionId, msg);
+        }
+    }
 
-        // 添加基本信息
+    // ==================== 兼容辅助 ====================
+
+    private String buildLegacyUserMemoryContext(UserMemory userMemory) {
+        StringBuilder sb = new StringBuilder();
         String userName = userMemory.get("userName");
-        if (userName != null) {
-            context.append("- 称呼：").append(userName).append("\n");
+        if (userName != null) sb.append("- 称呼：").append(userName).append("\n");
+
+        List<UserMemory.EmotionRecord> emotions = userMemory.getRecentEmotions(3);
+        if (!emotions.isEmpty()) {
+            sb.append("- 最近情绪：");
+            for (var e : emotions) sb.append(e.getEmotion()).append("、");
+            sb.setLength(sb.length() - 1);
+            sb.append("\n");
         }
 
-        // 添加最近的情绪状态
-        List<UserMemory.EmotionRecord> recentEmotions = userMemory.getRecentEmotions(3);
-        if (!recentEmotions.isEmpty()) {
-            context.append("- 最近情绪：");
-            for (UserMemory.EmotionRecord record : recentEmotions) {
-                context.append(record.getEmotion()).append("、");
-            }
-            context.setLength(context.length() - 1); // 移除最后的顿号
-            context.append("\n");
-        }
-
-        // 添加关注的话题
         List<String> topics = userMemory.getImportantTopics();
         if (!topics.isEmpty()) {
-            context.append("- 关注话题：").append(String.join("、", topics)).append("\n");
+            sb.append("- 关注话题：").append(String.join("、", topics)).append("\n");
         }
-
-        // 添加其他重要信息
-        String concerns = userMemory.get("mainConcerns");
-        if (concerns != null) {
-            context.append("- 主要困扰：").append(concerns).append("\n");
-        }
-
-        return context.toString();
+        return sb.toString();
     }
 
-    /**
-     * 获取会话摘要
-     */
+    // ==================== 其他接口 ====================
+
     public String getSessionSummary(String sessionId) {
-        List<ConversationMessage> history = memory.getRecentMessages(sessionId, 10);
-        if (history.isEmpty()) {
-            return "暂无对话历史";
+        List<ConversationMessage> history;
+        if (promptEngine != null) {
+            history = promptEngine.getMemoryProvider()
+                .getHistory(sessionId, 10)
+                .stream()
+                .map(Message::toConversationMessage)
+                .toList();
+        } else {
+            history = memory.getRecentMessages(sessionId, 10);
         }
-
-        return reflectionService.extractKeyPoints(history);
+        return history.isEmpty() ? "暂无对话历史" : reflectionService.extractKeyPoints(history);
     }
 
-    /**
-     * 清空会话
-     */
     public void clearSession(String sessionId) {
-        memory.clearHistory(sessionId);
+        if (promptEngine != null) {
+            promptEngine.getMemoryProvider().clearSession(sessionId);
+        } else {
+            memory.clearHistory(sessionId);
+        }
     }
 
-    /**
-     * 获取用户记忆
-     */
+    /** 兼容旧调用 */
     public UserMemory getUserMemory(String sessionId) {
-        return memory.getUserMemory(sessionId);
+        if (memory != null) return memory.getUserMemory(sessionId);
+        return new UserMemory(); // 空对象，OpenClaw 模式下情绪/话题由 durable memory 管理
     }
 
-    /**
-     * 获取会话记忆（用于调试）
-     */
+    /** 兼容旧调用 */
     public ConversationMemory getMemory() {
-        return memory;
+        return memory != null ? memory : new ConversationMemory();
     }
 }

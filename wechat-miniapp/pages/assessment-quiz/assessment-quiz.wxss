@@ -1,0 +1,124 @@
+.container {
+  padding: 32rpx 24rpx;
+  background-color: #F4F6FB;
+  min-height: 100vh;
+}
+
+/* 进度 */
+.progress-wrap {
+  display: flex;
+  align-items: center;
+  margin-bottom: 32rpx;
+}
+.progress-bar {
+  flex: 1;
+  height: 8rpx;
+  background: #E5E5EA;
+  border-radius: 4rpx;
+  margin-right: 16rpx;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: #5B8AF0;
+  border-radius: 4rpx;
+  transition: width 0.3s ease;
+}
+.progress-text {
+  font-size: 24rpx;
+  color: #8E8E93;
+  white-space: nowrap;
+}
+
+/* 量表标题 */
+.scale-title {
+  font-size: 26rpx;
+  color: #5B8AF0;
+  margin-bottom: 24rpx;
+  font-weight: 500;
+}
+
+/* 题目卡片 */
+.question-card {
+  background: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 40rpx 32rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.06);
+  margin-bottom: 32rpx;
+}
+.question-num {
+  font-size: 24rpx;
+  color: #5B8AF0;
+  display: block;
+  margin-bottom: 16rpx;
+  font-weight: 600;
+}
+.question-text {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #1C1C1E;
+  line-height: 1.5;
+  display: block;
+  margin-bottom: 40rpx;
+}
+
+/* 选项 */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+.option {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 28rpx;
+  background: #F4F6FB;
+  border-radius: 16rpx;
+  border: 2rpx solid transparent;
+  transition: all 0.2s;
+}
+.option.selected {
+  border-color: #5B8AF0;
+  background: rgba(91,138,240,0.08);
+}
+.option-dot {
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 50%;
+  border: 3rpx solid #C7C7CC;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.option.selected .option-dot {
+  background: #5B8AF0;
+  border-color: #5B8AF0;
+}
+.option-text {
+  font-size: 28rpx;
+  color: #1C1C1E;
+}
+.option.selected .option-text {
+  color: #5B8AF0;
+  font-weight: 500;
+}
+
+/* 上一题 */
+.back-btn {
+  text-align: center;
+  padding: 24rpx;
+  color: #8E8E93;
+  font-size: 28rpx;
+}
+
+/* 提交遮罩 */
+.submitting {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255,255,255,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  color: #5B8AF0;
+}

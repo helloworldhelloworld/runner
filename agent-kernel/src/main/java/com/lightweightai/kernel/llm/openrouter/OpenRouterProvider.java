@@ -227,6 +227,10 @@ public class OpenRouterProvider implements LLMProvider {
 
     /**
      * Parse OpenRouter API response (OpenAI format)
+     *
+     * Handles two cases:
+     *   1. Normal text response — content is a string
+     *   2. Tool call response  — content is null, tool_calls array is present
      */
     private LLMResponse parseResponse(String responseBody) throws IOException {
         JsonNode root = objectMapper.readTree(responseBody);
@@ -240,7 +244,30 @@ public class OpenRouterProvider implements LLMProvider {
         JsonNode firstChoice = choices.get(0);
         JsonNode message = firstChoice.get("message");
 
-        String content = message.get("content").asText();
+        // content may be null when finish_reason == "tool_calls"
+        String content = "";
+        JsonNode contentNode = message.get("content");
+        if (contentNode != null && !contentNode.isNull()) {
+            content = contentNode.asText();
+        }
+
+        // Parse tool_calls (OpenAI function-calling format)
+        List<ToolCall> toolCalls = new ArrayList<>();
+        JsonNode toolCallsNode = message.get("tool_calls");
+        if (toolCallsNode != null && toolCallsNode.isArray()) {
+            for (JsonNode tc : toolCallsNode) {
+                String id = tc.get("id").asText();
+                JsonNode functionNode = tc.get("function");
+                String name = functionNode.get("name").asText();
+                String argsJson = functionNode.get("arguments").asText();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> argsMap = objectMapper.readValue(argsJson, Map.class);
+                toolCalls.add(new ToolCall(id, name, argsMap));
+            }
+            if (!toolCalls.isEmpty()) {
+                System.out.println("[OpenRouterProvider] tool_calls detected: " + toolCalls.size());
+            }
+        }
 
         // Create conversation message
         ConversationMessage responseMessage = ConversationMessage.builder()
@@ -263,6 +290,7 @@ public class OpenRouterProvider implements LLMProvider {
         // Build response
         return LLMResponse.builder()
             .message(responseMessage)
+            .toolCalls(toolCalls)
             .stopReason(finishReason)
             .usage(usageInfo)
             .build();

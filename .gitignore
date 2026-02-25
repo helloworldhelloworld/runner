@@ -31,3 +31,6 @@ Thumbs.db
 .env
 .env.local
 *.env
+
+# Runtime data
+agent-web/data/

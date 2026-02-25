@@ -1,8 +1,11 @@
 package com.lightweightai.web.service;
 
 import com.lightweightai.kernel.agent.SoulComfortAgent;
+import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.openrouter.OpenRouterProvider;
+import com.lightweightai.web.tools.WebSearchTool;
+import com.lightweightai.kernel.memory.Message;
 import com.lightweightai.kernel.memory.UserMemory;
 import com.lightweightai.kernel.memory.file.FileMemoryManager;
 import com.lightweightai.kernel.memory.file.SessionTranscript;
@@ -10,12 +13,17 @@ import com.lightweightai.kernel.memory.model.SearchResult;
 import com.lightweightai.kernel.memory.model.TranscriptEntry;
 import com.lightweightai.kernel.memory.queue.LaneQueueManager;
 import com.lightweightai.kernel.memory.tools.MemoryToolkit;
+import com.lightweightai.kernel.prompt.PromptEngine;
+import com.lightweightai.safety.ContentFilter;
+import com.lightweightai.safety.CrisisDetector;
+import com.lightweightai.safety.SafetyResult;
+import com.lightweightai.web.config.FileMemoryAdapter;
 import com.lightweightai.web.model.ChatRequest;
 import com.lightweightai.web.model.ChatResponse;
 import com.lightweightai.web.observer.DebugAgentObserver;
-import com.lightweightai.web.observer.DebugInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -27,13 +35,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * 心灵引导聊天服务 - 使用SoulComfortAgent + OpenClaw记忆系统
+ * 心灵引导聊天服务 — OpenClaw 架构
  *
- * 特性：
- * - 三层记忆：Ephemeral(每日) + Durable(长期) + Session(会话转录)
- * - 混合搜索：BM25(关键词) + Vector(语义)
- * - Lane Queue：每个会话串行执行，防止竞争
- * - 记忆工具：memory_search / write_memory
+ * Prompt 组装和记忆检索完全委托给 PromptEngine：
+ *   - Layer 1（Durable）和 Layer 2（BM25/Vector 搜索）由 PromptEngine.loadMemoryContext() 注入
+ *   - Service 层只负责：Lane Queue 串行化、安全前置检查、响应后索引写入
+ *
+ * 三层记忆：
+ *   Session  → FileMemoryAdapter.ConversationMemory（PromptEngine 维护会话历史）
+ *   Ephemeral → FileMemoryManager（每轮对话写入，供 BM25 检索）
+ *   Durable   → FileMemoryManager（用户信息持久化）
  */
 @Service
 public class SoulComfortChatService {
@@ -42,29 +53,46 @@ public class SoulComfortChatService {
 
     private final SoulComfortAgent defaultAgent;
     private final Map<String, SoulComfortAgent> modelAgents;
+    private final List<Tool> agentTools;
 
-    // OpenClaw-style memory system
+    // OpenClaw 核心组件
+    private final PromptEngine promptEngine;
     private final FileMemoryManager memoryManager;
     private final LaneQueueManager laneManager;
     private final MemoryToolkit memoryToolkit;
     private final Map<String, SessionTranscript> activeSessions = new ConcurrentHashMap<>();
 
+    // Safety layer (optional — injected if beans are present)
+    @Autowired(required = false)
+    private CrisisDetector crisisDetector;
+
+    @Autowired(required = false)
+    private ContentFilter contentFilter;
+
     @Value("${app.openrouter.api-key:}")
     private String openRouterApiKey;
 
+    @Value("${app.soul.crisis-detection:true}")
+    private boolean crisisDetectionEnabled;
+
     public SoulComfortChatService(
             LLMProvider llmProvider,
+            PromptEngine promptEngine,
             FileMemoryManager memoryManager,
             LaneQueueManager laneManager,
-            MemoryToolkit memoryToolkit
+            MemoryToolkit memoryToolkit,
+            @org.springframework.lang.Nullable WebSearchTool webSearchTool
     ) {
-        this.defaultAgent = new SoulComfortAgent(llmProvider);
+        this.promptEngine = promptEngine;
+        this.agentTools = webSearchTool != null ? List.of(webSearchTool) : List.of();
+        this.defaultAgent = new SoulComfortAgent(llmProvider, promptEngine, this.agentTools);
         this.modelAgents = new ConcurrentHashMap<>();
         this.memoryManager = memoryManager;
         this.laneManager = laneManager;
         this.memoryToolkit = memoryToolkit;
 
-        logger.info("SoulComfortChatService initialized with OpenClaw-style memory system");
+        logger.info("SoulComfortChatService initialized with OpenClaw PromptEngine, tools={}",
+            agentTools.stream().map(Tool::getName).collect(java.util.stream.Collectors.joining(", ")));
     }
 
     /**
@@ -75,8 +103,8 @@ public class SoulComfortChatService {
     }
 
     public static class StreamChunk {
-        private String delta;
-        private String emotion;
+        private final String delta;
+        private final String emotion;
 
         public StreamChunk(String delta, String emotion) {
             this.delta = delta;
@@ -93,15 +121,13 @@ public class SoulComfortChatService {
     public ChatResponse chat(ChatRequest request) {
         String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
 
-        // 使用 Lane Queue 保证同一会话的消息串行处理
         return laneManager.submit(sessionId, () -> processChatInternal(request, sessionId))
             .join();
     }
 
     private ChatResponse processChatInternal(ChatRequest request, String sessionId) {
-        // 创建调试观察者
         DebugAgentObserver debugObserver = new DebugAgentObserver();
-        boolean debugMode = request.isDebug(); // 是否开启调试模式（声明在 try 外以便 catch 访问）
+        boolean debugMode = request.isDebug();
 
         try {
             String userMessage = request.getMessage();
@@ -109,89 +135,70 @@ public class SoulComfortChatService {
 
             logger.info("Processing chat for session: {} with model: {}, debug: {}", sessionId, model, debugMode);
 
-            // 1. 获取或创建会话转录
+            // 0. 安全检查：危机检测（前置，直接返回，不进入 LLM）
+            if (crisisDetectionEnabled && crisisDetector != null) {
+                SafetyResult safetyResult = crisisDetector.check(userMessage);
+                if (safetyResult.isCrisis()) {
+                    logger.warn("Crisis detected in session: {}", sessionId);
+                    String resourcesText = safetyResult.resources().stream()
+                        .map(r -> r.name() + ": " + r.phone())
+                        .collect(Collectors.joining("\n"));
+                    ChatResponse crisisResponse = new ChatResponse();
+                    crisisResponse.setResponse(
+                        "我注意到你可能正在经历一些非常困难的情绪。你的生命很宝贵，有专业的人可以帮助你。\n\n" +
+                        "请联系以下危机热线：\n" + resourcesText
+                    );
+                    crisisResponse.setSkillsApplied(List.of("crisis-safety"));
+                    return crisisResponse;
+                }
+            }
+
+            // 1. 获取或创建会话转录（用于持久化 JSONL，与 PromptEngine 的 ConversationMemory 并行）
             SessionTranscript transcript = getOrCreateSession(sessionId);
             transcript.append(TranscriptEntry.userMessage(userMessage));
 
-            // 2. 搜索相关记忆（提供上下文）
-            List<SearchResult> memoryContext = memoryManager.search(userMessage);
-            String contextInfo = formatMemoryContext(memoryContext, memoryManager.readDurable());
-
-            // 3. 获取对应模型的Agent，并设置观察者
-            logger.info("DEBUG: Getting agent for model: {}", model);
+            // 2. 获取对应模型的 Agent，设置观察者
             SoulComfortAgent agent = getAgentForModel(model);
-            logger.info("DEBUG: Got agent, setting observer");
             agent.setObserver(debugObserver);
-            System.out.println("[SERVICE-DEBUG] Observer set, about to call chat()");
-            System.out.flush();
 
-            // 4. 使用心灵引导Agent处理消息（注入记忆上下文）
-            logger.info("DEBUG: Calling agent.chat() with contextInfo length: {}", contextInfo != null ? contextInfo.length() : 0);
-            System.out.println("[SERVICE-DEBUG] Calling agent.chat() now...");
-            System.out.flush();
-            String response = agent.chat(sessionId, userMessage, contextInfo);
-            System.out.println("[SERVICE-DEBUG] Got response from agent");
-            logger.info("DEBUG: Got response from agent");
+            // 3. 调用 Agent（PromptEngine 在内部完成 Skill 激活 + 记忆检索 + Prompt 组装）
+            String response = agent.chat(sessionId, userMessage);
 
-            // 5. 保存助手响应到转录
+            // 3.5 内容过滤：去除 AI 响应中的诊断性内容
+            if (contentFilter != null) {
+                response = contentFilter.filter(response);
+            }
+
+            // 4. 保存助手响应到会话转录（用于 JSONL 持久化）
             transcript.append(TranscriptEntry.assistantMessage(response));
 
-            // 6. 将对话内容写入可检索的记忆（OpenClaw风格）
-            UserMemory userMemory = agent.getUserMemory(sessionId);
-            indexConversationToMemory(sessionId, userMessage, response, userMemory);
+            // 5. 将对话写入可检索的 Ephemeral 记忆（BM25 索引）
+            indexConversationToMemory(sessionId, userMessage, response);
 
-            // 7. 构建响应
+            // 6. 构建响应
             ChatResponse chatResponse = new ChatResponse();
             chatResponse.setResponse(response);
             chatResponse.setSkillsApplied(List.of("soul-comfort", "openclaw-memory"));
 
-            // 8. 添加元数据
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("mode", "soul-comfort");
             metadata.put("hasMemory", true);
-            metadata.put("hasReflection", true);
-            metadata.put("memorySystem", "openclaw");
-
+            metadata.put("memorySystem", "openclaw-promptengine");
             if (model != null && !model.trim().isEmpty()) {
                 metadata.put("model", model);
             }
-
-            // 记忆上下文信息
-            if (!memoryContext.isEmpty()) {
-                metadata.put("memoryContextCount", memoryContext.size());
-                metadata.put("memoryContextSources", memoryContext.stream()
-                    .map(r -> r.getChunk().getSourceFile())
-                    .distinct()
-                    .collect(Collectors.toList()));
-            }
-
-            // 情绪和话题
-            List<UserMemory.EmotionRecord> recentEmotions = userMemory.getRecentEmotions(5);
-            if (!recentEmotions.isEmpty()) {
-                metadata.put("recentEmotions", recentEmotions.stream()
-                    .map(UserMemory.EmotionRecord::getEmotion)
-                    .collect(Collectors.toList()));
-            }
-
-            List<String> topics = userMemory.getImportantTopics();
-            if (!topics.isEmpty()) {
-                metadata.put("importantTopics", topics);
-            }
-
             chatResponse.setMetadata(metadata);
 
-            // 添加调试信息（如果开启调试模式）
             if (debugMode) {
                 chatResponse.setDebug(debugObserver.getDebugInfo());
             }
 
-            logger.info("Chat completed - session: {}, memory context: {} items", sessionId, memoryContext.size());
+            logger.info("Chat completed - session: {}", sessionId);
             return chatResponse;
 
         } catch (Exception e) {
             logger.error("Chat failed", e);
             ChatResponse errorResponse = ChatResponse.error(e.getMessage());
-            // 即使出错也返回调试信息
             if (debugMode) {
                 debugObserver.onError(e);
                 errorResponse.setDebug(debugObserver.getDebugInfo());
@@ -214,47 +221,31 @@ public class SoulComfortChatService {
     private CompletableFuture<String> processChatStreamInternal(String message, String sessionId, StreamCallback callback) {
         logger.info("Processing streaming chat for session: {}", sessionId);
 
-        // 获取或创建会话转录
         SessionTranscript transcript = getOrCreateSession(sessionId);
         transcript.append(TranscriptEntry.userMessage(message));
 
-        // 搜索相关记忆
-        List<SearchResult> memoryContext = memoryManager.search(message);
-        String contextInfo = formatMemoryContext(memoryContext, memoryManager.readDurable());
-        if (!memoryContext.isEmpty()) {
-            logger.debug("Found {} memory items for context", memoryContext.size());
-        }
-
         SoulComfortAgent agent = defaultAgent;
-        UserMemory userMemory = agent.getUserMemory(sessionId);
-        List<UserMemory.EmotionRecord> recentEmotions = userMemory.getRecentEmotions(1);
-        String currentEmotion = recentEmotions.isEmpty() ? "温柔" : recentEmotions.get(0).getEmotion();
-
         StringBuilder fullResponse = new StringBuilder();
 
-        // 注入记忆上下文到流式对话
-        return agent.chatStream(sessionId, message, contextInfo, new LLMProvider.StreamEventHandler() {
+        // Agent 内部通过 PromptEngine 完成 Skill 激活 + 记忆检索 + Prompt 组装
+        return agent.chatStream(sessionId, message, new LLMProvider.StreamEventHandler() {
             @Override
             public void onTextDelta(String delta) {
                 fullResponse.append(delta);
-                callback.onChunk(new StreamChunk(delta, currentEmotion));
+                callback.onChunk(new StreamChunk(delta, "温柔"));
             }
 
             @Override
             public void onComplete(com.lightweightai.kernel.llm.LLMResponse response) {
                 String responseText = fullResponse.toString();
 
-                // 保存响应到转录
-                transcript.append(TranscriptEntry.assistantMessage(responseText));
+                // 内容过滤
+                String filtered = contentFilter != null ? contentFilter.filter(responseText) : responseText;
 
-                // 将对话内容索引到可检索记忆（OpenClaw风格）
-                indexConversationToMemory(sessionId, message, responseText, userMemory);
+                transcript.append(TranscriptEntry.assistantMessage(filtered));
+                indexConversationToMemory(sessionId, message, filtered);
 
-                // 获取最终情绪
-                List<UserMemory.EmotionRecord> emotions = agent.getUserMemory(sessionId).getRecentEmotions(1);
-                String finalEmotion = emotions.isEmpty() ? currentEmotion : emotions.get(0).getEmotion();
-
-                callback.onChunk(new StreamChunk("", finalEmotion));
+                callback.onChunk(new StreamChunk("", "温柔"));
                 logger.info("Streaming chat completed - Session: {}", sessionId);
             }
 
@@ -282,7 +273,7 @@ public class SoulComfortChatService {
     }
 
     /**
-     * 搜索记忆
+     * 搜索记忆（供 API 调用）
      */
     public List<Map<String, Object>> searchMemory(String query, int topK) {
         List<SearchResult> results = memoryManager.search(query);
@@ -306,33 +297,14 @@ public class SoulComfortChatService {
     }
 
     /**
-     * 获取会话摘要（增强版）
+     * 获取会话摘要
      */
     public Map<String, Object> getSessionSummary(String sessionId) {
         Map<String, Object> summary = new HashMap<>();
 
         try {
-            // 原有摘要
-            String conversationSummary = defaultAgent.getSessionSummary(sessionId);
-            summary.put("summary", conversationSummary);
+            summary.put("summary", defaultAgent.getSessionSummary(sessionId));
 
-            // 获取用户记忆
-            UserMemory userMemory = defaultAgent.getUserMemory(sessionId);
-            List<UserMemory.EmotionRecord> emotions = userMemory.getRecentEmotions(5);
-            summary.put("recentEmotions", emotions.stream()
-                .map(e -> Map.of(
-                    "emotion", e.getEmotion(),
-                    "context", e.getContext(),
-                    "timestamp", e.getTimestamp().toString()
-                ))
-                .collect(Collectors.toList()));
-
-            summary.put("importantTopics", userMemory.getImportantTopics());
-            summary.put("basicInfo", userMemory.getAllBasicInfo());
-            summary.put("firstMeet", userMemory.getFirstMeetTime().toString());
-            summary.put("lastInteraction", userMemory.getLastInteractionTime().toString());
-
-            // OpenClaw 记忆系统信息
             var stats = memoryManager.getIndexStats();
             summary.put("memoryStats", Map.of(
                 "bm25Chunks", stats.bm25ChunkCount(),
@@ -340,14 +312,12 @@ public class SoulComfortChatService {
                 "embeddingDimensions", stats.embeddingDimensions()
             ));
 
-            // 会话转录信息
             SessionTranscript transcript = activeSessions.get(sessionId);
             if (transcript != null) {
                 summary.put("transcriptEntries", transcript.getEntryCount());
                 summary.put("transcriptFile", transcript.getSessionFile().toString());
             }
 
-            // 所有历史会话
             summary.put("allSessions", memoryManager.listSessions());
 
         } catch (Exception e) {
@@ -389,7 +359,7 @@ public class SoulComfortChatService {
             logger.debug("Loading/creating session transcript for: {}", id);
             SessionTranscript transcript = memoryManager.getSession(id);
 
-            // 恢复历史对话到Agent内存（OpenClaw风格：刷新后保持对话上下文）
+            // 从 JSONL 转录恢复历史到 PromptEngine 的 MemoryProvider
             restoreConversationHistory(sessionId, transcript);
 
             return transcript;
@@ -397,7 +367,7 @@ public class SoulComfortChatService {
     }
 
     /**
-     * 从JSONL转录恢复对话历史到Agent内存
+     * 从 JSONL 转录恢复对话历史到 PromptEngine 的 MemoryProvider（ConversationMemory）
      */
     private void restoreConversationHistory(String sessionId, SessionTranscript transcript) {
         List<TranscriptEntry> history = transcript.readAll();
@@ -407,24 +377,18 @@ public class SoulComfortChatService {
 
         logger.info("Restoring {} messages for session: {}", history.size(), sessionId);
 
-        var memory = defaultAgent.getMemory();
         for (TranscriptEntry entry : history) {
             if ("user".equals(entry.getRole())) {
-                memory.addMessage(sessionId,
-                    com.lightweightai.kernel.llm.ConversationMessage.builder()
-                        .role(com.lightweightai.kernel.llm.ConversationMessage.MessageRole.USER)
-                        .textContent(entry.getContent())
-                        .build());
+                promptEngine.getMemoryProvider().addMessage(sessionId, Message.user(entry.getContent()));
             } else if ("assistant".equals(entry.getRole())) {
-                memory.addMessage(sessionId,
-                    com.lightweightai.kernel.llm.ConversationMessage.builder()
-                        .role(com.lightweightai.kernel.llm.ConversationMessage.MessageRole.ASSISTANT)
-                        .textContent(entry.getContent())
-                        .build());
+                promptEngine.getMemoryProvider().addMessage(sessionId, Message.assistant(entry.getContent()));
             }
         }
     }
 
+    /**
+     * 获取对应模型的 Agent（所有 agent 共享同一 PromptEngine）
+     */
     private SoulComfortAgent getAgentForModel(String model) {
         if (model == null || model.trim().isEmpty()) {
             return defaultAgent;
@@ -439,83 +403,32 @@ public class SoulComfortChatService {
             }
 
             LLMProvider provider = new OpenRouterProvider(openRouterApiKey, m);
-            return new SoulComfortAgent(provider);
+            return new SoulComfortAgent(provider, promptEngine, agentTools);
         });
     }
 
-    private String formatMemoryContext(List<SearchResult> results) {
-        return formatMemoryContext(results, "");
-    }
-
-    private String formatMemoryContext(List<SearchResult> results, String durableMemory) {
-        StringBuilder sb = new StringBuilder();
-
-        // 1. 始终注入 Durable 记忆（用户姓名、关注话题等结构化信息）
-        if (durableMemory != null && !durableMemory.isBlank()) {
-            sb.append("【长期记忆 - 关于这位访客的已知信息】\n");
-            sb.append(summarize(durableMemory, 600)).append("\n\n");
-        }
-
-        // 2. 附加检索到的相关对话片段（top 5）
-        if (!results.isEmpty()) {
-            sb.append("【相关对话记忆】\n");
-            for (int i = 0; i < Math.min(5, results.size()); i++) {
-                SearchResult r = results.get(i);
-                sb.append("- ").append(summarize(r.getSnippet(), 150)).append("\n");
-            }
-        }
-
-        return sb.toString().trim();
-    }
-
-    private String summarize(String text, int maxLen) {
-        if (text == null) return "";
-        text = text.replace("\n", " ").trim();
-        return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
-    }
-
     /**
-     * 将对话内容索引到可检索记忆（OpenClaw风格）
+     * 将对话写入 Ephemeral 记忆（FileMemoryManager，供 BM25 检索）
      *
-     * 策略：
-     * 1. 每轮对话都写入每日记忆（Ephemeral），供BM25检索
-     * 2. 提取重要信息（如姓名、关注点）写入长期记忆（Durable）
+     * 每轮对话写入摘要，用于下次会话的相关性搜索（Layer 2）。
+     * 提取用户姓名写入 Durable 记忆（Layer 1，由 PromptEngine 始终注入）。
      */
-    private void indexConversationToMemory(String sessionId, String userMessage, String response, UserMemory userMemory) {
+    private void indexConversationToMemory(String sessionId, String userMessage, String response) {
         try {
-            // 1. 将对话摘要写入每日记忆（Ephemeral）- 会被BM25索引
+            // 写入 Ephemeral（BM25 可检索）
             String conversationEntry = String.format(
-                "对话记录 [%s]:\n用户: %s\n店长: %s",
+                "对话记录 [%s]:\n用户: %s\n助手: %s",
                 sessionId.substring(0, Math.min(12, sessionId.length())),
-                summarize(userMessage, 200),
-                summarize(response, 200)
+                truncate(userMessage, 200),
+                truncate(response, 200)
             );
             memoryManager.appendEphemeral(conversationEntry);
-            logger.debug("Indexed conversation to ephemeral memory");
 
-            // 2. 检测并提取用户姓名到长期记忆（Durable）
+            // 提取用户姓名写入 Durable（仅首次发现）
             String userName = extractUserName(userMessage);
-            if (userName != null && userMemory.get("userName") == null) {
-                userMemory.put("userName", userName);
+            if (userName != null) {
                 memoryManager.appendDurable("用户信息", "- 用户姓名: " + userName + "\n");
                 logger.info("Saved user name to durable memory: {}", userName);
-            }
-
-            // 3. 记录情绪变化到每日记忆
-            List<UserMemory.EmotionRecord> recentEmotions = userMemory.getRecentEmotions(1);
-            if (!recentEmotions.isEmpty()) {
-                String emotion = recentEmotions.get(0).getEmotion();
-                memoryManager.appendEphemeral(String.format(
-                    "情绪记录: 用户表现出 [%s] 情绪，上下文: %s",
-                    emotion, summarize(userMessage, 50)
-                ));
-            }
-
-            // 4. 提取重要话题到长期记忆
-            List<String> topics = userMemory.getImportantTopics();
-            if (!topics.isEmpty() && topics.size() <= 3) {
-                String topicsStr = String.join(", ", topics);
-                memoryManager.appendDurable("关注话题", "- " + topicsStr + "\n");
             }
 
         } catch (Exception e) {
@@ -523,20 +436,19 @@ public class SoulComfortChatService {
         }
     }
 
-    /**
-     * 从用户消息中提取姓名
-     */
+    private String truncate(String text, int maxLen) {
+        if (text == null) return "";
+        text = text.replace("\n", " ").trim();
+        return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
+    }
+
     private String extractUserName(String message) {
-        // 常见的自我介绍模式
-        String[] patterns = {
-            "我叫", "我是", "我的名字是", "我名字叫", "叫我", "称呼我", "我姓"
-        };
+        String[] patterns = { "我叫", "我是", "我的名字是", "我名字叫", "叫我", "称呼我", "我姓" };
 
         for (String pattern : patterns) {
             int idx = message.indexOf(pattern);
             if (idx >= 0) {
                 String afterPattern = message.substring(idx + pattern.length()).trim();
-                // 取第一个词（可能是名字）
                 String[] parts = afterPattern.split("[，,。.！!？?\\s]+");
                 if (parts.length > 0 && parts[0].length() >= 1 && parts[0].length() <= 10) {
                     return parts[0];

@@ -1,0 +1,140 @@
+.container {
+  padding: 32rpx 24rpx;
+  background-color: #F4F6FB;
+  min-height: 100vh;
+}
+
+/* 用户头部 */
+.user-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 32rpx;
+  background: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
+}
+.avatar-wrap {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  background: #5B8AF0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 24rpx;
+}
+.avatar-emoji {
+  font-size: 48rpx;
+}
+.user-info {
+  display: flex;
+  flex-direction: column;
+}
+.user-name {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1C1C1E;
+  margin-bottom: 8rpx;
+}
+.user-id {
+  font-size: 22rpx;
+  color: #C7C7CC;
+}
+
+/* 统计行 */
+.stats-row {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+}
+.stat-card {
+  flex: 1;
+  background: #FFFFFF;
+  border-radius: 20rpx;
+  padding: 24rpx 16rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
+}
+.stat-num {
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #5B8AF0;
+  margin-bottom: 8rpx;
+}
+.stat-label {
+  font-size: 22rpx;
+  color: #8E8E93;
+  text-align: center;
+}
+
+/* 通用卡片 */
+.card {
+  background: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
+}
+.card-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1C1C1E;
+  margin-bottom: 24rpx;
+}
+
+/* 折线图空状态 */
+.empty-chart {
+  text-align: center;
+  padding: 40rpx 0;
+  color: #8E8E93;
+  font-size: 26rpx;
+}
+
+/* 情绪分布 */
+.dist-row {
+  display: flex;
+  align-items: center;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid #F4F6FB;
+}
+.dist-row:last-child { border-bottom: none; }
+.dist-emotion {
+  flex: 1;
+  font-size: 28rpx;
+  color: #1C1C1E;
+}
+.dist-count {
+  font-size: 26rpx;
+  color: #5B8AF0;
+  font-weight: 500;
+}
+
+/* 测评历史 */
+.history-row {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #F4F6FB;
+}
+.history-row:last-child { border-bottom: none; }
+.history-type {
+  font-size: 26rpx;
+  color: #8E8E93;
+  width: 120rpx;
+}
+.history-score {
+  flex: 1;
+  font-size: 28rpx;
+  color: #1C1C1E;
+  font-weight: 500;
+}
+.history-severity {
+  font-size: 24rpx;
+  color: #5B8AF0;
+  background: rgba(91,138,240,0.1);
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+}

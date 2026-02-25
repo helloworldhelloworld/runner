@@ -1,0 +1,63 @@
+<view class="container">
+
+  <!-- 用户头部 -->
+  <view class="user-header">
+    <view class="avatar-wrap">
+      <text class="avatar-emoji">⚓</text>
+    </view>
+    <view class="user-info">
+      <text class="user-name">心灵港湾用户</text>
+      <text class="user-id">ID: {{userId}}</text>
+    </view>
+  </view>
+
+  <!-- 统计卡片 -->
+  <view class="stats-row">
+    <view class="stat-card">
+      <text class="stat-num">{{streak}}</text>
+      <text class="stat-label">连续打卡天</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-num">{{totalDays}}</text>
+      <text class="stat-label">累计打卡天</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-num">{{assessmentHistory.length}}</text>
+      <text class="stat-label">完成测评</text>
+    </view>
+  </view>
+
+  <!-- 近7天情绪折线图 -->
+  <view class="card">
+    <view class="card-title">近 7 天情绪走势</view>
+    <view wx:if="{{emotions7.length > 0}}">
+      <canvas
+        canvas-id="emotionChart"
+        style="width: {{canvasWidth}}px; height: {{canvasHeight}}px;"
+      ></canvas>
+    </view>
+    <view wx:else class="empty-chart">
+      <text>暂无打卡数据，快去打卡吧 🌈</text>
+    </view>
+  </view>
+
+  <!-- 情绪分布 -->
+  <view wx:if="{{distributionList.length > 0}}" class="card">
+    <view class="card-title">情绪分布（近 30 天）</view>
+    <view wx:for="{{distributionList}}" wx:key="emotion" class="dist-row">
+      <text class="dist-emotion">{{item.emotion}}</text>
+      <text class="dist-count">{{item.count}} 次</text>
+    </view>
+  </view>
+
+  <!-- 测评历史 -->
+  <view wx:if="{{assessmentHistory.length > 0}}" class="card">
+    <view class="card-title">最近测评</view>
+    <view wx:for="{{assessmentHistory}}" wx:key="id" class="history-row">
+      <text class="history-type">{{item.scaleType}}</text>
+      <text class="history-score">{{item.totalScore}} 分</text>
+      <text class="history-severity">{{item.severity}}</text>
+    </view>
+  </view>
+
+</view>

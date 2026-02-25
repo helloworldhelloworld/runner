@@ -1,0 +1,43 @@
+{
+  "pages": [
+    "pages/chat/chat",
+    "pages/checkin/checkin",
+    "pages/assessment/assessment",
+    "pages/assessment-quiz/assessment-quiz",
+    "pages/assessment-result/assessment-result",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#5B8AF0",
+    "navigationBarTitleText": "心灵港湾",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F4F6FB"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#5B8AF0",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/chat/chat",
+        "text": "倾诉"
+      },
+      {
+        "pagePath": "pages/checkin/checkin",
+        "text": "打卡"
+      },
+      {
+        "pagePath": "pages/assessment/assessment",
+        "text": "测评"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
