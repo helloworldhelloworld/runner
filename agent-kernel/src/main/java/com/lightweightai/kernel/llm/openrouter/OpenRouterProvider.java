@@ -331,11 +331,13 @@ public class OpenRouterProvider implements LLMProvider {
                             JsonNode delta = firstChoice.get("delta");
 
                             if (delta != null) {
-                                // Text content
+                                // Text content — skip empty chunks from API warmup
                                 if (delta.has("content") && !delta.get("content").isNull()) {
                                     String deltaContent = delta.get("content").asText();
-                                    textContent.append(deltaContent);
-                                    handler.onTextDelta(deltaContent);
+                                    if (!deltaContent.isEmpty()) {
+                                        textContent.append(deltaContent);
+                                        handler.onTextDelta(deltaContent);
+                                    }
                                 }
 
                                 // Tool call chunks (OpenAI streaming format)

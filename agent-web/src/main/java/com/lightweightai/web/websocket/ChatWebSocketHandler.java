@@ -96,10 +96,13 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         chatService.chat(message, sessionId, chunk -> {
             if (chunk.getDelta() != null && !chunk.getDelta().isEmpty()) {
                 sendToken(session, chunk.getDelta());
-            } else {
-                // empty delta = stream end signal
-                sendStreamEnd(session, chunk.getEmotion());
             }
+        }).thenAccept(fullResponse -> {
+            sendStreamEnd(session, "温柔");
+        }).exceptionally(e -> {
+            logger.error("Streaming failed for session {}", sessionId, e);
+            sendError(session, "处理失败: " + e.getMessage());
+            return null;
         });
     }
 

@@ -713,7 +713,7 @@
             }
         }
 
-        // 流式发送消息
+        // 流式发送消息（走 Gateway 统一入口）
         async function sendMessageStream(message, selectedModel) {
             // 创建空的店长消息
             const msgId = addMessage('shopkeeper', '<span class="text-gray-400">店长正在输入...</span>');
@@ -723,18 +723,21 @@
             let fullResponse = '';
 
             try {
-                await window.soulComfortAPI.sendTextMessageStream(message, {
+                await window.soulComfortAPI.gatewaySendStream(message, {
                     sessionId: currentSessionId,
                     model: selectedModel,
                     onDelta: (delta, emotion) => {
-                        fullResponse += delta;
-                        contentDiv.innerHTML = fullResponse;
-                        // 滚动到底部
-                        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+                        if (delta) {
+                            fullResponse += delta;
+                            contentDiv.innerHTML = fullResponse;
+                            // 滚动到底部
+                            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+                        }
                     },
-                    onComplete: (response, data) => {
+                    onComplete: (content, data) => {
                         // 确保显示完整响应
-                        contentDiv.innerHTML = response || fullResponse;
+                        if (content) contentDiv.innerHTML = content;
+                        else if (fullResponse) contentDiv.innerHTML = fullResponse;
 
                         // App环境下震动反馈
                         if (window.appBridge.isApp) {

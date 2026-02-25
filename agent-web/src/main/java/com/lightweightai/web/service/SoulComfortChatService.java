@@ -245,7 +245,7 @@ public class SoulComfortChatService {
                 transcript.append(TranscriptEntry.assistantMessage(filtered));
                 indexConversationToMemory(sessionId, message, filtered);
 
-                callback.onChunk(new StreamChunk("", "温柔"));
+                // 不再用空 delta 发结束信号，由调用方通过 CompletableFuture 处理
                 logger.info("Streaming chat completed - Session: {}", sessionId);
             }
 
