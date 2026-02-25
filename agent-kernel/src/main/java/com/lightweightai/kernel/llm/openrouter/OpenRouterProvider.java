@@ -297,11 +297,17 @@ public class OpenRouterProvider implements LLMProvider {
     }
 
     /**
-     * Parse streaming response using Server-Sent Events
+     * Parse streaming response using Server-Sent Events.
+     *
+     * Handles both text responses and tool_call responses (OpenAI function-calling format).
+     * Tool call arguments are streamed in chunks and assembled here.
      */
     private LLMResponse parseStreamingResponse(ResponseBody responseBody, StreamEventHandler handler) throws IOException {
         StringBuilder textContent = new StringBuilder();
         String finishReason = null;
+
+        // Tool call chunks are keyed by their index
+        Map<Integer, ToolCallAccumulator> toolCallMap = new LinkedHashMap<>();
 
         // Parse SSE events line by line
         try (java.io.BufferedReader reader = new java.io.BufferedReader(
@@ -324,10 +330,29 @@ public class OpenRouterProvider implements LLMProvider {
                             JsonNode firstChoice = choices.get(0);
                             JsonNode delta = firstChoice.get("delta");
 
-                            if (delta != null && delta.has("content")) {
-                                String deltaContent = delta.get("content").asText();
-                                textContent.append(deltaContent);
-                                handler.onTextDelta(deltaContent);
+                            if (delta != null) {
+                                // Text content
+                                if (delta.has("content") && !delta.get("content").isNull()) {
+                                    String deltaContent = delta.get("content").asText();
+                                    textContent.append(deltaContent);
+                                    handler.onTextDelta(deltaContent);
+                                }
+
+                                // Tool call chunks (OpenAI streaming format)
+                                JsonNode tcArr = delta.get("tool_calls");
+                                if (tcArr != null && tcArr.isArray()) {
+                                    for (JsonNode tc : tcArr) {
+                                        int idx = tc.has("index") ? tc.get("index").asInt() : 0;
+                                        ToolCallAccumulator acc = toolCallMap.computeIfAbsent(
+                                            idx, i -> new ToolCallAccumulator());
+                                        if (tc.has("id")) acc.id = tc.get("id").asText();
+                                        JsonNode fn = tc.get("function");
+                                        if (fn != null) {
+                                            if (fn.has("name")) acc.name = fn.get("name").asText();
+                                            if (fn.has("arguments")) acc.argsJson.append(fn.get("arguments").asText());
+                                        }
+                                    }
+                                }
                             }
 
                             if (firstChoice.has("finish_reason") && !firstChoice.get("finish_reason").isNull()) {
@@ -341,6 +366,24 @@ public class OpenRouterProvider implements LLMProvider {
             }
         }
 
+        // Assemble tool calls from accumulated chunks
+        List<ToolCall> toolCalls = new ArrayList<>();
+        for (ToolCallAccumulator acc : toolCallMap.values()) {
+            try {
+                String argsStr = acc.argsJson.toString();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> argsMap = argsStr.isBlank()
+                    ? new HashMap<>()
+                    : objectMapper.readValue(argsStr, Map.class);
+                toolCalls.add(new ToolCall(acc.id, acc.name, argsMap));
+            } catch (Exception e) {
+                System.err.println("[OpenRouterProvider] Failed to parse streaming tool call args: " + e.getMessage());
+            }
+        }
+        if (!toolCalls.isEmpty()) {
+            System.out.println("[OpenRouterProvider] Streaming tool_calls assembled: " + toolCalls.size());
+        }
+
         // Build final response
         ConversationMessage message = ConversationMessage.builder()
             .role(MessageRole.ASSISTANT)
@@ -349,7 +392,15 @@ public class OpenRouterProvider implements LLMProvider {
 
         return LLMResponse.builder()
             .message(message)
+            .toolCalls(toolCalls)
             .stopReason(finishReason)
             .build();
+    }
+
+    /** Accumulates streamed tool call chunks by index */
+    private static class ToolCallAccumulator {
+        String id = "";
+        String name = "";
+        StringBuilder argsJson = new StringBuilder();
     }
 }

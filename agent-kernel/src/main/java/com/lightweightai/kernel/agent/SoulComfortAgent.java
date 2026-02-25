@@ -173,47 +173,114 @@ public class SoulComfortAgent {
     }
 
     /**
-     * 流式对话（probe-first 模式）
+     * 流式对话（两阶段流式方案）
      *
-     * 有工具时：先同步 complete() 检测是否需要工具调用，执行完再流式输出最终回答。
-     * 无工具时：直接流式输出。
+     * 无工具时：直接 completeStream() — 文字立即开始流式输出。
+     * 有工具时：
+     *   Phase 1 — completeStream() 携带 tool defs；LLM 输出 tool_calls 时流很快结束（无文字）
+     *   Phase 2 — 执行工具后再次 completeStream()，最终回答流式输出
+     *
+     * 与 probe-first 的区别：不做阻塞的同步 complete() 调用，流式体验更流畅。
      */
     public CompletableFuture<String> chatStream(String sessionId, String userMessage,
                                                  String externalMemoryContext,
                                                  LLMProvider.StreamEventHandler handler) {
         List<ConversationMessage> messages = buildMessages(sessionId, userMessage, externalMemoryContext);
+        LLMOptions optionsFinal = LLMOptions.builder().maxTokens(500).temperature(0.8).build();
 
-        // Probe phase: synchronously check for tool calls before streaming
-        if (!tools.isEmpty()) {
-            try {
-                LLMResponse probe = llmProvider.complete(messages,
-                    LLMOptions.builder()
-                        .maxTokens(500)
-                        .temperature(0.8)
-                        .toolDefinitions(buildToolDefinitions())
-                        .build());
-
-                if (probe.hasToolCalls()) {
-                    System.out.println("[SoulComfortAgent] chatStream probe: " + probe.getToolCalls().size() + " tool call(s) detected");
-                    messages.add(executeTools(probe.getToolCalls()));
-                }
-            } catch (Exception e) {
-                System.err.println("[SoulComfortAgent] chatStream probe failed: " + e.getMessage());
-                // Continue with streaming, tool results simply won't be included
-            }
+        if (tools.isEmpty()) {
+            // 无工具 — 直接流式
+            return llmProvider.completeStream(messages, optionsFinal, handler)
+                .thenApply(r -> {
+                    String text = r.getMessage().getTextContent();
+                    saveAssistantMessage(sessionId, text);
+                    return text;
+                });
         }
 
-        LLMOptions options = LLMOptions.builder()
-            .maxTokens(500)
-            .temperature(0.8)
+        // 有工具 — 两阶段流式
+        LLMOptions optionsWithTools = LLMOptions.builder()
+            .maxTokens(500).temperature(0.8)
+            .toolDefinitions(buildToolDefinitions())
             .build();
 
-        return llmProvider.completeStream(messages, options, handler)
-            .thenApply(response -> {
-                String text = response.getMessage().getTextContent();
-                saveAssistantMessage(sessionId, text);
-                return text;
-            });
+        CompletableFuture<String> result = new CompletableFuture<>();
+
+        // Phase 1: stream with tool definitions
+        llmProvider.completeStream(messages, optionsWithTools, new LLMProvider.StreamEventHandler() {
+            @Override
+            public void onStart() {
+                handler.onStart(); // 透传给外层 handler（触发一次即可）
+            }
+
+            @Override
+            public void onTextDelta(String delta) {
+                // LLM 直接用文字回复（未调用工具）— 正常透传
+                handler.onTextDelta(delta);
+            }
+
+            @Override
+            public void onComplete(LLMResponse response) {
+                if (!response.hasToolCalls()) {
+                    // 无工具调用，回答已完整流出
+                    String text = response.getMessage().getTextContent();
+                    saveAssistantMessage(sessionId, text);
+                    handler.onComplete(response);
+                    result.complete(text);
+                    return;
+                }
+
+                // 工具调用检测到 — 执行工具，再流式输出最终回答
+                System.out.println("[SoulComfortAgent] chatStream phase1: "
+                    + response.getToolCalls().size() + " tool call(s), executing...");
+                messages.add(executeTools(response.getToolCalls()));
+
+                // Phase 2: stream final answer (no tools to prevent recursion)
+                llmProvider.completeStream(messages, optionsFinal, new LLMProvider.StreamEventHandler() {
+                    @Override
+                    public void onStart() { /* 不重复触发 */ }
+
+                    @Override
+                    public void onTextDelta(String delta) {
+                        handler.onTextDelta(delta);
+                    }
+
+                    @Override
+                    public void onComplete(LLMResponse finalResponse) {
+                        String text = finalResponse.getMessage().getTextContent();
+                        saveAssistantMessage(sessionId, text);
+                        handler.onComplete(finalResponse);
+                        result.complete(text);
+                    }
+
+                    @Override
+                    public void onError(Throwable error) {
+                        handler.onError(error);
+                        result.completeExceptionally(error);
+                    }
+                }).exceptionally(e -> {
+                    if (!result.isDone()) {
+                        handler.onError(e);
+                        result.completeExceptionally(e);
+                    }
+                    return null;
+                });
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                handler.onError(error);
+                result.completeExceptionally(error);
+            }
+        }).exceptionally(e -> {
+            if (!result.isDone()) {
+                handler.onError(e);
+                result.completeExceptionally(e);
+            }
+            return null;
+        });
+
+        return result;
     }
 
     // ==================== Tool Helpers ====================
