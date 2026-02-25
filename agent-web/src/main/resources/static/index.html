@@ -671,38 +671,28 @@
             addMessage('customer', message);
             input.value = '';
 
-            // 流式模式（debug模式下跳过，使用普通模式以展示调试信息）
-            if (useStreamingMode && !debugMode) {
+            // 流式模式（包括 debug 模式，均走流式路径）
+            if (useStreamingMode) {
                 await sendMessageStream(message, selectedModel);
                 return;
             }
 
-            // Show loading
+            // 非流式模式（仅当流式开关关闭时使用）
             const loadingId = addMessage('shopkeeper', `<div class="loading"></div> <span class="text-sm">店长正在思考...</span>`);
 
             try {
-                // 使用统一API客户端，传递debug参数
                 const data = await window.soulComfortAPI.sendTextMessage(message, {
                     sessionId: currentSessionId,
                     model: selectedModel,
-                    debug: debugMode
+                    debug: false
                 });
 
-                // Remove loading
                 document.getElementById(loadingId).remove();
 
-                // Add assistant message
                 if (data.error) {
                     addMessage('error', `抱歉，店长遇到了一些问题：${data.error}`);
                 } else {
                     addMessage('shopkeeper', data.response, data);
-
-                    // 显示调试信息
-                    if (debugMode && data.debug) {
-                        displayDebugInfo(data.debug);
-                    }
-
-                    // App环境下震动反馈
                     if (window.appBridge.isApp) {
                         window.appBridge.vibrate(30);
                     }
@@ -713,7 +703,7 @@
             }
         }
 
-        // 流式发送消息（走 Gateway 统一入口）
+        // 流式发送消息（debug 模式走 /api/chat/stream，普通模式走 Gateway）
         async function sendMessageStream(message, selectedModel) {
             // 创建空的店长消息
             const msgId = addMessage('shopkeeper', '<span class="text-gray-400">店长正在输入...</span>');
@@ -722,34 +712,64 @@
 
             let fullResponse = '';
 
-            try {
-                await window.soulComfortAPI.gatewaySendStream(message, {
-                    sessionId: currentSessionId,
-                    model: selectedModel,
-                    onDelta: (delta, emotion) => {
-                        if (delta) {
-                            fullResponse += delta;
-                            contentDiv.innerHTML = fullResponse;
-                            // 滚动到底部
-                            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-                        }
-                    },
-                    onComplete: (content, data) => {
-                        // 确保显示完整响应
-                        if (content) contentDiv.innerHTML = content;
-                        else if (fullResponse) contentDiv.innerHTML = fullResponse;
+            if (debugMode) {
+                // debug 模式：走 /api/chat/stream，complete 事件携带 debug info
+                try {
+                    await window.soulComfortAPI.sendTextMessageStream(message, {
+                        sessionId: currentSessionId,
+                        model: selectedModel,
+                        debug: true,
+                        onDelta: (delta) => {
+                            if (delta) {
+                                fullResponse += delta;
+                                contentDiv.innerHTML = fullResponse;
+                                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+                            }
+                        },
+                        onComplete: (response, data) => {
+                            if (response) contentDiv.innerHTML = response;
+                            else if (fullResponse) contentDiv.innerHTML = fullResponse;
 
-                        // App环境下震动反馈
-                        if (window.appBridge.isApp) {
-                            window.appBridge.vibrate(30);
+                            // 显示调试信息
+                            if (data && data.debug) {
+                                displayDebugInfo(data.debug);
+                            }
+
+                            if (window.appBridge.isApp) window.appBridge.vibrate(30);
+                        },
+                        onError: (error) => {
+                            contentDiv.innerHTML = `<span class="text-red-500">出错了：${error.message}</span>`;
                         }
-                    },
-                    onError: (error) => {
-                        contentDiv.innerHTML = `<span class="text-red-500">出错了：${error.message}</span>`;
-                    }
-                });
-            } catch (error) {
-                contentDiv.innerHTML = `<span class="text-red-500">连接出错：${error.message}</span>`;
+                    });
+                } catch (error) {
+                    contentDiv.innerHTML = `<span class="text-red-500">连接出错：${error.message}</span>`;
+                }
+            } else {
+                // 普通流式：走 Gateway 统一入口
+                try {
+                    await window.soulComfortAPI.gatewaySendStream(message, {
+                        sessionId: currentSessionId,
+                        model: selectedModel,
+                        onDelta: (delta, emotion) => {
+                            if (delta) {
+                                fullResponse += delta;
+                                contentDiv.innerHTML = fullResponse;
+                                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+                            }
+                        },
+                        onComplete: (content, data) => {
+                            if (content) contentDiv.innerHTML = content;
+                            else if (fullResponse) contentDiv.innerHTML = fullResponse;
+
+                            if (window.appBridge.isApp) window.appBridge.vibrate(30);
+                        },
+                        onError: (error) => {
+                            contentDiv.innerHTML = `<span class="text-red-500">出错了：${error.message}</span>`;
+                        }
+                    });
+                } catch (error) {
+                    contentDiv.innerHTML = `<span class="text-red-500">连接出错：${error.message}</span>`;
+                }
             }
         }
 

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.lightweightai.web.model.ChatRequest;
 import com.lightweightai.web.model.ChatResponse;
+import com.lightweightai.web.observer.DebugAgentObserver;
 import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
 import org.slf4j.Logger;
@@ -71,6 +72,7 @@ public class ChatController {
         executor.submit(() -> {
             try {
                 String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
+                DebugAgentObserver debugObserver = request.isDebug() ? new DebugAgentObserver() : null;
 
                 soulComfortChatService.chat(request.getMessage(), sessionId,
                     chunk -> {
@@ -87,15 +89,17 @@ public class ChatController {
                         } catch (IOException e) {
                             logger.error("Failed to send SSE event", e);
                         }
-                    }
+                    }, debugObserver
                 ).thenAccept(fullResponse -> {
                     try {
-                        // Send complete event
-                        Map<String, Object> completeEvent = Map.of(
-                            "type", "complete",
-                            "response", fullResponse,
-                            "skillsApplied", List.of("soul-comfort", "openclaw-memory")
-                        );
+                        // Send complete event (含 debug info 如果开启了调试模式)
+                        Map<String, Object> completeEvent = new java.util.HashMap<>();
+                        completeEvent.put("type", "complete");
+                        completeEvent.put("response", fullResponse);
+                        completeEvent.put("skillsApplied", List.of("soul-comfort", "openclaw-memory"));
+                        if (debugObserver != null) {
+                            completeEvent.put("debug", debugObserver.getDebugInfo());
+                        }
                         emitter.send(SseEmitter.event()
                             .name("message")
                             .data(compactMapper.writeValueAsString(completeEvent)));

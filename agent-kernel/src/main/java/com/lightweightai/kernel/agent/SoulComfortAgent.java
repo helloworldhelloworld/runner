@@ -154,7 +154,6 @@ public class SoulComfortAgent {
                 }
 
                 // Execute tools and append results as context for the next LLM call
-                System.out.println("[SoulComfortAgent] Executing " + response.getToolCalls().size() + " tool call(s)");
                 messages.add(executeTools(response.getToolCalls()));
                 iterations++;
             }
@@ -185,13 +184,22 @@ public class SoulComfortAgent {
     public CompletableFuture<String> chatStream(String sessionId, String userMessage,
                                                  String externalMemoryContext,
                                                  LLMProvider.StreamEventHandler handler) {
+        if (observer != null) observer.onAgentStart(userMessage, sessionId);
+
         List<ConversationMessage> messages = buildMessages(sessionId, userMessage, externalMemoryContext);
+        if (observer != null) observer.onLLMRequest(messages);
+
         LLMOptions optionsFinal = LLMOptions.builder().maxTokens(500).temperature(0.8).build();
 
         if (tools.isEmpty()) {
             // 无工具 — 直接流式
             return llmProvider.completeStream(messages, optionsFinal, handler)
                 .thenApply(r -> {
+                    if (observer != null) {
+                        observer.onLLMResponse(r);
+                        observer.onAgentComplete(AgentResponse.builder()
+                            .text(r.getMessage().getTextContent()).build());
+                    }
                     String text = r.getMessage().getTextContent();
                     saveAssistantMessage(sessionId, text);
                     return text;
@@ -225,14 +233,16 @@ public class SoulComfortAgent {
                     // 无工具调用，回答已完整流出
                     String text = response.getMessage().getTextContent();
                     saveAssistantMessage(sessionId, text);
+                    if (observer != null) {
+                        observer.onLLMResponse(response);
+                        observer.onAgentComplete(AgentResponse.builder().text(text).build());
+                    }
                     handler.onComplete(response);
                     result.complete(text);
                     return;
                 }
 
                 // 工具调用检测到 — 执行工具，再流式输出最终回答
-                System.out.println("[SoulComfortAgent] chatStream phase1: "
-                    + response.getToolCalls().size() + " tool call(s), executing...");
                 messages.add(executeTools(response.getToolCalls()));
 
                 // Phase 2: stream final answer (no tools to prevent recursion)
@@ -249,6 +259,10 @@ public class SoulComfortAgent {
                     public void onComplete(LLMResponse finalResponse) {
                         String text = finalResponse.getMessage().getTextContent();
                         saveAssistantMessage(sessionId, text);
+                        if (observer != null) {
+                            observer.onLLMResponse(finalResponse);
+                            observer.onAgentComplete(AgentResponse.builder().text(text).build());
+                        }
                         handler.onComplete(finalResponse);
                         result.complete(text);
                     }

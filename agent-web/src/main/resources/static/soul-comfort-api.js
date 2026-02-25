@@ -118,7 +118,8 @@ class SoulComfortAPI {
                     message,
                     sessionId: options.sessionId,
                     model: options.model,
-                    soulComfortMode: true
+                    soulComfortMode: true,
+                    debug: options.debug || false
                 })
             });
 

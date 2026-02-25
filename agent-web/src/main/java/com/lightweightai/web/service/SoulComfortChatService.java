@@ -211,11 +211,25 @@ public class SoulComfortChatService {
      * 处理聊天请求（流式，通过 Lane Queue）
      */
     public CompletableFuture<String> chat(String message, String sessionId, StreamCallback callback) {
+        return chat(message, sessionId, callback, null);
+    }
+
+    /**
+     * 处理聊天请求（流式 + 调试模式，通过 Lane Queue）
+     *
+     * 传入 debugObserver 时，streaming 结束后 observer 已收集好请求/响应信息，
+     * 调用方可直接读取 debugObserver.getDebugInfo()。
+     */
+    public CompletableFuture<String> chat(String message, String sessionId,
+                                           StreamCallback callback, DebugAgentObserver debugObserver) {
         String actualSessionId = sessionId != null ? sessionId : "default";
 
-        return laneManager.submitAsync(actualSessionId, () ->
-            processChatStreamInternal(message, actualSessionId, callback)
-        );
+        return laneManager.submitAsync(actualSessionId, () -> {
+            if (debugObserver != null) {
+                defaultAgent.setObserver(debugObserver);
+            }
+            return processChatStreamInternal(message, actualSessionId, callback);
+        });
     }
 
     private CompletableFuture<String> processChatStreamInternal(String message, String sessionId, StreamCallback callback) {
