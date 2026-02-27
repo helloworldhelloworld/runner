@@ -1,10 +1,13 @@
 package com.lightweightai.kernel.core;
 
+import com.lightweightai.kernel.agent.Tool;
+import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.plugin.FunctionResult;
 import com.lightweightai.kernel.plugin.PluginFunction;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,22 +15,71 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
- * Executes tool calls from LLM using registered plugins.
- * Responsible for finding the correct function and executing it with the provided parameters.
+ * Executes tool calls from LLM using registered tools and plugins.
+ *
+ * Supports two registration paths:
+ * 1. {@link Tool} objects via {@link ToolRegistry} (preferred)
+ * 2. {@link PluginFunction} objects via legacy registerFunction methods
+ *
+ * When executing, ToolRegistry is checked first, then the legacy function registry.
  */
 public class ToolExecutor {
 
     private final Map<String, PluginFunction> functionRegistry;
+    private final ToolRegistry toolRegistry;
 
     /**
-     * Create a new ToolExecutor
+     * Create a new ToolExecutor with its own ToolRegistry
      */
     public ToolExecutor() {
         this.functionRegistry = new HashMap<>();
+        this.toolRegistry = new ToolRegistry();
     }
 
     /**
-     * Register a plugin's functions
+     * Create a new ToolExecutor backed by an existing ToolRegistry
+     *
+     * @param toolRegistry The tool registry to use
+     */
+    public ToolExecutor(ToolRegistry toolRegistry) {
+        this.functionRegistry = new HashMap<>();
+        this.toolRegistry = toolRegistry != null ? toolRegistry : new ToolRegistry();
+    }
+
+    /**
+     * Register a Tool object
+     *
+     * @param tool The tool to register
+     */
+    public void registerTool(Tool tool) {
+        if (tool == null) {
+            throw new IllegalArgumentException("Tool cannot be null");
+        }
+        toolRegistry.register(tool);
+    }
+
+    /**
+     * Register multiple Tool objects
+     *
+     * @param tools The tools to register
+     */
+    public void registerTools(List<Tool> tools) {
+        if (tools != null) {
+            toolRegistry.registerAll(tools);
+        }
+    }
+
+    /**
+     * Get the underlying ToolRegistry
+     *
+     * @return The tool registry
+     */
+    public ToolRegistry getToolRegistry() {
+        return toolRegistry;
+    }
+
+    /**
+     * Register a plugin's functions (legacy support)
      *
      * @param pluginFunctions Map of function name to PluginFunction
      */
@@ -38,7 +90,7 @@ public class ToolExecutor {
     }
 
     /**
-     * Register a single function
+     * Register a single function (legacy support)
      *
      * @param name     Function name
      * @param function PluginFunction instance
@@ -55,7 +107,8 @@ public class ToolExecutor {
     }
 
     /**
-     * Execute a single tool call
+     * Execute a single tool call.
+     * Checks ToolRegistry first, then falls back to legacy function registry.
      *
      * @param toolCall The tool call request from LLM
      * @return ToolResult with the execution result or error
@@ -66,7 +119,15 @@ public class ToolExecutor {
         }
 
         try {
-            // Find the function
+            // Check ToolRegistry first (preferred path)
+            if (toolRegistry.has(toolCall.getName()) && toolRegistry.isEnabled(toolCall.getName())) {
+                Tool tool = toolRegistry.get(toolCall.getName()).orElse(null);
+                if (tool != null) {
+                    return tool.execute(toolCall.getArguments());
+                }
+            }
+
+            // Fall back to legacy function registry
             PluginFunction function = functionRegistry.get(toolCall.getName());
             if (function == null) {
                 return ToolResult.error(
@@ -131,44 +192,55 @@ public class ToolExecutor {
     }
 
     /**
-     * Check if a tool is registered
+     * Check if a tool is registered (in either registry)
      *
      * @param toolName Tool name to check
      * @return true if the tool is registered
      */
     public boolean hasFunction(String toolName) {
-        return functionRegistry.containsKey(toolName);
+        return toolRegistry.has(toolName) || functionRegistry.containsKey(toolName);
     }
 
     /**
-     * Get the number of registered functions
+     * Get the total number of registered tools and functions
      *
-     * @return Number of functions
+     * @return Total count
      */
     public int getFunctionCount() {
-        return functionRegistry.size();
+        return toolRegistry.enabledCount() + functionRegistry.size();
     }
 
     /**
-     * Get tool definitions in JSON schema format for LLM
+     * Get tool definitions in JSON schema format for LLM.
+     * Merges definitions from ToolRegistry and legacy function registry.
      *
      * @return List of tool definitions as Map
      */
     public List<Map<String, Object>> getToolDefinitions() {
-        return functionRegistry.values().stream()
+        List<Map<String, Object>> definitions = new ArrayList<>();
+
+        // Add Tool definitions from ToolRegistry
+        definitions.addAll(toolRegistry.getToolDefinitions());
+
+        // Add legacy PluginFunction definitions
+        definitions.addAll(functionRegistry.values().stream()
             .map(PluginFunction::toJsonSchema)
-            .collect(Collectors.toList());
+            .collect(Collectors.toList()));
+
+        return definitions;
     }
 
     /**
-     * Clear all registered functions
+     * Clear all registered tools and functions
      */
     public void clear() {
+        toolRegistry.clear();
         functionRegistry.clear();
     }
 
     @Override
     public String toString() {
-        return "ToolExecutor{functions=" + functionRegistry.size() + "}";
+        return "ToolExecutor{tools=" + toolRegistry.enabledCount()
+            + ", functions=" + functionRegistry.size() + "}";
     }
 }
