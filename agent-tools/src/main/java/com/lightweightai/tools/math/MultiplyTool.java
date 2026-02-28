@@ -1,4 +1,4 @@
-package com.lightweightai.kernel.agent.tools;
+package com.lightweightai.tools.math;
 
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
@@ -9,18 +9,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Add two numbers.
+ * Multiply two numbers.
  */
-public class AddTool implements Tool, ToolMetadata {
+public class MultiplyTool implements Tool, ToolMetadata {
 
     @Override
     public String getName() {
-        return "add";
+        return "multiply";
     }
 
     @Override
     public String getDescription() {
-        return "Add two numbers and return the sum";
+        return "Multiply two numbers and return the product";
     }
 
     @Override
@@ -35,12 +35,11 @@ public class AddTool implements Tool, ToolMetadata {
     public ToolResult execute(Map<String, Object> args) {
         double a = ((Number) args.get("a")).doubleValue();
         double b = ((Number) args.get("b")).doubleValue();
-        double result = a + b;
-        // Return integer string if result is a whole number
+        double result = a * b;
         if (result == Math.floor(result) && !Double.isInfinite(result)) {
-            return ToolResult.success("add", String.valueOf((long) result));
+            return ToolResult.success("multiply", String.valueOf((long) result));
         }
-        return ToolResult.success("add", String.valueOf(result));
+        return ToolResult.success("multiply", String.valueOf(result));
     }
 
     @Override

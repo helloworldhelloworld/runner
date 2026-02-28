@@ -1,4 +1,4 @@
-package com.lightweightai.kernel.agent.tools;
+package com.lightweightai.tools.time;
 
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;

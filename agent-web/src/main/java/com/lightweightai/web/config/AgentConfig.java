@@ -1,9 +1,6 @@
 package com.lightweightai.web.config;
 
 import com.lightweightai.kernel.agent.ToolRegistry;
-import com.lightweightai.kernel.agent.tools.AddTool;
-import com.lightweightai.kernel.agent.tools.GetTimeTool;
-import com.lightweightai.kernel.agent.tools.MultiplyTool;
 import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.instruction.InstructionRegistry;
@@ -19,7 +16,10 @@ import com.lightweightai.kernel.skill.SkillLoader;
 import com.lightweightai.kernel.speech.SpeechProvider;
 import com.lightweightai.kernel.speech.AzureSpeechProvider;
 import com.lightweightai.kernel.speech.OpenAISpeechProvider;
-import com.lightweightai.web.tools.WebSearchTool;
+import com.lightweightai.tools.math.AddTool;
+import com.lightweightai.tools.math.MultiplyTool;
+import com.lightweightai.tools.time.GetTimeTool;
+import com.lightweightai.tools.web.WebSearchTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -61,6 +61,12 @@ public class AgentConfig {
 
     @Value("${app.openrouter.model:anthropic/claude-3.5-sonnet}")
     private String openRouterModel;
+
+    @Value("${app.web-search.api-key:}")
+    private String webSearchApiKey;
+
+    @Value("${app.web-search.max-results:3}")
+    private int webSearchMaxResults;
 
     @Value("${app.speech.provider:openai}")
     private String speechProviderType;
@@ -205,16 +211,14 @@ public class AgentConfig {
     }
 
     @Bean
-    public ToolRegistry toolRegistry(WebSearchTool webSearchTool) {
+    public ToolRegistry toolRegistry() {
         ToolRegistry registry = new ToolRegistry();
 
-        // Register built-in tools
+        // Register built-in tools from agent-tools module
         registry.register(new AddTool());
         registry.register(new MultiplyTool());
         registry.register(new GetTimeTool());
-
-        // Register web search tool (Spring-managed, auto-injected)
-        registry.register(webSearchTool);
+        registry.register(new WebSearchTool(webSearchApiKey, webSearchMaxResults));
 
         logger.info("ToolRegistry initialized: {}", registry);
         return registry;

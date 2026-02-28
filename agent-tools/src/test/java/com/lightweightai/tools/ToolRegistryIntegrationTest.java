@@ -1,11 +1,15 @@
-package com.lightweightai.kernel.agent;
+package com.lightweightai.tools;
 
-import com.lightweightai.kernel.agent.tools.AddTool;
-import com.lightweightai.kernel.agent.tools.GetTimeTool;
-import com.lightweightai.kernel.agent.tools.MultiplyTool;
+import com.lightweightai.kernel.agent.Tool;
+import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
+import com.lightweightai.tools.math.AddTool;
+import com.lightweightai.tools.math.MultiplyTool;
+import com.lightweightai.tools.time.GetTimeTool;
+import com.lightweightai.tools.web.WebSearchTool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -176,7 +180,6 @@ class ToolRegistryIntegrationTest {
     @Test
     @DisplayName("Dynamically register tool and execute it")
     void shouldRegisterAndExecuteDynamically() {
-        // Register a new tool at runtime
         executor.registerTool(new Tool() {
             @Override
             public String getName() { return "greet"; }
@@ -203,5 +206,17 @@ class ToolRegistryIntegrationTest {
 
         assertFalse(result.isError());
         assertEquals("Hello, World!", result.getContent());
+    }
+
+    @Test
+    @DisplayName("WebSearchTool executes in mock mode")
+    void shouldExecuteWebSearchToolInMockMode() {
+        registry.register(new WebSearchTool());
+
+        ToolCall call = new ToolCall("call_ws", "web_search", Map.of("query", "test query"));
+        ToolResult result = executor.executeToolCall(call);
+
+        assertFalse(result.isError());
+        assertTrue(result.getContent().contains("test query"));
     }
 }
