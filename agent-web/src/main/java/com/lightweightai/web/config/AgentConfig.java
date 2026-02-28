@@ -1,5 +1,6 @@
 package com.lightweightai.web.config;
 
+import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.instruction.InstructionRegistry;
@@ -9,13 +10,16 @@ import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.claude.ClaudeProvider;
 import com.lightweightai.kernel.llm.claude.ClaudeProProvider;
 import com.lightweightai.kernel.llm.openrouter.OpenRouterProvider;
-import com.lightweightai.kernel.plugin.FunctionResult;
 import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.skill.Skill;
 import com.lightweightai.kernel.skill.SkillLoader;
 import com.lightweightai.kernel.speech.SpeechProvider;
 import com.lightweightai.kernel.speech.AzureSpeechProvider;
 import com.lightweightai.kernel.speech.OpenAISpeechProvider;
+import com.lightweightai.tools.math.AddTool;
+import com.lightweightai.tools.math.MultiplyTool;
+import com.lightweightai.tools.time.GetTimeTool;
+import com.lightweightai.tools.web.WebSearchTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,6 +61,12 @@ public class AgentConfig {
 
     @Value("${app.openrouter.model:anthropic/claude-3.5-sonnet}")
     private String openRouterModel;
+
+    @Value("${app.web-search.api-key:}")
+    private String webSearchApiKey;
+
+    @Value("${app.web-search.max-results:3}")
+    private int webSearchMaxResults;
 
     @Value("${app.speech.provider:openai}")
     private String speechProviderType;
@@ -201,84 +211,23 @@ public class AgentConfig {
     }
 
     @Bean
-    public ToolExecutor toolExecutor() {
-        ToolExecutor executor = new ToolExecutor();
+    public ToolRegistry toolRegistry() {
+        ToolRegistry registry = new ToolRegistry();
 
-        // Register example tools using anonymous classes
-        executor.registerFunction("add", new com.lightweightai.kernel.plugin.PluginFunction() {
-            @Override
-            public String getName() { return "add"; }
+        // Register built-in tools from agent-tools module
+        registry.register(new AddTool());
+        registry.register(new MultiplyTool());
+        registry.register(new GetTimeTool());
+        registry.register(new WebSearchTool(webSearchApiKey, webSearchMaxResults));
 
-            @Override
-            public String getDescription() { return "Add two numbers"; }
+        logger.info("ToolRegistry initialized: {}", registry);
+        return registry;
+    }
 
-            @Override
-            public java.util.List<com.lightweightai.kernel.plugin.FunctionParameter> getParameters() {
-                return java.util.List.of();
-            }
-
-            @Override
-            public FunctionResult execute(Map<String, Object> input) {
-                int a = ((Number) input.get("a")).intValue();
-                int b = ((Number) input.get("b")).intValue();
-                return FunctionResult.success(String.valueOf(a + b));
-            }
-
-            @Override
-            public Map<String, Object> toJsonSchema() {
-                return Map.of("name", "add", "description", "Add two numbers");
-            }
-        });
-
-        executor.registerFunction("multiply", new com.lightweightai.kernel.plugin.PluginFunction() {
-            @Override
-            public String getName() { return "multiply"; }
-
-            @Override
-            public String getDescription() { return "Multiply two numbers"; }
-
-            @Override
-            public java.util.List<com.lightweightai.kernel.plugin.FunctionParameter> getParameters() {
-                return java.util.List.of();
-            }
-
-            @Override
-            public FunctionResult execute(Map<String, Object> input) {
-                int a = ((Number) input.get("a")).intValue();
-                int b = ((Number) input.get("b")).intValue();
-                return FunctionResult.success(String.valueOf(a * b));
-            }
-
-            @Override
-            public Map<String, Object> toJsonSchema() {
-                return Map.of("name", "multiply", "description", "Multiply two numbers");
-            }
-        });
-
-        executor.registerFunction("get_time", new com.lightweightai.kernel.plugin.PluginFunction() {
-            @Override
-            public String getName() { return "get_time"; }
-
-            @Override
-            public String getDescription() { return "Get current time"; }
-
-            @Override
-            public java.util.List<com.lightweightai.kernel.plugin.FunctionParameter> getParameters() {
-                return java.util.List.of();
-            }
-
-            @Override
-            public FunctionResult execute(Map<String, Object> input) {
-                return FunctionResult.success(java.time.LocalDateTime.now().toString());
-            }
-
-            @Override
-            public Map<String, Object> toJsonSchema() {
-                return Map.of("name", "get_time", "description", "Get current time");
-            }
-        });
-
-        logger.info("Registered {} tools", executor.getFunctionCount());
+    @Bean
+    public ToolExecutor toolExecutor(ToolRegistry toolRegistry) {
+        ToolExecutor executor = new ToolExecutor(toolRegistry);
+        logger.info("ToolExecutor initialized with {} tools", executor.getFunctionCount());
         return executor;
     }
 

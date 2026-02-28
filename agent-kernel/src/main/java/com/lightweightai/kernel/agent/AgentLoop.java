@@ -30,7 +30,7 @@ public class AgentLoop {
     private final LLMProvider llmProvider;
     private final MemoryProvider memoryProvider;
     private final PromptEngine promptEngine;
-    private final Map<String, Tool> tools;
+    private final ToolRegistry toolRegistry;
     private final String systemPrompt;
     private final int maxToolIterations;
     private final LLMOptions llmOptions;
@@ -39,7 +39,7 @@ public class AgentLoop {
     private AgentLoop(Builder builder) {
         this.llmProvider = Objects.requireNonNull(builder.llmProvider, "llmProvider required");
         this.memoryProvider = Objects.requireNonNull(builder.memoryProvider, "memoryProvider required");
-        this.tools = new HashMap<>(builder.tools);
+        this.toolRegistry = builder.toolRegistry;
         this.systemPrompt = builder.systemPrompt != null ? builder.systemPrompt : "";
         this.maxToolIterations = builder.maxToolIterations;
         this.llmOptions = builder.llmOptions;
@@ -52,7 +52,7 @@ public class AgentLoop {
             .build();
 
         // 注册 Skills（将 Tools 转换为 Skill）
-        for (Tool tool : tools.values()) {
+        for (Tool tool : toolRegistry.getEnabled()) {
             Skill skill = Skill.builder()
                 .name(tool.getName())
                 .description(tool.getDescription())
@@ -110,8 +110,8 @@ public class AgentLoop {
             List<ToolResult> toolResults = new ArrayList<>();
 
             for (ToolUse toolUse : toolUses) {
-                Tool tool = tools.get(toolUse.getName());
-                if (tool == null) {
+                Tool tool = toolRegistry.get(toolUse.getName()).orElse(null);
+                if (tool == null || !toolRegistry.isEnabled(toolUse.getName())) {
                     toolResults.add(ToolResult.error(toolUse.getId(),
                         "Unknown tool: " + toolUse.getName()));
                     continue;
@@ -278,7 +278,7 @@ public class AgentLoop {
     public static class Builder {
         private LLMProvider llmProvider;
         private MemoryProvider memoryProvider;
-        private Map<String, Tool> tools = new HashMap<>();
+        private ToolRegistry toolRegistry = new ToolRegistry();
         private String systemPrompt;
         private int maxToolIterations = 10;
         private LLMOptions llmOptions = LLMOptions.builder().build();
@@ -294,15 +294,18 @@ public class AgentLoop {
             return this;
         }
 
+        public Builder toolRegistry(ToolRegistry registry) {
+            this.toolRegistry = registry;
+            return this;
+        }
+
         public Builder addTool(Tool tool) {
-            this.tools.put(tool.getName(), tool);
+            this.toolRegistry.register(tool);
             return this;
         }
 
         public Builder tools(List<Tool> tools) {
-            for (Tool tool : tools) {
-                this.tools.put(tool.getName(), tool);
-            }
+            this.toolRegistry.registerAll(tools);
             return this;
         }
 

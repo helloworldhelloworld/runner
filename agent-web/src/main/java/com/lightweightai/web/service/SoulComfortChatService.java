@@ -2,9 +2,9 @@ package com.lightweightai.web.service;
 
 import com.lightweightai.kernel.agent.SoulComfortAgent;
 import com.lightweightai.kernel.agent.Tool;
+import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.openrouter.OpenRouterProvider;
-import com.lightweightai.web.tools.WebSearchTool;
 import com.lightweightai.kernel.memory.Message;
 import com.lightweightai.kernel.memory.UserMemory;
 import com.lightweightai.kernel.memory.file.FileMemoryManager;
@@ -81,10 +81,10 @@ public class SoulComfortChatService {
             FileMemoryManager memoryManager,
             LaneQueueManager laneManager,
             MemoryToolkit memoryToolkit,
-            @org.springframework.lang.Nullable WebSearchTool webSearchTool
+            ToolRegistry toolRegistry
     ) {
         this.promptEngine = promptEngine;
-        this.agentTools = webSearchTool != null ? List.of(webSearchTool) : List.of();
+        this.agentTools = toolRegistry != null ? toolRegistry.getEnabled() : List.of();
         this.defaultAgent = new SoulComfortAgent(llmProvider, promptEngine, this.agentTools);
         this.modelAgents = new ConcurrentHashMap<>();
         this.memoryManager = memoryManager;
