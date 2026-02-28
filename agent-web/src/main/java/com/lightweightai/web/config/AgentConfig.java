@@ -16,9 +16,6 @@ import com.lightweightai.kernel.skill.SkillLoader;
 import com.lightweightai.kernel.speech.SpeechProvider;
 import com.lightweightai.kernel.speech.AzureSpeechProvider;
 import com.lightweightai.kernel.speech.OpenAISpeechProvider;
-import com.lightweightai.tools.math.AddTool;
-import com.lightweightai.tools.math.MultiplyTool;
-import com.lightweightai.tools.time.GetTimeTool;
 import com.lightweightai.tools.web.WebSearchTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -214,10 +211,14 @@ public class AgentConfig {
     public ToolRegistry toolRegistry() {
         ToolRegistry registry = new ToolRegistry();
 
-        // Register built-in tools from agent-tools module
-        registry.register(new AddTool());
-        registry.register(new MultiplyTool());
-        registry.register(new GetTimeTool());
+        // Auto-scan and register all Tool implementations via Java SPI
+        // Each module declares its tools in META-INF/services/com.lightweightai.kernel.agent.Tool
+        int scanned = registry.scanAndRegister(tool ->
+            !tool.getName().equals("web_search") // Skip WebSearchTool — needs config injection
+        );
+        logger.info("Auto-scanned {} tools via SPI", scanned);
+
+        // Manually register tools that require configuration
         registry.register(new WebSearchTool(webSearchApiKey, webSearchMaxResults));
 
         logger.info("ToolRegistry initialized: {}", registry);

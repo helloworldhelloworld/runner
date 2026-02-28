@@ -2,6 +2,7 @@ package com.lightweightai.kernel.agent;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -156,6 +157,40 @@ public class ToolRegistry {
         definition.put("description", tool.getDescription());
         definition.put("input_schema", tool.getSchema().toMap());
         return definition;
+    }
+
+    // ==================== SPI 自动扫描 ====================
+
+    /**
+     * 通过 Java SPI 扫描 classpath 上所有 Tool 实现并注册
+     *
+     * 模块只需在 META-INF/services/com.lightweightai.kernel.agent.Tool 中
+     * 声明 Tool 实现类即可被自动发现。
+     *
+     * @return 注册的工具数量
+     */
+    public int scanAndRegister() {
+        return ToolScanner.scanAndRegister(this);
+    }
+
+    /**
+     * 通过 Java SPI 扫描并按条件过滤后注册
+     *
+     * @param filter 过滤条件
+     * @return 注册的工具数量
+     */
+    public int scanAndRegister(Predicate<Tool> filter) {
+        return ToolScanner.scanAndRegister(this, filter);
+    }
+
+    /**
+     * 使用指定 ClassLoader 通过 SPI 扫描并注册
+     *
+     * @param classLoader 用于加载服务的 ClassLoader
+     * @return 注册的工具数量
+     */
+    public int scanAndRegister(ClassLoader classLoader) {
+        return ToolScanner.scanAndRegister(this, classLoader);
     }
 
     // ==================== 统计信息 ====================
