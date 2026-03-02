@@ -1,5 +1,7 @@
 package com.lightweightai.kernel.agent;
 
+import com.lightweightai.kernel.agent.annotation.AnnotatedToolScanner;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -157,6 +159,33 @@ public class ToolRegistry {
         definition.put("description", tool.getDescription());
         definition.put("input_schema", tool.getSchema().toMap());
         return definition;
+    }
+
+    // ==================== 注解注册 ====================
+
+    /**
+     * 扫描对象中所有 @ToolFunction 注解方法并注册为工具
+     *
+     * <p>使用示例：</p>
+     * <pre>
+     * public class MyTools {
+     *     &#64;ToolFunction(name = "greet", description = "Say hello")
+     *     public String greet(&#64;ToolParam(name = "name", required = true) String name) {
+     *         return "Hello, " + name;
+     *     }
+     * }
+     *
+     * registry.registerObject(new MyTools());
+     * </pre>
+     *
+     * @param target 包含 @ToolFunction 方法的对象
+     * @return 注册的工具数量
+     */
+    public int registerObject(Object target) {
+        Objects.requireNonNull(target, "Target object cannot be null");
+        List<Tool> discovered = AnnotatedToolScanner.scan(target);
+        registerAll(discovered);
+        return discovered.size();
     }
 
     // ==================== 工具来源（ToolSource）====================
