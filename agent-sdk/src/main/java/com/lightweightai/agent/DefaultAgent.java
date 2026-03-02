@@ -5,6 +5,7 @@ import com.lightweightai.agent.exception.LLMException;
 import com.lightweightai.agent.memory.ConversationMemory;
 import com.lightweightai.agent.memory.SimpleConversationMemory;
 import com.lightweightai.agent.plugin.Plugin;
+import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.*;
@@ -45,8 +46,13 @@ class DefaultAgent implements Agent {
             this.memory = null;
         }
 
-        // 初始化工具执行器
-        this.toolExecutor = new ToolExecutor();
+        // 初始化工具执行器：优先使用 ToolRegistry（支持本地+MCP统一管理）
+        ToolRegistry externalRegistry = builder.getToolRegistry();
+        if (externalRegistry != null) {
+            this.toolExecutor = new ToolExecutor(externalRegistry);
+        } else {
+            this.toolExecutor = new ToolExecutor();
+        }
         registerAllPlugins();
 
         // LLM Provider 和 ToolCallingLoop 延迟初始化
@@ -195,8 +201,8 @@ class DefaultAgent implements Agent {
             }
         }
 
-        // 添加工具定义（从所有插件收集）
-        List<Map<String, Object>> tools = new ArrayList<>();
+        // 添加工具定义（合并 ToolRegistry + legacy plugins）
+        List<Map<String, Object>> tools = new ArrayList<>(toolExecutor.getToolDefinitions());
         for (Plugin plugin : plugins) {
             tools.addAll(plugin.toClaudeTools());
         }

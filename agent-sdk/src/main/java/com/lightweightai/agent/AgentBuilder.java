@@ -1,6 +1,8 @@
 package com.lightweightai.agent;
 
 import com.lightweightai.agent.plugin.Plugin;
+import com.lightweightai.kernel.agent.Tool;
+import com.lightweightai.kernel.agent.ToolRegistry;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -17,6 +19,7 @@ public class AgentBuilder {
     private String apiKey;
     private String model;
     private final List<Plugin> plugins = new ArrayList<>();
+    private ToolRegistry toolRegistry;
     private ChatOptions defaultOptions;
     private boolean enableMemory = false;
     private Duration timeout = Duration.ofMinutes(5);
@@ -71,6 +74,62 @@ public class AgentBuilder {
         this.apiKey = apiKey;
         this.model = model;
         return this;
+    }
+
+    /**
+     * 使用统一 ToolRegistry（支持本地工具、MCP 工具、SPI 工具等）
+     *
+     * 通过此方法注册的工具，agent 调用时完全透明，不区分工具来源。
+     * 配合 McpToolManager 使用，可实现 MCP 工具无感调用：
+     *
+     * <pre>
+     * McpToolManager manager = McpToolManager.create()
+     *     .registerLocal(new MathTools())
+     *     .addMcpServer("weather", transport)
+     *     .build();
+     *
+     * Agent agent = Agent.builder()
+     *     .claude(apiKey)
+     *     .tools(manager.getToolRegistry())  // MCP 和本地工具统一注册
+     *     .build();
+     * </pre>
+     *
+     * @param toolRegistry 包含所有工具的注册表
+     * @return this
+     */
+    public AgentBuilder tools(ToolRegistry toolRegistry) {
+        this.toolRegistry = toolRegistry;
+        return this;
+    }
+
+    /**
+     * 注册单个 Tool 到 agent
+     *
+     * @param tool Tool 实例
+     * @return this
+     */
+    public AgentBuilder tool(Tool tool) {
+        ensureToolRegistry();
+        this.toolRegistry.register(tool);
+        return this;
+    }
+
+    /**
+     * 通过注解扫描注册工具（@ToolFunction）
+     *
+     * @param annotated 包含 @ToolFunction 方法的对象
+     * @return this
+     */
+    public AgentBuilder tools(Object annotated) {
+        ensureToolRegistry();
+        this.toolRegistry.registerObject(annotated);
+        return this;
+    }
+
+    private void ensureToolRegistry() {
+        if (this.toolRegistry == null) {
+            this.toolRegistry = new ToolRegistry();
+        }
     }
 
     /**
@@ -171,5 +230,9 @@ public class AgentBuilder {
 
     Duration getTimeout() {
         return timeout;
+    }
+
+    ToolRegistry getToolRegistry() {
+        return toolRegistry;
     }
 }
