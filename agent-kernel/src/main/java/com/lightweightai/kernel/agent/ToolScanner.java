@@ -82,6 +82,10 @@ public class ToolScanner {
     /**
      * 使用指定 ClassLoader 扫描并过滤 Tool 实现
      *
+     * 同时扫描两种 SPI：
+     * - {@link Tool} — 接口方式定义的工具
+     * - {@link ToolSource} — 工具来源（注解方式等批量提供工具）
+     *
      * @param classLoader 用于加载服务的 ClassLoader
      * @param filter      过滤条件
      * @return 满足条件的 Tool 列表
@@ -90,11 +94,13 @@ public class ToolScanner {
         Objects.requireNonNull(filter, "Filter cannot be null");
 
         List<Tool> tools = new ArrayList<>();
-        ServiceLoader<Tool> loader = classLoader != null
+
+        // 1. 扫描 Tool SPI（接口方式）
+        ServiceLoader<Tool> toolLoader = classLoader != null
             ? ServiceLoader.load(Tool.class, classLoader)
             : ServiceLoader.load(Tool.class);
 
-        for (Tool tool : loader) {
+        for (Tool tool : toolLoader) {
             try {
                 if (tool.getName() == null || tool.getName().isBlank()) {
                     logger.warn("Skipping tool with null/empty name: {}", tool.getClass().getName());
@@ -102,10 +108,38 @@ public class ToolScanner {
                 }
                 if (filter.test(tool)) {
                     tools.add(tool);
-                    logger.debug("Discovered tool: {} ({})", tool.getName(), tool.getClass().getName());
+                    logger.debug("Discovered tool via Tool SPI: {} ({})", tool.getName(), tool.getClass().getName());
                 }
             } catch (Exception e) {
                 logger.warn("Failed to load tool {}: {}", tool.getClass().getName(), e.getMessage());
+            }
+        }
+
+        // 2. 扫描 ToolSource SPI（注解方式等批量来源）
+        ServiceLoader<ToolSource> sourceLoader = classLoader != null
+            ? ServiceLoader.load(ToolSource.class, classLoader)
+            : ServiceLoader.load(ToolSource.class);
+
+        for (ToolSource source : sourceLoader) {
+            try {
+                List<Tool> discovered = source.discoverTools();
+                if (discovered != null) {
+                    for (Tool tool : discovered) {
+                        if (tool.getName() == null || tool.getName().isBlank()) {
+                            logger.warn("Skipping tool with null/empty name from source: {}",
+                                source.getClass().getName());
+                            continue;
+                        }
+                        if (filter.test(tool)) {
+                            tools.add(tool);
+                            logger.debug("Discovered tool via ToolSource SPI: {} (source: {})",
+                                tool.getName(), source.getClass().getName());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to load tools from source {}: {}",
+                    source.getClass().getName(), e.getMessage());
             }
         }
 
