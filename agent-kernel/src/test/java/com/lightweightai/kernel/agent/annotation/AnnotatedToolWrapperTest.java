@@ -30,7 +30,8 @@ class AnnotatedToolWrapperTest {
             return String.valueOf(result);
         }
 
-        @ToolFunction(description = "Multiply two integers")
+        @ToolFunction(description = "Multiply two integers", category = "math",
+                      tags = {"math", "calculation"})
         public String multiplyNumbers(
             @ToolParam(name = "x", description = "First integer", required = true) int x,
             @ToolParam(name = "y", description = "Second integer", required = true) int y

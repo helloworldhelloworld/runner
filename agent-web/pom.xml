@@ -68,12 +68,14 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <version>${spring.boot.version}</version>
         </dependency>
 
         <!-- WebSocket Support for Streaming -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
+            <version>${spring.boot.version}</version>
         </dependency>
 
         <!-- Jackson for JSON -->
@@ -97,6 +99,7 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
+            <version>${spring.boot.version}</version>
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
