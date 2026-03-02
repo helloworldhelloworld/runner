@@ -4,8 +4,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Represents the result of executing a tool.
- * This is sent back to Claude after executing the tool.
+ * 工具执行结果
+ *
+ * 统一的工具结果表示，同时适用于 LLM tool_use 调用和 MCP 协议。
+ * toolUseId 由调用方（AgentLoop / ToolExecutor）在 LLM 上下文中设置，
+ * 工具实现本身无需关心。
  */
 public class ToolResult {
 
@@ -14,9 +17,6 @@ public class ToolResult {
     private final boolean isError;
 
     private ToolResult(String toolUseId, String content, boolean isError) {
-        if (toolUseId == null || toolUseId.trim().isEmpty()) {
-            throw new IllegalArgumentException("Tool use ID cannot be null or empty");
-        }
         if (content == null) {
             throw new IllegalArgumentException("Content cannot be null");
         }
@@ -26,47 +26,83 @@ public class ToolResult {
         this.isError = isError;
     }
 
+    // ==================== 推荐 API（工具实现使用）====================
+
     /**
-     * Create a successful tool result
+     * 创建成功结果（不绑定 toolUseId）
      *
-     * @param toolUseId The ID of the tool use this is responding to
-     * @param content   The result content (typically JSON string)
-     * @return ToolResult instance
+     * @param content 结果内容
+     * @return ToolResult 实例
+     */
+    public static ToolResult success(String content) {
+        return new ToolResult(null, content, false);
+    }
+
+    /**
+     * 创建错误结果（不绑定 toolUseId）
+     *
+     * @param errorMessage 错误信息
+     * @return ToolResult 实例
+     */
+    public static ToolResult error(String errorMessage) {
+        return new ToolResult(null, errorMessage, true);
+    }
+
+    /**
+     * 创建错误结果（从异常，不绑定 toolUseId）
+     *
+     * @param exception 异常
+     * @return ToolResult 实例
+     */
+    public static ToolResult error(Throwable exception) {
+        String errorMessage = exception.getMessage() != null
+            ? exception.getMessage()
+            : exception.getClass().getSimpleName();
+        return new ToolResult(null, errorMessage, true);
+    }
+
+    // ==================== 兼容 API（带 toolUseId）====================
+
+    /**
+     * 创建成功结果（带 toolUseId，用于 LLM 上下文）
+     *
+     * @param toolUseId LLM tool_use 的 ID
+     * @param content   结果内容
+     * @return ToolResult 实例
      */
     public static ToolResult success(String toolUseId, String content) {
         return new ToolResult(toolUseId, content, false);
     }
 
     /**
-     * Create a successful tool result from an object (will be serialized to JSON)
+     * 创建成功结果（带 toolUseId，从对象）
      *
-     * @param toolUseId The ID of the tool use this is responding to
-     * @param result    The result object
-     * @return ToolResult instance
+     * @param toolUseId LLM tool_use 的 ID
+     * @param result    结果对象
+     * @return ToolResult 实例
      */
     public static ToolResult success(String toolUseId, Object result) {
-        // TODO: Implement JSON serialization
         String content = result != null ? result.toString() : "null";
         return new ToolResult(toolUseId, content, false);
     }
 
     /**
-     * Create an error tool result
+     * 创建错误结果（带 toolUseId）
      *
-     * @param toolUseId    The ID of the tool use this is responding to
-     * @param errorMessage The error message
-     * @return ToolResult instance
+     * @param toolUseId    LLM tool_use 的 ID
+     * @param errorMessage 错误信息
+     * @return ToolResult 实例
      */
     public static ToolResult error(String toolUseId, String errorMessage) {
         return new ToolResult(toolUseId, errorMessage, true);
     }
 
     /**
-     * Create an error tool result from an exception
+     * 创建错误结果（带 toolUseId，从异常）
      *
-     * @param toolUseId The ID of the tool use this is responding to
-     * @param exception The exception that occurred
-     * @return ToolResult instance
+     * @param toolUseId LLM tool_use 的 ID
+     * @param exception 异常
+     * @return ToolResult 实例
      */
     public static ToolResult error(String toolUseId, Throwable exception) {
         String errorMessage = exception.getMessage() != null
@@ -75,33 +111,56 @@ public class ToolResult {
         return new ToolResult(toolUseId, errorMessage, true);
     }
 
+    // ==================== 绑定 toolUseId ====================
+
     /**
-     * Get the tool use ID this result is for
+     * 返回一个带有指定 toolUseId 的新 ToolResult
+     *
+     * 用于 AgentLoop / ToolExecutor 在调用 tool.execute() 后，
+     * 将 LLM 返回的 tool_use id 绑定到结果上。
+     *
+     * @param toolUseId LLM tool_use 的 ID
+     * @return 新的 ToolResult 实例
+     */
+    public ToolResult withToolUseId(String toolUseId) {
+        return new ToolResult(toolUseId, this.content, this.isError);
+    }
+
+    // ==================== Getters ====================
+
+    /**
+     * 获取 tool_use ID（可能为 null，如果未绑定）
      */
     public String getToolUseId() {
         return toolUseId;
     }
 
     /**
-     * Get the result content
+     * 获取结果内容
      */
     public String getContent() {
         return content;
     }
 
     /**
-     * Check if this is an error result
+     * 是否为错误结果
      */
     public boolean isError() {
         return isError;
     }
 
     /**
-     * Convert to Claude API format for sending back in the conversation
+     * 转换为 Claude API 格式
      *
-     * @return Map representation for Claude API
+     * @return Map 格式的 API 表示
+     * @throws IllegalStateException 如果 toolUseId 未设置
      */
     public Map<String, Object> toApiFormat() {
+        if (toolUseId == null || toolUseId.trim().isEmpty()) {
+            throw new IllegalStateException(
+                "toolUseId is required for API format. Use withToolUseId() to bind it.");
+        }
+
         Map<String, Object> result = new HashMap<>();
         result.put("type", "tool_result");
         result.put("tool_use_id", toolUseId);

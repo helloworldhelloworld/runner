@@ -81,17 +81,16 @@ public class McpToolWrapper implements Tool, ToolMetadata {
                 new McpSchema.CallToolRequest(getName(), args)
             );
 
-            // Extract text content from MCP result
             String content = extractContent(mcpResult);
             boolean isError = mcpResult.isError() != null && mcpResult.isError();
 
             if (isError) {
-                return ToolResult.error(getName(), content);
+                return ToolResult.error(content);
             }
-            return ToolResult.success(getName(), content);
+            return ToolResult.success(content);
         } catch (Exception e) {
             logger.error("MCP tool call failed: {} - {}", getName(), e.getMessage());
-            return ToolResult.error(getName(), "MCP call failed: " + e.getMessage());
+            return ToolResult.error("MCP call failed: " + e.getMessage());
         }
     }
 

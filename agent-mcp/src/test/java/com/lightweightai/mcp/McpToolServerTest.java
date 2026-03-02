@@ -30,7 +30,7 @@ class McpToolServerTest {
             @Override public String getDescription() { return "Test tool"; }
             @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
             @Override public ToolResult execute(Map<String, Object> args) {
-                return ToolResult.success("test_tool", "ok");
+                return ToolResult.success("ok");
             }
         });
     }

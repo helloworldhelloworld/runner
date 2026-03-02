@@ -159,6 +159,26 @@ public class ToolRegistry {
         return definition;
     }
 
+    // ==================== 工具来源（ToolSource）====================
+
+    /**
+     * 从 ToolSource 发现并注册工具
+     *
+     * 支持多种来源：MCP 服务端、SPI 扫描、自定义实现等。
+     *
+     * @param source 工具来源
+     * @return 注册的工具数量
+     */
+    public int registerFrom(ToolSource source) {
+        Objects.requireNonNull(source, "ToolSource cannot be null");
+        List<Tool> discovered = source.discoverTools();
+        if (discovered != null) {
+            registerAll(discovered);
+            return discovered.size();
+        }
+        return 0;
+    }
+
     // ==================== SPI 自动扫描 ====================
 
     /**

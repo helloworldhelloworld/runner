@@ -33,7 +33,7 @@ public class TestEchoTool implements Tool, ToolMetadata {
     @Override
     public ToolResult execute(Map<String, Object> args) {
         String message = (String) args.get("message");
-        return ToolResult.success("test_echo", "Echo: " + message);
+        return ToolResult.success("Echo: " + message);
     }
 
     @Override

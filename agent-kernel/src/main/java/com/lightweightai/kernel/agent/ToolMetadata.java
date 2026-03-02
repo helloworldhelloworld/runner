@@ -12,6 +12,7 @@ import java.util.Collections;
  * - 标签（用于灵活查询）
  * - 版本信息
  * - 作者信息
+ * - 行为注解（与 MCP ToolAnnotations 对齐）
  */
 public interface ToolMetadata {
 
@@ -52,5 +53,47 @@ public interface ToolMetadata {
      */
     default Map<String, Object> getExtraMetadata() {
         return Collections.emptyMap();
+    }
+
+    // ==================== MCP 行为注解 ====================
+
+    /**
+     * 工具是否只读（不修改外部状态）
+     *
+     * 对应 MCP ToolAnnotations.readOnlyHint
+     * 例如：查询天气、读取文件内容等
+     */
+    default boolean isReadOnly() {
+        return false;
+    }
+
+    /**
+     * 工具是否具有破坏性（可能导致不可逆的更改）
+     *
+     * 对应 MCP ToolAnnotations.destructiveHint
+     * 例如：删除文件、清空数据库等
+     */
+    default boolean isDestructive() {
+        return false;
+    }
+
+    /**
+     * 工具是否幂等（多次调用与一次调用效果相同）
+     *
+     * 对应 MCP ToolAnnotations.idempotentHint
+     * 例如：设置配置值、PUT 请求等
+     */
+    default boolean isIdempotent() {
+        return false;
+    }
+
+    /**
+     * 工具是否与外部世界交互（非封闭环境）
+     *
+     * 对应 MCP ToolAnnotations.openWorldHint
+     * 例如：网络请求、外部 API 调用等
+     */
+    default boolean isOpenWorld() {
+        return true;
     }
 }

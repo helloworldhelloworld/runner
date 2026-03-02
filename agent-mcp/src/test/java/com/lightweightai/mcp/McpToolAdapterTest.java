@@ -39,7 +39,7 @@ class McpToolAdapterTest {
                 Map.of("name", Map.of("type", "string", "description", "Name to greet")),
                 "name"
             ),
-            args -> ToolResult.success("greet", "Hello, " + args.get("name") + "!")
+            args -> ToolResult.success("Hello, " + args.get("name") + "!")
         );
 
         McpServerFeatures.SyncToolSpecification spec = McpToolAdapter.toMcpTool(tool);
@@ -55,7 +55,7 @@ class McpToolAdapterTest {
     void shouldConvertToolWithEmptySchema() {
         Tool tool = new SimpleTool("get_time", "Get current time",
             ToolSchema.empty(),
-            args -> ToolResult.success("get_time", "2026-02-28T12:00:00")
+            args -> ToolResult.success("2026-02-28T12:00:00")
         );
 
         McpServerFeatures.SyncToolSpecification spec = McpToolAdapter.toMcpTool(tool);
@@ -78,7 +78,7 @@ class McpToolAdapterTest {
             args -> {
                 double a = ((Number) args.get("a")).doubleValue();
                 double b = ((Number) args.get("b")).doubleValue();
-                return ToolResult.success("add", String.valueOf((int) (a + b)));
+                return ToolResult.success(String.valueOf((int) (a + b)));
             }
         );
 
@@ -99,7 +99,7 @@ class McpToolAdapterTest {
     void shouldReturnErrorOnToolFailure() {
         Tool tool = new SimpleTool("fail", "Always fails",
             ToolSchema.empty(),
-            args -> ToolResult.error("fail", "Something went wrong")
+            args -> ToolResult.error("Something went wrong")
         );
 
         McpServerFeatures.SyncToolSpecification spec = McpToolAdapter.toMcpTool(tool);
@@ -129,11 +129,11 @@ class McpToolAdapterTest {
     @DisplayName("Convert entire ToolRegistry to MCP tools")
     void shouldConvertRegistryToMcpTools() {
         registry.register(new SimpleTool("tool1", "Tool 1", ToolSchema.empty(),
-            args -> ToolResult.success("tool1", "result1")));
+            args -> ToolResult.success("result1")));
         registry.register(new SimpleTool("tool2", "Tool 2", ToolSchema.empty(),
-            args -> ToolResult.success("tool2", "result2")));
+            args -> ToolResult.success("result2")));
         registry.register(new SimpleTool("tool3", "Tool 3", ToolSchema.empty(),
-            args -> ToolResult.success("tool3", "result3")));
+            args -> ToolResult.success("result3")));
 
         List<McpServerFeatures.SyncToolSpecification> specs = McpToolAdapter.toMcpTools(registry);
 
@@ -144,9 +144,9 @@ class McpToolAdapterTest {
     @DisplayName("Disabled tools are excluded from MCP conversion")
     void shouldExcludeDisabledTools() {
         registry.register(new SimpleTool("enabled", "Enabled", ToolSchema.empty(),
-            args -> ToolResult.success("enabled", "ok")));
+            args -> ToolResult.success("ok")));
         registry.register(new SimpleTool("disabled", "Disabled", ToolSchema.empty(),
-            args -> ToolResult.success("disabled", "ok")));
+            args -> ToolResult.success("ok")));
         registry.disable("disabled");
 
         List<McpServerFeatures.SyncToolSpecification> specs = McpToolAdapter.toMcpTools(registry);

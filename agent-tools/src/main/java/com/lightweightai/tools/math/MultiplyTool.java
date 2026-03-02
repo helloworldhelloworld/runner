@@ -37,9 +37,9 @@ public class MultiplyTool implements Tool, ToolMetadata {
         double b = ((Number) args.get("b")).doubleValue();
         double result = a * b;
         if (result == Math.floor(result) && !Double.isInfinite(result)) {
-            return ToolResult.success("multiply", String.valueOf((long) result));
+            return ToolResult.success(String.valueOf((long) result));
         }
-        return ToolResult.success("multiply", String.valueOf(result));
+        return ToolResult.success(String.valueOf(result));
     }
 
     @Override
@@ -50,5 +50,20 @@ public class MultiplyTool implements Tool, ToolMetadata {
     @Override
     public List<String> getTags() {
         return List.of("math", "calculation");
+    }
+
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
+
+    @Override
+    public boolean isIdempotent() {
+        return true;
+    }
+
+    @Override
+    public boolean isOpenWorld() {
+        return false;
     }
 }

@@ -2,6 +2,7 @@ package com.lightweightai.mcp;
 
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.ToolSource;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpClientTransport;
@@ -18,16 +19,20 @@ import java.util.function.Predicate;
 /**
  * MCP 工具客户端
  *
+ * 实现 ToolSource 接口，可直接作为 ToolRegistry 的工具来源。
  * 连接到外部 MCP 服务端，发现并导入其工具到框架的 ToolRegistry。
  * 导入后的工具可以像本地工具一样被 LLM 调用。
  *
  * <pre>
- * // 连接到外部 MCP 服务端并导入所有工具
+ * // 方式一：通过 ToolSource 注册（推荐）
  * McpToolClient client = McpToolClient.builder()
  *     .serverName("weather-server")
  *     .transport(new StdioClientTransport(serverParams))
  *     .build();
+ * client.initialize();
+ * registry.registerFrom(client);
  *
+ * // 方式二：手动注册
  * List&lt;Tool&gt; tools = client.discoverTools();
  * client.registerTools(registry);
  *
@@ -35,7 +40,7 @@ import java.util.function.Predicate;
  * client.close();
  * </pre>
  */
-public class McpToolClient implements AutoCloseable {
+public class McpToolClient implements ToolSource, AutoCloseable {
 
     private static final Logger logger = LoggerFactory.getLogger(McpToolClient.class);
 
@@ -59,12 +64,29 @@ public class McpToolClient implements AutoCloseable {
         return this;
     }
 
+    // ==================== ToolSource 接口 ====================
+
     /**
-     * 发现 MCP 服务端上的所有工具
+     * 实现 ToolSource 接口：发现 MCP 服务端上的所有工具
+     *
+     * 返回的工具可以直接注册到 ToolRegistry：
+     * <pre>registry.registerFrom(mcpClient);</pre>
      *
      * @return 包装为框架 Tool 的工具列表
      */
-    public List<McpToolWrapper> discoverTools() {
+    @Override
+    public List<Tool> discoverTools() {
+        return new ArrayList<>(discoverMcpTools());
+    }
+
+    // ==================== MCP 工具发现 ====================
+
+    /**
+     * 发现 MCP 服务端上的所有工具（带类型信息）
+     *
+     * @return McpToolWrapper 列表（可访问 MCP 特有属性）
+     */
+    public List<McpToolWrapper> discoverMcpTools() {
         McpSchema.ListToolsResult result = mcpClient.listTools();
         discoveredTools = new ArrayList<>();
 
@@ -86,8 +108,8 @@ public class McpToolClient implements AutoCloseable {
      * @param filter 过滤条件
      * @return 满足条件的工具列表
      */
-    public List<McpToolWrapper> discoverTools(Predicate<Tool> filter) {
-        return discoverTools().stream()
+    public List<McpToolWrapper> discoverMcpTools(Predicate<Tool> filter) {
+        return discoverMcpTools().stream()
             .filter(filter)
             .toList();
     }
@@ -110,7 +132,7 @@ public class McpToolClient implements AutoCloseable {
      * @return 注册的工具数量
      */
     public int registerTools(ToolRegistry registry, Predicate<Tool> filter) {
-        List<McpToolWrapper> tools = discoverTools(filter);
+        List<McpToolWrapper> tools = discoverMcpTools(filter);
         for (McpToolWrapper tool : tools) {
             registry.register(tool);
         }

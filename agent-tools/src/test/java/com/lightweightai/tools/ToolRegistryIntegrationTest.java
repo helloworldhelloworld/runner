@@ -196,7 +196,7 @@ class ToolRegistryIntegrationTest {
 
             @Override
             public ToolResult execute(Map<String, Object> args) {
-                return ToolResult.success("greet", "Hello, " + args.get("name") + "!");
+                return ToolResult.success("Hello, " + args.get("name") + "!");
             }
         });
 

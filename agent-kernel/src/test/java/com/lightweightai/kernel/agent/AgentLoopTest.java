@@ -355,7 +355,7 @@ class AgentLoopTest {
         @Override
         public com.lightweightai.kernel.llm.ToolResult execute(Map<String, Object> args) {
             Map<String, Object> result = executor.apply(args);
-            return com.lightweightai.kernel.llm.ToolResult.success(name + "-id", result);
+            return com.lightweightai.kernel.llm.ToolResult.success(result.toString());
         }
     }
 }

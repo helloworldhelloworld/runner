@@ -1,6 +1,7 @@
 package com.lightweightai.mcp;
 
 import com.lightweightai.kernel.agent.Tool;
+import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.llm.ToolResult;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -19,8 +20,10 @@ import java.util.stream.Collectors;
 /**
  * 将框架的 Tool 适配为 MCP SyncToolSpecification
  *
- * 用于将 ToolRegistry 中的工具暴露为 MCP 服务端工具，
- * 使外部 MCP 客户端可以发现并调用这些工具。
+ * 统一后的 Tool 接口天然兼容 MCP：
+ * - Tool.getName/Description/Schema → McpSchema.Tool
+ * - ToolMetadata 的 MCP 注解 → McpSchema.ToolAnnotations
+ * - Tool.execute() → MCP handler（ToolResult 无需 toolUseId）
  *
  * <pre>
  * // 将单个 Tool 转换为 MCP 工具规格
@@ -42,11 +45,13 @@ public class McpToolAdapter {
     /**
      * 将框架 Tool 转换为 MCP SyncToolSpecification
      *
+     * 如果 Tool 实现了 ToolMetadata，会自动提取 MCP 行为注解
+     * （readOnly、destructive、idempotent、openWorld）。
+     *
      * @param tool 框架 Tool 实例
      * @return MCP 工具规格
      */
     public static McpServerFeatures.SyncToolSpecification toMcpTool(Tool tool) {
-        // Convert ToolSchema to JSON string for MCP
         String inputSchema = schemaToJson(tool);
 
         McpSchema.Tool mcpTool = new McpSchema.Tool(
@@ -85,6 +90,27 @@ public class McpToolAdapter {
         return registry.getEnabled().stream()
             .map(McpToolAdapter::toMcpTool)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * 从 ToolMetadata 提取 MCP 兼容的注解 Map
+     *
+     * 当 Tool 实现了 ToolMetadata 时，提取 readOnly/destructive/idempotent/openWorld
+     * 注解，可用于 MCP ToolAnnotations 或其他元数据传递。
+     *
+     * @param tool 框架 Tool 实例
+     * @return 注解 Map（如果没有 ToolMetadata 则为空 Map）
+     */
+    public static Map<String, Boolean> extractAnnotations(Tool tool) {
+        if (tool instanceof ToolMetadata metadata) {
+            return Map.of(
+                "readOnlyHint", metadata.isReadOnly(),
+                "destructiveHint", metadata.isDestructive(),
+                "idempotentHint", metadata.isIdempotent(),
+                "openWorldHint", metadata.isOpenWorld()
+            );
+        }
+        return Map.of();
     }
 
     /**
