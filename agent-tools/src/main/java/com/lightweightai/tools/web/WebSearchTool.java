@@ -63,11 +63,11 @@ public class WebSearchTool implements Tool, ToolMetadata {
             : defaultMaxResults;
 
         if (!isApiKeyConfigured()) {
-            return ToolResult.success("web_search", mockResults(query, max));
+            return ToolResult.success(mockResults(query, max));
         }
 
         // TODO: Integrate with Brave Search / Serper API
-        return ToolResult.success("web_search", mockResults(query, max));
+        return ToolResult.success(mockResults(query, max));
     }
 
     private boolean isApiKeyConfigured() {

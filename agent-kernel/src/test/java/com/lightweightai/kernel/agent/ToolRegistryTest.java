@@ -214,7 +214,7 @@ class ToolRegistryTest {
 
             @Override
             public ToolResult execute(Map<String, Object> args) {
-                return ToolResult.success("mock_id", "result");
+                return ToolResult.success("result");
             }
         };
     }
@@ -242,7 +242,7 @@ class ToolRegistryTest {
 
             @Override
             public ToolResult execute(Map<String, Object> args) {
-                return ToolResult.success("mock_id", "result");
+                return ToolResult.success("result");
             }
         };
     }
@@ -274,7 +274,7 @@ class ToolRegistryTest {
 
         @Override
         public ToolResult execute(Map<String, Object> args) {
-            return ToolResult.success("mock_id", "result");
+            return ToolResult.success("result");
         }
 
         @Override

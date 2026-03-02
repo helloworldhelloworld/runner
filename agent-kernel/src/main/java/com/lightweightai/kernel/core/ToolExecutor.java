@@ -123,7 +123,8 @@ public class ToolExecutor {
             if (toolRegistry.has(toolCall.getName()) && toolRegistry.isEnabled(toolCall.getName())) {
                 Tool tool = toolRegistry.get(toolCall.getName()).orElse(null);
                 if (tool != null) {
-                    return tool.execute(toolCall.getArguments());
+                    return tool.execute(toolCall.getArguments())
+                        .withToolUseId(toolCall.getId());
                 }
             }
 

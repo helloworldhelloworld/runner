@@ -1,7 +1,10 @@
 package com.lightweightai.kernel.agent;
 
+import com.lightweightai.kernel.agent.annotation.AnnotatedToolScanner;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -156,6 +159,87 @@ public class ToolRegistry {
         definition.put("description", tool.getDescription());
         definition.put("input_schema", tool.getSchema().toMap());
         return definition;
+    }
+
+    // ==================== 注解注册 ====================
+
+    /**
+     * 扫描对象中所有 @ToolFunction 注解方法并注册为工具
+     *
+     * <p>使用示例：</p>
+     * <pre>
+     * public class MyTools {
+     *     &#64;ToolFunction(name = "greet", description = "Say hello")
+     *     public String greet(&#64;ToolParam(name = "name", required = true) String name) {
+     *         return "Hello, " + name;
+     *     }
+     * }
+     *
+     * registry.registerObject(new MyTools());
+     * </pre>
+     *
+     * @param target 包含 @ToolFunction 方法的对象
+     * @return 注册的工具数量
+     */
+    public int registerObject(Object target) {
+        Objects.requireNonNull(target, "Target object cannot be null");
+        List<Tool> discovered = AnnotatedToolScanner.scan(target);
+        registerAll(discovered);
+        return discovered.size();
+    }
+
+    // ==================== 工具来源（ToolSource）====================
+
+    /**
+     * 从 ToolSource 发现并注册工具
+     *
+     * 支持多种来源：MCP 服务端、SPI 扫描、自定义实现等。
+     *
+     * @param source 工具来源
+     * @return 注册的工具数量
+     */
+    public int registerFrom(ToolSource source) {
+        Objects.requireNonNull(source, "ToolSource cannot be null");
+        List<Tool> discovered = source.discoverTools();
+        if (discovered != null) {
+            registerAll(discovered);
+            return discovered.size();
+        }
+        return 0;
+    }
+
+    // ==================== SPI 自动扫描 ====================
+
+    /**
+     * 通过 Java SPI 扫描 classpath 上所有 Tool 实现并注册
+     *
+     * 模块只需在 META-INF/services/com.lightweightai.kernel.agent.Tool 中
+     * 声明 Tool 实现类即可被自动发现。
+     *
+     * @return 注册的工具数量
+     */
+    public int scanAndRegister() {
+        return ToolScanner.scanAndRegister(this);
+    }
+
+    /**
+     * 通过 Java SPI 扫描并按条件过滤后注册
+     *
+     * @param filter 过滤条件
+     * @return 注册的工具数量
+     */
+    public int scanAndRegister(Predicate<Tool> filter) {
+        return ToolScanner.scanAndRegister(this, filter);
+    }
+
+    /**
+     * 使用指定 ClassLoader 通过 SPI 扫描并注册
+     *
+     * @param classLoader 用于加载服务的 ClassLoader
+     * @return 注册的工具数量
+     */
+    public int scanAndRegister(ClassLoader classLoader) {
+        return ToolScanner.scanAndRegister(this, classLoader);
     }
 
     // ==================== 统计信息 ====================

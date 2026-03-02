@@ -118,7 +118,8 @@ public class AgentLoop {
                 }
 
                 try {
-                    ToolResult result = tool.execute(toolUse.getInput());
+                    ToolResult result = tool.execute(toolUse.getInput())
+                        .withToolUseId(toolUse.getId());
                     toolResults.add(result);
                     allToolCalls.add(new AgentResponse.ToolCallRecord(
                         toolUse.getName(), toolUse.getInput().toString(), result.getContent()));

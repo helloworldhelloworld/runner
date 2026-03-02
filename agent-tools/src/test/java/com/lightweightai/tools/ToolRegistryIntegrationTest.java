@@ -2,6 +2,7 @@ package com.lightweightai.tools;
 
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.ToolScanner;
 import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
@@ -195,7 +196,7 @@ class ToolRegistryIntegrationTest {
 
             @Override
             public ToolResult execute(Map<String, Object> args) {
-                return ToolResult.success("greet", "Hello, " + args.get("name") + "!");
+                return ToolResult.success("Hello, " + args.get("name") + "!");
             }
         });
 
@@ -218,5 +219,93 @@ class ToolRegistryIntegrationTest {
 
         assertFalse(result.isError());
         assertTrue(result.getContent().contains("test query"));
+    }
+
+    // ==================== SPI 自动扫描测试 ====================
+
+    @Test
+    @DisplayName("ToolScanner discovers all tools from agent-tools via SPI")
+    void shouldDiscoverAllToolsViaSPI() {
+        List<Tool> tools = ToolScanner.scan();
+
+        assertFalse(tools.isEmpty(), "Should discover tools via SPI");
+
+        List<String> names = tools.stream().map(Tool::getName).toList();
+        assertTrue(names.contains("add"), "Should discover AddTool");
+        assertTrue(names.contains("multiply"), "Should discover MultiplyTool");
+        assertTrue(names.contains("get_time"), "Should discover GetTimeTool");
+        assertTrue(names.contains("web_search"), "Should discover WebSearchTool");
+    }
+
+    @Test
+    @DisplayName("ToolRegistry.scanAndRegister() auto-discovers and registers tools")
+    void shouldAutoScanAndRegister() {
+        ToolRegistry autoRegistry = new ToolRegistry();
+        int count = autoRegistry.scanAndRegister();
+
+        assertTrue(count >= 4, "Should register at least 4 tools: " + count);
+        assertTrue(autoRegistry.has("add"));
+        assertTrue(autoRegistry.has("multiply"));
+        assertTrue(autoRegistry.has("get_time"));
+        assertTrue(autoRegistry.has("web_search"));
+    }
+
+    @Test
+    @DisplayName("ToolScanner with filter excludes specific tools")
+    void shouldScanWithFilter() {
+        ToolRegistry filteredRegistry = new ToolRegistry();
+        int count = filteredRegistry.scanAndRegister(
+            tool -> !tool.getName().equals("web_search")
+        );
+
+        assertTrue(count >= 3);
+        assertTrue(filteredRegistry.has("add"));
+        assertTrue(filteredRegistry.has("multiply"));
+        assertTrue(filteredRegistry.has("get_time"));
+        assertFalse(filteredRegistry.has("web_search"), "web_search should be filtered out");
+    }
+
+    @Test
+    @DisplayName("ToolScanner.scanByCategory finds math tools from SPI")
+    void shouldScanByCategoryViaSPI() {
+        List<Tool> mathTools = ToolScanner.scanByCategory("math");
+
+        assertTrue(mathTools.size() >= 2, "Should find at least 2 math tools");
+        assertTrue(mathTools.stream().anyMatch(t -> "add".equals(t.getName())));
+        assertTrue(mathTools.stream().anyMatch(t -> "multiply".equals(t.getName())));
+    }
+
+    @Test
+    @DisplayName("ToolScanner.scanByTag finds tools by tag from SPI")
+    void shouldScanByTagViaSPI() {
+        List<Tool> calcTools = ToolScanner.scanByTag("calculation");
+
+        assertTrue(calcTools.size() >= 2, "Should find at least 2 calculation tools");
+    }
+
+    @Test
+    @DisplayName("Auto-scanned tools are fully executable via ToolExecutor")
+    void shouldExecuteAutoScannedToolsViaExecutor() {
+        ToolRegistry autoRegistry = new ToolRegistry();
+        autoRegistry.scanAndRegister();
+        ToolExecutor autoExecutor = new ToolExecutor(autoRegistry);
+
+        // Execute add
+        ToolCall addCall = new ToolCall("spi_1", "add", Map.of("a", 100, "b", 200));
+        ToolResult addResult = autoExecutor.executeToolCall(addCall);
+        assertFalse(addResult.isError());
+        assertEquals("300", addResult.getContent());
+
+        // Execute multiply
+        ToolCall mulCall = new ToolCall("spi_2", "multiply", Map.of("a", 8, "b", 9));
+        ToolResult mulResult = autoExecutor.executeToolCall(mulCall);
+        assertFalse(mulResult.isError());
+        assertEquals("72", mulResult.getContent());
+
+        // Execute get_time
+        ToolCall timeCall = new ToolCall("spi_3", "get_time", Map.of());
+        ToolResult timeResult = autoExecutor.executeToolCall(timeCall);
+        assertFalse(timeResult.isError());
+        assertFalse(timeResult.getContent().isEmpty());
     }
 }

@@ -182,7 +182,7 @@ class SkillToolIntegrationTest {
             @Override
             public ToolResult execute(Map<String, Object> args) {
                 String city = (String) args.get("city");
-                return ToolResult.success("weather_id", city + ": 晴天, 25°C");
+                return ToolResult.success(city + ": 晴天, 25°C");
             }
         };
     }
@@ -207,7 +207,7 @@ class SkillToolIntegrationTest {
 
             @Override
             public ToolResult execute(Map<String, Object> args) {
-                return ToolResult.success("forecast_id", "未来天气预报");
+                return ToolResult.success("未来天气预报");
             }
         };
     }

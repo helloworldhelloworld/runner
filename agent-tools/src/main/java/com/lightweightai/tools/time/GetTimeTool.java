@@ -33,7 +33,7 @@ public class GetTimeTool implements Tool, ToolMetadata {
     @Override
     public ToolResult execute(Map<String, Object> args) {
         String now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        return ToolResult.success("get_time", now);
+        return ToolResult.success(now);
     }
 
     @Override
@@ -44,5 +44,20 @@ public class GetTimeTool implements Tool, ToolMetadata {
     @Override
     public List<String> getTags() {
         return List.of("utility", "time");
+    }
+
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
+
+    @Override
+    public boolean isIdempotent() {
+        return true;
+    }
+
+    @Override
+    public boolean isOpenWorld() {
+        return false;
     }
 }
