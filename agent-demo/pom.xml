@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.lightweightai</groupId>
+        <artifactId>lightweight-ai-kernel-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>agent-demo</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Agent Demo</name>
+    <description>Runnable demos showing how to build and use local tools, annotated tools, and MCP tools</description>
+
+    <dependencies>
+        <!-- Core framework -->
+        <dependency>
+            <groupId>com.lightweightai</groupId>
+            <artifactId>agent-kernel</artifactId>
+        </dependency>
+
+        <!-- Built-in tools (MathTools, TimeTools, WebTools) -->
+        <dependency>
+            <groupId>com.lightweightai</groupId>
+            <artifactId>agent-tools</artifactId>
+        </dependency>
+
+        <!-- MCP integration -->
+        <dependency>
+            <groupId>com.lightweightai</groupId>
+            <artifactId>agent-mcp</artifactId>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+    </dependencies>
+</project>

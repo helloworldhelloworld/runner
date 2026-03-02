@@ -23,6 +23,7 @@
         <module>soul-assessment</module>
         <module>soul-user</module>
         <module>agent-web</module>
+        <module>agent-demo</module>
     </modules>
 
     <properties>
@@ -90,6 +91,11 @@
             <dependency>
                 <groupId>com.lightweightai</groupId>
                 <artifactId>soul-user</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.lightweightai</groupId>
+                <artifactId>agent-demo</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
