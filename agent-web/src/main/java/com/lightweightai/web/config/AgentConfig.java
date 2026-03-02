@@ -16,7 +16,7 @@ import com.lightweightai.kernel.skill.SkillLoader;
 import com.lightweightai.kernel.speech.SpeechProvider;
 import com.lightweightai.kernel.speech.AzureSpeechProvider;
 import com.lightweightai.kernel.speech.OpenAISpeechProvider;
-import com.lightweightai.tools.web.WebSearchTool;
+import com.lightweightai.tools.web.WebTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -212,14 +212,14 @@ public class AgentConfig {
         ToolRegistry registry = new ToolRegistry();
 
         // Auto-scan and register all Tool implementations via Java SPI
-        // Each module declares its tools in META-INF/services/com.lightweightai.kernel.agent.Tool
+        // Includes Tool SPI (interface) and ToolSource SPI (annotation-based)
         int scanned = registry.scanAndRegister(tool ->
-            !tool.getName().equals("web_search") // Skip WebSearchTool — needs config injection
+            !tool.getName().equals("web_search") // Skip default WebTools — needs config injection
         );
         logger.info("Auto-scanned {} tools via SPI", scanned);
 
         // Manually register tools that require configuration
-        registry.register(new WebSearchTool(webSearchApiKey, webSearchMaxResults));
+        registry.registerObject(new WebTools(webSearchApiKey, webSearchMaxResults));
 
         logger.info("ToolRegistry initialized: {}", registry);
         return registry;

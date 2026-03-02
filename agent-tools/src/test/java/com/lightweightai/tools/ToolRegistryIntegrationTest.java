@@ -3,14 +3,12 @@ package com.lightweightai.tools;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.ToolScanner;
-import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
-import com.lightweightai.tools.math.AddTool;
-import com.lightweightai.tools.math.MultiplyTool;
-import com.lightweightai.tools.time.GetTimeTool;
-import com.lightweightai.tools.web.WebSearchTool;
+import com.lightweightai.tools.math.MathTools;
+import com.lightweightai.tools.time.TimeTools;
+import com.lightweightai.tools.web.WebTools;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -23,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration test: ToolRegistry -> ToolExecutor end-to-end flow.
  *
- * Verifies that Tool objects registered in ToolRegistry are actually
+ * Verifies that annotated Tool objects registered in ToolRegistry are actually
  * found and executed by ToolExecutor when processing LLM tool calls.
  */
 @DisplayName("ToolRegistry + ToolExecutor Integration")
@@ -35,9 +33,8 @@ class ToolRegistryIntegrationTest {
     @BeforeEach
     void setUp() {
         registry = new ToolRegistry();
-        registry.register(new AddTool());
-        registry.register(new MultiplyTool());
-        registry.register(new GetTimeTool());
+        registry.registerObject(new MathTools());
+        registry.registerObject(new TimeTools());
 
         executor = new ToolExecutor(registry);
     }
@@ -112,7 +109,8 @@ class ToolRegistryIntegrationTest {
     void shouldMergeToolDefinitions() {
         List<Map<String, Object>> definitions = executor.getToolDefinitions();
 
-        assertEquals(3, definitions.size());
+        // MathTools: add, multiply, divide + TimeTools: get_time = 4
+        assertEquals(4, definitions.size());
 
         List<String> names = definitions.stream()
             .map(d -> (String) d.get("name"))
@@ -125,10 +123,10 @@ class ToolRegistryIntegrationTest {
     @Test
     @DisplayName("ToolExecutor reports correct total count from registry")
     void shouldReportCorrectFunctionCount() {
-        assertEquals(3, executor.getFunctionCount());
+        assertEquals(4, executor.getFunctionCount());
 
         registry.disable("add");
-        assertEquals(2, executor.getFunctionCount());
+        assertEquals(3, executor.getFunctionCount());
     }
 
     @Test
@@ -141,10 +139,10 @@ class ToolRegistryIntegrationTest {
     }
 
     @Test
-    @DisplayName("ToolRegistry getByCategory works with built-in tools")
+    @DisplayName("ToolRegistry getByCategory works with annotated tools")
     void shouldGetToolsByCategory() {
         List<Tool> mathTools = registry.getByCategory("math");
-        assertEquals(2, mathTools.size());
+        assertEquals(3, mathTools.size()); // add, multiply, divide
 
         List<Tool> utilityTools = registry.getByCategory("utility");
         assertEquals(1, utilityTools.size());
@@ -152,10 +150,10 @@ class ToolRegistryIntegrationTest {
     }
 
     @Test
-    @DisplayName("ToolRegistry getByTag works with built-in tools")
+    @DisplayName("ToolRegistry getByTag works with annotated tools")
     void shouldGetToolsByTag() {
         List<Tool> calcTools = registry.getByTag("calculation");
-        assertEquals(2, calcTools.size());
+        assertEquals(3, calcTools.size()); // add, multiply, divide
 
         List<Tool> timeTools = registry.getByTag("time");
         assertEquals(1, timeTools.size());
@@ -179,42 +177,27 @@ class ToolRegistryIntegrationTest {
     }
 
     @Test
-    @DisplayName("Dynamically register tool and execute it")
-    void shouldRegisterAndExecuteDynamically() {
-        executor.registerTool(new Tool() {
-            @Override
-            public String getName() { return "greet"; }
+    @DisplayName("Dynamically register annotated tool object and execute")
+    void shouldRegisterAnnotatedObjectAndExecute() {
+        executor.registerObject(new WebTools());
 
-            @Override
-            public String getDescription() { return "Greet someone"; }
+        assertTrue(executor.hasFunction("web_search"));
 
-            @Override
-            public ToolSchema getSchema() {
-                return ToolSchema.withRequired(
-                    Map.of("name", Map.of("type", "string")), "name");
-            }
-
-            @Override
-            public ToolResult execute(Map<String, Object> args) {
-                return ToolResult.success("Hello, " + args.get("name") + "!");
-            }
-        });
-
-        assertTrue(executor.hasFunction("greet"));
-
-        ToolCall call = new ToolCall("call_g", "greet", Map.of("name", "World"));
+        ToolCall call = new ToolCall("call_ws", "web_search",
+            Map.of("query", "test query", "maxResults", 3));
         ToolResult result = executor.executeToolCall(call);
 
         assertFalse(result.isError());
-        assertEquals("Hello, World!", result.getContent());
+        assertTrue(result.getContent().contains("test query"));
     }
 
     @Test
-    @DisplayName("WebSearchTool executes in mock mode")
-    void shouldExecuteWebSearchToolInMockMode() {
-        registry.register(new WebSearchTool());
+    @DisplayName("WebTools executes in mock mode")
+    void shouldExecuteWebToolsInMockMode() {
+        registry.registerObject(new WebTools());
 
-        ToolCall call = new ToolCall("call_ws", "web_search", Map.of("query", "test query"));
+        ToolCall call = new ToolCall("call_ws", "web_search",
+            Map.of("query", "test query", "maxResults", 3));
         ToolResult result = executor.executeToolCall(call);
 
         assertFalse(result.isError());
@@ -224,17 +207,17 @@ class ToolRegistryIntegrationTest {
     // ==================== SPI 自动扫描测试 ====================
 
     @Test
-    @DisplayName("ToolScanner discovers all tools from agent-tools via SPI")
+    @DisplayName("ToolScanner discovers all tools from agent-tools via ToolSource SPI")
     void shouldDiscoverAllToolsViaSPI() {
         List<Tool> tools = ToolScanner.scan();
 
         assertFalse(tools.isEmpty(), "Should discover tools via SPI");
 
         List<String> names = tools.stream().map(Tool::getName).toList();
-        assertTrue(names.contains("add"), "Should discover AddTool");
-        assertTrue(names.contains("multiply"), "Should discover MultiplyTool");
-        assertTrue(names.contains("get_time"), "Should discover GetTimeTool");
-        assertTrue(names.contains("web_search"), "Should discover WebSearchTool");
+        assertTrue(names.contains("add"), "Should discover add tool");
+        assertTrue(names.contains("multiply"), "Should discover multiply tool");
+        assertTrue(names.contains("get_time"), "Should discover get_time tool");
+        assertTrue(names.contains("web_search"), "Should discover web_search tool");
     }
 
     @Test

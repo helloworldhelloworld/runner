@@ -70,6 +70,16 @@ public class ToolExecutor {
     }
 
     /**
+     * Register annotated tool object (scans @ToolFunction methods)
+     *
+     * @param target Object containing @ToolFunction annotated methods
+     * @return Number of tools registered
+     */
+    public int registerObject(Object target) {
+        return toolRegistry.registerObject(target);
+    }
+
+    /**
      * Get the underlying ToolRegistry
      *
      * @return The tool registry
