@@ -1,10 +1,12 @@
 package com.lightweightai.mcp;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolExecutor;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpClientTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -273,7 +275,8 @@ public class McpToolManager implements AutoCloseable {
             if (config.getEnv() != null && !config.getEnv().isEmpty()) {
                 paramsBuilder.env(config.getEnv());
             }
-            return new StdioClientTransport(paramsBuilder.build());
+            return new StdioClientTransport(paramsBuilder.build(),
+                new JacksonMcpJsonMapper(new ObjectMapper()));
         }
 
         /**
