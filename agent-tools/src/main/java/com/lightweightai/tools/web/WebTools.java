@@ -34,7 +34,7 @@ public class WebTools {
     ) {
         int max = maxResults > 0 ? maxResults : defaultMaxResults;
 
-        if (apiKey != null && !apiKey.isBlank()) {
+        if (apiKey != null && !apiKey.trim().isEmpty()) {
             // TODO: Integrate with Brave Search / Serper API
         }
 

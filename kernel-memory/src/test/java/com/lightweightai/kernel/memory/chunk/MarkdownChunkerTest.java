@@ -56,7 +56,7 @@ class MarkdownChunkerTest {
 
         // Verify chunks have content
         for (MemoryChunk chunk : chunks) {
-            assertFalse(chunk.getContent().isBlank());
+            assertFalse(chunk.getContent().trim().isEmpty());
             assertNotNull(chunk.getId());
             assertNotNull(chunk.getHash());
             assertEquals("large.md", chunk.getSourceFile());
@@ -119,25 +119,24 @@ class MarkdownChunkerTest {
         assertEquals(0, MarkdownChunker.estimateTokens(null));
         assertEquals(0, MarkdownChunker.estimateTokens(""));
         assertEquals(1, MarkdownChunker.estimateTokens("test"));  // 4 chars ≈ 1 token
-        assertEquals(25, MarkdownChunker.estimateTokens("a".repeat(100)));  // 100/4 = 25
+        assertEquals(25, MarkdownChunker.estimateTokens(new String(new char[100]).replace('\0', 'a')));  // 100/4 = 25
     }
 
     @Test
     void testMarkdownStructurePreserved() {
-        String markdown = """
-            # Heading 1
-
-            Some paragraph text here.
-
-            ## Heading 2
-
-            - List item 1
-            - List item 2
-
-            ```java
-            code block
-            ```
-            """;
+        String markdown =
+            "# Heading 1\n" +
+            "\n" +
+            "Some paragraph text here.\n" +
+            "\n" +
+            "## Heading 2\n" +
+            "\n" +
+            "- List item 1\n" +
+            "- List item 2\n" +
+            "\n" +
+            "```java\n" +
+            "code block\n" +
+            "```\n";
 
         List<MemoryChunk> chunks = chunker.chunk(markdown, "doc.md");
 
@@ -154,7 +153,11 @@ class MarkdownChunkerTest {
 
     @Test
     void testUniqueIdsGenerated() {
-        String content = "Line 1\nLine 2\nLine 3\n".repeat(50);
+        StringBuilder contentBuilder = new StringBuilder();
+        for (int i = 0; i < 50; i++) {
+            contentBuilder.append("Line 1\nLine 2\nLine 3\n");
+        }
+        String content = contentBuilder.toString();
         List<MemoryChunk> chunks = chunker.chunk(content, "test.md");
 
         long uniqueIds = chunks.stream()

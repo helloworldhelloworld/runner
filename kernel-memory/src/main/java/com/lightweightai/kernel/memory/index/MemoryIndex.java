@@ -53,54 +53,49 @@ public class MemoryIndex implements AutoCloseable {
     private void initSchema() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             // Main chunks table
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS chunks (
-                    id TEXT PRIMARY KEY,
-                    content TEXT NOT NULL,
-                    source_file TEXT,
-                    start_line INTEGER,
-                    end_line INTEGER,
-                    hash TEXT NOT NULL,
-                    memory_type TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    embedding BLOB
-                )
-            """);
+            stmt.execute(
+                "CREATE TABLE IF NOT EXISTS chunks (" +
+                "    id TEXT PRIMARY KEY," +
+                "    content TEXT NOT NULL," +
+                "    source_file TEXT," +
+                "    start_line INTEGER," +
+                "    end_line INTEGER," +
+                "    hash TEXT NOT NULL," +
+                "    memory_type TEXT NOT NULL," +
+                "    created_at TEXT NOT NULL," +
+                "    embedding BLOB" +
+                ")");
 
             // FTS5 virtual table for full-text search
-            stmt.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-                    id,
-                    content,
-                    source_file,
-                    content='chunks',
-                    content_rowid='rowid'
-                )
-            """);
+            stmt.execute(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(" +
+                "    id," +
+                "    content," +
+                "    source_file," +
+                "    content='chunks'," +
+                "    content_rowid='rowid'" +
+                ")");
 
             // Triggers to keep FTS in sync
-            stmt.execute("""
-                CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
-                    INSERT INTO chunks_fts(rowid, id, content, source_file)
-                    VALUES (NEW.rowid, NEW.id, NEW.content, NEW.source_file);
-                END
-            """);
+            stmt.execute(
+                "CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN" +
+                "    INSERT INTO chunks_fts(rowid, id, content, source_file)" +
+                "    VALUES (NEW.rowid, NEW.id, NEW.content, NEW.source_file);" +
+                " END");
 
-            stmt.execute("""
-                CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
-                    INSERT INTO chunks_fts(chunks_fts, rowid, id, content, source_file)
-                    VALUES ('delete', OLD.rowid, OLD.id, OLD.content, OLD.source_file);
-                END
-            """);
+            stmt.execute(
+                "CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN" +
+                "    INSERT INTO chunks_fts(chunks_fts, rowid, id, content, source_file)" +
+                "    VALUES ('delete', OLD.rowid, OLD.id, OLD.content, OLD.source_file);" +
+                " END");
 
-            stmt.execute("""
-                CREATE TRIGGER IF NOT EXISTS chunks_au AFTER UPDATE ON chunks BEGIN
-                    INSERT INTO chunks_fts(chunks_fts, rowid, id, content, source_file)
-                    VALUES ('delete', OLD.rowid, OLD.id, OLD.content, OLD.source_file);
-                    INSERT INTO chunks_fts(rowid, id, content, source_file)
-                    VALUES (NEW.rowid, NEW.id, NEW.content, NEW.source_file);
-                END
-            """);
+            stmt.execute(
+                "CREATE TRIGGER IF NOT EXISTS chunks_au AFTER UPDATE ON chunks BEGIN" +
+                "    INSERT INTO chunks_fts(chunks_fts, rowid, id, content, source_file)" +
+                "    VALUES ('delete', OLD.rowid, OLD.id, OLD.content, OLD.source_file);" +
+                "    INSERT INTO chunks_fts(rowid, id, content, source_file)" +
+                "    VALUES (NEW.rowid, NEW.id, NEW.content, NEW.source_file);" +
+                " END");
 
             // Index for hash-based deduplication
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_chunks_hash ON chunks(hash)");
@@ -109,14 +104,13 @@ public class MemoryIndex implements AutoCloseable {
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_chunks_type ON chunks(memory_type)");
 
             // Files metadata table
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS files (
-                    path TEXT PRIMARY KEY,
-                    hash TEXT NOT NULL,
-                    last_indexed TEXT NOT NULL,
-                    chunk_count INTEGER DEFAULT 0
-                )
-            """);
+            stmt.execute(
+                "CREATE TABLE IF NOT EXISTS files (" +
+                "    path TEXT PRIMARY KEY," +
+                "    hash TEXT NOT NULL," +
+                "    last_indexed TEXT NOT NULL," +
+                "    chunk_count INTEGER DEFAULT 0" +
+                ")");
         }
     }
 
@@ -124,11 +118,10 @@ public class MemoryIndex implements AutoCloseable {
      * Insert or update a chunk in the index.
      */
     public void upsertChunk(MemoryChunk chunk) {
-        String sql = """
-            INSERT OR REPLACE INTO chunks
-            (id, content, source_file, start_line, end_line, hash, memory_type, created_at, embedding)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """;
+        String sql =
+            "INSERT OR REPLACE INTO chunks" +
+            " (id, content, source_file, start_line, end_line, hash, memory_type, created_at, embedding)" +
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, chunk.getId());
@@ -160,11 +153,10 @@ public class MemoryIndex implements AutoCloseable {
     public void insertChunks(List<MemoryChunk> chunks) {
         if (chunks.isEmpty()) return;
 
-        String sql = """
-            INSERT OR REPLACE INTO chunks
-            (id, content, source_file, start_line, end_line, hash, memory_type, created_at, embedding)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """;
+        String sql =
+            "INSERT OR REPLACE INTO chunks" +
+            " (id, content, source_file, start_line, end_line, hash, memory_type, created_at, embedding)" +
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try {
             connection.setAutoCommit(false);
@@ -214,14 +206,13 @@ public class MemoryIndex implements AutoCloseable {
         List<SearchResult> results = new ArrayList<>();
 
         // FTS5 query with BM25 ranking
-        String sql = """
-            SELECT c.*, bm25(chunks_fts) as score
-            FROM chunks_fts fts
-            JOIN chunks c ON fts.id = c.id
-            WHERE chunks_fts MATCH ?
-            ORDER BY score
-            LIMIT ?
-        """;
+        String sql =
+            "SELECT c.*, bm25(chunks_fts) as score" +
+            " FROM chunks_fts fts" +
+            " JOIN chunks c ON fts.id = c.id" +
+            " WHERE chunks_fts MATCH ?" +
+            " ORDER BY score" +
+            " LIMIT ?";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             // Escape special FTS5 characters and create query
@@ -347,10 +338,9 @@ public class MemoryIndex implements AutoCloseable {
      * Update file metadata after indexing.
      */
     public void updateFileMetadata(String path, String hash, int chunkCount) {
-        String sql = """
-            INSERT OR REPLACE INTO files (path, hash, last_indexed, chunk_count)
-            VALUES (?, ?, ?, ?)
-        """;
+        String sql =
+            "INSERT OR REPLACE INTO files (path, hash, last_indexed, chunk_count)" +
+            " VALUES (?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, path);

@@ -19,6 +19,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -57,13 +58,12 @@ public class SessionTranscript {
             ensureParentDirs();
             String json = mapper.writeValueAsString(entry);
 
-            Files.writeString(
-                sessionFile,
-                json + "\n",
-                StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.APPEND
-            );
+            try (OutputStream os = Files.newOutputStream(
+                    sessionFile,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND)) {
+                os.write((json + "\n").getBytes(StandardCharsets.UTF_8));
+            }
 
             log.debug("Appended entry to session {}: type={}", sessionId, entry.getType());
         } catch (IOException e) {
@@ -87,7 +87,7 @@ public class SessionTranscript {
             int lineNum = 0;
             while ((line = reader.readLine()) != null) {
                 lineNum++;
-                if (line.isBlank()) continue;
+                if (line.trim().isEmpty()) continue;
 
                 try {
                     TranscriptEntry entry = mapper.readValue(line, TranscriptEntry.class);
@@ -114,7 +114,7 @@ public class SessionTranscript {
 
         try {
             return Files.lines(sessionFile, StandardCharsets.UTF_8)
-                .filter(line -> !line.isBlank())
+                .filter(line -> !line.trim().isEmpty())
                 .map(line -> {
                     try {
                         return mapper.readValue(line, TranscriptEntry.class);
@@ -140,7 +140,7 @@ public class SessionTranscript {
 
         try {
             return Files.lines(sessionFile, StandardCharsets.UTF_8)
-                .filter(line -> !line.isBlank())
+                .filter(line -> !line.trim().isEmpty())
                 .count();
         } catch (IOException e) {
             return 0;

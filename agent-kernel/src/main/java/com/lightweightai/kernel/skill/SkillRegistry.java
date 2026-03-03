@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Skill Registry - Manage and apply Claude Skills
@@ -139,7 +140,7 @@ public class SkillRegistry {
         return activeSkills.stream()
             .map(skills::get)
             .filter(Objects::nonNull)
-            .toList();
+            .collect(Collectors.toList());
     }
 
     /**

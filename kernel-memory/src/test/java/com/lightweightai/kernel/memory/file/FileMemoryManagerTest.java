@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.lightweightai.kernel.memory.index.HybridSearch;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -208,7 +209,7 @@ class FileMemoryManagerTest {
 
         memoryManager.reindexAll();
 
-        var stats = memoryManager.getIndexStats();
+        HybridSearch.IndexStats stats = memoryManager.getIndexStats();
         assertTrue(stats.bm25ChunkCount() >= 2);
     }
 
@@ -216,7 +217,7 @@ class FileMemoryManagerTest {
     void testIndexStats() {
         memoryManager.writeDurable("Some content to index");
 
-        var stats = memoryManager.getIndexStats();
+        HybridSearch.IndexStats stats = memoryManager.getIndexStats();
 
         assertTrue(stats.bm25ChunkCount() >= 0);
         assertEquals(64, stats.embeddingDimensions());

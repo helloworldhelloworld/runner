@@ -171,12 +171,12 @@ public class InMemoryProvider implements MemoryProvider {
      * 获取统计信息
      */
     public Map<String, Object> getStats() {
-        return Map.of(
-            "sessions", sessions.size(),
-            "ephemeralDays", ephemeralMemory.size(),
-            "durableSections", durableMemory.size(),
-            "totalMessages", sessions.values().stream().mapToInt(List::size).sum()
-        );
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("sessions", sessions.size());
+        stats.put("ephemeralDays", ephemeralMemory.size());
+        stats.put("durableSections", durableMemory.size());
+        stats.put("totalMessages", sessions.values().stream().mapToInt(List::size).sum());
+        return stats;
     }
 
     /**

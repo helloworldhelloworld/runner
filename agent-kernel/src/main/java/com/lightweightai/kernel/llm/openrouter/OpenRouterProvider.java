@@ -374,7 +374,7 @@ public class OpenRouterProvider implements LLMProvider {
             try {
                 String argsStr = acc.argsJson.toString();
                 @SuppressWarnings("unchecked")
-                Map<String, Object> argsMap = argsStr.isBlank()
+                Map<String, Object> argsMap = argsStr.trim().isEmpty()
                     ? new HashMap<>()
                     : objectMapper.readValue(argsStr, Map.class);
                 toolCalls.add(new ToolCall(acc.id, acc.name, argsMap));

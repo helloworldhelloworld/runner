@@ -24,16 +24,15 @@ public class UserRepository {
     private void initSchema() {
         try (Connection conn = DriverManager.getConnection(dbUrl);
              Statement stmt = conn.createStatement()) {
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS soul_users (
-                  id TEXT PRIMARY KEY,
-                  openid TEXT,
-                  nickname TEXT DEFAULT '匿名用户',
-                  member_level TEXT DEFAULT 'FREE',
-                  created_at INTEGER,
-                  last_active INTEGER
-                )
-                """);
+            stmt.execute(
+                "CREATE TABLE IF NOT EXISTS soul_users (" +
+                "  id TEXT PRIMARY KEY," +
+                "  openid TEXT," +
+                "  nickname TEXT DEFAULT '匿名用户'," +
+                "  member_level TEXT DEFAULT 'FREE'," +
+                "  created_at INTEGER," +
+                "  last_active INTEGER" +
+                ")");
         } catch (SQLException e) {
             logger.error("Failed to init soul_users schema", e);
             throw new RuntimeException(e);
@@ -41,15 +40,14 @@ public class UserRepository {
     }
 
     public void save(SoulUser user) {
-        String sql = """
-            INSERT INTO soul_users (id, openid, nickname, member_level, created_at, last_active)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              openid=excluded.openid,
-              nickname=excluded.nickname,
-              member_level=excluded.member_level,
-              last_active=excluded.last_active
-            """;
+        String sql =
+            "INSERT INTO soul_users (id, openid, nickname, member_level, created_at, last_active)" +
+            " VALUES (?, ?, ?, ?, ?, ?)" +
+            " ON CONFLICT(id) DO UPDATE SET" +
+            "  openid=excluded.openid," +
+            "  nickname=excluded.nickname," +
+            "  member_level=excluded.member_level," +
+            "  last_active=excluded.last_active";
         try (Connection conn = DriverManager.getConnection(dbUrl);
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getId());

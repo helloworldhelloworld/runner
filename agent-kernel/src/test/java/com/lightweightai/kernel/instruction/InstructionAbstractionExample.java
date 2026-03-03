@@ -5,7 +5,10 @@ import com.lightweightai.kernel.instruction.claude.ClaudeSkillAdapter;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.skill.Skill;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Examples demonstrating the Instruction Abstraction Layer
@@ -38,7 +41,7 @@ public class InstructionAbstractionExample {
         System.out.println("Activated package: " + pkg.getName());
 
         // 5. Inject into conversation
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Create a document")
@@ -274,15 +277,15 @@ public class InstructionAbstractionExample {
 
             @Override
             public java.util.Map<String, String> getMetadata() {
-                return java.util.Map.of(
-                    "version", "1.0.0",
-                    "author", "Example Team"
-                );
+                Map<String, String> meta = new HashMap<>();
+                meta.put("version", "1.0.0");
+                meta.put("author", "Example Team");
+                return meta;
             }
 
             @Override
             public java.util.Map<String, byte[]> getResources() {
-                return java.util.Map.of();
+                return Collections.emptyMap();
             }
 
             @Override

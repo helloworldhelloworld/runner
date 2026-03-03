@@ -2,6 +2,8 @@ package com.lightweightai.kernel.agent;
 
 import com.lightweightai.kernel.llm.ToolResult;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,10 +26,12 @@ public class TestEchoTool implements Tool, ToolMetadata {
 
     @Override
     public ToolSchema getSchema() {
-        return ToolSchema.withRequired(
-            Map.of("message", Map.of("type", "string", "description", "Message to echo")),
-            "message"
-        );
+        Map<String, Object> messageProp = new HashMap<>();
+        messageProp.put("type", "string");
+        messageProp.put("description", "Message to echo");
+        Map<String, Object> props = new HashMap<>();
+        props.put("message", messageProp);
+        return ToolSchema.withRequired(props, "message");
     }
 
     @Override
@@ -43,6 +47,6 @@ public class TestEchoTool implements Tool, ToolMetadata {
 
     @Override
     public List<String> getTags() {
-        return List.of("test", "echo");
+        return Arrays.asList("test", "echo");
     }
 }

@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -60,8 +62,8 @@ class SessionTranscriptTest {
     void testAppendToolCall() {
         SessionTranscript transcript = new SessionTranscript(sessionsDir, "test-tools");
 
-        List<TranscriptEntry.ToolCallEntry> toolCalls = List.of(
-            new TranscriptEntry.ToolCallEntry("call_1", "get_weather", Map.of("city", "Tokyo"))
+        List<TranscriptEntry.ToolCallEntry> toolCalls = Collections.singletonList(
+            new TranscriptEntry.ToolCallEntry("call_1", "get_weather", Collections.<String, Object>singletonMap("city", "Tokyo"))
         );
         transcript.append(TranscriptEntry.assistantWithToolCalls("Let me check the weather", toolCalls));
 
@@ -194,7 +196,7 @@ class SessionTranscriptTest {
 
         transcript.append(TranscriptEntry.systemEvent(
             "Session started",
-            Map.of("model", "claude-3", "temperature", 0.7)
+            new HashMap<String, Object>() {{ put("model", "claude-3"); put("temperature", 0.7); }}
         ));
 
         List<TranscriptEntry> entries = transcript.readAll();

@@ -4,6 +4,7 @@ import com.lightweightai.kernel.llm.*;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -115,12 +116,14 @@ public class ToolCallingLoop {
     ) {
         // Check iteration limit
         if (iteration >= maxIterations) {
-            return CompletableFuture.failedFuture(
+            CompletableFuture<LLMResponse> failedFuture = new CompletableFuture<>();
+            failedFuture.completeExceptionally(
                 new RuntimeException(
                     "Tool calling loop exceeded maximum iterations: " + maxIterations +
                     ". This may indicate an infinite loop or the LLM is stuck calling tools."
                 )
             );
+            return failedFuture;
         }
 
         // Step 1: Call LLM asynchronously (non-blocking)
@@ -171,10 +174,10 @@ public class ToolCallingLoop {
         return ConversationMessage.builder()
             .role(MessageRole.TOOL)
             .textContent(toolResult.getContent())
-            .metadata(Map.of(
-                "tool_use_id", toolResult.getToolUseId(),
-                "is_error", toolResult.isError()
-            ))
+            .metadata(new HashMap<String, Object>() {{
+                put("tool_use_id", toolResult.getToolUseId());
+                put("is_error", toolResult.isError());
+            }})
             .build();
     }
 

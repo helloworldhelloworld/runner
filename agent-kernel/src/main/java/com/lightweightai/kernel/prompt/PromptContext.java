@@ -61,9 +61,9 @@ public class PromptContext {
      */
     public String toDebugString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("=".repeat(60)).append("\n");
+        sb.append(new String(new char[60]).replace('\0', '=')).append("\n");
         sb.append("PromptContext @ ").append(buildTime).append("\n");
-        sb.append("=".repeat(60)).append("\n\n");
+        sb.append(new String(new char[60]).replace('\0', '=')).append("\n\n");
 
         // Active Skills
         sb.append("【Active Skills】\n");
@@ -119,7 +119,7 @@ public class PromptContext {
         sb.append("【Build Log】\n");
         buildLog.forEach(log -> sb.append("  ").append(log).append("\n"));
 
-        sb.append("=".repeat(60)).append("\n");
+        sb.append(new String(new char[60]).replace('\0', '=')).append("\n");
         return sb.toString();
     }
 
@@ -127,15 +127,15 @@ public class PromptContext {
      * 转换为 JSON 格式（用于 API 响应）
      */
     public Map<String, Object> toMap() {
-        return Map.of(
-            "systemPrompt", systemPrompt,
-            "userMessage", userMessage,
-            "historyCount", historyMessages.size(),
-            "toolCount", tools.size(),
-            "activeSkills", activeSkillNames,
-            "hasMemory", hasMemoryContext(),
-            "buildTime", buildTime.toString()
-        );
+        Map<String, Object> map = new HashMap<>();
+        map.put("systemPrompt", systemPrompt);
+        map.put("userMessage", userMessage);
+        map.put("historyCount", historyMessages.size());
+        map.put("toolCount", tools.size());
+        map.put("activeSkills", activeSkillNames);
+        map.put("hasMemory", hasMemoryContext());
+        map.put("buildTime", buildTime.toString());
+        return map;
     }
 
     // ==================== Builder ====================

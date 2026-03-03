@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -78,11 +81,10 @@ public class ChatController {
                     chunk -> {
                         try {
                             // Send delta event
-                            Map<String, Object> event = Map.of(
-                                "type", "delta",
-                                "delta", chunk.getDelta(),
-                                "emotion", chunk.getEmotion() != null ? chunk.getEmotion() : ""
-                            );
+                            Map<String, Object> event = new LinkedHashMap<String, Object>();
+                            event.put("type", "delta");
+                            event.put("delta", chunk.getDelta());
+                            event.put("emotion", chunk.getEmotion() != null ? chunk.getEmotion() : "");
                             emitter.send(SseEmitter.event()
                                 .name("message")
                                 .data(compactMapper.writeValueAsString(event)));
@@ -96,7 +98,7 @@ public class ChatController {
                         Map<String, Object> completeEvent = new java.util.HashMap<>();
                         completeEvent.put("type", "complete");
                         completeEvent.put("response", fullResponse);
-                        completeEvent.put("skillsApplied", List.of("soul-comfort", "openclaw-memory"));
+                        completeEvent.put("skillsApplied", Arrays.asList("soul-comfort", "openclaw-memory"));
                         if (debugObserver != null) {
                             completeEvent.put("debug", debugObserver.getDebugInfo());
                         }
@@ -111,10 +113,9 @@ public class ChatController {
                 }).exceptionally(error -> {
                     logger.error("Streaming chat error", error);
                     try {
-                        Map<String, Object> errorEvent = Map.of(
-                            "type", "error",
-                            "message", error.getMessage() != null ? error.getMessage() : "Unknown error"
-                        );
+                        Map<String, Object> errorEvent = new LinkedHashMap<String, Object>();
+                        errorEvent.put("type", "error");
+                        errorEvent.put("message", error.getMessage() != null ? error.getMessage() : "Unknown error");
                         emitter.send(SseEmitter.event()
                             .name("error")
                             .data(compactMapper.writeValueAsString(errorEvent)));
@@ -159,12 +160,12 @@ public class ChatController {
      */
     @GetMapping("/health")
     public Map<String, Object> health() {
-        return Map.of(
-            "status", "UP",
-            "skills", chatService.getAvailableSkills().size(),
-            "tools", chatService.getAvailableTools().size(),
-            "soulComfortMode", "enabled"
-        );
+        Map<String, Object> health = new LinkedHashMap<String, Object>();
+        health.put("status", "UP");
+        health.put("skills", chatService.getAvailableSkills().size());
+        health.put("tools", chatService.getAvailableTools().size());
+        health.put("soulComfortMode", "enabled");
+        return health;
     }
 
     /**
@@ -192,6 +193,9 @@ public class ChatController {
     public Map<String, Object> clearSession(@PathVariable("sessionId") String sessionId) {
         logger.info("Clearing session: {}", sessionId);
         soulComfortChatService.clearSession(sessionId);
-        return Map.of("status", "cleared", "sessionId", sessionId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("status", "cleared");
+        result.put("sessionId", sessionId);
+        return result;
     }
 }

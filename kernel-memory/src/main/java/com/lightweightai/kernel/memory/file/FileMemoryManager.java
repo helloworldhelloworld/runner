@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,7 +21,9 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * File-based memory manager implementing OpenClaw's three-tier memory architecture:
@@ -86,13 +89,12 @@ public class FileMemoryManager implements AutoCloseable {
             String timestamp = Instant.now().toString();
             String entry = String.format("\n## %s\n\n%s\n", timestamp, content);
 
-            Files.writeString(
-                dailyFile,
-                entry,
-                StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.APPEND
-            );
+            try (OutputStream os = Files.newOutputStream(
+                    dailyFile,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND)) {
+                os.write(entry.getBytes(StandardCharsets.UTF_8));
+            }
 
             // Index the new content
             indexFile(dailyFile, MemoryType.EPHEMERAL);
@@ -120,7 +122,7 @@ public class FileMemoryManager implements AutoCloseable {
             return "";
         }
         try {
-            return Files.readString(file, StandardCharsets.UTF_8);
+            return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
         } catch (IOException e) {
             log.error("Failed to read ephemeral memory for {}", date, e);
             return "";
@@ -140,7 +142,7 @@ public class FileMemoryManager implements AutoCloseable {
      */
     public void writeDurable(String content) {
         try {
-            Files.writeString(durableMemoryFile, content, StandardCharsets.UTF_8);
+            Files.write(durableMemoryFile, content.getBytes(StandardCharsets.UTF_8));
             indexFile(durableMemoryFile, MemoryType.DURABLE);
             log.debug("Updated durable memory: {} chars", content.length());
         } catch (IOException e) {
@@ -186,7 +188,7 @@ public class FileMemoryManager implements AutoCloseable {
             return "";
         }
         try {
-            return Files.readString(durableMemoryFile, StandardCharsets.UTF_8);
+            return new String(Files.readAllBytes(durableMemoryFile), StandardCharsets.UTF_8);
         } catch (IOException e) {
             log.error("Failed to read durable memory", e);
             return "";
@@ -222,7 +224,7 @@ public class FileMemoryManager implements AutoCloseable {
     public List<String> listSessions() {
         try {
             if (!Files.exists(sessionsDir)) {
-                return List.of();
+                return Collections.emptyList();
             }
             return Files.list(sessionsDir)
                 .filter(p -> p.toString().endsWith(".jsonl"))
@@ -231,10 +233,10 @@ public class FileMemoryManager implements AutoCloseable {
                     return filename.substring(0, filename.length() - 6);
                 })
                 .sorted()
-                .toList();
+                .collect(Collectors.toList());
         } catch (IOException e) {
             log.error("Failed to list sessions", e);
-            return List.of();
+            return Collections.emptyList();
         }
     }
 
@@ -280,7 +282,7 @@ public class FileMemoryManager implements AutoCloseable {
         }
 
         try {
-            String content = Files.readString(file, StandardCharsets.UTF_8);
+            String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
             String hash = MarkdownChunker.computeHash(content);
             String relativePath = agentRoot.relativize(file).toString();
 

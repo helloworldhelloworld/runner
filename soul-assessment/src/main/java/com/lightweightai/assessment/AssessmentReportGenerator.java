@@ -9,6 +9,7 @@ import com.lightweightai.kernel.llm.LLMResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -35,7 +36,7 @@ public class AssessmentReportGenerator {
 
         String prompt = buildPrompt(result);
         try {
-            List<ConversationMessage> messages = List.of(
+            List<ConversationMessage> messages = Arrays.asList(
                 ConversationMessage.builder()
                     .role(ConversationMessage.MessageRole.SYSTEM)
                     .textContent("你是一位温柔、专业的心理健康顾问助手。请用支持性、非诊断性的语言解读心理测评结果，给予情感支持和建议。不要做出临床诊断，不要推荐具体药物。")
@@ -95,10 +96,13 @@ public class AssessmentReportGenerator {
     }
 
     private int getThreshold(ScaleType type, int level) {
-        return switch (type) {
-            case PHQ9 -> level == 0 ? 4 : 9;
-            case GAD7 -> level == 0 ? 4 : 9;
-            case PSS10 -> level == 0 ? 13 : 26;
-        };
+        if (type == ScaleType.PHQ9) {
+            return level == 0 ? 4 : 9;
+        } else if (type == ScaleType.GAD7) {
+            return level == 0 ? 4 : 9;
+        } else if (type == ScaleType.PSS10) {
+            return level == 0 ? 13 : 26;
+        }
+        return level == 0 ? 4 : 9;
     }
 }

@@ -132,5 +132,13 @@ public class LaneQueue {
         }
     }
 
-    private record QueuedTask<T>(Supplier<T> task, CompletableFuture<T> future) {}
+    private static final class QueuedTask<T> {
+        final Supplier<T> task;
+        final CompletableFuture<T> future;
+
+        QueuedTask(Supplier<T> task, CompletableFuture<T> future) {
+            this.task = task;
+            this.future = future;
+        }
+    }
 }

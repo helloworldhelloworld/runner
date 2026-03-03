@@ -1,5 +1,7 @@
 package com.lightweightai.kernel.memory.model;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -37,7 +39,7 @@ public class SearchOptions {
     public static class Builder {
         private int topK = 10;
         private float vectorWeight = 0.7f;
-        private Set<MemoryType> memoryTypes = Set.of(MemoryType.values());
+        private Set<MemoryType> memoryTypes = new HashSet<>(Arrays.asList(MemoryType.values()));
         private String sessionId = null;
         private int snippetLength = 700;
 

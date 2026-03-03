@@ -6,6 +6,9 @@ import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -100,7 +103,7 @@ class SkillToolIntegrationTest {
             .name("mixed")
             .addTool(tool) // 从 Tool 添加
             .addTool("manual_tool", "手动定义的工具", // 手动添加
-                Map.of("param1", Map.of("type", "string")))
+                Collections.<String, Object>singletonMap("param1", Collections.singletonMap("type", "string")))
             .build();
 
         // Then
@@ -151,7 +154,7 @@ class SkillToolIntegrationTest {
     @DisplayName("快捷方法 - 从多个 Tool 创建 Skill")
     void shouldCreateSkillFromToolList() {
         // Given
-        List<Tool> tools = List.of(createWeatherTool(), createForecastTool());
+        List<Tool> tools = Arrays.asList(createWeatherTool(), createForecastTool());
 
         // When
         Skill skill = Skill.fromTools("weather-bundle", "天气工具集", tools);
@@ -173,10 +176,12 @@ class SkillToolIntegrationTest {
 
             @Override
             public ToolSchema getSchema() {
-                return ToolSchema.withRequired(
-                    Map.of("city", Map.of("type", "string", "description", "城市名称")),
-                    "city"
-                );
+                Map<String, Object> cityProp = new HashMap<>();
+                cityProp.put("type", "string");
+                cityProp.put("description", "城市名称");
+                Map<String, Object> props = new HashMap<>();
+                props.put("city", cityProp);
+                return ToolSchema.withRequired(props, "city");
             }
 
             @Override
@@ -197,12 +202,13 @@ class SkillToolIntegrationTest {
 
             @Override
             public ToolSchema getSchema() {
-                return ToolSchema.withProperties(
-                    Map.of(
-                        "city", Map.of("type", "string"),
-                        "days", Map.of("type", "integer", "default", 7)
-                    )
-                );
+                Map<String, Object> forecastProps = new HashMap<>();
+                forecastProps.put("city", Collections.singletonMap("type", "string"));
+                Map<String, Object> daysProp = new HashMap<>();
+                daysProp.put("type", "integer");
+                daysProp.put("default", 7);
+                forecastProps.put("days", daysProp);
+                return ToolSchema.withProperties(forecastProps);
             }
 
             @Override

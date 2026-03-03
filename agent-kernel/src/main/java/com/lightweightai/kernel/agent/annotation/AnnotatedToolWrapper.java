@@ -122,7 +122,7 @@ public class AnnotatedToolWrapper implements Tool, ToolMetadata {
 
     @Override
     public List<String> getTags() {
-        return List.of(annotation.tags());
+        return Arrays.asList(annotation.tags());
     }
 
     @Override

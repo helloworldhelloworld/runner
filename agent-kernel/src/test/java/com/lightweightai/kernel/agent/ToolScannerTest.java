@@ -139,7 +139,7 @@ class ToolScannerTest {
         Tool tool = registry.get("test_echo").orElse(null);
         assertNotNull(tool);
 
-        var result = tool.execute(java.util.Map.of("message", "Hello SPI"));
+        ToolResult result = tool.execute(java.util.Collections.singletonMap("message", "Hello SPI"));
         assertFalse(result.isError());
         assertEquals("Echo: Hello SPI", result.getContent());
     }

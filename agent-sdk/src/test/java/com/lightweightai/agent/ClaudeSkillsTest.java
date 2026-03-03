@@ -8,6 +8,10 @@ import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.plugin.JsonSchemaGenerator;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -81,7 +85,7 @@ public class ClaudeSkillsTest {
         MathPlugin plugin = new MathPlugin();
 
         // Get Claude tool definitions
-        var tools = plugin.toClaudeTools();
+        List<Map<String, Object>> tools = plugin.toClaudeTools();
 
         assertEquals(1, tools.size());
 
@@ -110,10 +114,13 @@ public class ClaudeSkillsTest {
         executor.registerFunctions(plugin.getFunctions());
 
         // Create a tool call
+        Map<String, Object> addArgs = new HashMap<>();
+        addArgs.put("a", 10);
+        addArgs.put("b", 20);
         ToolCall toolCall = new ToolCall(
             "call_123",
             "add",
-            Map.of("a", 10, "b", 20)
+            addArgs
         );
 
         // Execute
@@ -131,7 +138,7 @@ public class ClaudeSkillsTest {
         ToolCall toolCall = new ToolCall(
             "call_123",
             "unknown_tool",
-            Map.of()
+            Collections.emptyMap()
         );
 
         ToolResult result = executor.executeToolCall(toolCall);
@@ -146,10 +153,16 @@ public class ClaudeSkillsTest {
         ToolExecutor executor = new ToolExecutor();
         executor.registerFunctions(plugin.getFunctions());
 
-        ToolCall call1 = new ToolCall("call_1", "add", Map.of("a", 1, "b", 2));
-        ToolCall call2 = new ToolCall("call_2", "add", Map.of("a", 10, "b", 20));
+        Map<String, Object> args1 = new HashMap<>();
+        args1.put("a", 1);
+        args1.put("b", 2);
+        Map<String, Object> args2 = new HashMap<>();
+        args2.put("a", 10);
+        args2.put("b", 20);
+        ToolCall call1 = new ToolCall("call_1", "add", args1);
+        ToolCall call2 = new ToolCall("call_2", "add", args2);
 
-        var results = executor.executeToolCalls(java.util.List.of(call1, call2));
+        List<ToolResult> results = executor.executeToolCalls(Arrays.asList(call1, call2));
 
         assertEquals(2, results.size());
         assertFalse(results.get(0).isError());

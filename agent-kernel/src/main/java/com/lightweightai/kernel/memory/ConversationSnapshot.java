@@ -3,6 +3,8 @@ package com.lightweightai.kernel.memory;
 import com.lightweightai.kernel.llm.ConversationMessage;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -16,7 +18,7 @@ public class ConversationSnapshot {
 
     public ConversationSnapshot(String conversationId, List<ConversationMessage> messages) {
         this.conversationId = conversationId;
-        this.messages = List.copyOf(messages);
+        this.messages = Collections.unmodifiableList(new ArrayList<>(messages));
         this.timestamp = Instant.now();
     }
 

@@ -27,7 +27,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -84,7 +87,7 @@ public class SoulComfortChatService {
             ToolRegistry toolRegistry
     ) {
         this.promptEngine = promptEngine;
-        this.agentTools = toolRegistry != null ? toolRegistry.getEnabled() : List.of();
+        this.agentTools = toolRegistry != null ? toolRegistry.getEnabled() : Collections.<Tool>emptyList();
         this.defaultAgent = new SoulComfortAgent(llmProvider, promptEngine, this.agentTools);
         this.modelAgents = new ConcurrentHashMap<>();
         this.memoryManager = memoryManager;
@@ -148,7 +151,7 @@ public class SoulComfortChatService {
                         "我注意到你可能正在经历一些非常困难的情绪。你的生命很宝贵，有专业的人可以帮助你。\n\n" +
                         "请联系以下危机热线：\n" + resourcesText
                     );
-                    crisisResponse.setSkillsApplied(List.of("crisis-safety"));
+                    crisisResponse.setSkillsApplied(Collections.singletonList("crisis-safety"));
                     return crisisResponse;
                 }
             }
@@ -178,7 +181,7 @@ public class SoulComfortChatService {
             // 6. 构建响应
             ChatResponse chatResponse = new ChatResponse();
             chatResponse.setResponse(response);
-            chatResponse.setSkillsApplied(List.of("soul-comfort", "openclaw-memory"));
+            chatResponse.setSkillsApplied(Arrays.asList("soul-comfort", "openclaw-memory"));
 
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("mode", "soul-comfort");
@@ -279,10 +282,12 @@ public class SoulComfortChatService {
 
         return entries.stream()
             .filter(e -> "user".equals(e.getRole()) || "assistant".equals(e.getRole()))
-            .map(e -> Map.of(
-                "role", e.getRole(),
-                "content", e.getContent() != null ? e.getContent() : ""
-            ))
+            .map(e -> {
+                Map<String, String> m = new LinkedHashMap<String, String>();
+                m.put("role", e.getRole());
+                m.put("content", e.getContent() != null ? e.getContent() : "");
+                return m;
+            })
             .collect(Collectors.toList());
     }
 
@@ -293,12 +298,14 @@ public class SoulComfortChatService {
         List<SearchResult> results = memoryManager.search(query);
         return results.stream()
             .limit(topK)
-            .map(r -> Map.<String, Object>of(
-                "content", r.getChunk().getContent(),
-                "source", r.getChunk().getSourceFile(),
-                "score", r.getScore(),
-                "snippet", r.getSnippet() != null ? r.getSnippet() : ""
-            ))
+            .map(r -> {
+                Map<String, Object> m = new LinkedHashMap<String, Object>();
+                m.put("content", r.getChunk().getContent());
+                m.put("source", r.getChunk().getSourceFile());
+                m.put("score", r.getScore());
+                m.put("snippet", r.getSnippet() != null ? r.getSnippet() : "");
+                return m;
+            })
             .collect(Collectors.toList());
     }
 
@@ -319,12 +326,12 @@ public class SoulComfortChatService {
         try {
             summary.put("summary", defaultAgent.getSessionSummary(sessionId));
 
-            var stats = memoryManager.getIndexStats();
-            summary.put("memoryStats", Map.of(
-                "bm25Chunks", stats.bm25ChunkCount(),
-                "vectorChunks", stats.vectorChunkCount(),
-                "embeddingDimensions", stats.embeddingDimensions()
-            ));
+            FileMemoryManager.IndexStats stats = memoryManager.getIndexStats();
+            Map<String, Object> memoryStats = new LinkedHashMap<String, Object>();
+            memoryStats.put("bm25Chunks", stats.bm25ChunkCount());
+            memoryStats.put("vectorChunks", stats.vectorChunkCount());
+            memoryStats.put("embeddingDimensions", stats.embeddingDimensions());
+            summary.put("memoryStats", memoryStats);
 
             SessionTranscript transcript = activeSessions.get(sessionId);
             if (transcript != null) {

@@ -25,15 +25,14 @@ public class EmotionRepository {
     private void initSchema() {
         try (Connection conn = DriverManager.getConnection(dbUrl);
              Statement stmt = conn.createStatement()) {
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS emotion_records (
-                  id TEXT PRIMARY KEY,
-                  user_id TEXT NOT NULL,
-                  emotion TEXT NOT NULL,
-                  note TEXT,
-                  recorded_at INTEGER NOT NULL
-                )
-                """);
+            stmt.execute(
+                "CREATE TABLE IF NOT EXISTS emotion_records (" +
+                "  id TEXT PRIMARY KEY," +
+                "  user_id TEXT NOT NULL," +
+                "  emotion TEXT NOT NULL," +
+                "  note TEXT," +
+                "  recorded_at INTEGER NOT NULL" +
+                ")");
         } catch (SQLException e) {
             logger.error("Failed to init emotion_records schema", e);
             throw new RuntimeException(e);

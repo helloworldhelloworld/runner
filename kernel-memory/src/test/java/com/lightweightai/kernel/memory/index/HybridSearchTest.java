@@ -11,6 +11,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -116,7 +117,7 @@ class HybridSearchTest {
 
     @Test
     void testIndexChunks() {
-        List<MemoryChunk> chunks = List.of(
+        List<MemoryChunk> chunks = Arrays.asList(
             createChunk("First document"),
             createChunk("Second document"),
             createChunk("Third document")

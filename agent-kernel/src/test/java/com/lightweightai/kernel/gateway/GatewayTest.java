@@ -10,8 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -117,7 +116,7 @@ class GatewayTest {
     @DisplayName("流式处理请求")
     void shouldHandleRequestStream() throws Exception {
         // Given
-        llmProvider.setStreamResponse(List.of("你", "好", "！"));
+        llmProvider.setStreamResponse(Arrays.asList("你", "好", "！"));
         GatewayRequest request = GatewayRequest.builder()
             .sessionId("session-1")
             .message("流式测试")
@@ -227,7 +226,7 @@ class GatewayTest {
 
     private static class MockLLMProvider implements LLMProvider {
         private String nextResponse = "Default response";
-        private List<String> streamChunks = List.of();
+        private List<String> streamChunks = Collections.emptyList();
         private RuntimeException error = null;
 
         void setNextResponse(String response) {
@@ -272,7 +271,9 @@ class GatewayTest {
 
             if (error != null) {
                 handler.onError(error);
-                return CompletableFuture.failedFuture(error);
+                CompletableFuture<LLMResponse> failedFuture = new CompletableFuture<>();
+                failedFuture.completeExceptionally(error);
+                return failedFuture;
             }
 
             // 模拟流式响应
@@ -299,7 +300,7 @@ class GatewayTest {
                 @Override public MessageFormatter getMessageFormatter() { return null; }
                 @Override public TokenCounter getTokenCounter() { return null; }
                 @Override public java.util.Set<ModelFeature> getSupportedFeatures() {
-                    return java.util.Set.of(ModelFeature.TOOL_CALLING, ModelFeature.STREAMING);
+                    return new java.util.HashSet<>(java.util.Arrays.asList(ModelFeature.TOOL_CALLING, ModelFeature.STREAMING));
                 }
             };
         }

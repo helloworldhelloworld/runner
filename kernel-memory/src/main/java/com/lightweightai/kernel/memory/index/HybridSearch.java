@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Hybrid search combining BM25 (keyword) and Vector (semantic) search.
@@ -89,7 +90,7 @@ public class HybridSearch {
             .sorted((a, b) -> Float.compare(b.totalScore, a.totalScore))
             .limit(topK)
             .map(FusedScore::toSearchResult)
-            .toList();
+            .collect(Collectors.toList());
 
         log.debug("Hybrid search returned {} results for query: '{}'", results.size(), truncate(query, 50));
         return results;
@@ -184,7 +185,21 @@ public class HybridSearch {
         }
     }
 
-    public record IndexStats(int bm25ChunkCount, int vectorChunkCount, int embeddingDimensions) {}
+    public static final class IndexStats {
+        private final int bm25ChunkCount;
+        private final int vectorChunkCount;
+        private final int embeddingDimensions;
+
+        public IndexStats(int bm25ChunkCount, int vectorChunkCount, int embeddingDimensions) {
+            this.bm25ChunkCount = bm25ChunkCount;
+            this.vectorChunkCount = vectorChunkCount;
+            this.embeddingDimensions = embeddingDimensions;
+        }
+
+        public int bm25ChunkCount() { return bm25ChunkCount; }
+        public int vectorChunkCount() { return vectorChunkCount; }
+        public int embeddingDimensions() { return embeddingDimensions; }
+    }
 
     private String truncate(String s, int maxLen) {
         if (s == null) return "";

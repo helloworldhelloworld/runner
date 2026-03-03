@@ -3,6 +3,7 @@ package com.lightweightai.assessment.scale;
 import com.lightweightai.assessment.model.ScaleDefinition;
 import com.lightweightai.assessment.model.ScaleType;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -16,7 +17,7 @@ public class Gad7Scale {
             ScaleType.GAD7,
             "焦虑自评量表 (GAD-7)",
             "过去两周，以下问题出现的频率是多少？",
-            List.of(
+            Arrays.asList(
                 new ScaleDefinition.Question(0, "感到紧张、焦虑或急切"),
                 new ScaleDefinition.Question(1, "不能停止担忧或控制担忧"),
                 new ScaleDefinition.Question(2, "对各种各样的事情担忧过多"),
@@ -25,8 +26,8 @@ public class Gad7Scale {
                 new ScaleDefinition.Question(5, "变得容易烦恼或易怒"),
                 new ScaleDefinition.Question(6, "感到有些可怕的事情可能要发生")
             ),
-            List.of("完全没有", "有几天", "超过一半天数", "几乎每天"),
-            List.of(0, 1, 2, 3)
+            Arrays.asList("完全没有", "有几天", "超过一半天数", "几乎每天"),
+            Arrays.asList(0, 1, 2, 3)
         );
     }
 

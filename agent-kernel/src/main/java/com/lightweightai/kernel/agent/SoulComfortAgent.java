@@ -14,6 +14,7 @@ import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.prompt.PromptRequest;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,7 +81,7 @@ public class SoulComfortAgent {
      * OpenClaw 模式（无工具）
      */
     public SoulComfortAgent(LLMProvider llmProvider, PromptEngine promptEngine) {
-        this(llmProvider, promptEngine, List.of());
+        this(llmProvider, promptEngine, Collections.<Tool>emptyList());
     }
 
     /**
@@ -303,7 +304,7 @@ public class SoulComfortAgent {
      * Build tool definitions in OpenAI function-calling format (used by OpenRouter).
      */
     private List<Map<String, Object>> buildToolDefinitions() {
-        if (tools.isEmpty()) return List.of();
+        if (tools.isEmpty()) return Collections.emptyList();
         return tools.stream().map(t -> {
             Map<String, Object> function = new LinkedHashMap<>();
             function.put("name", t.getName());
@@ -424,7 +425,7 @@ public class SoulComfortAgent {
             .build());
 
         // System: 外部记忆上下文（来自旧版 SoulComfortChatService.formatMemoryContext）
-        if (externalMemoryContext != null && !externalMemoryContext.isBlank()) {
+        if (externalMemoryContext != null && !externalMemoryContext.trim().isEmpty()) {
             messages.add(ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.SYSTEM)
                 .textContent("历史记忆中的相关信息（可参考但不必每次都提及）：\n" + externalMemoryContext)
@@ -435,7 +436,7 @@ public class SoulComfortAgent {
         UserMemory userMemory = memory.getUserMemory(sessionId);
         userMemory.addEmotionRecord("温柔", userMessage);
         String memCtx = buildLegacyUserMemoryContext(userMemory);
-        if (!memCtx.isBlank()) {
+        if (!memCtx.trim().isEmpty()) {
             messages.add(ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.SYSTEM)
                 .textContent("关于这位访客的记忆：\n" + memCtx)
@@ -472,7 +473,7 @@ public class SoulComfortAgent {
         List<UserMemory.EmotionRecord> emotions = userMemory.getRecentEmotions(3);
         if (!emotions.isEmpty()) {
             sb.append("- 最近情绪：");
-            for (var e : emotions) sb.append(e.getEmotion()).append("、");
+            for (UserMemory.EmotionRecord e : emotions) sb.append(e.getEmotion()).append("、");
             sb.setLength(sb.length() - 1);
             sb.append("\n");
         }
@@ -493,7 +494,7 @@ public class SoulComfortAgent {
                 .getHistory(sessionId, 10)
                 .stream()
                 .map(Message::toConversationMessage)
-                .toList();
+                .collect(Collectors.toList());
         } else {
             history = memory.getRecentMessages(sessionId, 10);
         }

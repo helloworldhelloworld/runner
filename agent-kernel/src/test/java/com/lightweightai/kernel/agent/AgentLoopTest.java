@@ -12,6 +12,8 @@ import org.junit.jupiter.api.DisplayName;
 import static com.lightweightai.kernel.llm.ToolResult.success;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -123,7 +125,7 @@ class AgentLoopTest {
     void shouldHandleSingleToolCall() {
         // Given - 配置工具
         Tool weatherTool = new MockTool("get_weather", "获取天气",
-            args -> Map.of("weather", "晴天", "temp", 25));
+            args -> { Map<String, Object> r = new HashMap<>(); r.put("weather", "晴天"); r.put("temp", 25); return r; });
 
         // 创建专门的 mock provider
         MockLLMProvider toolMockProvider = new MockLLMProvider();
@@ -135,7 +137,7 @@ class AgentLoopTest {
             .build();
 
         // LLM 第一次响应：调用工具
-        toolMockProvider.addToolCallResponse("get_weather", Map.of("city", "北京"));
+        toolMockProvider.addToolCallResponse("get_weather", Collections.singletonMap("city", "北京"));
         // LLM 第二次响应：最终回复
         toolMockProvider.addFollowUpResponse("北京今天是晴天，气温25度。");
 
@@ -152,7 +154,7 @@ class AgentLoopTest {
     void shouldLimitToolCallIterations() {
         // Given - 工具总是触发更多工具调用
         Tool loopTool = new MockTool("loop_tool", "循环工具",
-            args -> Map.of("result", "continue"));
+            args -> Collections.<String, Object>singletonMap("result", "continue"));
 
         AgentLoop loopWithTools = AgentLoop.builder()
             .llmProvider(llmProvider)
@@ -163,7 +165,7 @@ class AgentLoopTest {
 
         // 每次都返回工具调用
         for (int i = 0; i < 10; i++) {
-            llmProvider.addToolCallResponse("loop_tool", Map.of());
+            llmProvider.addToolCallResponse("loop_tool", Collections.emptyMap());
         }
         llmProvider.addFollowUpResponse("循环结束");
 
@@ -244,9 +246,11 @@ class AgentLoopTest {
 
             Object nextResponse = responseQueue.get(responseIndex++);
 
-            if (nextResponse instanceof ToolCallSetup setup) {
+            if (nextResponse instanceof ToolCallSetup) {
+                ToolCallSetup setup = (ToolCallSetup) nextResponse;
                 return createToolCallResponse(setup.toolName, setup.args);
-            } else if (nextResponse instanceof String text) {
+            } else if (nextResponse instanceof String) {
+                String text = (String) nextResponse;
                 return createTextResponse(text);
             }
 
@@ -305,7 +309,7 @@ class AgentLoopTest {
             ConversationMessage msg = ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.ASSISTANT)
                 .textContent("")
-                .addMetadata("tool_uses", List.of(toolUse))
+                .addMetadata("tool_uses", Collections.singletonList(toolUse))
                 .build();
             return LLMResponse.builder()
                 .message(msg)
@@ -349,7 +353,7 @@ class AgentLoopTest {
 
         @Override
         public ToolSchema getSchema() {
-            return new ToolSchema(Map.of("type", "object"));
+            return new ToolSchema(Collections.singletonMap("type", "object"));
         }
 
         @Override

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -186,7 +187,7 @@ class SkillRegistryTest {
         registry.registerSkill(skill);
         registry.activateSkill("injected-skill");
 
-        List<ConversationMessage> originalMessages = List.of(
+        List<ConversationMessage> originalMessages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Hello")
@@ -203,7 +204,7 @@ class SkillRegistryTest {
 
     @Test
     void shouldNotInjectWhenNoActiveSkills() {
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Hello")

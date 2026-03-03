@@ -13,6 +13,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -66,13 +68,13 @@ public class McpToolAdapter {
                 try {
                     ToolResult result = tool.execute(args);
                     return new CallToolResult(
-                        List.of(new TextContent(result.getContent())),
+                        Collections.singletonList(new TextContent(result.getContent())),
                         result.isError()
                     );
                 } catch (Exception e) {
                     logger.error("Tool execution failed: {} - {}", tool.getName(), e.getMessage());
                     return new CallToolResult(
-                        List.of(new TextContent("Error: " + e.getMessage())),
+                        Collections.singletonList(new TextContent("Error: " + e.getMessage())),
                         true
                     );
                 }
@@ -102,15 +104,16 @@ public class McpToolAdapter {
      * @return 注解 Map（如果没有 ToolMetadata 则为空 Map）
      */
     public static Map<String, Boolean> extractAnnotations(Tool tool) {
-        if (tool instanceof ToolMetadata metadata) {
-            return Map.of(
-                "readOnlyHint", metadata.isReadOnly(),
-                "destructiveHint", metadata.isDestructive(),
-                "idempotentHint", metadata.isIdempotent(),
-                "openWorldHint", metadata.isOpenWorld()
-            );
+        if (tool instanceof ToolMetadata) {
+            ToolMetadata metadata = (ToolMetadata) tool;
+            Map<String, Boolean> annotations = new HashMap<>();
+            annotations.put("readOnlyHint", metadata.isReadOnly());
+            annotations.put("destructiveHint", metadata.isDestructive());
+            annotations.put("idempotentHint", metadata.isIdempotent());
+            annotations.put("openWorldHint", metadata.isOpenWorld());
+            return annotations;
         }
-        return Map.of();
+        return Collections.emptyMap();
     }
 
     /**

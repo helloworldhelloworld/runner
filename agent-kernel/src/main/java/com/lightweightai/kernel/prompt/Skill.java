@@ -201,10 +201,10 @@ public class Skill {
             Map<String, Object> schema = new HashMap<>();
             schema.put("name", name);
             schema.put("description", description);
-            schema.put("input_schema", Map.of(
-                "type", "object",
-                "properties", parameters
-            ));
+            Map<String, Object> inputSchema = new HashMap<>();
+            inputSchema.put("type", "object");
+            inputSchema.put("properties", parameters);
+            schema.put("input_schema", inputSchema);
             return schema;
         }
     }

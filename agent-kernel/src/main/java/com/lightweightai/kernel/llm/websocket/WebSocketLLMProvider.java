@@ -321,7 +321,7 @@ public class WebSocketLLMProvider implements LLMProvider {
                 .role(MessageRole.ASSISTANT)
                 .textContent(textBuffer != null ? textBuffer.toString() : "")
                 .build())
-            .toolCalls(toolCalls != null ? toolCalls : List.of())
+            .toolCalls(toolCalls != null ? toolCalls : Collections.<ToolCall>emptyList())
             .build();
 
         handler.onComplete(finalResponse);
@@ -332,9 +332,11 @@ public class WebSocketLLMProvider implements LLMProvider {
      */
     private CompletableFuture<Void> sendMessage(WebSocketMessage message) {
         if (!isConnected()) {
-            return CompletableFuture.failedFuture(
+            CompletableFuture<Void> failedFuture = new CompletableFuture<>();
+            failedFuture.completeExceptionally(
                 new IOException("Not connected to WebSocket server")
             );
+            return failedFuture;
         }
 
         try {
@@ -342,7 +344,9 @@ public class WebSocketLLMProvider implements LLMProvider {
             webSocket.send(json);
             return CompletableFuture.completedFuture(null);
         } catch (IOException e) {
-            return CompletableFuture.failedFuture(e);
+            CompletableFuture<Void> failedFuture = new CompletableFuture<>();
+            failedFuture.completeExceptionally(e);
+            return failedFuture;
         }
     }
 
@@ -585,12 +589,12 @@ public class WebSocketLLMProvider implements LLMProvider {
 
         @Override
         public Set<ModelFeature> getSupportedFeatures() {
-            return Set.of(
+            return new HashSet<>(Arrays.asList(
                 ModelFeature.TOOL_CALLING,
                 ModelFeature.STREAMING,
                 ModelFeature.SYSTEM_MESSAGE,
                 ModelFeature.FUNCTION_CALLING
-            );
+            ));
         }
     }
 }

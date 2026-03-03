@@ -52,7 +52,7 @@ class ProviderAdapterFactoryTest {
 
     @Test
     void shouldListSupportedProviders() {
-        var supported = ProviderAdapterFactory.getSupportedProviders();
+        java.util.List<String> supported = ProviderAdapterFactory.getSupportedProviders();
 
         assertNotNull(supported);
         assertFalse(supported.isEmpty());

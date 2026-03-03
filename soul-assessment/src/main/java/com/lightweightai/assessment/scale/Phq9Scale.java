@@ -3,6 +3,7 @@ package com.lightweightai.assessment.scale;
 import com.lightweightai.assessment.model.ScaleDefinition;
 import com.lightweightai.assessment.model.ScaleType;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -16,7 +17,7 @@ public class Phq9Scale {
             ScaleType.PHQ9,
             "抑郁自评量表 (PHQ-9)",
             "过去两周，以下问题出现的频率是多少？",
-            List.of(
+            Arrays.asList(
                 new ScaleDefinition.Question(0, "做事缺乏兴趣或乐趣"),
                 new ScaleDefinition.Question(1, "感到心情低落、沮丧或绝望"),
                 new ScaleDefinition.Question(2, "入睡困难、睡不着或睡得太多"),
@@ -27,8 +28,8 @@ public class Phq9Scale {
                 new ScaleDefinition.Question(7, "行动或说话速度缓慢（让别人也注意到了），或相反，烦躁不安，动来动去"),
                 new ScaleDefinition.Question(8, "有不如死掉或以某种方式伤害自己的念头")
             ),
-            List.of("完全没有", "有几天", "超过一半天数", "几乎每天"),
-            List.of(0, 1, 2, 3)
+            Arrays.asList("完全没有", "有几天", "超过一半天数", "几乎每天"),
+            Arrays.asList(0, 1, 2, 3)
         );
     }
 

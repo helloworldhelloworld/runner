@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -80,7 +81,7 @@ class ClaudeProviderStreamTest {
         };
 
         // When: Stream a response
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Test message")
@@ -154,7 +155,7 @@ class ClaudeProviderStreamTest {
         };
 
         // When: Stream a response with tool use
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Add 10 and 20")

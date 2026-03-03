@@ -211,11 +211,25 @@ public class LaneQueueManager implements AutoCloseable {
         }
     }
 
-    public record LaneStats(
-        String sessionId,
-        int pendingTasks,
-        boolean processing,
-        Instant lastAccess,
-        long totalTasks
-    ) {}
+    public static final class LaneStats {
+        private final String sessionId;
+        private final int pendingTasks;
+        private final boolean processing;
+        private final Instant lastAccess;
+        private final long totalTasks;
+
+        public LaneStats(String sessionId, int pendingTasks, boolean processing, Instant lastAccess, long totalTasks) {
+            this.sessionId = sessionId;
+            this.pendingTasks = pendingTasks;
+            this.processing = processing;
+            this.lastAccess = lastAccess;
+            this.totalTasks = totalTasks;
+        }
+
+        public String sessionId() { return sessionId; }
+        public int pendingTasks() { return pendingTasks; }
+        public boolean processing() { return processing; }
+        public Instant lastAccess() { return lastAccess; }
+        public long totalTasks() { return totalTasks; }
+    }
 }

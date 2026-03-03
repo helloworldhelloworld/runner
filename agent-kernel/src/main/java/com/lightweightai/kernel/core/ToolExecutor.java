@@ -8,6 +8,7 @@ import com.lightweightai.kernel.plugin.FunctionResult;
 import com.lightweightai.kernel.plugin.PluginFunction;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -173,7 +174,7 @@ public class ToolExecutor {
      */
     public List<ToolResult> executeToolCalls(List<ToolCall> toolCalls) {
         if (toolCalls == null || toolCalls.isEmpty()) {
-            return List.of();
+            return Collections.emptyList();
         }
 
         return toolCalls.stream()
@@ -189,7 +190,7 @@ public class ToolExecutor {
      */
     public CompletableFuture<List<ToolResult>> executeToolCallsAsync(List<ToolCall> toolCalls) {
         if (toolCalls == null || toolCalls.isEmpty()) {
-            return CompletableFuture.completedFuture(List.of());
+            return CompletableFuture.completedFuture(Collections.<ToolResult>emptyList());
         }
 
         List<CompletableFuture<ToolResult>> futures = toolCalls.stream()

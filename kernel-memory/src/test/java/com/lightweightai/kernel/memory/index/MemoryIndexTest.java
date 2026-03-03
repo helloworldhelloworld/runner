@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -49,7 +50,7 @@ class MemoryIndexTest {
 
     @Test
     void testBatchInsert() {
-        List<MemoryChunk> chunks = List.of(
+        List<MemoryChunk> chunks = Arrays.asList(
             createChunk("First chunk content"),
             createChunk("Second chunk content"),
             createChunk("Third chunk content")
@@ -96,7 +97,7 @@ class MemoryIndexTest {
         MemoryChunk chunk2 = createChunk("Content 2", "file1.md");
         MemoryChunk chunk3 = createChunk("Content 3", "file2.md");
 
-        index.insertChunks(List.of(chunk1, chunk2, chunk3));
+        index.insertChunks(Arrays.asList(chunk1, chunk2, chunk3));
 
         List<MemoryChunk> file1Chunks = index.getChunksBySourceFile("file1.md");
         assertEquals(2, file1Chunks.size());
@@ -107,7 +108,7 @@ class MemoryIndexTest {
 
     @Test
     void testDeleteChunksBySourceFile() {
-        index.insertChunks(List.of(
+        index.insertChunks(Arrays.asList(
             createChunk("Content 1", "file1.md"),
             createChunk("Content 2", "file1.md"),
             createChunk("Content 3", "file2.md")
@@ -212,7 +213,7 @@ class MemoryIndexTest {
 
     @Test
     void testMemoryTypeFiltering() {
-        index.insertChunks(List.of(
+        index.insertChunks(Arrays.asList(
             createChunkWithType("Ephemeral content", MemoryType.EPHEMERAL),
             createChunkWithType("Durable content", MemoryType.DURABLE),
             createChunkWithType("Session content", MemoryType.SESSION)

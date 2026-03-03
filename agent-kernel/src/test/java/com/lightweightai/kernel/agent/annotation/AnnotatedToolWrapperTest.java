@@ -7,6 +7,9 @@ import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -216,7 +219,7 @@ class AnnotatedToolWrapperTest {
         List<Tool> tools = AnnotatedToolScanner.scan(mathTools);
         Tool addTool = tools.stream().filter(t -> t.getName().equals("add")).findFirst().orElseThrow();
 
-        ToolResult result = addTool.execute(Map.of("a", 10, "b", 20));
+        ToolResult result = addTool.execute(new HashMap<String, Object>() {{ put("a", 10); put("b", 20); }});
         assertFalse(result.isError());
         assertEquals("30", result.getContent());
     }
@@ -227,7 +230,7 @@ class AnnotatedToolWrapperTest {
         List<Tool> tools = AnnotatedToolScanner.scan(mathTools);
         Tool addTool = tools.stream().filter(t -> t.getName().equals("add")).findFirst().orElseThrow();
 
-        ToolResult result = addTool.execute(Map.of("a", 1.5, "b", 2.3));
+        ToolResult result = addTool.execute(new HashMap<String, Object>() {{ put("a", 1.5); put("b", 2.3); }});
         assertFalse(result.isError());
         assertEquals("3.8", result.getContent());
     }
@@ -238,7 +241,7 @@ class AnnotatedToolWrapperTest {
         List<Tool> tools = AnnotatedToolScanner.scan(timeTools);
         Tool timeTool = tools.get(0);
 
-        ToolResult result = timeTool.execute(Map.of());
+        ToolResult result = timeTool.execute(Collections.emptyMap());
         assertFalse(result.isError());
         assertEquals("2026-03-02T12:00:00", result.getContent());
     }
@@ -250,12 +253,12 @@ class AnnotatedToolWrapperTest {
         Tool tool = tools.get(0);
 
         // 正常除法
-        ToolResult result = tool.execute(Map.of("a", 10.0, "b", 2.0));
+        ToolResult result = tool.execute(new HashMap<String, Object>() {{ put("a", 10.0); put("b", 2.0); }});
         assertFalse(result.isError());
         assertEquals("5.0", result.getContent());
 
         // 除以零
-        ToolResult errorResult = tool.execute(Map.of("a", 10.0, "b", 0.0));
+        ToolResult errorResult = tool.execute(new HashMap<String, Object>() {{ put("a", 10.0); put("b", 0.0); }});
         assertTrue(errorResult.isError());
         assertEquals("Division by zero", errorResult.getContent());
     }
@@ -266,7 +269,7 @@ class AnnotatedToolWrapperTest {
         List<Tool> tools = AnnotatedToolScanner.scan(errorTool);
         Tool tool = tools.get(0);
 
-        ToolResult result = tool.execute(Map.of());
+        ToolResult result = tool.execute(Collections.emptyMap());
         assertTrue(result.isError());
         assertEquals("Something went wrong", result.getContent());
     }
@@ -280,7 +283,7 @@ class AnnotatedToolWrapperTest {
             .findFirst().orElseThrow();
 
         // JSON 解析后 Number 类型可能是 Integer 或 Double
-        ToolResult result = multiply.execute(Map.of("x", 3, "y", 7));
+        ToolResult result = multiply.execute(new HashMap<String, Object>() {{ put("x", 3); put("y", 7); }});
         assertFalse(result.isError());
         assertEquals("21", result.getContent());
     }
@@ -291,12 +294,12 @@ class AnnotatedToolWrapperTest {
         List<Tool> tools = AnnotatedToolScanner.scan(typeTools);
         Tool tool = tools.get(0);
 
-        ToolResult result = tool.execute(Map.of(
-            "text", "hello",
-            "count", 5,
-            "ratio", 3.14,
-            "flag", true
-        ));
+        ToolResult result = tool.execute(new HashMap<String, Object>() {{
+            put("text", "hello");
+            put("count", 5);
+            put("ratio", 3.14);
+            put("flag", true);
+        }});
         assertFalse(result.isError());
         assertEquals("hello:5:3.14:true", result.getContent());
     }
@@ -308,7 +311,7 @@ class AnnotatedToolWrapperTest {
         Tool tool = tools.get(0);
 
         // 只传必填项，可选项使用默认值
-        ToolResult result = tool.execute(Map.of("text", "hi"));
+        ToolResult result = tool.execute(Collections.singletonMap("text", "hi"));
         assertFalse(result.isError());
         assertEquals("hi:0:0.0:false", result.getContent());
     }
@@ -325,7 +328,7 @@ class AnnotatedToolWrapperTest {
         ToolMetadata meta = (ToolMetadata) addTool;
 
         assertEquals("math", meta.getCategory());
-        assertEquals(List.of("math", "calculation"), meta.getTags());
+        assertEquals(Arrays.asList("math", "calculation"), meta.getTags());
         assertTrue(meta.isReadOnly());
         assertTrue(meta.isIdempotent());
         assertFalse(meta.isOpenWorld());
@@ -384,7 +387,7 @@ class AnnotatedToolWrapperTest {
 
         // 执行
         Tool addTool = registry.get("add").orElseThrow();
-        ToolResult result = addTool.execute(Map.of("a", 3, "b", 4));
+        ToolResult result = addTool.execute(new HashMap<String, Object>() {{ put("a", 3); put("b", 4); }});
         assertEquals("7", result.getContent());
     }
 

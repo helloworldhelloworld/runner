@@ -7,6 +7,7 @@ import com.lightweightai.assessment.scale.Pss10Scale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,22 +35,27 @@ public class AssessmentService {
      * Get all available scale definitions.
      */
     public Map<String, ScaleDefinition> getScales() {
-        return Map.of(
-            ScaleType.PHQ9.name(), Phq9Scale.definition(),
-            ScaleType.GAD7.name(), Gad7Scale.definition(),
-            ScaleType.PSS10.name(), Pss10Scale.definition()
-        );
+        Map<String, ScaleDefinition> scales = new HashMap<>();
+        scales.put(ScaleType.PHQ9.name(), Phq9Scale.definition());
+        scales.put(ScaleType.GAD7.name(), Gad7Scale.definition());
+        scales.put(ScaleType.PSS10.name(), Pss10Scale.definition());
+        return scales;
     }
 
     /**
      * Get a single scale definition.
      */
     public ScaleDefinition getScale(ScaleType type) {
-        return switch (type) {
-            case PHQ9 -> Phq9Scale.definition();
-            case GAD7 -> Gad7Scale.definition();
-            case PSS10 -> Pss10Scale.definition();
-        };
+        switch (type) {
+            case PHQ9:
+                return Phq9Scale.definition();
+            case GAD7:
+                return Gad7Scale.definition();
+            case PSS10:
+                return Pss10Scale.definition();
+            default:
+                throw new IllegalArgumentException("Unknown scale type: " + type);
+        }
     }
 
     /**
@@ -63,7 +69,7 @@ public class AssessmentService {
         long now = System.currentTimeMillis();
 
         AssessmentResult result = new AssessmentResult(
-            id, submission.userId(), submission.scaleType(),
+            id, submission.getUserId(), submission.getScaleType(),
             totalScore, severity, null, now
         );
 
@@ -71,9 +77,9 @@ public class AssessmentService {
         String aiReport = reportGenerator.generate(result);
         result.setAiReport(aiReport);
 
-        repository.save(result, submission.answers());
+        repository.save(result, submission.getAnswers());
         logger.info("Assessment submitted - user: {}, scale: {}, score: {}, severity: {}",
-            submission.userId(), submission.scaleType(), totalScore, severity);
+            submission.getUserId(), submission.getScaleType(), totalScore, severity);
 
         return result;
     }

@@ -1,11 +1,13 @@
 package com.lightweightai.kernel.skill;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Skill Loader - Load Claude Skills from filesystem
@@ -50,7 +52,7 @@ public class SkillLoader {
         }
 
         // Read SKILL.md
-        String manifestContent = Files.readString(manifestPath);
+        String manifestContent = new String(Files.readAllBytes(manifestPath), StandardCharsets.UTF_8);
 
         // Parse frontmatter and instructions
         Matcher matcher = FRONTMATTER_PATTERN.matcher(manifestContent);
@@ -103,7 +105,7 @@ public class SkillLoader {
 
         Map<String, Skill> skills = new HashMap<>();
 
-        try (var stream = Files.list(skillsDirectory)) {
+        try (Stream<Path> stream = Files.list(skillsDirectory)) {
             List<Path> skillDirs = stream
                 .filter(Files::isDirectory)
                 .collect(Collectors.toList());
@@ -128,7 +130,7 @@ public class SkillLoader {
     private static Map<String, byte[]> loadResources(Path skillPath) throws IOException {
         Map<String, byte[]> resources = new HashMap<>();
 
-        try (var stream = Files.walk(skillPath)) {
+        try (Stream<Path> stream = Files.walk(skillPath)) {
             stream.filter(Files::isRegularFile)
                 .filter(p -> !p.getFileName().toString().equals(SKILL_MANIFEST))
                 .forEach(resourcePath -> {
@@ -188,42 +190,42 @@ public class SkillLoader {
         Path skillDir = outputPath.resolve(skillName);
         Files.createDirectories(skillDir);
 
-        String sampleSkillMd = """
-            ---
-            name: %s
-            description: A sample skill for demonstration
-            version: 1.0.0
-            author: Example Author
-            ---
+        String sampleSkillMd = String.format(
+            "---\n" +
+            "name: %s\n" +
+            "description: A sample skill for demonstration\n" +
+            "version: 1.0.0\n" +
+            "author: Example Author\n" +
+            "---\n" +
+            "\n" +
+            "# %s Skill\n" +
+            "\n" +
+            "This is a sample skill that demonstrates the Claude Skills format.\n" +
+            "\n" +
+            "## Instructions\n" +
+            "\n" +
+            "When this skill is active:\n" +
+            "1. Follow these guidelines carefully\n" +
+            "2. Use the provided examples as reference\n" +
+            "3. Leverage available resources\n" +
+            "\n" +
+            "## Examples\n" +
+            "\n" +
+            "Example 1: How to do something\n" +
+            "Example 2: Another use case\n" +
+            "\n" +
+            "## Guidelines\n" +
+            "\n" +
+            "- Always check the resources before proceeding\n" +
+            "- Follow the documented patterns\n" +
+            "- Maintain consistency with examples\n",
+            skillName, skillName);
 
-            # %s Skill
-
-            This is a sample skill that demonstrates the Claude Skills format.
-
-            ## Instructions
-
-            When this skill is active:
-            1. Follow these guidelines carefully
-            2. Use the provided examples as reference
-            3. Leverage available resources
-
-            ## Examples
-
-            Example 1: How to do something
-            Example 2: Another use case
-
-            ## Guidelines
-
-            - Always check the resources before proceeding
-            - Follow the documented patterns
-            - Maintain consistency with examples
-            """.formatted(skillName, skillName);
-
-        Files.writeString(skillDir.resolve("SKILL.md"), sampleSkillMd);
+        Files.write(skillDir.resolve("SKILL.md"), sampleSkillMd.getBytes(StandardCharsets.UTF_8));
 
         // Add a sample resource
         String sampleResource = "This is a sample resource file for the skill.";
-        Files.writeString(skillDir.resolve("example.txt"), sampleResource);
+        Files.write(skillDir.resolve("example.txt"), sampleResource.getBytes(StandardCharsets.UTF_8));
 
         System.out.println("Created sample skill at: " + skillDir);
     }

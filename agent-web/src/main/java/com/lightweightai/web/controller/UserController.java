@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -42,12 +43,12 @@ public class UserController {
     public ResponseEntity<?> checkin(@RequestBody CheckinRequest request) {
         try {
             EmotionRecord record = userService.checkin(
-                request.userId(), request.emotion(), request.note()
+                request.getUserId(), request.getEmotion(), request.getNote()
             );
             return ResponseEntity.ok(record);
         } catch (Exception e) {
             logger.error("Checkin failed", e);
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(500).body(Collections.singletonMap("error", e.getMessage()));
         }
     }
 
@@ -63,5 +64,20 @@ public class UserController {
         return ResponseEntity.ok(userService.getStats(userId));
     }
 
-    public record CheckinRequest(String userId, String emotion, String note) {}
+    public static class CheckinRequest {
+        private String userId;
+        private String emotion;
+        private String note;
+
+        public CheckinRequest() {}
+
+        public String getUserId() { return userId; }
+        public void setUserId(String userId) { this.userId = userId; }
+
+        public String getEmotion() { return emotion; }
+        public void setEmotion(String emotion) { this.emotion = emotion; }
+
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+    }
 }

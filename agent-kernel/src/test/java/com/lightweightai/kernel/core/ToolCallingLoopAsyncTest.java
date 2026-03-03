@@ -47,10 +47,10 @@ class ToolCallingLoopAsyncTest {
     @Test
     void shouldExecuteAsyncNonBlocking() throws Exception {
         // Given: Mock LLM that returns tool call, then final response
-        mockProvider.addResponse(createToolCallResponse("add", Map.of("a", 10, "b", 20)));
+        mockProvider.addResponse(createToolCallResponse("add", makeMap("a", 10, "b", 20)));
         mockProvider.addResponse(createTextResponse("The sum is 30"));
 
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("What is 10 + 20?")
@@ -98,13 +98,13 @@ class ToolCallingLoopAsyncTest {
     void shouldChainMultipleDependentAsyncOperations() throws Exception {
         // Given: Multi-turn conversation with dependent operations
         // Turn 1: LLM wants to call "add"
-        mockProvider.addResponse(createToolCallResponse("add", Map.of("a", 5, "b", 3)));
+        mockProvider.addResponse(createToolCallResponse("add", makeMap("a", 5, "b", 3)));
         // Turn 2: LLM wants to call "add" again based on previous result
-        mockProvider.addResponse(createToolCallResponse("add", Map.of("a", 8, "b", 2)));
+        mockProvider.addResponse(createToolCallResponse("add", makeMap("a", 8, "b", 2)));
         // Turn 3: Final response
         mockProvider.addResponse(createTextResponse("The final result is 10"));
 
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Calculate 5+3, then add 2 to the result")
@@ -135,10 +135,10 @@ class ToolCallingLoopAsyncTest {
     @Test
     void shouldHandleAsyncErrorsGracefully() throws Exception {
         // Given: Provider that will fail
-        mockProvider.addResponse(createToolCallResponse("add", Map.of("a", 10, "b", 20)));
+        mockProvider.addResponse(createToolCallResponse("add", makeMap("a", 10, "b", 20)));
         mockProvider.setShouldFail(true);
 
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Test")
@@ -168,7 +168,7 @@ class ToolCallingLoopAsyncTest {
 
         mockProvider.addResponse(createTextResponse("Hello"));
 
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Say hello")
@@ -194,11 +194,11 @@ class ToolCallingLoopAsyncTest {
     void shouldNotBlockThreadsInAsyncExecution() throws Exception {
         // This test verifies the non-blocking nature
 
-        mockProvider.addResponse(createToolCallResponse("add", Map.of("a", 1, "b", 2)));
+        mockProvider.addResponse(createToolCallResponse("add", makeMap("a", 1, "b", 2)));
         mockProvider.addResponse(createTextResponse("Result: 3"));
         mockProvider.setDelay(100); // Simulate network latency
 
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Calculate 1+2")
@@ -242,7 +242,7 @@ class ToolCallingLoopAsyncTest {
 
             @Override
             public List<com.lightweightai.kernel.plugin.FunctionParameter> getParameters() {
-                return List.of();
+                return Collections.emptyList();
             }
 
             @Override
@@ -254,7 +254,7 @@ class ToolCallingLoopAsyncTest {
 
             @Override
             public Map<String, Object> toJsonSchema() {
-                return Map.of("name", "add", "description", "Add two numbers");
+                return new HashMap<String, Object>() {{ put("name", "add"); put("description", "Add two numbers"); }};
             }
         };
     }
@@ -267,7 +267,7 @@ class ToolCallingLoopAsyncTest {
                 .role(ConversationMessage.MessageRole.ASSISTANT)
                 .textContent("")
                 .build())
-            .toolCalls(List.of(toolCall))
+            .toolCalls(Collections.singletonList(toolCall))
             .build();
     }
 
@@ -283,6 +283,15 @@ class ToolCallingLoopAsyncTest {
     /**
      * Mock LLM Provider for testing async behavior
      */
+    @SuppressWarnings("unchecked")
+    private static <K, V> Map<K, V> makeMap(Object... keyValues) {
+        Map<K, V> map = new HashMap<>();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            map.put((K) keyValues[i], (V) keyValues[i + 1]);
+        }
+        return map;
+    }
+
     private static class MockLLMProvider implements LLMProvider {
         private final Queue<LLMResponse> responses = new LinkedList<>();
         private boolean shouldFail = false;

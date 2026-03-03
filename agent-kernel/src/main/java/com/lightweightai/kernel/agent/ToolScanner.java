@@ -102,7 +102,7 @@ public class ToolScanner {
 
         for (Tool tool : toolLoader) {
             try {
-                if (tool.getName() == null || tool.getName().isBlank()) {
+                if (tool.getName() == null || tool.getName().trim().isEmpty()) {
                     logger.warn("Skipping tool with null/empty name: {}", tool.getClass().getName());
                     continue;
                 }
@@ -125,7 +125,7 @@ public class ToolScanner {
                 List<Tool> discovered = source.discoverTools();
                 if (discovered != null) {
                     for (Tool tool : discovered) {
-                        if (tool.getName() == null || tool.getName().isBlank()) {
+                        if (tool.getName() == null || tool.getName().trim().isEmpty()) {
                             logger.warn("Skipping tool with null/empty name from source: {}",
                                 source.getClass().getName());
                             continue;

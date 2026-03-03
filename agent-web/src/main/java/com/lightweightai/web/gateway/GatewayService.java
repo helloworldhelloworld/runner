@@ -11,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +90,7 @@ public class GatewayService {
                 future.thenAccept(fullText -> {
                     ChatResponse cr = new ChatResponse();
                     cr.setResponse(fullText);
-                    cr.setSkillsApplied(List.of("soul-comfort", "openclaw-memory"));
+                    cr.setSkillsApplied(Arrays.asList("soul-comfort", "openclaw-memory"));
                     Map<String, Object> meta = new HashMap<>();
                     meta.put("mode", "soul-comfort");
                     meta.put("hasMemory", true);
@@ -251,7 +253,7 @@ public class GatewayService {
         }
 
         response.setResponse(gatewayResponse.getText());
-        response.setSkillsApplied(List.of("gateway"));
+        response.setSkillsApplied(Collections.singletonList("gateway"));
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("requestId", gatewayResponse.getRequestId());

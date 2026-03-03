@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import jakarta.annotation.PreDestroy;
+import javax.annotation.PreDestroy;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -72,7 +72,7 @@ public class MemoryConfig {
 
         this.fileMemoryManager = new FileMemoryManager(agentRoot, agentId, embeddingProvider);
 
-        var stats = fileMemoryManager.getIndexStats();
+        FileMemoryManager.IndexStats stats = fileMemoryManager.getIndexStats();
         logger.info("Memory system ready - BM25 chunks: {}, Vector chunks: {}",
             stats.bm25ChunkCount(), stats.vectorChunkCount());
 

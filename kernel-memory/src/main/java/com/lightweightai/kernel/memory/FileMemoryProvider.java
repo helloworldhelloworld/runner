@@ -107,7 +107,7 @@ public class FileMemoryProvider implements MemoryProvider {
 
     @Override
     public List<MemorySearchResult> search(String query, SearchOptions options) {
-        var searchOptions = com.lightweightai.kernel.memory.model.SearchOptions.builder()
+        com.lightweightai.kernel.memory.model.SearchOptions searchOptions = com.lightweightai.kernel.memory.model.SearchOptions.builder()
             .topK(options.getTopK())
             .vectorWeight((float) options.getVectorWeight())
             .build();
@@ -138,11 +138,16 @@ public class FileMemoryProvider implements MemoryProvider {
     }
 
     private MemorySearchResult.MemoryType convertType(com.lightweightai.kernel.memory.model.MemoryType type) {
-        return switch (type) {
-            case EPHEMERAL -> MemorySearchResult.MemoryType.EPHEMERAL;
-            case DURABLE -> MemorySearchResult.MemoryType.DURABLE;
-            case SESSION -> MemorySearchResult.MemoryType.SESSION;
-        };
+        switch (type) {
+            case EPHEMERAL:
+                return MemorySearchResult.MemoryType.EPHEMERAL;
+            case DURABLE:
+                return MemorySearchResult.MemoryType.DURABLE;
+            case SESSION:
+                return MemorySearchResult.MemoryType.SESSION;
+            default:
+                throw new IllegalArgumentException("Unknown memory type: " + type);
+        }
     }
 
     /**

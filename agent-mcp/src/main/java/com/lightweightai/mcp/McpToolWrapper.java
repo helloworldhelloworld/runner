@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +64,7 @@ public class McpToolWrapper implements Tool, ToolMetadata {
     public ToolSchema getSchema() {
         try {
             String schemaJson = mcpTool.inputSchema();
-            if (schemaJson != null && !schemaJson.isBlank()) {
+            if (schemaJson != null && !schemaJson.trim().isEmpty()) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> schemaMap = objectMapper.readValue(schemaJson, Map.class);
                 return new ToolSchema(schemaMap);
@@ -101,7 +102,7 @@ public class McpToolWrapper implements Tool, ToolMetadata {
 
     @Override
     public List<String> getTags() {
-        return List.of("mcp", "remote", serverName);
+        return Arrays.asList("mcp", "remote", serverName);
     }
 
     @Override
@@ -133,7 +134,8 @@ public class McpToolWrapper implements Tool, ToolMetadata {
 
         StringBuilder sb = new StringBuilder();
         for (McpSchema.Content content : result.content()) {
-            if (content instanceof McpSchema.TextContent textContent) {
+            if (content instanceof McpSchema.TextContent) {
+                McpSchema.TextContent textContent = (McpSchema.TextContent) content;
                 if (sb.length() > 0) {
                     sb.append("\n");
                 }

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
@@ -70,7 +71,7 @@ class LaneQueueTest {
         CompletableFuture.allOf(f1, f2, f3).get(5, TimeUnit.SECONDS);
 
         // Should be in order (serial execution)
-        assertEquals(List.of(1, 2, 3), results);
+        assertEquals(Arrays.asList(1, 2, 3), results);
     }
 
     @Test
@@ -190,7 +191,7 @@ class LaneQueueTest {
         CompletableFuture.allOf(f1, f2).get(5, TimeUnit.SECONDS);
 
         // Even though f2 is faster, it should wait for f1
-        assertEquals(List.of(1, 2), results);
+        assertEquals(Arrays.asList(1, 2), results);
     }
 
     private void sleep(long millis) {

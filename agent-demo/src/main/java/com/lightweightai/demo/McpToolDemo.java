@@ -17,6 +17,9 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -95,8 +98,8 @@ public class McpToolDemo {
 
         System.out.println("[Registry] " + registry.enabledCount() + " tools (本地+MCP混合):");
         for (Tool tool : registry.getEnabled()) {
-            String source = (tool instanceof ToolMetadata meta)
-                ? meta.getCategory() : "default";
+            String source = (tool instanceof ToolMetadata)
+                ? ((ToolMetadata) tool).getCategory() : "default";
             System.out.println("  - " + tool.getName() + " [" + source + "]");
         }
 
@@ -106,18 +109,21 @@ public class McpToolDemo {
 
         // 调用本地工具
         ToolResult r1 = executor.executeToolCall(
-            new ToolCall("1", "get_city_info", Map.of("city", "beijing")));
+            new ToolCall("1", "get_city_info", Collections.singletonMap("city", "beijing")));
         System.out.println("  get_city_info({city:\"beijing\"})  → " + r1.getContent());
         System.out.println("    ↑ 本地 @ToolFunction 直接执行");
 
+        Map<String, Object> addArgs = new HashMap<>();
+        addArgs.put("a", 42);
+        addArgs.put("b", 58);
         ToolResult r2 = executor.executeToolCall(
-            new ToolCall("2", "add", Map.of("a", 42, "b", 58)));
+            new ToolCall("2", "add", addArgs));
         System.out.println("  add({a:42, b:58})                → " + r2.getContent());
         System.out.println("    ↑ SPI 扫描注册的本地工具");
 
         // 调用 "MCP" 工具（实际是模拟的，但代码完全一样）
         ToolResult r3 = executor.executeToolCall(
-            new ToolCall("3", "get_weather_forecast", Map.of("city", "Shanghai")));
+            new ToolCall("3", "get_weather_forecast", Collections.singletonMap("city", "Shanghai")));
         System.out.println("  get_weather_forecast({city:\"Shanghai\"}) → " + r3.getContent());
         System.out.println("    ↑ MCP 工具（McpToolWrapper.execute() → mcpClient.callTool()）");
 
@@ -130,7 +136,7 @@ public class McpToolDemo {
         // Mock LLM 模拟调用 MCP 工具 get_weather_forecast
         LLMProvider mockLlm = new MockLLMProvider(
             "get_weather_forecast",
-            Map.of("city", "Tokyo"));
+            Collections.singletonMap("city", (Object) "Tokyo"));
 
         ToolCallingLoop loop = ToolCallingLoop.builder()
             .provider(mockLlm)
@@ -240,14 +246,14 @@ public class McpToolDemo {
             .findFirst()
             .orElseThrow();
 
-        McpSchema.CallToolResult mcpResult = citySpec.handler().apply(null, Map.of("city", "beijing"));
+        McpSchema.CallToolResult mcpResult = citySpec.handler().apply(null, Collections.singletonMap("city", (Object) "beijing"));
         String resultText = ((McpSchema.TextContent) mcpResult.content().get(0)).text();
         System.out.println("\n[MCP Handler] get_city_info({city:\"beijing\"}) → " + resultText);
 
         // 对比本地执行
         ToolExecutor executor = new ToolExecutor(registry);
         ToolResult localResult = executor.executeToolCall(
-            new ToolCall("1", "get_city_info", Map.of("city", "beijing")));
+            new ToolCall("1", "get_city_info", Collections.singletonMap("city", "beijing")));
         System.out.println("[Local]       get_city_info({city:\"beijing\"}) → " + localResult.getContent());
         System.out.println("[Match]       " + localResult.getContent().equals(resultText));
 
@@ -340,9 +346,11 @@ public class McpToolDemo {
 
         @Override
         public ToolSchema getSchema() {
-            return ToolSchema.withRequired(Map.of(
-                "city", Map.of("type", "string", "description", "City name")
-            ), "city");
+            Map<String, Object> citySchema = new HashMap<>();
+            citySchema.put("type", "string");
+            citySchema.put("description", "City name");
+            return ToolSchema.withRequired(
+                Collections.singletonMap("city", (Object) citySchema), "city");
         }
 
         @Override
@@ -360,7 +368,7 @@ public class McpToolDemo {
 
         @Override
         public List<String> getTags() {
-            return List.of("mcp", "remote", "weather-server");
+            return Arrays.asList("mcp", "remote", "weather-server");
         }
 
         @Override
@@ -390,12 +398,16 @@ public class McpToolDemo {
         public String getCityInfo(
             @ToolParam(name = "city", description = "City name", required = true) String city
         ) {
-            return switch (city.toLowerCase()) {
-                case "beijing" -> "Beijing: population 21.5M, area 16,410 km²";
-                case "shanghai" -> "Shanghai: population 24.9M, area 6,341 km²";
-                case "tokyo" -> "Tokyo: population 13.9M, area 2,194 km²";
-                default -> city + ": data not available (demo mode)";
-            };
+            String cityLower = city.toLowerCase();
+            if ("beijing".equals(cityLower)) {
+                return "Beijing: population 21.5M, area 16,410 km\u00B2";
+            } else if ("shanghai".equals(cityLower)) {
+                return "Shanghai: population 24.9M, area 6,341 km\u00B2";
+            } else if ("tokyo".equals(cityLower)) {
+                return "Tokyo: population 13.9M, area 2,194 km\u00B2";
+            } else {
+                return city + ": data not available (demo mode)";
+            }
         }
 
         @ToolFunction(
@@ -445,9 +457,9 @@ public class McpToolDemo {
                     .message(ConversationMessage.builder()
                         .role(MessageRole.ASSISTANT)
                         .textContent("")
-                        .metadata(Map.of("tool_calls", List.of(call)))
+                        .metadata(Collections.singletonMap("tool_calls", (Object) Collections.singletonList(call)))
                         .build())
-                    .toolCalls(List.of(call))
+                    .toolCalls(Collections.singletonList(call))
                     .build();
             }
             String toolResult = messages.stream()

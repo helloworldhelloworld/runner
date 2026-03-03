@@ -201,7 +201,7 @@ public class PromptEngine {
 
         // Layer 1: 长期记忆（始终注入）
         String durable = memoryProvider.readDurable();
-        if (durable != null && !durable.isBlank()) {
+        if (durable != null && !durable.trim().isEmpty()) {
             sb.append("【长期记忆 — 关于这位访客的已知信息】\n");
             sb.append(truncate(durable, 600)).append("\n\n");
             buildLog.add("Injected durable memory (" + durable.length() + " chars)");
@@ -227,7 +227,7 @@ public class PromptEngine {
 
     private static String truncate(String text, int maxLen) {
         if (text == null) return "";
-        text = text.strip();
+        text = text.trim();
         return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
     }
 

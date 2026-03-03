@@ -8,6 +8,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,8 +44,8 @@ public class MarkdownChunker {
      * Chunk markdown content into overlapping segments.
      */
     public List<MemoryChunk> chunk(String content, String sourceFile, MemoryType type) {
-        if (content == null || content.isBlank()) {
-            return List.of();
+        if (content == null || content.trim().isEmpty()) {
+            return Collections.emptyList();
         }
 
         List<MemoryChunk> chunks = new ArrayList<>();

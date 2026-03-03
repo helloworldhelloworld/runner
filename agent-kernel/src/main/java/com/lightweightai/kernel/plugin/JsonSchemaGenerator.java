@@ -47,7 +47,7 @@ public class JsonSchemaGenerator {
         // Handle primitive and simple types
         String jsonType = mapJavaTypeToJsonType(type);
         if (!jsonType.equals("object")) {
-            return new JsonSchema(Map.of("type", jsonType));
+            return new JsonSchema(Collections.singletonMap("type", jsonType));
         }
 
         // Handle object types with fields

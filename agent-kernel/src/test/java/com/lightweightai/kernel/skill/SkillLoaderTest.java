@@ -3,6 +3,7 @@ package com.lightweightai.kernel.skill;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -20,30 +21,29 @@ class SkillLoaderTest {
         Path skillDir = tempDir.resolve("test-skill");
         Files.createDirectories(skillDir);
 
-        String skillContent = """
-            ---
-            name: test-skill
-            description: A test skill for unit testing
-            version: 1.0.0
-            ---
+        String skillContent =
+            "---\n" +
+            "name: test-skill\n" +
+            "description: A test skill for unit testing\n" +
+            "version: 1.0.0\n" +
+            "---\n" +
+            "\n" +
+            "# Test Skill\n" +
+            "\n" +
+            "This is a test skill for demonstration.\n" +
+            "\n" +
+            "## Instructions\n" +
+            "1. Do step one\n" +
+            "2. Do step two\n" +
+            "\n" +
+            "## Examples\n" +
+            "- Example 1\n" +
+            "- Example 2\n";
 
-            # Test Skill
-
-            This is a test skill for demonstration.
-
-            ## Instructions
-            1. Do step one
-            2. Do step two
-
-            ## Examples
-            - Example 1
-            - Example 2
-            """;
-
-        Files.writeString(skillDir.resolve("SKILL.md"), skillContent);
+        Files.write(skillDir.resolve("SKILL.md"), skillContent.getBytes(StandardCharsets.UTF_8));
 
         // Add a resource
-        Files.writeString(skillDir.resolve("example.txt"), "Example resource");
+        Files.write(skillDir.resolve("example.txt"), "Example resource".getBytes(StandardCharsets.UTF_8));
 
         // Load the skill
         Skill skill = SkillLoader.loadSkill(skillDir);
@@ -65,26 +65,24 @@ class SkillLoaderTest {
         // Create skill 1
         Path skill1Dir = tempDir.resolve("skill-1");
         Files.createDirectories(skill1Dir);
-        Files.writeString(skill1Dir.resolve("SKILL.md"), """
-            ---
-            name: skill-1
-            description: First skill
-            ---
-            # Skill 1
-            Instructions for skill 1
-            """);
+        Files.write(skill1Dir.resolve("SKILL.md"), (
+            "---\n" +
+            "name: skill-1\n" +
+            "description: First skill\n" +
+            "---\n" +
+            "# Skill 1\n" +
+            "Instructions for skill 1\n").getBytes(StandardCharsets.UTF_8));
 
         // Create skill 2
         Path skill2Dir = tempDir.resolve("skill-2");
         Files.createDirectories(skill2Dir);
-        Files.writeString(skill2Dir.resolve("SKILL.md"), """
-            ---
-            name: skill-2
-            description: Second skill
-            ---
-            # Skill 2
-            Instructions for skill 2
-            """);
+        Files.write(skill2Dir.resolve("SKILL.md"), (
+            "---\n" +
+            "name: skill-2\n" +
+            "description: Second skill\n" +
+            "---\n" +
+            "# Skill 2\n" +
+            "Instructions for skill 2\n").getBytes(StandardCharsets.UTF_8));
 
         // Load all skills
         Map<String, Skill> skills = SkillLoader.loadSkills(tempDir);
@@ -99,13 +97,12 @@ class SkillLoaderTest {
         Path skillDir = tempDir.resolve("bad-skill");
         Files.createDirectories(skillDir);
 
-        String badContent = """
-            # This is a skill without frontmatter
+        String badContent =
+            "# This is a skill without frontmatter\n" +
+            "\n" +
+            "This should fail to load.\n";
 
-            This should fail to load.
-            """;
-
-        Files.writeString(skillDir.resolve("SKILL.md"), badContent);
+        Files.write(skillDir.resolve("SKILL.md"), badContent.getBytes(StandardCharsets.UTF_8));
 
         assertThrows(Exception.class, () -> SkillLoader.loadSkill(skillDir));
     }
@@ -115,14 +112,13 @@ class SkillLoaderTest {
         Path skillDir = tempDir.resolve("incomplete-skill");
         Files.createDirectories(skillDir);
 
-        String incompleteContent = """
-            ---
-            name: incomplete
-            ---
-            # Missing description
-            """;
+        String incompleteContent =
+            "---\n" +
+            "name: incomplete\n" +
+            "---\n" +
+            "# Missing description\n";
 
-        Files.writeString(skillDir.resolve("SKILL.md"), incompleteContent);
+        Files.write(skillDir.resolve("SKILL.md"), incompleteContent.getBytes(StandardCharsets.UTF_8));
 
         assertThrows(Exception.class, () -> SkillLoader.loadSkill(skillDir));
     }
@@ -144,19 +140,18 @@ class SkillLoaderTest {
         Path skillDir = tempDir.resolve("context-skill");
         Files.createDirectories(skillDir);
 
-        Files.writeString(skillDir.resolve("SKILL.md"), """
-            ---
-            name: context-skill
-            description: Skill for context testing
-            author: Test Author
-            ---
+        Files.write(skillDir.resolve("SKILL.md"), (
+            "---\n" +
+            "name: context-skill\n" +
+            "description: Skill for context testing\n" +
+            "author: Test Author\n" +
+            "---\n" +
+            "\n" +
+            "# Context Skill\n" +
+            "\n" +
+            "Do these things when using this skill.\n").getBytes(StandardCharsets.UTF_8));
 
-            # Context Skill
-
-            Do these things when using this skill.
-            """);
-
-        Files.writeString(skillDir.resolve("data.txt"), "Some data");
+        Files.write(skillDir.resolve("data.txt"), "Some data".getBytes(StandardCharsets.UTF_8));
 
         Skill skill = SkillLoader.loadSkill(skillDir);
         String context = skill.toPromptContext();

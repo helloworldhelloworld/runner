@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -80,7 +81,7 @@ public class McpToolManager implements AutoCloseable {
      * 获取所有已连接的 MCP 客户端
      */
     public List<McpToolClient> getMcpClients() {
-        return List.copyOf(mcpClients);
+        return Collections.unmodifiableList(new ArrayList<>(mcpClients));
     }
 
     /**

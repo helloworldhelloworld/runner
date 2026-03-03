@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -57,7 +58,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
 
     @Override
     public CompletableFuture<float[]> embedAsync(String text) {
-        return embedBatchAsync(List.of(text))
+        return embedBatchAsync(Collections.singletonList(text))
             .thenApply(results -> results.isEmpty() ? new float[0] : results.get(0));
     }
 
@@ -75,7 +76,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
         CompletableFuture<List<float[]>> future = new CompletableFuture<>();
 
         if (texts.isEmpty()) {
-            future.complete(List.of());
+            future.complete(Collections.<float[]>emptyList());
             return future;
         }
 

@@ -60,12 +60,21 @@ public class Message {
      * 转换为 ConversationMessage（兼容现有 LLM 接口）
      */
     public ConversationMessage toConversationMessage() {
-        ConversationMessage.MessageRole msgRole = switch (role) {
-            case "user" -> ConversationMessage.MessageRole.USER;
-            case "assistant" -> ConversationMessage.MessageRole.ASSISTANT;
-            case "system" -> ConversationMessage.MessageRole.SYSTEM;
-            default -> ConversationMessage.MessageRole.USER;
-        };
+        ConversationMessage.MessageRole msgRole;
+        switch (role) {
+            case "user":
+                msgRole = ConversationMessage.MessageRole.USER;
+                break;
+            case "assistant":
+                msgRole = ConversationMessage.MessageRole.ASSISTANT;
+                break;
+            case "system":
+                msgRole = ConversationMessage.MessageRole.SYSTEM;
+                break;
+            default:
+                msgRole = ConversationMessage.MessageRole.USER;
+                break;
+        }
 
         return ConversationMessage.builder()
             .role(msgRole)
@@ -77,12 +86,24 @@ public class Message {
      * 从 ConversationMessage 创建
      */
     public static Message fromConversationMessage(ConversationMessage msg) {
-        String role = switch (msg.getRole()) {
-            case USER -> "user";
-            case ASSISTANT -> "assistant";
-            case SYSTEM -> "system";
-            case TOOL -> "tool";
-        };
+        String role;
+        switch (msg.getRole()) {
+            case USER:
+                role = "user";
+                break;
+            case ASSISTANT:
+                role = "assistant";
+                break;
+            case SYSTEM:
+                role = "system";
+                break;
+            case TOOL:
+                role = "tool";
+                break;
+            default:
+                role = "user";
+                break;
+        }
         return new Message(role, msg.getTextContent());
     }
 

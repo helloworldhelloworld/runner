@@ -2,6 +2,7 @@ package com.lightweightai.kernel.memory.tools;
 
 import com.lightweightai.kernel.memory.file.FileMemoryManager;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -38,18 +39,20 @@ public class MemoryToolkit {
      * Execute a tool by name.
      */
     public Object execute(String toolName, Map<String, Object> parameters) {
-        return switch (toolName) {
-            case MemorySearchTool.TOOL_NAME -> searchTool.execute(parameters);
-            case WriteMemoryTool.TOOL_NAME -> writeTool.execute(parameters);
-            default -> throw new IllegalArgumentException("Unknown tool: " + toolName);
-        };
+        if (MemorySearchTool.TOOL_NAME.equals(toolName)) {
+            return searchTool.execute(parameters);
+        } else if (WriteMemoryTool.TOOL_NAME.equals(toolName)) {
+            return writeTool.execute(parameters);
+        } else {
+            throw new IllegalArgumentException("Unknown tool: " + toolName);
+        }
     }
 
     /**
      * Get all tool schemas for registration with an AI framework.
      */
     public List<Map<String, Object>> getToolSchemas() {
-        return List.of(
+        return Arrays.asList(
             MemorySearchTool.getToolSchema(),
             WriteMemoryTool.getToolSchema()
         );
@@ -62,9 +65,11 @@ public class MemoryToolkit {
     public Function<ToolCall, String> getExecutor() {
         return call -> {
             Object result = execute(call.name(), call.parameters());
-            if (result instanceof MemorySearchTool.MemorySearchResult searchResult) {
+            if (result instanceof MemorySearchTool.MemorySearchResult) {
+                MemorySearchTool.MemorySearchResult searchResult = (MemorySearchTool.MemorySearchResult) result;
                 return searchResult.toText();
-            } else if (result instanceof WriteMemoryTool.WriteMemoryResult writeResult) {
+            } else if (result instanceof WriteMemoryTool.WriteMemoryResult) {
+                WriteMemoryTool.WriteMemoryResult writeResult = (WriteMemoryTool.WriteMemoryResult) result;
                 return writeResult.toText();
             }
             return result.toString();
@@ -72,9 +77,20 @@ public class MemoryToolkit {
     }
 
     /**
-     * Tool call record for executor function.
+     * Tool call class for executor function.
      */
-    public record ToolCall(String name, Map<String, Object> parameters) {}
+    public static final class ToolCall {
+        private final String name;
+        private final Map<String, Object> parameters;
+
+        public ToolCall(String name, Map<String, Object> parameters) {
+            this.name = name;
+            this.parameters = parameters;
+        }
+
+        public String name() { return name; }
+        public Map<String, Object> parameters() { return parameters; }
+    }
 
     /**
      * Create a toolkit from a memory manager.

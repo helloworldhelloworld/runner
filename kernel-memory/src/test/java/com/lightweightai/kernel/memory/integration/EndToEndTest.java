@@ -6,17 +6,24 @@ import com.lightweightai.kernel.memory.file.SessionTranscript;
 import com.lightweightai.kernel.memory.model.SearchResult;
 import com.lightweightai.kernel.memory.model.TranscriptEntry;
 import com.lightweightai.kernel.memory.queue.LaneQueueManager;
+import com.lightweightai.kernel.memory.tools.MemorySearchTool;
 import com.lightweightai.kernel.memory.tools.MemoryToolkit;
+import com.lightweightai.kernel.memory.tools.WriteMemoryTool;
+import com.lightweightai.kernel.memory.index.HybridSearch;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -65,11 +72,11 @@ class EndToEndTest {
         System.out.println(">>> User: 我叫小明，喜欢深夜聊天，最近在学编程");
 
         // Store user profile in durable memory
-        var result = toolkit.getWriteTool().execute(Map.of(
-            "content", "- 名字：小明\n- 偏好：深夜聊天\n- 兴趣：学习编程",
-            "type", "durable",
-            "section", "用户档案"
-        ));
+        Map<String, Object> introParams = new HashMap<>();
+        introParams.put("content", "- 名字：小明\n- 偏好：深夜聊天\n- 兴趣：学习编程");
+        introParams.put("type", "durable");
+        introParams.put("section", "用户档案");
+        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(introParams);
 
         assertTrue(result.success());
         System.out.println("<<< Agent: 很高兴认识你，小明！学编程是个很好的选择~");
@@ -126,7 +133,7 @@ class EndToEndTest {
         }
 
         // Verify transcript
-        var entries = session.readAll();
+        List<TranscriptEntry> entries = session.readAll();
         assertEquals(6, entries.size());
         System.out.println("\n    [会话已保存: " + session.getSessionId() + ".jsonl]\n");
     }
@@ -141,18 +148,18 @@ class EndToEndTest {
         System.out.println(">>> User: 嗨，今天会议结束了");
 
         // Search for user context
-        var searchResult = toolkit.getSearchTool().execute(Map.of(
-            "query", "用户 会议 presentation",
-            "top_k", 3
-        ));
+        Map<String, Object> searchParams = new HashMap<>();
+        searchParams.put("query", "用户 会议 presentation");
+        searchParams.put("top_k", 3);
+        MemorySearchTool.MemorySearchResult searchResult = toolkit.getSearchTool().execute(searchParams);
 
         assertTrue(searchResult.success());
         System.out.println("    [搜索记忆: 找到 " + searchResult.matches().size() + " 条相关记录]");
 
         // Search for user profile
-        var profileResult = toolkit.getSearchTool().execute(Map.of(
-            "query", "用户档案 名字 偏好"
-        ));
+        MemorySearchTool.MemorySearchResult profileResult = toolkit.getSearchTool().execute(
+            Collections.<String, Object>singletonMap("query", "用户档案 名字 偏好")
+        );
 
         if (!profileResult.matches().isEmpty()) {
             System.out.println("    [回忆起用户档案]");
@@ -214,26 +221,26 @@ class EndToEndTest {
         // Simulate tool calls from LLM
         System.out.println("LLM 决定调用 memory_search 工具...");
 
-        var toolSchemas = toolkit.getToolSchemas();
+        List<Map<String, Object>> toolSchemas = toolkit.getToolSchemas();
         System.out.println("可用工具: " + toolSchemas.stream()
             .map(s -> s.get("name").toString())
-            .toList());
+            .collect(Collectors.toList()));
 
         // Execute tool through unified interface
-        var executor = toolkit.getExecutor();
+        Function<MemoryToolkit.ToolCall, String> executor = toolkit.getExecutor();
 
-        String searchResult = executor.apply(new MemoryToolkit.ToolCall(
+        String searchResultText = executor.apply(new MemoryToolkit.ToolCall(
             "memory_search",
-            Map.of("query", "小明 编程")
+            Collections.<String, Object>singletonMap("query", "小明 编程")
         ));
-        System.out.println("\nmemory_search 结果:\n" + searchResult);
+        System.out.println("\nmemory_search 结果:\n" + searchResultText);
 
+        Map<String, Object> writeParams = new HashMap<>();
+        writeParams.put("content", "小明今天完成了会议presentation，表现很好");
+        writeParams.put("type", "ephemeral");
         String writeResult = executor.apply(new MemoryToolkit.ToolCall(
             "write_memory",
-            Map.of(
-                "content", "小明今天完成了会议presentation，表现很好",
-                "type", "ephemeral"
-            )
+            writeParams
         ));
         System.out.println("write_memory 结果: " + writeResult + "\n");
     }
@@ -273,7 +280,7 @@ class EndToEndTest {
         System.out.println("           系统状态总结");
         System.out.println("========================================\n");
 
-        var stats = memoryManager.getIndexStats();
+        HybridSearch.IndexStats stats = memoryManager.getIndexStats();
         System.out.println("索引统计:");
         System.out.println("  - BM25 索引块数: " + stats.bm25ChunkCount());
         System.out.println("  - 向量索引块数: " + stats.vectorChunkCount());

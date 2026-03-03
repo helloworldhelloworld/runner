@@ -5,6 +5,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -151,7 +154,7 @@ class ToolRegistryTest {
     @DisplayName("批量注册工具")
     void shouldRegisterAll() {
         // Given
-        List<Tool> tools = List.of(
+        List<Tool> tools = Arrays.asList(
             createSimpleTool("tool1", "工具1"),
             createSimpleTool("tool2", "工具2"),
             createSimpleTool("tool3", "工具3")
@@ -185,7 +188,7 @@ class ToolRegistryTest {
     void shouldGetToolDefinitions() {
         // Given
         Tool tool = createToolWithSchema("get_weather", "获取天气",
-            Map.of("city", Map.of("type", "string", "description", "城市")));
+            new HashMap<String, Object>() {{ put("city", new HashMap<String, Object>() {{ put("type", "string"); put("description", "城市"); }}); }});
         registry.register(tool);
 
         // When
@@ -220,11 +223,11 @@ class ToolRegistryTest {
     }
 
     private Tool createToolWithCategory(String name, String category) {
-        return new CategorizedTool(name, "Description", category, List.of());
+        return new CategorizedTool(name, "Description", category, Collections.<String>emptyList());
     }
 
     private Tool createToolWithTags(String name, String... tags) {
-        return new CategorizedTool(name, "Description", "default", List.of(tags));
+        return new CategorizedTool(name, "Description", "default", Arrays.asList(tags));
     }
 
     private Tool createToolWithSchema(String name, String description, Map<String, Object> properties) {

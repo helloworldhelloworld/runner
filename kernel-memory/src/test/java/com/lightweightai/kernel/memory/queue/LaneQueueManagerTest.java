@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
@@ -60,8 +61,8 @@ class LaneQueueManagerTest {
         Thread.sleep(500);
 
         // Each session should have its own order
-        assertEquals(List.of(1, 2), session1Results);
-        assertEquals(List.of(1, 2), session2Results);
+        assertEquals(Arrays.asList(1, 2), session1Results);
+        assertEquals(Arrays.asList(1, 2), session2Results);
 
         assertEquals(2, manager.getActiveLaneCount());
     }

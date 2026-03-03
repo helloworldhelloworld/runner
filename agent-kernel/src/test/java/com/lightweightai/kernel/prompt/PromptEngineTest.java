@@ -6,6 +6,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,9 +46,9 @@ class PromptEngineTest {
             .name("weather")
             .description("获取天气信息")
             .systemPrompt("你可以查询天气信息。")
-            .addTool("get_weather", "获取指定城市天气", Map.of(
-                "city", Map.of("type", "string", "description", "城市名称")
-            ))
+            .addTool("get_weather", "获取指定城市天气", new HashMap<String, Object>() {{
+                put("city", new HashMap<String, Object>() {{ put("type", "string"); put("description", "城市名称"); }});
+            }})
             .build();
 
         // When
@@ -70,7 +73,7 @@ class PromptEngineTest {
         PromptContext context = engine.build(PromptRequest.builder()
             .userMessage("你好")
             .sessionId("session-1")
-            .activeSkills(List.of("helper"))
+            .activeSkills(Collections.singletonList("helper"))
             .build());
 
         // Then
@@ -84,16 +87,16 @@ class PromptEngineTest {
         // Given
         Skill skill = Skill.builder()
             .name("calculator")
-            .addTool("calculate", "执行数学计算", Map.of(
-                "expression", Map.of("type", "string")
-            ))
+            .addTool("calculate", "执行数学计算", new HashMap<String, Object>() {{
+                put("expression", Collections.singletonMap("type", "string"));
+            }})
             .build();
         engine.registerSkill(skill);
 
         // When
         PromptContext context = engine.build(PromptRequest.builder()
             .userMessage("1+1=?")
-            .activeSkills(List.of("calculator"))
+            .activeSkills(Collections.singletonList("calculator"))
             .build());
 
         // Then
@@ -111,25 +114,25 @@ class PromptEngineTest {
         engine.registerSkill(Skill.builder()
             .name("weather")
             .systemPrompt("天气 skill")
-            .addTool("get_weather", "获取天气", Map.of())
+            .addTool("get_weather", "获取天气", Collections.emptyMap())
             .build());
 
         engine.registerSkill(Skill.builder()
             .name("calculator")
             .systemPrompt("计算器 skill")
-            .addTool("calculate", "计算", Map.of())
+            .addTool("calculate", "计算", Collections.emptyMap())
             .build());
 
         engine.registerSkill(Skill.builder()
             .name("translator")
             .systemPrompt("翻译 skill")
-            .addTool("translate", "翻译", Map.of())
+            .addTool("translate", "翻译", Collections.emptyMap())
             .build());
 
         // When - 只激活 weather skill
         PromptContext context = engine.build(PromptRequest.builder()
             .userMessage("北京天气")
-            .activeSkills(List.of("weather"))
+            .activeSkills(Collections.singletonList("weather"))
             .build());
 
         // Then - 只有 weather 的 prompt 和 tool
@@ -146,14 +149,14 @@ class PromptEngineTest {
         engine.registerSkill(Skill.builder()
             .name("weather")
             .description("天气查询")
-            .triggers(List.of("天气", "气温", "下雨"))
+            .triggers(Arrays.asList("天气", "气温", "下雨"))
             .systemPrompt("天气查询 skill")
             .build());
 
         engine.registerSkill(Skill.builder()
             .name("calculator")
             .description("数学计算")
-            .triggers(List.of("计算", "加", "减", "乘", "除"))
+            .triggers(Arrays.asList("计算", "加", "减", "乘", "除"))
             .systemPrompt("计算 skill")
             .build());
 
@@ -187,7 +190,7 @@ class PromptEngineTest {
         // When
         PromptContext context = engine.build(PromptRequest.builder()
             .userMessage("天气")
-            .activeSkills(List.of("base", "weather"))
+            .activeSkills(Arrays.asList("base", "weather"))
             .build());
 
         // Then - 按优先级组合
@@ -246,7 +249,7 @@ class PromptEngineTest {
         engine.registerSkill(Skill.builder()
             .name("test")
             .systemPrompt("测试 skill")
-            .addTool("test_tool", "测试工具", Map.of())
+            .addTool("test_tool", "测试工具", Collections.emptyMap())
             .build());
 
         memory.writeEphemeral("测试记忆");
@@ -255,7 +258,7 @@ class PromptEngineTest {
         PromptContext context = engine.build(PromptRequest.builder()
             .userMessage("测试消息")
             .sessionId("session-1")
-            .activeSkills(List.of("test"))
+            .activeSkills(Collections.singletonList("test"))
             .build());
 
         // Then - 可观测的结构
@@ -281,7 +284,7 @@ class PromptEngineTest {
         // When
         PromptContext context = engine.build(PromptRequest.builder()
             .userMessage("test")
-            .activeSkills(List.of("s1", "s2"))
+            .activeSkills(Arrays.asList("s1", "s2"))
             .build());
 
         // Then - 构建日志

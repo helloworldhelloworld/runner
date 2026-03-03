@@ -4,6 +4,7 @@ import com.lightweightai.kernel.llm.ConversationMessage;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Universal Instruction Registry
@@ -153,7 +154,7 @@ public class InstructionRegistry {
         return activePackages.stream()
             .map(packages::get)
             .filter(Objects::nonNull)
-            .toList();
+            .collect(Collectors.toList());
     }
 
     /**

@@ -28,18 +28,17 @@ public class AssessmentRepository {
     private void initSchema() {
         try (Connection conn = DriverManager.getConnection(dbUrl);
              Statement stmt = conn.createStatement()) {
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS assessment_results (
-                  id TEXT PRIMARY KEY,
-                  user_id TEXT NOT NULL,
-                  scale_type TEXT NOT NULL,
-                  answers TEXT NOT NULL,
-                  total_score INTEGER NOT NULL,
-                  severity TEXT NOT NULL,
-                  ai_report TEXT,
-                  created_at INTEGER NOT NULL
-                )
-                """);
+            stmt.execute(
+                "CREATE TABLE IF NOT EXISTS assessment_results (" +
+                "  id TEXT PRIMARY KEY," +
+                "  user_id TEXT NOT NULL," +
+                "  scale_type TEXT NOT NULL," +
+                "  answers TEXT NOT NULL," +
+                "  total_score INTEGER NOT NULL," +
+                "  severity TEXT NOT NULL," +
+                "  ai_report TEXT," +
+                "  created_at INTEGER NOT NULL" +
+                ")");
         } catch (SQLException e) {
             logger.error("Failed to init assessment_results schema", e);
             throw new RuntimeException(e);
@@ -47,11 +46,10 @@ public class AssessmentRepository {
     }
 
     public void save(AssessmentResult result, List<Integer> answers) {
-        String sql = """
-            INSERT INTO assessment_results
-              (id, user_id, scale_type, answers, total_score, severity, ai_report, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """;
+        String sql =
+            "INSERT INTO assessment_results" +
+            "  (id, user_id, scale_type, answers, total_score, severity, ai_report, created_at)" +
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DriverManager.getConnection(dbUrl);
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, result.getId());

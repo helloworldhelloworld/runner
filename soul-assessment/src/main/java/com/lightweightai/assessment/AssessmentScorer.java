@@ -16,22 +16,32 @@ public class AssessmentScorer {
      * @return total score (reverse-scoring applied where applicable)
      */
     public int score(AssessmentSubmission submission) {
-        List<Integer> answers = submission.answers();
-        return switch (submission.scaleType()) {
-            case PHQ9, GAD7 -> answers.stream().mapToInt(Integer::intValue).sum();
-            case PSS10 -> scorePss10(answers);
-        };
+        List<Integer> answers = submission.getAnswers();
+        switch (submission.getScaleType()) {
+            case PHQ9:
+            case GAD7:
+                return answers.stream().mapToInt(Integer::intValue).sum();
+            case PSS10:
+                return scorePss10(answers);
+            default:
+                throw new IllegalArgumentException("Unknown scale type: " + submission.getScaleType());
+        }
     }
 
     /**
      * @return severity label for the given scale and total score
      */
     public String severity(AssessmentSubmission submission, int totalScore) {
-        return switch (submission.scaleType()) {
-            case PHQ9 -> Phq9Scale.severity(totalScore);
-            case GAD7 -> Gad7Scale.severity(totalScore);
-            case PSS10 -> Pss10Scale.severity(totalScore);
-        };
+        switch (submission.getScaleType()) {
+            case PHQ9:
+                return Phq9Scale.severity(totalScore);
+            case GAD7:
+                return Gad7Scale.severity(totalScore);
+            case PSS10:
+                return Pss10Scale.severity(totalScore);
+            default:
+                throw new IllegalArgumentException("Unknown scale type: " + submission.getScaleType());
+        }
     }
 
     private int scorePss10(List<Integer> answers) {

@@ -13,8 +13,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -42,7 +46,10 @@ class ToolRegistryIntegrationTest {
     @Test
     @DisplayName("ToolExecutor uses ToolRegistry to find and execute add tool")
     void shouldExecuteAddToolViaRegistry() {
-        ToolCall call = new ToolCall("call_1", "add", Map.of("a", 10, "b", 20));
+        Map<String, Object> args1 = new HashMap<>();
+        args1.put("a", 10);
+        args1.put("b", 20);
+        ToolCall call = new ToolCall("call_1", "add", args1);
         ToolResult result = executor.executeToolCall(call);
 
         assertFalse(result.isError(), "Should succeed: " + result.getContent());
@@ -52,7 +59,10 @@ class ToolRegistryIntegrationTest {
     @Test
     @DisplayName("ToolExecutor uses ToolRegistry to find and execute multiply tool")
     void shouldExecuteMultiplyToolViaRegistry() {
-        ToolCall call = new ToolCall("call_2", "multiply", Map.of("a", 6, "b", 7));
+        Map<String, Object> args2 = new HashMap<>();
+        args2.put("a", 6);
+        args2.put("b", 7);
+        ToolCall call = new ToolCall("call_2", "multiply", args2);
         ToolResult result = executor.executeToolCall(call);
 
         assertFalse(result.isError(), "Should succeed: " + result.getContent());
@@ -62,7 +72,7 @@ class ToolRegistryIntegrationTest {
     @Test
     @DisplayName("ToolExecutor uses ToolRegistry to find and execute get_time tool")
     void shouldExecuteGetTimeToolViaRegistry() {
-        ToolCall call = new ToolCall("call_3", "get_time", Map.of());
+        ToolCall call = new ToolCall("call_3", "get_time", Collections.emptyMap());
         ToolResult result = executor.executeToolCall(call);
 
         assertFalse(result.isError(), "Should succeed: " + result.getContent());
@@ -73,7 +83,7 @@ class ToolRegistryIntegrationTest {
     @Test
     @DisplayName("ToolExecutor returns error for unregistered tool")
     void shouldReturnErrorForUnknownTool() {
-        ToolCall call = new ToolCall("call_4", "nonexistent_tool", Map.of());
+        ToolCall call = new ToolCall("call_4", "nonexistent_tool", Collections.emptyMap());
         ToolResult result = executor.executeToolCall(call);
 
         assertTrue(result.isError());
@@ -84,7 +94,10 @@ class ToolRegistryIntegrationTest {
     @DisplayName("Disabled tools are not executed")
     void shouldNotExecuteDisabledTool() {
         registry.disable("add");
-        ToolCall call = new ToolCall("call_5", "add", Map.of("a", 1, "b", 2));
+        Map<String, Object> args5 = new HashMap<>();
+        args5.put("a", 1);
+        args5.put("b", 2);
+        ToolCall call = new ToolCall("call_5", "add", args5);
         ToolResult result = executor.executeToolCall(call);
 
         assertTrue(result.isError());
@@ -97,7 +110,10 @@ class ToolRegistryIntegrationTest {
         registry.disable("add");
         registry.enable("add");
 
-        ToolCall call = new ToolCall("call_6", "add", Map.of("a", 5, "b", 5));
+        Map<String, Object> args6 = new HashMap<>();
+        args6.put("a", 5);
+        args6.put("b", 5);
+        ToolCall call = new ToolCall("call_6", "add", args6);
         ToolResult result = executor.executeToolCall(call);
 
         assertFalse(result.isError());
@@ -114,7 +130,7 @@ class ToolRegistryIntegrationTest {
 
         List<String> names = definitions.stream()
             .map(d -> (String) d.get("name"))
-            .toList();
+            .collect(Collectors.toList());
         assertTrue(names.contains("add"));
         assertTrue(names.contains("multiply"));
         assertTrue(names.contains("get_time"));
@@ -162,9 +178,15 @@ class ToolRegistryIntegrationTest {
     @Test
     @DisplayName("Execute multiple tool calls sequentially via registry")
     void shouldExecuteMultipleToolCallsSequentially() {
-        List<ToolCall> calls = List.of(
-            new ToolCall("call_a", "add", Map.of("a", 1, "b", 2)),
-            new ToolCall("call_b", "multiply", Map.of("a", 3, "b", 4))
+        Map<String, Object> argsA = new HashMap<>();
+        argsA.put("a", 1);
+        argsA.put("b", 2);
+        Map<String, Object> argsB = new HashMap<>();
+        argsB.put("a", 3);
+        argsB.put("b", 4);
+        List<ToolCall> calls = Arrays.asList(
+            new ToolCall("call_a", "add", argsA),
+            new ToolCall("call_b", "multiply", argsB)
         );
 
         List<ToolResult> results = executor.executeToolCalls(calls);
@@ -183,8 +205,10 @@ class ToolRegistryIntegrationTest {
 
         assertTrue(executor.hasFunction("web_search"));
 
-        ToolCall call = new ToolCall("call_ws", "web_search",
-            Map.of("query", "test query", "maxResults", 3));
+        Map<String, Object> wsArgs1 = new HashMap<>();
+        wsArgs1.put("query", "test query");
+        wsArgs1.put("maxResults", 3);
+        ToolCall call = new ToolCall("call_ws", "web_search", wsArgs1);
         ToolResult result = executor.executeToolCall(call);
 
         assertFalse(result.isError());
@@ -196,8 +220,10 @@ class ToolRegistryIntegrationTest {
     void shouldExecuteWebToolsInMockMode() {
         registry.registerObject(new WebTools());
 
-        ToolCall call = new ToolCall("call_ws", "web_search",
-            Map.of("query", "test query", "maxResults", 3));
+        Map<String, Object> wsArgs2 = new HashMap<>();
+        wsArgs2.put("query", "test query");
+        wsArgs2.put("maxResults", 3);
+        ToolCall call = new ToolCall("call_ws", "web_search", wsArgs2);
         ToolResult result = executor.executeToolCall(call);
 
         assertFalse(result.isError());
@@ -213,7 +239,7 @@ class ToolRegistryIntegrationTest {
 
         assertFalse(tools.isEmpty(), "Should discover tools via SPI");
 
-        List<String> names = tools.stream().map(Tool::getName).toList();
+        List<String> names = tools.stream().map(Tool::getName).collect(Collectors.toList());
         assertTrue(names.contains("add"), "Should discover add tool");
         assertTrue(names.contains("multiply"), "Should discover multiply tool");
         assertTrue(names.contains("get_time"), "Should discover get_time tool");
@@ -274,19 +300,25 @@ class ToolRegistryIntegrationTest {
         ToolExecutor autoExecutor = new ToolExecutor(autoRegistry);
 
         // Execute add
-        ToolCall addCall = new ToolCall("spi_1", "add", Map.of("a", 100, "b", 200));
+        Map<String, Object> addArgs = new HashMap<>();
+        addArgs.put("a", 100);
+        addArgs.put("b", 200);
+        ToolCall addCall = new ToolCall("spi_1", "add", addArgs);
         ToolResult addResult = autoExecutor.executeToolCall(addCall);
         assertFalse(addResult.isError());
         assertEquals("300", addResult.getContent());
 
         // Execute multiply
-        ToolCall mulCall = new ToolCall("spi_2", "multiply", Map.of("a", 8, "b", 9));
+        Map<String, Object> mulArgs = new HashMap<>();
+        mulArgs.put("a", 8);
+        mulArgs.put("b", 9);
+        ToolCall mulCall = new ToolCall("spi_2", "multiply", mulArgs);
         ToolResult mulResult = autoExecutor.executeToolCall(mulCall);
         assertFalse(mulResult.isError());
         assertEquals("72", mulResult.getContent());
 
         // Execute get_time
-        ToolCall timeCall = new ToolCall("spi_3", "get_time", Map.of());
+        ToolCall timeCall = new ToolCall("spi_3", "get_time", Collections.emptyMap());
         ToolResult timeResult = autoExecutor.executeToolCall(timeCall);
         assertFalse(timeResult.isError());
         assertFalse(timeResult.getContent().isEmpty());

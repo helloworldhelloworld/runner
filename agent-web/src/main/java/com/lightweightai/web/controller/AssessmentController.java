@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -51,17 +52,17 @@ public class AssessmentController {
     @PostMapping("/submit")
     public ResponseEntity<?> submit(@RequestBody SubmitRequest request) {
         try {
-            ScaleType scaleType = ScaleType.valueOf(request.scaleType().toUpperCase());
+            ScaleType scaleType = ScaleType.valueOf(request.getScaleType().toUpperCase());
             AssessmentSubmission submission = new AssessmentSubmission(
-                request.userId(), scaleType, request.answers()
+                request.getUserId(), scaleType, request.getAnswers()
             );
             AssessmentResult result = assessmentService.submit(submission);
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid scale type: " + request.scaleType()));
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid scale type: " + request.getScaleType()));
         } catch (Exception e) {
             logger.error("Assessment submission failed", e);
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(500).body(Collections.singletonMap("error", e.getMessage()));
         }
     }
 
@@ -70,5 +71,20 @@ public class AssessmentController {
         return ResponseEntity.ok(assessmentService.getHistory(userId));
     }
 
-    public record SubmitRequest(String userId, String scaleType, List<Integer> answers) {}
+    public static class SubmitRequest {
+        private String userId;
+        private String scaleType;
+        private List<Integer> answers;
+
+        public SubmitRequest() {}
+
+        public String getUserId() { return userId; }
+        public void setUserId(String userId) { this.userId = userId; }
+
+        public String getScaleType() { return scaleType; }
+        public void setScaleType(String scaleType) { this.scaleType = scaleType; }
+
+        public List<Integer> getAnswers() { return answers; }
+        public void setAnswers(List<Integer> answers) { this.answers = answers; }
+    }
 }

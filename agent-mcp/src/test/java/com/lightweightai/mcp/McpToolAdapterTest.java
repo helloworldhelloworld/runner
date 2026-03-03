@@ -11,6 +11,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,9 +37,12 @@ class McpToolAdapterTest {
     @Test
     @DisplayName("Convert simple tool to MCP SyncToolSpecification")
     void shouldConvertSimpleToolToMcp() {
+        Map<String, Object> nameSchema = new HashMap<>();
+        nameSchema.put("type", "string");
+        nameSchema.put("description", "Name to greet");
         Tool tool = new SimpleTool("greet", "Say hello",
             ToolSchema.withRequired(
-                Map.of("name", Map.of("type", "string", "description", "Name to greet")),
+                Collections.singletonMap("name", (Object) nameSchema),
                 "name"
             ),
             args -> ToolResult.success("Hello, " + args.get("name") + "!")
@@ -67,12 +73,16 @@ class McpToolAdapterTest {
     @Test
     @DisplayName("MCP tool handler executes framework tool successfully")
     void shouldExecuteToolViaHandler() {
+        Map<String, Object> aSchema = new HashMap<>();
+        aSchema.put("type", "number");
+        Map<String, Object> bSchema = new HashMap<>();
+        bSchema.put("type", "number");
+        Map<String, Object> addProps = new HashMap<>();
+        addProps.put("a", aSchema);
+        addProps.put("b", bSchema);
         Tool tool = new SimpleTool("add", "Add numbers",
             ToolSchema.withRequired(
-                Map.of(
-                    "a", Map.of("type", "number"),
-                    "b", Map.of("type", "number")
-                ),
+                addProps,
                 "a", "b"
             ),
             args -> {
@@ -85,7 +95,10 @@ class McpToolAdapterTest {
         McpServerFeatures.SyncToolSpecification spec = McpToolAdapter.toMcpTool(tool);
 
         // Simulate MCP handler invocation
-        McpSchema.CallToolResult result = spec.call().apply(null, Map.of("a", 10, "b", 20));
+        Map<String, Object> addCallArgs = new HashMap<>();
+        addCallArgs.put("a", 10);
+        addCallArgs.put("b", 20);
+        McpSchema.CallToolResult result = spec.call().apply(null, addCallArgs);
 
         assertNotNull(result);
         assertFalse(result.isError());
@@ -103,7 +116,7 @@ class McpToolAdapterTest {
         );
 
         McpServerFeatures.SyncToolSpecification spec = McpToolAdapter.toMcpTool(tool);
-        McpSchema.CallToolResult result = spec.call().apply(null, Map.of());
+        McpSchema.CallToolResult result = spec.call().apply(null, Collections.emptyMap());
 
         assertNotNull(result);
         assertTrue(result.isError());
@@ -118,7 +131,7 @@ class McpToolAdapterTest {
         );
 
         McpServerFeatures.SyncToolSpecification spec = McpToolAdapter.toMcpTool(tool);
-        McpSchema.CallToolResult result = spec.call().apply(null, Map.of());
+        McpSchema.CallToolResult result = spec.call().apply(null, Collections.emptyMap());
 
         assertNotNull(result);
         assertTrue(result.isError());

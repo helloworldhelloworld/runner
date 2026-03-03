@@ -24,8 +24,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Agent configuration
@@ -183,7 +185,7 @@ public class AgentConfig {
                 "- 可以温和介绍「注意力转移」「腹式呼吸」等简单方法\n" +
                 "- 不要急于给出解决方案"
             )
-            .triggers(List.of("焦虑", "害怕", "担心", "紧张", "压力", "崩溃", "无助", "恐惧"))
+            .triggers(Arrays.asList("焦虑", "害怕", "担心", "紧张", "压力", "崩溃", "无助", "恐惧"))
             .priority(1)
             .build());
 
@@ -198,7 +200,7 @@ public class AgentConfig {
                 "- 可以提及睡前放松技巧，但重点是倾听和理解，不是给教程\n" +
                 "- 若问题持续严重，温和建议考虑专业帮助"
             )
-            .triggers(List.of("失眠", "睡不着", "睡眠", "做梦", "噩梦", "入睡"))
+            .triggers(Arrays.asList("失眠", "睡不着", "睡眠", "做梦", "噩梦", "入睡"))
             .priority(2)
             .build());
 
@@ -387,12 +389,12 @@ public class AgentConfig {
         public java.util.concurrent.CompletableFuture<byte[]> synthesizeAsync(String text, String emotion) {
             mockLogger.error("Mock Speech Provider cannot generate audio - Please configure OPENAI_SPEECH_KEY or AZURE_SPEECH_KEY");
             // Return failed future with clear error message
-            return java.util.concurrent.CompletableFuture.failedFuture(
-                new UnsupportedOperationException(
-                    "语音合成需要配置真实的 API Key。请设置 OPENAI_SPEECH_KEY 或 AZURE_SPEECH_KEY 环境变量。\n" +
-                    "详情请查看: agent-web/.env.example"
-                )
-            );
+            CompletableFuture<byte[]> failedFuture = new CompletableFuture<byte[]>();
+            failedFuture.completeExceptionally(new UnsupportedOperationException(
+                "语音合成需要配置真实的 API Key。请设置 OPENAI_SPEECH_KEY 或 AZURE_SPEECH_KEY 环境变量。\n" +
+                "详情请查看: agent-web/.env.example"
+            ));
+            return failedFuture;
         }
 
         @Override

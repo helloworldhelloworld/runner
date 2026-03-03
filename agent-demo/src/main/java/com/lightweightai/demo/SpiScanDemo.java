@@ -7,6 +7,8 @@ import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -85,16 +87,22 @@ public class SpiScanDemo {
         System.out.println("[6] Execute scanned tools：");
         ToolExecutor executor = new ToolExecutor(registry);
 
+        Map<String, Object> addArgs = new HashMap<>();
+        addArgs.put("a", 100);
+        addArgs.put("b", 200);
         ToolResult addResult = executor.executeToolCall(
-            new ToolCall("demo_1", "add", Map.of("a", 100, "b", 200)));
+            new ToolCall("demo_1", "add", addArgs));
         System.out.println("  add(100, 200) = " + addResult.getContent());
 
+        Map<String, Object> mulArgs = new HashMap<>();
+        mulArgs.put("a", 7);
+        mulArgs.put("b", 8);
         ToolResult mulResult = executor.executeToolCall(
-            new ToolCall("demo_2", "multiply", Map.of("a", 7, "b", 8)));
+            new ToolCall("demo_2", "multiply", mulArgs));
         System.out.println("  multiply(7, 8) = " + mulResult.getContent());
 
         ToolResult timeResult = executor.executeToolCall(
-            new ToolCall("demo_3", "get_time", Map.of()));
+            new ToolCall("demo_3", "get_time", Collections.emptyMap()));
         System.out.println("  get_time() = " + timeResult.getContent());
     }
 }

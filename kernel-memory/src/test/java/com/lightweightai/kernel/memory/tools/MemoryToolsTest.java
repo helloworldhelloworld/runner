@@ -8,8 +8,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -40,10 +43,10 @@ class MemoryToolsTest {
 
     @Test
     void testWriteEphemeralMemory() {
-        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(Map.of(
-            "content", "User prefers dark mode",
-            "type", "ephemeral"
-        ));
+        Map<String, Object> params = new HashMap<>();
+        params.put("content", "User prefers dark mode");
+        params.put("type", "ephemeral");
+        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(params);
 
         assertTrue(result.success());
         assertNull(result.error());
@@ -56,11 +59,11 @@ class MemoryToolsTest {
 
     @Test
     void testWriteDurableMemory() {
-        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(Map.of(
-            "content", "Favorite color is blue",
-            "type", "durable",
-            "section", "User Preferences"
-        ));
+        Map<String, Object> durableParams = new HashMap<>();
+        durableParams.put("content", "Favorite color is blue");
+        durableParams.put("type", "durable");
+        durableParams.put("section", "User Preferences");
+        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(durableParams);
 
         assertTrue(result.success());
         assertTrue(result.message().contains("User Preferences"));
@@ -73,9 +76,9 @@ class MemoryToolsTest {
 
     @Test
     void testWriteDefaultType() {
-        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(Map.of(
-            "content", "Default type test"
-        ));
+        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(
+            Collections.<String, Object>singletonMap("content", "Default type test")
+        );
 
         assertTrue(result.success());
         assertTrue(result.message().contains("ephemeral"));
@@ -83,9 +86,9 @@ class MemoryToolsTest {
 
     @Test
     void testWriteEmptyContent() {
-        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(Map.of(
-            "content", ""
-        ));
+        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(
+            Collections.<String, Object>singletonMap("content", "")
+        );
 
         assertFalse(result.success());
         assertTrue(result.error().contains("required"));
@@ -93,10 +96,10 @@ class MemoryToolsTest {
 
     @Test
     void testWriteInvalidType() {
-        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(Map.of(
-            "content", "Test",
-            "type", "invalid"
-        ));
+        Map<String, Object> invalidParams = new HashMap<>();
+        invalidParams.put("content", "Test");
+        invalidParams.put("type", "invalid");
+        WriteMemoryTool.WriteMemoryResult result = toolkit.getWriteTool().execute(invalidParams);
 
         assertFalse(result.success());
         assertTrue(result.error().contains("Invalid type"));
@@ -109,9 +112,9 @@ class MemoryToolsTest {
         // Write some content first
         memoryManager.writeDurable("Machine learning is a subset of artificial intelligence");
 
-        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(Map.of(
-            "query", "machine learning AI"
-        ));
+        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(
+            Collections.<String, Object>singletonMap("query", "machine learning AI")
+        );
 
         assertTrue(result.success());
         assertFalse(result.matches().isEmpty());
@@ -121,10 +124,10 @@ class MemoryToolsTest {
     void testSearchWithTopK() {
         memoryManager.writeDurable("Document 1 about topic\n\nDocument 2 about topic\n\nDocument 3 about topic");
 
-        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(Map.of(
-            "query", "topic",
-            "top_k", 2
-        ));
+        Map<String, Object> searchParams = new HashMap<>();
+        searchParams.put("query", "topic");
+        searchParams.put("top_k", 2);
+        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(searchParams);
 
         assertTrue(result.success());
         assertTrue(result.matches().size() <= 2);
@@ -132,9 +135,9 @@ class MemoryToolsTest {
 
     @Test
     void testSearchEmptyQuery() {
-        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(Map.of(
-            "query", ""
-        ));
+        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(
+            Collections.<String, Object>singletonMap("query", "")
+        );
 
         assertFalse(result.success());
         assertTrue(result.error().contains("required"));
@@ -142,9 +145,9 @@ class MemoryToolsTest {
 
     @Test
     void testSearchNoResults() {
-        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(Map.of(
-            "query", "nonexistent content xyz"
-        ));
+        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(
+            Collections.<String, Object>singletonMap("query", "nonexistent content xyz")
+        );
 
         assertTrue(result.success());
         assertTrue(result.matches().isEmpty());
@@ -154,9 +157,9 @@ class MemoryToolsTest {
     void testSearchResultToText() {
         memoryManager.writeDurable("Important information about the project");
 
-        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(Map.of(
-            "query", "project information"
-        ));
+        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(
+            Collections.<String, Object>singletonMap("query", "project information")
+        );
 
         String text = result.toText();
         assertTrue(text.contains("Found") || text.contains("No matching"));
@@ -166,9 +169,9 @@ class MemoryToolsTest {
 
     @Test
     void testExecuteByName() {
-        Object result = toolkit.execute(MemorySearchTool.TOOL_NAME, Map.of(
-            "query", "test"
-        ));
+        Object result = toolkit.execute(MemorySearchTool.TOOL_NAME,
+            Collections.<String, Object>singletonMap("query", "test")
+        );
 
         assertTrue(result instanceof MemorySearchTool.MemorySearchResult);
     }
@@ -176,7 +179,7 @@ class MemoryToolsTest {
     @Test
     void testExecuteUnknownTool() {
         assertThrows(IllegalArgumentException.class, () ->
-            toolkit.execute("unknown_tool", Map.of())
+            toolkit.execute("unknown_tool", Collections.<String, Object>emptyMap())
         );
     }
 
@@ -195,11 +198,11 @@ class MemoryToolsTest {
 
     @Test
     void testGetExecutor() {
-        var executor = toolkit.getExecutor();
+        Function<MemoryToolkit.ToolCall, String> executor = toolkit.getExecutor();
 
         String result = executor.apply(new MemoryToolkit.ToolCall(
             MemorySearchTool.TOOL_NAME,
-            Map.of("query", "test")
+            Collections.<String, Object>singletonMap("query", "test")
         ));
 
         assertNotNull(result);
@@ -225,16 +228,16 @@ class MemoryToolsTest {
     @Test
     void testWriteThenSearch() {
         // Write content
-        toolkit.getWriteTool().execute(Map.of(
-            "content", "The user's favorite programming language is Java",
-            "type", "durable",
-            "section", "Preferences"
-        ));
+        Map<String, Object> writeParams2 = new HashMap<>();
+        writeParams2.put("content", "The user's favorite programming language is Java");
+        writeParams2.put("type", "durable");
+        writeParams2.put("section", "Preferences");
+        toolkit.getWriteTool().execute(writeParams2);
 
         // Search for it
-        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(Map.of(
-            "query", "favorite programming language"
-        ));
+        MemorySearchTool.MemorySearchResult result = toolkit.getSearchTool().execute(
+            Collections.<String, Object>singletonMap("query", "favorite programming language")
+        );
 
         assertTrue(result.success());
         assertFalse(result.matches().isEmpty());

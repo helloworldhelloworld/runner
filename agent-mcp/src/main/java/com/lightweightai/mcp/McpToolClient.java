@@ -13,8 +13,10 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * MCP 工具客户端
@@ -111,7 +113,7 @@ public class McpToolClient implements ToolSource, AutoCloseable {
     public List<McpToolWrapper> discoverMcpTools(Predicate<Tool> filter) {
         return discoverMcpTools().stream()
             .filter(filter)
-            .toList();
+            .collect(Collectors.toList());
     }
 
     /**
@@ -144,7 +146,7 @@ public class McpToolClient implements ToolSource, AutoCloseable {
      * 获取已发现的工具列表
      */
     public List<McpToolWrapper> getDiscoveredTools() {
-        return discoveredTools != null ? discoveredTools : List.of();
+        return discoveredTools != null ? discoveredTools : Collections.<McpToolWrapper>emptyList();
     }
 
     /**

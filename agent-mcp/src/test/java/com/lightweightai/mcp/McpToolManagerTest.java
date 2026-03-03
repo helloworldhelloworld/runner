@@ -10,6 +10,9 @@ import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -54,9 +57,9 @@ class McpToolManagerTest {
 
         // Same calling code for both
         ToolResult localResult = executor.executeToolCall(
-            new ToolCall("1", "local_add", Map.of("a", 1)));
+            new ToolCall("1", "local_add", Collections.singletonMap("a", 1)));
         ToolResult mcpResult = executor.executeToolCall(
-            new ToolCall("2", "mcp_forecast", Map.of("city", "Tokyo")));
+            new ToolCall("2", "mcp_forecast", Collections.singletonMap("city", "Tokyo")));
 
         assertFalse(localResult.isError());
         assertFalse(mcpResult.isError());
@@ -75,7 +78,7 @@ class McpToolManagerTest {
 
         ToolExecutor executor = manager.getToolExecutor();
         ToolResult result = executor.executeToolCall(
-            new ToolCall("1", "unknown_tool", Map.of()));
+            new ToolCall("1", "unknown_tool", Collections.emptyMap()));
 
         assertTrue(result.isError());
         assertTrue(result.getContent().contains("not found"));
@@ -111,7 +114,7 @@ class McpToolManagerTest {
         assertEquals(2, manager.getToolRegistry().enabledCount());
 
         ToolResult result = manager.getToolExecutor().executeToolCall(
-            new ToolCall("1", "dynamic", Map.of()));
+            new ToolCall("1", "dynamic", Collections.emptyMap()));
         assertFalse(result.isError());
 
         manager.close();
@@ -142,8 +145,8 @@ class McpToolManagerTest {
 
         // Both callable via same ToolExecutor
         ToolExecutor executor = new ToolExecutor(registry);
-        ToolResult r1 = executor.executeToolCall(new ToolCall("1", "local", Map.of()));
-        ToolResult r2 = executor.executeToolCall(new ToolCall("2", "mcp", Map.of()));
+        ToolResult r1 = executor.executeToolCall(new ToolCall("1", "local", Collections.emptyMap()));
+        ToolResult r2 = executor.executeToolCall(new ToolCall("2", "mcp", Collections.emptyMap()));
 
         assertFalse(r1.isError());
         assertFalse(r2.isError());
@@ -198,7 +201,7 @@ class McpToolManagerTest {
         }
 
         @Override public String getCategory() { return "mcp:test-server"; }
-        @Override public List<String> getTags() { return List.of("mcp", "remote"); }
+        @Override public List<String> getTags() { return Arrays.asList("mcp", "remote"); }
         @Override public String getAuthor() { return "mcp-server:test-server"; }
     }
 }

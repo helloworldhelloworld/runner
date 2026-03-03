@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -101,7 +103,7 @@ public class GatewayController {
                         try {
                             UnifiedChatResponse deltaResponse = UnifiedChatResponse.delta(requestId, delta);
                             if (emotion != null && !emotion.isEmpty()) {
-                                deltaResponse.setMetadata(Map.of("emotion", emotion));
+                                deltaResponse.setMetadata(Collections.<String, Object>singletonMap("emotion", emotion));
                             }
                             emitter.send(SseEmitter.event()
                                 .name("message")
@@ -167,12 +169,12 @@ public class GatewayController {
      */
     @GetMapping("/health")
     public Map<String, Object> health() {
-        return Map.of(
-            "status", "UP",
-            "gateway", "active",
-            "version", "1.0.0",
-            "supportedClients", new String[]{"web", "ios", "android", "harmonyos", "miniprogram"}
-        );
+        Map<String, Object> health = new LinkedHashMap<String, Object>();
+        health.put("status", "UP");
+        health.put("gateway", "active");
+        health.put("version", "1.0.0");
+        health.put("supportedClients", new String[]{"web", "ios", "android", "harmonyos", "miniprogram"});
+        return health;
     }
 
     /**
@@ -181,10 +183,10 @@ public class GatewayController {
     @GetMapping("/session/{sessionId}/history")
     public Map<String, Object> getSessionHistory(@PathVariable("sessionId") String sessionId) {
         logger.info("Gateway get history - session: {}", sessionId);
-        return Map.of(
-            "sessionId", sessionId,
-            "history", gatewayService.getSessionHistory(sessionId)
-        );
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("sessionId", sessionId);
+        result.put("history", gatewayService.getSessionHistory(sessionId));
+        return result;
     }
 
     /**
@@ -203,7 +205,10 @@ public class GatewayController {
     public Map<String, Object> clearSession(@PathVariable("sessionId") String sessionId) {
         logger.info("Gateway clear session: {}", sessionId);
         gatewayService.clearSession(sessionId);
-        return Map.of("sessionId", sessionId, "cleared", true);
+        Map<String, Object> clearResult = new LinkedHashMap<String, Object>();
+        clearResult.put("sessionId", sessionId);
+        clearResult.put("cleared", true);
+        return clearResult;
     }
 
     // ==================== 私有方法 ====================

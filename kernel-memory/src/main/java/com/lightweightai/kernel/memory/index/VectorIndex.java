@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Collections;
 
 /**
  * In-memory vector index for semantic search.
@@ -95,7 +96,7 @@ public class VectorIndex {
      */
     public List<SearchResult> searchByVector(float[] queryEmbedding, int topK) {
         if (vectors.isEmpty()) {
-            return List.of();
+            return Collections.emptyList();
         }
 
         // Calculate similarity for all vectors

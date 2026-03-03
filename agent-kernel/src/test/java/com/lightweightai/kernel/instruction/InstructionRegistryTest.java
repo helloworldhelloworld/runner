@@ -7,6 +7,7 @@ import com.lightweightai.kernel.skill.Skill;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -69,7 +70,7 @@ class InstructionRegistryTest {
         registry.registerPackage(pkg);
         registry.activatePackage("inject-test");
 
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Hello")
@@ -86,7 +87,7 @@ class InstructionRegistryTest {
 
     @Test
     void shouldNotInjectWhenNoActivePackages() {
-        List<ConversationMessage> messages = List.of(
+        List<ConversationMessage> messages = Collections.singletonList(
             ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.USER)
                 .textContent("Hello")
@@ -240,12 +241,12 @@ class InstructionRegistryTest {
 
             @Override
             public java.util.Map<String, String> getMetadata() {
-                return java.util.Map.of("version", "1.0.0");
+                return java.util.Collections.singletonMap("version", "1.0.0");
             }
 
             @Override
             public java.util.Map<String, byte[]> getResources() {
-                return java.util.Map.of();
+                return java.util.Collections.emptyMap();
             }
 
             @Override

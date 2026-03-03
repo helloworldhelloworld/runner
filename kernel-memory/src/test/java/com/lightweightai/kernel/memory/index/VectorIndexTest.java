@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -88,7 +89,7 @@ class VectorIndexTest {
 
     @Test
     void testBatchAddChunks() {
-        List<MemoryChunk> chunks = List.of(
+        List<MemoryChunk> chunks = Arrays.asList(
             createChunk("First document"),
             createChunk("Second document"),
             createChunk("Third document")

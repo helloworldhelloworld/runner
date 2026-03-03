@@ -12,7 +12,12 @@ import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
 import com.lightweightai.tools.math.MathTools;
 import com.lightweightai.tools.time.TimeTools;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -61,7 +66,10 @@ public class LocalToolDemo {
         //   实际项目中替换 MockLLMProvider 为：
         //     new ClaudeProvider(apiKey, "claude-sonnet-4-20250514")
         //     new OpenRouterProvider(apiKey, "anthropic/claude-3.5-sonnet")
-        LLMProvider llm = new MockLLMProvider("add", Map.of("a", 42, "b", 58));
+        Map<String, Object> mockArgs = new HashMap<>();
+        mockArgs.put("a", 42);
+        mockArgs.put("b", 58);
+        LLMProvider llm = new MockLLMProvider("add", mockArgs);
 
         ToolCallingLoop loop = ToolCallingLoop.builder()
             .provider(llm)
@@ -161,10 +169,16 @@ public class LocalToolDemo {
 
         @Override
         public ToolSchema getSchema() {
-            return ToolSchema.withRequired(Map.of(
-                "min", Map.of("type", "integer", "description", "Minimum value (inclusive)"),
-                "max", Map.of("type", "integer", "description", "Maximum value (inclusive)")
-            ), "min", "max");
+            Map<String, Object> minSchema = new HashMap<>();
+            minSchema.put("type", "integer");
+            minSchema.put("description", "Minimum value (inclusive)");
+            Map<String, Object> maxSchema = new HashMap<>();
+            maxSchema.put("type", "integer");
+            maxSchema.put("description", "Maximum value (inclusive)");
+            Map<String, Object> props = new HashMap<>();
+            props.put("min", minSchema);
+            props.put("max", maxSchema);
+            return ToolSchema.withRequired(props, "min", "max");
         }
 
         @Override
@@ -214,9 +228,9 @@ public class LocalToolDemo {
                     .message(ConversationMessage.builder()
                         .role(MessageRole.ASSISTANT)
                         .textContent("")
-                        .metadata(Map.of("tool_calls", List.of(call)))
+                        .metadata(Collections.singletonMap("tool_calls", (Object) Collections.singletonList(call)))
                         .build())
-                    .toolCalls(List.of(call))
+                    .toolCalls(Collections.singletonList(call))
                     .build();
             }
 
