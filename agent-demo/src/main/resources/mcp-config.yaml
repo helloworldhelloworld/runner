@@ -1,0 +1,65 @@
+# ===========================================================
+# MCP 远程 Server 配置文件
+#
+# 配合 McpToolManager.create().fromConfig(config).build() 使用
+# 框架自动对每个 enabled server 执行：
+#   connect → discover → register → 注入 ToolRegistry
+#
+# 支持两种传输方式：
+#   stdio - 启动本地子进程，通过 stdin/stdout 通信
+#   sse   - 连接远程 HTTP 端点，通过 Server-Sent Events 通信
+# ===========================================================
+
+mcp:
+  servers:
+
+    # ------ STDIO 类型：本地子进程 MCP Server ------
+
+    # 天气查询 MCP Server
+    weather:
+      transport: stdio
+      command: npx
+      args:
+        - "-y"
+        - "@weather/mcp-server"
+      env:
+        API_KEY: "${WEATHER_API_KEY}"
+      timeoutSeconds: 30
+
+    # 文件系统 MCP Server（官方）
+    filesystem:
+      transport: stdio
+      command: npx
+      args:
+        - "-y"
+        - "@modelcontextprotocol/server-filesystem"
+        - "/tmp"
+      timeoutSeconds: 30
+
+    # SQLite 数据库 MCP Server
+    database:
+      transport: stdio
+      command: python
+      args:
+        - "-m"
+        - "mcp_server_sqlite"
+        - "--db"
+        - "data.db"
+      env:
+        SQLITE_PATH: "/data/app.db"
+      timeoutSeconds: 60
+
+    # ------ SSE 类型：远程 HTTP MCP Server ------
+
+    # 远程 API 服务
+    remote-api:
+      transport: sse
+      url: "http://api-server.example.com:8080/sse"
+      timeoutSeconds: 45
+
+    # 调试服务（默认禁用）
+    debug-server:
+      transport: sse
+      url: "http://localhost:9090/sse"
+      enabled: false
+      timeoutSeconds: 10

@@ -36,6 +36,12 @@
             <artifactId>agent-mcp</artifactId>
         </dependency>
 
+        <!-- YAML config loading -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
+
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
