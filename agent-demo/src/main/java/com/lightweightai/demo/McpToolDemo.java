@@ -10,6 +10,7 @@ import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.*;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
+import com.lightweightai.mcp.McpConfiguration;
 import com.lightweightai.mcp.McpToolAdapter;
 import com.lightweightai.mcp.McpToolManager;
 import com.lightweightai.mcp.McpToolServer;
@@ -27,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
  * 核心理念：调用方（ToolExecutor / ToolCallingLoop / Agent）完全不需要知道
  * 某个工具是本地的还是来自 MCP 服务端。框架自动路由。
  *
- * 演示四部分：
+ * 演示五部分：
  *
  * [A] 透明调用 — 本地工具和 MCP 工具统一执行（核心设计）
  *     ToolExecutor.executeToolCall() 不区分工具来源
@@ -42,6 +43,9 @@ import java.util.concurrent.CompletableFuture;
  *
  * [D] Agent 集成 — Agent 使用 ToolRegistry，无感调用所有工具
  *
+ * [E] 远程 MCP Server 配置 — 通过 McpConfiguration 配置驱动
+ *     支持 STDIO 和 SSE 两种传输方式，可代码配置或 YAML 配置
+ *
  * 运行方式：
  *   mvn exec:java -pl agent-demo -Dexec.mainClass=com.lightweightai.demo.McpToolDemo
  */
@@ -55,6 +59,7 @@ public class McpToolDemo {
 
         demoTransparentExecution();
         demoMcpToolManager();
+        demoRemoteMcpConfig();
         demoMcpServerExpose();
         demoAgentIntegration();
     }
@@ -213,6 +218,171 @@ public class McpToolDemo {
         System.out.println("  │    ToolExecutor ← ToolCallingLoop ← Agent      │");
         System.out.println("  │    (统一执行，不区分来源)                         │");
         System.out.println("  └─────────────────────────────────────────────────┘");
+        System.out.println();
+    }
+
+    // ================================================================
+    //  [E] 远程 MCP Server 配置 — McpConfiguration 配置驱动
+    //
+    //  两种配置方式：
+    //    1. 代码配置（McpConfiguration API）
+    //    2. YAML 配置（加载后传入 fromConfig()）
+    //
+    //  支持两种传输类型：
+    //    - STDIO: 启动子进程，通过 stdin/stdout 通信（本地 MCP Server）
+    //    - SSE:   连接远程 HTTP 端点，通过 Server-Sent Events 通信（远程 MCP Server）
+    // ================================================================
+
+    static void demoRemoteMcpConfig() {
+        System.out.println("--- [E] 远程 MCP Server 配置：McpConfiguration ---\n");
+
+        // ==================== 1. 代码配置方式 ====================
+        System.out.println("  === 方式一：代码配置 ===\n");
+
+        McpConfiguration config = new McpConfiguration();
+
+        // STDIO 类型：本地子进程 MCP Server
+        config.addServer("weather",
+            McpConfiguration.ServerConfig.stdio("npx", "-y", "@weather/mcp-server")
+                .withEnv("API_KEY", "${WEATHER_API_KEY}")
+                .withTimeout(30));
+
+        config.addServer("filesystem",
+            McpConfiguration.ServerConfig.stdio("npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"));
+
+        config.addServer("database",
+            McpConfiguration.ServerConfig.stdio("python", "-m", "mcp_server_sqlite", "--db", "data.db")
+                .withEnv("SQLITE_PATH", "/data/app.db")
+                .withTimeout(60));
+
+        // SSE 类型：远程 HTTP MCP Server
+        config.addServer("remote-api",
+            McpConfiguration.ServerConfig.sse("http://api-server.example.com:8080/sse")
+                .withTimeout(45));
+
+        // 禁用的服务端（配置保留但暂不连接）
+        McpConfiguration.ServerConfig debugServer =
+            McpConfiguration.ServerConfig.sse("http://localhost:9090/sse");
+        debugServer.setEnabled(false);
+        config.addServer("debug-server", debugServer);
+
+        System.out.println("  已配置 " + config.getServers().size() + " 个 MCP 服务端：");
+        for (Map.Entry<String, McpConfiguration.ServerConfig> entry : config.getServers().entrySet()) {
+            McpConfiguration.ServerConfig sc = entry.getValue();
+            String status = sc.isEnabled() ? "enabled" : "DISABLED";
+            System.out.println("    - " + entry.getKey() + " [" + sc.getTransport() + "] " + status);
+            if ("stdio".equals(sc.getTransport())) {
+                System.out.println("      command: " + sc.getCommand() + " " + sc.getArgs());
+                if (!sc.getEnv().isEmpty()) {
+                    System.out.println("      env: " + sc.getEnv());
+                }
+            } else {
+                System.out.println("      url: " + sc.getUrl());
+            }
+            System.out.println("      timeout: " + sc.getTimeoutSeconds() + "s");
+        }
+
+        System.out.println("\n  已启用 " + config.getEnabledServers().size() + " 个：");
+        config.getEnabledServers().keySet().forEach(name ->
+            System.out.println("    - " + name));
+
+        // ==================== 2. 结合 McpToolManager 使用 ====================
+        System.out.println("\n  === 结合 McpToolManager 使用 ===\n");
+        System.out.println("  // 一行代码加载所有远程 MCP Server：");
+        System.out.println("  McpToolManager manager = McpToolManager.create()");
+        System.out.println("      .fromConfig(config)              // 自动 connect → discover → register");
+        System.out.println("      .registerLocal(new MathTools())  // 本地工具也可以一起注册");
+        System.out.println("      .autoScan()                      // SPI 扫描");
+        System.out.println("      .build();");
+        System.out.println();
+        System.out.println("  // 使用：所有工具（本地 + 远程 MCP）统一调用");
+        System.out.println("  ToolExecutor executor = manager.getToolExecutor();");
+        System.out.println("  executor.executeToolCall(\"add\", args);           // → 本地执行");
+        System.out.println("  executor.executeToolCall(\"get_forecast\", args);  // → weather MCP");
+        System.out.println("  executor.executeToolCall(\"read_file\", args);     // → filesystem MCP");
+        System.out.println("  executor.executeToolCall(\"query_db\", args);      // → database MCP");
+        System.out.println("  executor.executeToolCall(\"call_api\", args);      // → remote-api SSE");
+        System.out.println();
+        System.out.println("  manager.close();  // 自动关闭所有 MCP 连接");
+
+        // ==================== 3. YAML 配置示例 ====================
+        System.out.println("\n  === 方式二：YAML 配置文件 ===\n");
+        System.out.println("  # mcp-config.yaml");
+        System.out.println("  mcp:");
+        System.out.println("    servers:");
+        System.out.println("      weather:                              # STDIO 本地子进程");
+        System.out.println("        transport: stdio");
+        System.out.println("        command: npx");
+        System.out.println("        args:");
+        System.out.println("          - \"-y\"");
+        System.out.println("          - \"@weather/mcp-server\"");
+        System.out.println("        env:");
+        System.out.println("          API_KEY: \"${WEATHER_API_KEY}\"");
+        System.out.println("        timeoutSeconds: 30");
+        System.out.println();
+        System.out.println("      filesystem:                           # STDIO 本地子进程");
+        System.out.println("        command: npx");
+        System.out.println("        args: [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"/tmp\"]");
+        System.out.println();
+        System.out.println("      database:                             # STDIO Python MCP Server");
+        System.out.println("        command: python");
+        System.out.println("        args: [\"-m\", \"mcp_server_sqlite\", \"--db\", \"data.db\"]");
+        System.out.println("        env:");
+        System.out.println("          SQLITE_PATH: \"/data/app.db\"");
+        System.out.println("        timeoutSeconds: 60");
+        System.out.println();
+        System.out.println("      remote-api:                           # SSE 远程 HTTP Server");
+        System.out.println("        transport: sse");
+        System.out.println("        url: \"http://api-server.example.com:8080/sse\"");
+        System.out.println("        timeoutSeconds: 45");
+        System.out.println();
+        System.out.println("      debug-server:                         # 禁用的服务端");
+        System.out.println("        transport: sse");
+        System.out.println("        url: \"http://localhost:9090/sse\"");
+        System.out.println("        enabled: false");
+        System.out.println();
+        System.out.println("  // 加载 YAML 配置：");
+        System.out.println("  ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());");
+        System.out.println("  McpConfiguration config = yamlMapper.readValue(");
+        System.out.println("      new File(\"mcp-config.yaml\"), McpConfiguration.class);");
+        System.out.println();
+        System.out.println("  McpToolManager manager = McpToolManager.create()");
+        System.out.println("      .fromConfig(config)");
+        System.out.println("      .build();");
+
+        // ==================== 4. 运行时动态添加 ====================
+        System.out.println("\n  === 运行时动态添加远程 MCP Server ===\n");
+        System.out.println("  // 在 manager 构建后，仍可动态添加新的 MCP Server：");
+        System.out.println("  McpToolClient newClient = manager.addMcpServer(\"new-server\", transport);");
+        System.out.println("  // 自动 connect → discover → 注册新工具到 ToolRegistry");
+        System.out.println("  // 后续调用 executor.executeToolCall() 即可使用新工具");
+
+        // 架构图
+        System.out.println("\n  配置驱动架构：");
+        System.out.println("  ┌──────────────────────────────────────────────────────────────┐");
+        System.out.println("  │  mcp-config.yaml / McpConfiguration                         │");
+        System.out.println("  │                                                              │");
+        System.out.println("  │  servers:                                                    │");
+        System.out.println("  │    weather:    [STDIO] npx @weather/mcp-server               │");
+        System.out.println("  │    filesystem: [STDIO] npx @mcp/server-filesystem            │");
+        System.out.println("  │    database:   [STDIO] python mcp_server_sqlite              │");
+        System.out.println("  │    remote-api: [SSE]   http://api-server:8080/sse            │");
+        System.out.println("  └──────────────────────────┬───────────────────────────────────┘");
+        System.out.println("                             │ fromConfig(config)");
+        System.out.println("                             ↓");
+        System.out.println("  ┌──────────────────────────────────────────────────────────────┐");
+        System.out.println("  │  McpToolManager                                              │");
+        System.out.println("  │                                                              │");
+        System.out.println("  │  对每个 enabled server 自动执行：                              │");
+        System.out.println("  │    1. 创建 Transport (StdioClientTransport / SseTransport)   │");
+        System.out.println("  │    2. McpToolClient.initialize() → MCP 握手                  │");
+        System.out.println("  │    3. discoverTools() → 获取远程工具列表                       │");
+        System.out.println("  │    4. McpToolWrapper 包装 → 注册到 ToolRegistry               │");
+        System.out.println("  │                                                              │");
+        System.out.println("  │  ToolRegistry: add, multiply, get_forecast, read_file, ...   │");
+        System.out.println("  │        ↓                                                     │");
+        System.out.println("  │  ToolExecutor / ToolCallingLoop / Agent  (统一调用)            │");
+        System.out.println("  └──────────────────────────────────────────────────────────────┘");
         System.out.println();
     }
 
