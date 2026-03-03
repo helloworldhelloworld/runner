@@ -146,7 +146,7 @@ public class McpToolDemo {
 
         LLMResponse response = loop.executeWithTools(messages,
             LLMOptions.builder()
-                .tools(executor.getToolDefinitions())
+                .toolDefinitions(executor.getToolDefinitions())
                 .build());
 
         System.out.println("  Final: " + response.getMessage().getTextContent());

@@ -80,7 +80,7 @@ public class LocalToolDemo {
 
         LLMResponse response = loop.executeWithTools(messages,
             LLMOptions.builder()
-                .tools(executor.getToolDefinitions())
+                .toolDefinitions(executor.getToolDefinitions())
                 .build());
 
         System.out.println("\n--- ToolCallingLoop End ---");
