@@ -6,11 +6,10 @@ import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.llm.ToolResult;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,7 +31,6 @@ import java.util.Map;
 public class McpToolWrapper implements Tool, ToolMetadata {
 
     private static final Logger logger = LoggerFactory.getLogger(McpToolWrapper.class);
-    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final McpSyncClient mcpClient;
     private final McpSchema.Tool mcpTool;
@@ -62,10 +60,18 @@ public class McpToolWrapper implements Tool, ToolMetadata {
     @Override
     public ToolSchema getSchema() {
         try {
-            String schemaJson = mcpTool.inputSchema();
-            if (schemaJson != null && !schemaJson.isBlank()) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> schemaMap = objectMapper.readValue(schemaJson, Map.class);
+            McpSchema.JsonSchema jsonSchema = mcpTool.inputSchema();
+            if (jsonSchema != null) {
+                Map<String, Object> schemaMap = new HashMap<>();
+                if (jsonSchema.type() != null) {
+                    schemaMap.put("type", jsonSchema.type());
+                }
+                if (jsonSchema.properties() != null) {
+                    schemaMap.put("properties", jsonSchema.properties());
+                }
+                if (jsonSchema.required() != null) {
+                    schemaMap.put("required", jsonSchema.required());
+                }
                 return new ToolSchema(schemaMap);
             }
         } catch (Exception e) {
