@@ -7,7 +7,6 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpClientTransport;
 import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

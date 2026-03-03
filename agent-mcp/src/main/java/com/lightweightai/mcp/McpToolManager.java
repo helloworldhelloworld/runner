@@ -3,6 +3,8 @@ package com.lightweightai.mcp;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolExecutor;
+import io.modelcontextprotocol.client.transport.ServerParameters;
+import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.spec.McpClientTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +13,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 统一工具管理器 — MCP 工具与本地工具无感切换
@@ -19,7 +22,17 @@ import java.util.List;
  * MCP 连接生命周期由 McpToolManager 自动管理。
  *
  * <pre>
- * // 创建：本地工具 + MCP 工具混合注册
+ * // 方式一：配置驱动（推荐）
+ * McpConfiguration config = new McpConfiguration();
+ * config.addServer("weather", McpConfiguration.ServerConfig.stdio("npx", "-y", "@weather/mcp-server"));
+ * config.addServer("filesystem", McpConfiguration.ServerConfig.stdio("npx", "-y", "@mcp/server-filesystem", "/tmp"));
+ *
+ * McpToolManager manager = McpToolManager.create()
+ *     .fromConfig(config)                        // 自动 connect → discover → register
+ *     .registerLocal(new MathTools())             // 本地工具
+ *     .build();
+ *
+ * // 方式二：程序化注册
  * McpToolManager manager = McpToolManager.create()
  *     .registerLocal(new MathTools())            // 本地 @ToolFunction
  *     .registerLocal(new RandomNumberTool())     // 本地 implements Tool
@@ -198,6 +211,69 @@ public class McpToolManager implements AutoCloseable {
         public Builder autoScan() {
             this.autoScan = true;
             return this;
+        }
+
+        /**
+         * 从 McpConfiguration 批量添加 MCP 服务端
+         *
+         * 遍历配置中所有已启用的服务端，自动创建 transport 并连接。
+         * 支持 STDIO 和 SSE 传输类型。
+         *
+         * <pre>
+         * McpConfiguration config = loadFromYaml("mcp-config.yaml");
+         * McpToolManager manager = McpToolManager.create()
+         *     .fromConfig(config)
+         *     .build();
+         * </pre>
+         *
+         * @param config MCP 配置
+         */
+        public Builder fromConfig(McpConfiguration config) {
+            if (config == null || config.getServers() == null) {
+                return this;
+            }
+
+            for (Map.Entry<String, McpConfiguration.ServerConfig> entry : config.getEnabledServers().entrySet()) {
+                String name = entry.getKey();
+                McpConfiguration.ServerConfig serverConfig = entry.getValue();
+
+                McpClientTransport transport = createTransport(name, serverConfig);
+                Duration timeout = Duration.ofSeconds(serverConfig.getTimeoutSeconds());
+                addMcpServer(name, transport, timeout);
+
+                logger.info("Added MCP server '{}' from config (transport={})", name, serverConfig.getTransport());
+            }
+            return this;
+        }
+
+        /**
+         * 根据 ServerConfig 创建对应的 MCP 传输层
+         */
+        private static McpClientTransport createTransport(String name, McpConfiguration.ServerConfig config) {
+            if ("sse".equalsIgnoreCase(config.getTransport())) {
+                if (config.getUrl() == null || config.getUrl().isBlank()) {
+                    throw new IllegalStateException(
+                        "MCP server '" + name + "': SSE transport requires 'url'");
+                }
+                throw new UnsupportedOperationException(
+                    "MCP server '" + name + "': SSE transport requires mcp-spring-webflux dependency. " +
+                    "Add io.modelcontextprotocol.sdk:mcp-spring-webflux and use HttpClientSseClientTransport.");
+            }
+
+            // Default: STDIO
+            if (config.getCommand() == null || config.getCommand().isBlank()) {
+                throw new IllegalStateException(
+                    "MCP server '" + name + "': STDIO transport requires 'command'");
+            }
+
+            ServerParameters.Builder paramsBuilder = ServerParameters.builder(config.getCommand());
+            if (config.getArgs() != null && !config.getArgs().isEmpty()) {
+                paramsBuilder.args(config.getArgs().toArray(new String[0]));
+            }
+            if (config.getEnv() != null && !config.getEnv().isEmpty()) {
+                paramsBuilder.env(config.getEnv());
+            }
+            return new StdioClientTransport(paramsBuilder.build());
         }
 
         /**

@@ -146,7 +146,7 @@ public class McpToolDemo {
 
         LLMResponse response = loop.executeWithTools(messages,
             LLMOptions.builder()
-                .tools(executor.getToolDefinitions())
+                .toolDefinitions(executor.getToolDefinitions())
                 .build());
 
         System.out.println("  Final: " + response.getMessage().getTextContent());
@@ -240,7 +240,7 @@ public class McpToolDemo {
             .findFirst()
             .orElseThrow();
 
-        McpSchema.CallToolResult mcpResult = citySpec.handler().apply(null, Map.of("city", "beijing"));
+        McpSchema.CallToolResult mcpResult = citySpec.call().apply(null, Map.of("city", "beijing"));
         String resultText = ((McpSchema.TextContent) mcpResult.content().get(0)).text();
         System.out.println("\n[MCP Handler] get_city_info({city:\"beijing\"}) → " + resultText);
 
