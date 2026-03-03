@@ -8,8 +8,6 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +34,6 @@ import java.util.stream.Collectors;
 public class McpToolAdapter {
 
     private static final Logger logger = LoggerFactory.getLogger(McpToolAdapter.class);
-    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private McpToolAdapter() {
         // Utility class
@@ -52,12 +49,16 @@ public class McpToolAdapter {
      * @return MCP 工具规格
      */
     public static McpServerFeatures.SyncToolSpecification toMcpTool(Tool tool) {
-        String inputSchema = schemaToJson(tool);
+        McpSchema.JsonSchema inputSchema = toJsonSchema(tool);
 
         McpSchema.Tool mcpTool = new McpSchema.Tool(
             tool.getName(),
+            null,                // title
             tool.getDescription(),
-            inputSchema
+            inputSchema,
+            null,                // outputSchema
+            null,                // annotations
+            null                 // _meta
         );
 
         return new McpServerFeatures.SyncToolSpecification(
@@ -114,14 +115,18 @@ public class McpToolAdapter {
     }
 
     /**
-     * 将 ToolSchema 转换为 JSON 字符串（MCP 要求的格式）
+     * 将 ToolSchema 转换为 McpSchema.JsonSchema
      */
-    private static String schemaToJson(Tool tool) {
-        try {
-            return objectMapper.writeValueAsString(tool.getSchema().toMap());
-        } catch (JsonProcessingException e) {
-            logger.warn("Failed to serialize schema for tool {}, using empty schema", tool.getName());
-            return "{\"type\":\"object\",\"properties\":{}}";
-        }
+    @SuppressWarnings("unchecked")
+    private static McpSchema.JsonSchema toJsonSchema(Tool tool) {
+        Map<String, Object> schemaMap = tool.getSchema().toMap();
+        return new McpSchema.JsonSchema(
+            (String) schemaMap.getOrDefault("type", "object"),
+            (Map<String, Object>) schemaMap.get("properties"),
+            (List<String>) schemaMap.get("required"),
+            null,
+            null,
+            null
+        );
     }
 }
