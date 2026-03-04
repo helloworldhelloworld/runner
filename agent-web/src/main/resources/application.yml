@@ -43,6 +43,31 @@ app:
     api-key: ${WEB_SEARCH_API_KEY:}   # 留空 → Mock 模式
     provider: brave                    # 预留：brave | serper
     max-results: 3
+  # MCP 远程工具配置
+  # 启用后，Spring 启动时自动连接 MCP Server，远程工具注册到 ToolRegistry
+  # LLM 通过 ToolCallingLoop 可以透明调用这些远程工具
+  mcp:
+    enabled: ${MCP_ENABLED:false}  # 设置 MCP_ENABLED=true 启用
+    servers:
+      # 示例：本项目 Demo MCP Server
+      # demo-agent:
+      #   command: java
+      #   args: -cp,classpath,com.lightweightai.demo.McpServerRunner
+      #   timeout: 60
+      #
+      # 示例：NPM MCP Server
+      # weather:
+      #   command: npx
+      #   args: -y,@weather/mcp-server
+      #   env: API_KEY=${WEATHER_API_KEY}
+      #   timeout: 30
+      #
+      # 示例：SSE 远程 MCP Server
+      # remote-api:
+      #   transport: sse
+      #   url: http://api-server:8080/sse
+      #   timeout: 45
+
   speech:
     # 语音服务配置
     provider: ${SPEECH_PROVIDER:openai}  # 可选: azure, openai, mock
