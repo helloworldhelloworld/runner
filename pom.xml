@@ -112,7 +112,19 @@
                 <scope>test</scope>
             </dependency>
 
-            <!-- JSON Processing -->
+            <!-- JSON Processing — all jackson-core artifacts must be at the same version.
+                 Spring Boot BOM manages them at 2.15.x which conflicts with our 2.16.x
+                 jackson-databind, causing NoClassDefFoundError on JsonTypeInfo$Value. -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-databind</artifactId>
