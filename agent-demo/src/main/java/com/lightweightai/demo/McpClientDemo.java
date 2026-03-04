@@ -16,56 +16,75 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * MCP 端到端调试 Demo
+ * MCP Client Demo — 验证 McpServerRunner 的端到端链路
  *
- * 自动完成：启动 McpServerRunner 子进程 → MCP 握手 → 发现工具 → 调用工具 → 打印结果 → 关闭
+ * <h2>架构</h2>
+ * <pre>
+ * McpClientDemo ──STDIO──→ McpServerRunner ──MCP SDK──→ 外部已有 MCP Server
+ *                          (mcp-server.yaml 配置)
+ *
+ * McpServerRunner 根据 mcp-server.yaml 中的 upstream 配置，
+ * 通过官方 MCP SDK 连接外部已有的 MCP Server（SSE 或 STDIO）。
+ * McpClientDemo 不需要关心上游传输方式，只负责连接 McpServerRunner 并验证工具。
+ * </pre>
  *
  * <h2>运行方式</h2>
  * <pre>
+ * # 1. 确保 mcp-server.yaml 中的上游 MCP Server 配置正确
+ * #    - SSE: 外部 MCP Server 已在运行，url 配置正确
+ * #    - STDIO: command/args 配置正确
+ *
+ * # 2. 运行 Demo
  * mvn -pl agent-demo exec:java -Dexec.mainClass=com.lightweightai.demo.McpClientDemo
+ *
+ * # 3. 可选：指定自定义配置文件
+ * mvn -pl agent-demo exec:java \
+ *     -Dexec.mainClass=com.lightweightai.demo.McpClientDemo \
+ *     -Dmcp.server.config=/path/to/custom-config.yaml
  * </pre>
  *
- * <h2>调试流程</h2>
+ * <h2>配置示例 (mcp-server.yaml)</h2>
  * <pre>
- *   McpClientDemo (本进程)
- *       │
- *       │ 1. ServerParameters → StdioClientTransport
- *       │    (自动 fork McpServerRunner 子进程)
- *       │
- *       ├──── stdin/stdout ────→ McpServerRunner (子进程)
- *       │                         │
- *       │ 2. initialize()         │ MCP 握手
- *       │ 3. listTools()          │ 返回工具列表
- *       │ 4. callTool()           │ 执行工具
- *       │ 5. close()              │ 子进程退出
- *       │
- *   调试完成
+ * server:
+ *   name: demo-agent
+ *   version: 0.1.0
+ * upstream:
+ *   servers:
+ *     nlp-service:
+ *       transport: sse
+ *       url: "http://remote-host:8081/sse"
+ *       enabled: true
  * </pre>
  */
 public class McpClientDemo {
 
     public static void main(String[] args) {
-        System.out.println("========================================");
-        System.out.println("  MCP 端到端调试 Demo");
-        System.out.println("  Client → Server (STDIO) → 调用工具");
-        System.out.println("========================================\n");
+        System.out.println("╔══════════════════════════════════════════════╗");
+        System.out.println("║  MCP Client Demo — 验证 McpServerRunner     ║");
+        System.out.println("╚══════════════════════════════════════════════╝\n");
 
-        // Step 1: 构建 ServerParameters，启动 McpServerRunner 作为子进程
         String javaCmd = ProcessHandle.current().info().command().orElse("java");
         String classpath = System.getProperty("java.class.path");
 
-        ServerParameters serverParams = ServerParameters.builder(javaCmd)
-            .args("-cp", classpath, "com.lightweightai.demo.McpServerRunner")
-            .build();
+        // 构建 McpServerRunner 启动参数
+        // McpServerRunner 自动读取 mcp-server.yaml（或 -Dmcp.server.config 指定的配置）
+        ServerParameters.Builder paramsBuilder = ServerParameters.builder(javaCmd);
+        String configPath = System.getProperty("mcp.server.config");
+        if (configPath != null && !configPath.isBlank()) {
+            paramsBuilder.args("-Dmcp.server.config=" + configPath,
+                "-cp", classpath, "com.lightweightai.demo.McpServerRunner");
+            System.out.println("[config] " + configPath);
+        } else {
+            paramsBuilder.args("-cp", classpath, "com.lightweightai.demo.McpServerRunner");
+            System.out.println("[config] classpath:mcp-server.yaml（默认）");
+        }
 
-        System.out.println("[1] 启动 MCP Server 子进程...");
-        System.out.println("    command: " + javaCmd);
-        System.out.println("    mainClass: com.lightweightai.demo.McpServerRunner");
+        System.out.println("[1] 启动 McpServerRunner...");
+        System.out.println("    McpServerRunner 根据配置连接上游 MCP Server（SSE/STDIO）\n");
 
-        // Step 2: 创建 MCP Client，连接到子进程
         McpToolClient client = McpToolClient.builder()
             .serverName("demo-agent")
-            .transport(new StdioClientTransport(serverParams,
+            .transport(new StdioClientTransport(paramsBuilder.build(),
                 new JacksonMcpJsonMapper(new ObjectMapper())))
             .build();
 
@@ -73,60 +92,55 @@ public class McpClientDemo {
             client.initialize();
             System.out.println("[2] MCP 握手成功\n");
 
-            // Step 3: 发现工具
+            // 发现工具（本地工具 + 上游代理工具）
             List<McpToolWrapper> tools = client.discoverMcpTools();
-            System.out.println("[3] 发现 " + tools.size() + " 个远程工具：");
+            System.out.println("[3] 发现 " + tools.size() + " 个工具：");
             for (McpToolWrapper tool : tools) {
-                System.out.println("    - " + tool.getName() + ": " + tool.getDescription());
-                System.out.println("      schema: " + tool.getSchema().toMap());
+                System.out.println("    - " + tool.getName());
             }
 
-            // Step 4: 注册到 ToolRegistry，通过 ToolExecutor 统一调用
             ToolRegistry registry = new ToolRegistry();
             client.registerTools(registry);
             ToolExecutor executor = new ToolExecutor(registry);
 
-            System.out.println("\n[4] 通过 ToolExecutor 调用远程工具（和本地工具代码完全一样）：\n");
+            // 调用工具
+            System.out.println("\n[4] 调用工具：\n");
 
-            // 调用 get_city_info
+            // 本地工具（McpServerRunner 自带）
             callAndPrint(executor, "get_city_info", Map.of("city", "beijing"));
+            callAndPrint(executor, "get_weather", Map.of("city", "tokyo"));
+            callAndPrint(executor, "calculate", Map.of("a", 12.5, "op", "+", "b", 7.3));
 
-            // 调用 get_weather
-            callAndPrint(executor, "get_weather", Map.of("city", "上海"));
+            // 上游代理工具（来自配置的外部 MCP Server）
+            callAndPrint(executor, "translate_text",
+                Map.of("text", "hello world", "from", "en", "to", "zh"));
+            callAndPrint(executor, "sentiment_analysis",
+                Map.of("text", "This framework is great!"));
+            callAndPrint(executor, "lookup_definition",
+                Map.of("word", "kernel", "language", "en"));
 
-            // 调用 calculate
-            callAndPrint(executor, "calculate", Map.of("a", 42.0, "op", "+", "b", 58.0));
-
-            // 调用 convert_currency
-            callAndPrint(executor, "convert_currency",
-                Map.of("amount", 100.0, "from", "USD", "to", "CNY"));
-
-            // 测试不存在的城市
-            callAndPrint(executor, "get_city_info", Map.of("city", "mars"));
-
-            System.out.println("========================================");
-            System.out.println("  调试完成！所有工具通过 MCP 协议调用成功");
-            System.out.println("========================================\n");
-
-            // 列出工具来源，证明是 MCP 远程工具
-            System.out.println("[5] 工具来源验证：");
+            // 工具来源
+            System.out.println("[5] 工具来源：");
             for (Tool tool : registry.getEnabled()) {
-                String source = (tool instanceof McpToolWrapper w) ? "mcp:" + w.getServerName() : "local";
+                String source = (tool instanceof McpToolWrapper w)
+                    ? "upstream:" + w.getServerName() : "local";
                 System.out.println("    - " + tool.getName() + " → " + source);
             }
 
+            System.out.println("\n╔══════════════════════════════════════════════╗");
+            System.out.println("║  验证通过！                                  ║");
+            System.out.println("╚══════════════════════════════════════════════╝");
+
         } catch (Exception e) {
-            System.err.println("[ERROR] MCP 调试失败: " + e.getMessage());
+            System.err.println("[ERROR] " + e.getMessage());
             e.printStackTrace();
         } finally {
-            // Step 5: 关闭连接（子进程自动退出）
-            System.out.println("\n[6] 关闭 MCP 连接...");
             client.close();
-            System.out.println("    MCP Server 子进程已退出");
         }
     }
 
-    private static void callAndPrint(ToolExecutor executor, String toolName, Map<String, Object> args) {
+    private static void callAndPrint(ToolExecutor executor, String toolName,
+                                     Map<String, Object> args) {
         try {
             ToolResult result = executor.executeToolCall(
                 new ToolCall("debug-" + toolName, toolName, args));

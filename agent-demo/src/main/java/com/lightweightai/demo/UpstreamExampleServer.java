@@ -1,38 +1,51 @@
 package com.lightweightai.demo;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.annotation.ToolFunction;
 import com.lightweightai.kernel.agent.annotation.ToolParam;
 import com.lightweightai.mcp.McpToolServer;
+import io.modelcontextprotocol.server.transport.HttpServletSseServerTransportProvider;
+import org.apache.catalina.Context;
+import org.apache.catalina.startup.Tomcat;
 
+import java.io.File;
 import java.util.Map;
 
 /**
- * 上游 MCP Server 示例 — 模拟外部真实 RPC 服务
- *
- * 这个 Server 模拟一个提供翻译和知识查询的外部服务。
- * McpServerRunner 通过 MCP SDK 连接此 Server，发现并代理其工具。
- *
- * <h2>完整调用链路</h2>
- * <pre>
- * 外部 Client ──MCP──→ McpServerRunner ──MCP──→ UpstreamExampleServer
- *                      (作为 Server)       (作为 Client)     (作为 Server)
- *                      暴露所有工具        发现+代理          执行真实逻辑
- * </pre>
+ * 上游 MCP Server 示例 — 支持 STDIO 和 SSE 两种传输模式
  *
  * <h2>启动方式</h2>
  * <pre>
+ * # STDIO 模式（默认，用于子进程通信）
  * java -cp &lt;classpath&gt; com.lightweightai.demo.UpstreamExampleServer
+ *
+ * # SSE/HTTP 模式（独立 HTTP 服务，真正的 RPC）
+ * java -cp &lt;classpath&gt; com.lightweightai.demo.UpstreamExampleServer --sse --port 8081
+ * java -cp &lt;classpath&gt; com.lightweightai.demo.UpstreamExampleServer --sse --port 0   # 随机端口
  * </pre>
  *
- * <h2>提供的工具</h2>
- * <ul>
- *   <li>translate_text - 文本翻译</li>
- *   <li>lookup_definition - 词语释义查询</li>
- *   <li>sentiment_analysis - 情感分析</li>
- * </ul>
+ * <h2>SSE 模式架构</h2>
+ * <pre>
+ * 外部 Client ──HTTP/SSE──→ Embedded Tomcat (:port)
+ *                            │
+ *                            └── HttpServletSseServerTransportProvider (Servlet)
+ *                                    ↓
+ *                               McpToolServer
+ *                               ├── translate_text
+ *                               ├── lookup_definition
+ *                               └── sentiment_analysis
+ *
+ * SSE 协议：
+ *   GET  /sse     → 建立 SSE 连接
+ *   POST /message → JSON-RPC 消息
+ * </pre>
+ *
+ * <h2>就绪信号</h2>
+ * SSE 模式启动完成后，向 stderr 输出 {@code SSE_READY:PORT}，
+ * 供父进程（如 McpClientDemo）获取实际监听端口。
  */
 public class UpstreamExampleServer {
 
@@ -40,16 +53,33 @@ public class UpstreamExampleServer {
         ToolRegistry registry = new ToolRegistry();
         registry.registerObject(new NlpTools());
 
+        // 解析命令行参数
+        boolean sseMode = false;
+        int port = 8081;
+        for (int i = 0; i < args.length; i++) {
+            if ("--sse".equals(args[i])) {
+                sseMode = true;
+            } else if ("--port".equals(args[i]) && i + 1 < args.length) {
+                port = Integer.parseInt(args[++i]);
+            }
+        }
+
+        if (sseMode) {
+            startSseMode(registry, port);
+        } else {
+            startStdioMode(registry);
+        }
+    }
+
+    // ==================== STDIO 模式 ====================
+
+    private static void startStdioMode(ToolRegistry registry) {
         System.err.println("========================================");
         System.err.println("  Upstream MCP Server: nlp-service");
         System.err.println("  Transport:  STDIO");
         System.err.println("  Tools:      " + registry.enabledCount());
         System.err.println("========================================");
-        for (Tool tool : registry.getEnabled()) {
-            String category = (tool instanceof ToolMetadata meta) ? meta.getCategory() : "default";
-            System.err.println("  - " + tool.getName() + " [" + category + "]");
-        }
-        System.err.println("========================================");
+        printTools(registry);
 
         McpToolServer server = McpToolServer.builder()
             .serverName("nlp-service")
@@ -57,6 +87,76 @@ public class UpstreamExampleServer {
             .toolRegistry(registry)
             .build();
         server.startAndBlock();
+    }
+
+    // ==================== SSE/HTTP 模式 ====================
+
+    private static void startSseMode(ToolRegistry registry, int port) {
+        try {
+            // 1. 创建 SSE 传输（Servlet）
+            HttpServletSseServerTransportProvider sseTransport =
+                HttpServletSseServerTransportProvider.builder()
+                    .objectMapper(new ObjectMapper())
+                    .messageEndpoint("/message")
+                    .build();
+
+            // 2. 创建 MCP Server（注册工具到 SSE 传输层）
+            McpToolServer mcpServer = McpToolServer.builder()
+                .serverName("nlp-service")
+                .serverVersion("0.1.0")
+                .toolRegistry(registry)
+                .transportProvider(sseTransport)
+                .build();
+            mcpServer.start();
+
+            // 3. 启动嵌入式 Tomcat
+            Tomcat tomcat = new Tomcat();
+            tomcat.setBaseDir(System.getProperty("java.io.tmpdir"));
+            tomcat.setPort(port);
+            tomcat.getConnector();
+
+            Context ctx = tomcat.addContext("",
+                new File(System.getProperty("java.io.tmpdir")).getAbsolutePath());
+            Tomcat.addServlet(ctx, "mcp-sse", sseTransport);
+            ctx.addServletMappingDecoded("/*", "mcp-sse");
+
+            tomcat.start();
+
+            int actualPort = tomcat.getConnector().getLocalPort();
+
+            System.err.println("========================================");
+            System.err.println("  Upstream MCP Server: nlp-service");
+            System.err.println("  Transport:  SSE/HTTP");
+            System.err.println("  URL:        http://localhost:" + actualPort + "/sse");
+            System.err.println("  Tools:      " + registry.enabledCount());
+            System.err.println("========================================");
+            printTools(registry);
+
+            // 就绪信号 — 父进程通过读取此行获取端口
+            System.err.println("SSE_READY:" + actualPort);
+
+            // Shutdown hook
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                mcpServer.close();
+                try { tomcat.stop(); } catch (Exception e) { /* ignore */ }
+            }));
+
+            // 阻塞等待
+            tomcat.getServer().await();
+
+        } catch (Exception e) {
+            System.err.println("Failed to start SSE server: " + e.getMessage());
+            e.printStackTrace(System.err);
+            System.exit(1);
+        }
+    }
+
+    private static void printTools(ToolRegistry registry) {
+        for (Tool tool : registry.getEnabled()) {
+            String category = (tool instanceof ToolMetadata meta) ? meta.getCategory() : "default";
+            System.err.println("  - " + tool.getName() + " [" + category + "]");
+        }
+        System.err.println("========================================");
     }
 
     /**
@@ -75,7 +175,6 @@ public class UpstreamExampleServer {
             @ToolParam(name = "from", description = "Source language (e.g., en, zh, ja)", required = true) String from,
             @ToolParam(name = "to", description = "Target language (e.g., en, zh, ja)", required = true) String to
         ) {
-            // 模拟翻译服务（真实场景会调用 Google Translate / DeepL API）
             return switch (from.toLowerCase() + "->" + to.toLowerCase()) {
                 case "en->zh" -> "[翻译] " + text + " → " + mockTranslateEnZh(text);
                 case "zh->en" -> "[Translated] " + text + " → " + mockTranslateZhEn(text);
@@ -116,7 +215,6 @@ public class UpstreamExampleServer {
         public String sentimentAnalysis(
             @ToolParam(name = "text", description = "Text to analyze", required = true) String text
         ) {
-            // 简单的情感分析模拟
             String lower = text.toLowerCase();
             double score;
             String label;
