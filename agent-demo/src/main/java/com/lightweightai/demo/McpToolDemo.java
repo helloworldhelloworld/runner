@@ -241,7 +241,7 @@ public class McpToolDemo {
     // ================================================================
 
     static void demoRemoteMcpConfig() {
-        System.out.println("--- [E] 调用远程 MCP 工具（真实 MCP 协议） ---\n");
+        System.out.println("--- [E] 调用远程 MCP 工具（真实 MCP 协议 + 真实 RPC） ---\n");
 
         // Step 1: 启动 McpServerRunner 作为子进程
         String javaCmd = ProcessHandle.current().info().command().orElse("java");
@@ -269,7 +269,8 @@ public class McpToolDemo {
             List<McpToolWrapper> remoteTools = client.discoverMcpTools();
             System.out.println("[Step 3] 发现 " + remoteTools.size() + " 个远程工具：");
             for (McpToolWrapper tool : remoteTools) {
-                System.out.println("  - " + tool.getName() + ": " + tool.getDescription());
+                String tag = tool.getTags().contains("rpc") ? " ★RPC" : "";
+                System.out.println("  - " + tool.getName() + ": " + tool.getDescription() + tag);
             }
 
             // Step 4: 注册到 ToolRegistry，和本地工具混合
@@ -279,42 +280,73 @@ public class McpToolDemo {
 
             ToolExecutor executor = new ToolExecutor(registry);
 
-            System.out.println("\n[Step 4] ToolExecutor 统一调用（本地 + 远程 MCP）：\n");
+            // ---- 4a: 调用 MCP 远程本地工具（Server 内纯本地计算） ----
+            System.out.println("\n[Step 4a] MCP 远程调用（Server 内本地计算）：\n");
 
-            // 调用远程 MCP 工具
             ToolResult r1 = executor.executeToolCall(
                 new ToolCall("1", "get_weather", Map.of("city", "上海")));
             System.out.println("  get_weather({city:\"上海\"})");
             System.out.println("    → " + r1.getContent());
-            System.out.println("    ↑ MCP 远程调用 (McpToolWrapper → mcpClient.callTool() → 子进程)\n");
+            System.out.println("    ↑ Client → MCP → Server（本地计算） → MCP → Client\n");
 
             ToolResult r2 = executor.executeToolCall(
                 new ToolCall("2", "calculate", Map.of("a", 42.0, "op", "+", "b", 58.0)));
             System.out.println("  calculate({a:42, op:\"+\", b:58})");
             System.out.println("    → " + r2.getContent());
-            System.out.println("    ↑ MCP 远程调用\n");
+            System.out.println("    ↑ Client → MCP → Server（本地计算） → MCP → Client\n");
+
+            // ---- 4b: 调用 MCP 远程 RPC 工具（Server 内发起真实 HTTP 请求） ----
+            System.out.println("[Step 4b] MCP 远程调用（Server 内真实 HTTP RPC）：\n");
 
             ToolResult r3 = executor.executeToolCall(
-                new ToolCall("3", "convert_currency", Map.of("amount", 100.0, "from", "USD", "to", "CNY")));
-            System.out.println("  convert_currency({amount:100, from:\"USD\", to:\"CNY\"})");
-            System.out.println("    → " + r3.getContent());
-            System.out.println("    ↑ MCP 远程调用\n");
+                new ToolCall("3", "http_fetch", Map.of("url", "https://httpbin.org/get", "max_length", 500)));
+            System.out.println("  http_fetch({url:\"https://httpbin.org/get\"})");
+            System.out.println("    → " + (r3.getContent().length() > 200
+                ? r3.getContent().substring(0, 200) + "..." : r3.getContent()));
+            System.out.println("    ↑ Client → MCP → Server → HTTP GET → httpbin.org → Server → MCP → Client\n");
 
-            // 调用本地工具（代码完全一样，调用方无感）
             ToolResult r4 = executor.executeToolCall(
-                new ToolCall("4", "get_city_info", Map.of("city", "beijing")));
+                new ToolCall("4", "json_api_call", Map.of(
+                    "url", "https://httpbin.org/post",
+                    "body", "{\"hello\":\"world\",\"from\":\"mcp-server\"}",
+                    "headers", "")));
+            System.out.println("  json_api_call({url:\"https://httpbin.org/post\", body:{hello:world}})");
+            System.out.println("    → " + (r4.getContent().length() > 200
+                ? r4.getContent().substring(0, 200) + "..." : r4.getContent()));
+            System.out.println("    ↑ Client → MCP → Server → HTTP POST → httpbin.org → Server → MCP → Client\n");
+
+            // llm_ask：调用 Claude API（需要 ANTHROPIC_API_KEY）
+            ToolResult r5 = executor.executeToolCall(
+                new ToolCall("5", "llm_ask", Map.of("question", "What is 2+2? Reply in one word.", "max_tokens", 10)));
+            System.out.println("  llm_ask({question:\"What is 2+2? Reply in one word.\"})");
+            System.out.println("    → " + r5.getContent());
+            System.out.println("    ↑ Client → MCP → Server → HTTP POST → api.anthropic.com → Server → MCP → Client\n");
+
+            // ---- 4c: 调用本地工具（代码完全一样，调用方无感） ----
+            System.out.println("[Step 4c] 本地工具调用（对比）：\n");
+
+            ToolResult r6 = executor.executeToolCall(
+                new ToolCall("6", "get_city_info", Map.of("city", "beijing")));
             System.out.println("  get_city_info({city:\"beijing\"})");
-            System.out.println("    → " + r4.getContent());
+            System.out.println("    → " + r6.getContent());
             System.out.println("    ↑ 本地执行（代码和上面完全一样，调用方无感）\n");
 
             // Step 5: 验证工具来源
-            System.out.println("[Step 5] 工具来源：");
+            System.out.println("[Step 5] 工具来源总览：");
             for (Tool tool : registry.getEnabled()) {
-                String source = (tool instanceof McpToolWrapper w) ? "mcp:" + w.getServerName() : "local";
+                String source;
+                if (tool instanceof McpToolWrapper w) {
+                    boolean isRpc = w.getTags().contains("rpc");
+                    source = "mcp:" + w.getServerName() + (isRpc ? " (★真实RPC)" : " (本地计算)");
+                } else {
+                    source = "local";
+                }
                 System.out.println("  - " + tool.getName() + " → " + source);
             }
 
-            System.out.println("\n  ✓ 本地工具和 MCP 远程工具通过 ToolExecutor 统一调用，代码零区别");
+            System.out.println("\n  ✓ MCP Server 同时挂接本地工具和真实 RPC 工具");
+            System.out.println("  ✓ Client 通过 ToolExecutor 统一调用，代码零区别");
+            System.out.println("  ✓ 完整链路：Client → MCP → Server → HTTP/RPC → 外部服务 → 逐层返回");
 
         } catch (Exception e) {
             System.out.println("[ERROR] MCP 远程调用失败: " + e.getMessage());
