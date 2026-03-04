@@ -48,8 +48,8 @@ upstream:
     # 测试用：最简 MCP Server（echo + random_number）
     test-server:
       transport: stdio
-      command: node
-      args: ["test-mcp-server.mjs"]
+      command: java
+      args: ["-cp", "${CLASSPATH}", "com.lightweightai.demo.TestMcpServer"]
       timeoutSeconds: 10
 
     # 示例：文件系统 MCP Server（官方）
