@@ -13,9 +13,21 @@
 mcp:
   servers:
 
+    # ------ 本项目 Demo MCP Server ------
+    # 启动方式: mvn -pl agent-demo exec:java -Dexec.mainClass=com.lightweightai.demo.McpServerRunner
+    demo-agent:
+      transport: stdio
+      command: mvn
+      args:
+        - "-pl"
+        - "agent-demo"
+        - "exec:java"
+        - "-Dexec.mainClass=com.lightweightai.demo.McpServerRunner"
+      timeoutSeconds: 60
+
     # ------ STDIO 类型：本地子进程 MCP Server ------
 
-    # 天气查询 MCP Server
+    # 天气查询 MCP Server（需要先 npm install）
     weather:
       transport: stdio
       command: npx

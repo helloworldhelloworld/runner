@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * 将 ToolRegistry 暴露为 MCP 服务端
@@ -47,6 +48,7 @@ public class McpToolServer {
     private final ToolRegistry toolRegistry;
     private final McpServerTransportProvider transportProvider;
     private McpSyncServer syncServer;
+    private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
     private McpToolServer(Builder builder) {
         this.serverName = builder.serverName;
@@ -76,6 +78,39 @@ public class McpToolServer {
     }
 
     /**
+     * 启动 MCP 服务端并阻塞当前线程，直到 close() 被调用
+     *
+     * 适用于独立进程模式（如 Claude Desktop / Cursor 通过 STDIO 连接）。
+     * 进程会保持运行直到外部客户端断开或手动调用 close()。
+     *
+     * <pre>
+     * McpToolServer server = McpToolServer.builder()
+     *     .serverName("my-agent")
+     *     .toolRegistry(registry)
+     *     .build();
+     * server.startAndBlock();  // 进程保持运行
+     * </pre>
+     */
+    public void startAndBlock() {
+        start();
+
+        // 注册 shutdown hook，确保 Ctrl+C 时优雅关闭
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            logger.info("Shutdown signal received, closing MCP server '{}'...", serverName);
+            close();
+        }));
+
+        logger.info("MCP server '{}' is running. Press Ctrl+C to stop.", serverName);
+
+        try {
+            shutdownLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.info("MCP server '{}' interrupted", serverName);
+        }
+    }
+
+    /**
      * 动态添加工具到运行中的 MCP 服务端
      *
      * @param tool 框架 Tool 实例
@@ -95,6 +130,7 @@ public class McpToolServer {
             syncServer.close();
             logger.info("MCP server '{}' closed", serverName);
         }
+        shutdownLatch.countDown();
     }
 
     /**
