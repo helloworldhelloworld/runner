@@ -253,7 +253,8 @@ public class McpToolManager implements AutoCloseable {
          * 根据 ServerConfig 创建对应的 MCP 传输层
          */
         private static McpClientTransport createTransport(String name, McpConfiguration.ServerConfig config) {
-            if ("sse".equalsIgnoreCase(config.getTransport())) {
+            String transport = config.getTransport();
+            if ("sse".equalsIgnoreCase(transport) || "http".equalsIgnoreCase(transport)) {
                 if (config.getUrl() == null || config.getUrl().isBlank()) {
                     throw new IllegalStateException(
                         "MCP server '" + name + "': SSE transport requires 'url'");

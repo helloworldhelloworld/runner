@@ -99,7 +99,7 @@ public class McpConfig {
         long timeout = Long.parseLong(config.getOrDefault("timeout", "30"));
 
         McpClientTransport mcpTransport;
-        if ("sse".equalsIgnoreCase(transport)) {
+        if ("sse".equalsIgnoreCase(transport) || "http".equalsIgnoreCase(transport)) {
             String url = config.get("url");
             if (url == null || url.isBlank()) {
                 throw new IllegalStateException("MCP server '" + name + "': SSE requires 'url'");
