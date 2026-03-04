@@ -50,11 +50,11 @@ upstream:
     # 通过 STDIO 启动已有的 MCP Server 进程
 
     # 测试用：最简 MCP Server（echo + random_number）
-    test-server:
-      transport: stdio
-      command: java
-      args: ["-cp", "${CLASSPATH}", "com.lightweightai.demo.TestMcpServer"]
-      timeoutSeconds: 10
+    #test-server:
+    #  transport: stdio
+    #  command: java
+    #  args: ["-cp", "${CLASSPATH}", "com.lightweightai.demo.TestMcpServer"]
+    #  timeoutSeconds: 10
 
     # 示例：文件系统 MCP Server（官方）
     #filesystem:
