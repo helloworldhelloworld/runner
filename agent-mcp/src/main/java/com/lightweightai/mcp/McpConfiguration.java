@@ -7,37 +7,44 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * MCP 远程服务端配置
+ * MCP 配置
  *
- * 支持 YAML/代码配置多个 MCP 服务端连接，结合 McpToolManager 使用：
+ * 支持两种使用场景：
  *
+ * <h2>场景一：作为 MCP Client 连接远程 Server（McpToolManager）</h2>
  * <pre>
- * // YAML 配置示例（需配合 Jackson/SnakeYAML 加载）：
- * // mcp:
- * //   servers:
- * //     weather:
- * //       command: "npx"
- * //       args: ["-y", "@weather/mcp-server"]
- * //       env:
- * //         API_KEY: "${WEATHER_API_KEY}"
- * //     filesystem:
- * //       command: "npx"
- * //       args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
- * //     remote-api:
- * //       transport: "sse"
- * //       url: "http://localhost:8080/sse"
- * //       enabled: false
+ * // mcp-config.yaml
+ * mcp:
+ *   servers:
+ *     weather:
+ *       transport: sse
+ *       url: "http://weather-service:8080/sse"
+ *     filesystem:
+ *       transport: stdio
+ *       command: npx
+ *       args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
  *
- * // 代码配置：
- * McpConfiguration config = new McpConfiguration();
- * config.addServer("weather", McpConfiguration.ServerConfig.stdio("npx", "-y", "@weather/mcp-server"));
- * config.addServer("db", McpConfiguration.ServerConfig.sse("http://localhost:3000/sse"));
- *
- * // 结合 McpToolManager 使用：
  * McpToolManager manager = McpToolManager.create()
  *     .fromConfig(config)
- *     .registerLocal(new MathTools())
  *     .build();
+ * </pre>
+ *
+ * <h2>场景二：作为 MCP Server + Client 网关（McpServerRunner）</h2>
+ * <pre>
+ * // mcp-server.yaml — 统一配置 Server 自身 + 上游 Server
+ * server:
+ *   name: demo-agent
+ *   version: 0.1.0
+ *
+ * upstream:
+ *   servers:
+ *     nlp-service:
+ *       transport: sse
+ *       url: "http://nlp-host:8080/sse"
+ *     local-tools:
+ *       transport: stdio
+ *       command: java
+ *       args: ["-cp", "...", "com.example.ToolServer"]
  * </pre>
  *
  * 风格对齐 {@link com.lightweightai.kernel.config.LLMConfiguration}
@@ -72,7 +79,40 @@ public class McpConfiguration {
     }
 
     /**
-     * 单个 MCP 服务端连接配置
+     * MCP Server 自身配置（当本进程作为 MCP Server 时）
+     *
+     * <pre>
+     * server:
+     *   name: demo-agent
+     *   version: 0.1.0
+     * </pre>
+     */
+    public static class McpServerConfig {
+
+        private String name = "mcp-server";
+        private String version = "0.1.0";
+
+        public McpServerConfig() {}
+
+        public McpServerConfig(String name, String version) {
+            this.name = name;
+            this.version = version;
+        }
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+
+        public String getVersion() { return version; }
+        public void setVersion(String version) { this.version = version; }
+
+        @Override
+        public String toString() {
+            return "McpServerConfig{name='" + name + "', version='" + version + "'}";
+        }
+    }
+
+    /**
+     * 单个 MCP 服务端连接配置（作为 Client 连接远程 Server）
      */
     public static class ServerConfig {
 

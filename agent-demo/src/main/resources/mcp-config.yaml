@@ -19,6 +19,10 @@ mcp:
   servers:
 
     # ------ 本项目 Demo MCP Server（开箱即用） ------
+
+    # demo-agent: 本地工具 + 上游 MCP Server 代理
+    # McpServerRunner 自动从 mcp-upstream.yaml 加载上游 Server 配置
+    # 上游配置见 mcp-upstream.yaml（nlp-service 等）
     # 启动方式: mvn -pl agent-demo exec:java -Dexec.mainClass=com.lightweightai.demo.McpServerRunner
     demo-agent:
       transport: stdio
@@ -30,7 +34,19 @@ mcp:
         - "-Dexec.mainClass=com.lightweightai.demo.McpServerRunner"
       timeoutSeconds: 60
 
-    # ------ 以下为示例配置，默认禁用，按需启用 ------
+    # nlp-service: 上游 NLP 服务（翻译、释义、情感分析）
+    # 通常被 demo-agent 的 mcp-upstream.yaml 配置为上游，也可以独立使用
+    nlp-service:
+      transport: stdio
+      command: java
+      args:
+        - "-cp"
+        - "${java.class.path}"
+        - "com.lightweightai.demo.UpstreamExampleServer"
+      timeoutSeconds: 30
+      enabled: false
+
+    # ------ 以下为外部 MCP Server 示例，默认禁用 ------
 
     # 天气查询 MCP Server（需要先 npm install）
     weather:

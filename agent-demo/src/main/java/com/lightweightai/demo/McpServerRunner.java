@@ -3,119 +3,300 @@ package com.lightweightai.demo;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
-import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.agent.annotation.ToolFunction;
 import com.lightweightai.kernel.agent.annotation.ToolParam;
+import com.lightweightai.mcp.McpConfiguration;
+import com.lightweightai.mcp.McpConfiguration.McpServerConfig;
+import com.lightweightai.mcp.McpConfiguration.ServerConfig;
+import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolServer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
+import io.modelcontextprotocol.client.transport.ServerParameters;
+import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
+import io.modelcontextprotocol.spec.McpClientTransport;
 
+import java.io.InputStream;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 独立 MCP Server 启动入口
+ * 独立 MCP Server 启动入口 — 全部配置驱动
  *
- * 将本地工具暴露为 MCP 服务端，进程保持运行，等待外部 MCP 客户端连接。
- * 外部客户端（Claude Desktop、Cursor、其他 Agent）可以通过 MCP 协议发现并调用工具。
+ * 从 {@code mcp-server.yaml} 统一加载 Server 配置和上游 Server 配置。
+ * 上游 Server 支持 SSE（HTTP 远程调用）和 STDIO（本地进程）两种传输。
+ *
+ * <h2>配置文件 (mcp-server.yaml)</h2>
+ * <pre>
+ * server:
+ *   name: demo-agent
+ *   version: 0.1.0
+ *
+ * upstream:
+ *   servers:
+ *     nlp-service:
+ *       transport: sse
+ *       url: "http://nlp-host:8080/sse"
+ *     local-tools:
+ *       transport: stdio
+ *       command: java
+ *       args: ["-cp", "...", "com.example.ToolServer"]
+ * </pre>
+ *
+ * <h2>架构</h2>
+ * <pre>
+ * 外部 Client ──MCP──→ McpServerRunner ──SSE/HTTP──→ 远程 MCP Server
+ *                      (mcp-server.yaml)  ──STDIO───→ 本地 MCP Server
+ *                      ├── 本地工具
+ *                      ├── SPI 工具
+ *                      └── 上游工具（代理）
+ * </pre>
  *
  * <h2>启动方式</h2>
  * <pre>
- * # 方式一：Maven 直接运行
- * mvn -pl agent-demo exec:java -Dexec.mainClass=com.lightweightai.demo.McpServerRunner
+ * # 默认加载 classpath 下的 mcp-server.yaml
+ * java -cp &lt;classpath&gt; com.lightweightai.demo.McpServerRunner
  *
- * # 方式二：先打包再运行
- * mvn package -DskipTests
- * java -cp agent-demo/target/classes:agent-mcp/target/classes:agent-kernel/target/classes:agent-tools/target/classes \
- *      com.lightweightai.demo.McpServerRunner
- * </pre>
- *
- * <h2>Claude Desktop 配置</h2>
- * 在 claude_desktop_config.json 中添加：
- * <pre>
- * {
- *   "mcpServers": {
- *     "demo-agent": {
- *       "command": "java",
- *       "args": ["-cp", "path/to/classpath", "com.lightweightai.demo.McpServerRunner"]
- *     }
- *   }
- * }
- * </pre>
- *
- * <h2>Cursor 配置</h2>
- * 在 .cursor/mcp.json 中添加：
- * <pre>
- * {
- *   "mcpServers": {
- *     "demo-agent": {
- *       "command": "mvn",
- *       "args": ["-pl", "agent-demo", "exec:java",
- *                "-Dexec.mainClass=com.lightweightai.demo.McpServerRunner"]
- *     }
- *   }
- * }
- * </pre>
- *
- * <h2>框架内连接此 Server</h2>
- * <pre>
- * // mcp-config.yaml
- * mcp:
- *   servers:
- *     demo-agent:
- *       command: java
- *       args: ["-cp", "classpath", "com.lightweightai.demo.McpServerRunner"]
- *
- * // 代码
- * McpToolManager manager = McpToolManager.create()
- *     .fromConfig(config)
- *     .build();
+ * # 指定配置文件
+ * java -Dmcp.server.config=/path/to/config.yaml -cp &lt;classpath&gt; ...
  * </pre>
  */
 public class McpServerRunner {
 
+    private static final String DEFAULT_CONFIG = "mcp-server.yaml";
+    private static final List<McpToolClient> upstreamClients = new ArrayList<>();
+
     public static void main(String[] args) {
-        // 注册所有要暴露的工具
+        // 1. 加载配置
+        Config config = loadConfig();
+
+        // 2. 注册本地工具
         ToolRegistry registry = new ToolRegistry();
         registry.registerObject(new CityInfoTools());
         registry.registerObject(new MathCalcTools());
-        registry.scanAndRegister();  // SPI 扫描 (MathTools, TimeTools, WebTools 等)
+        registry.scanAndRegister();
 
+        // 3. 连接上游 MCP Server（从配置加载）
+        if (config.upstream != null) {
+            connectUpstreamServers(registry, config.upstream);
+        }
+
+        // 4. 打印工具清单
         System.err.println("========================================");
-        System.err.println("  MCP Server: demo-agent");
+        System.err.println("  MCP Server: " + config.server.getName());
+        System.err.println("  Version:    " + config.server.getVersion());
         System.err.println("  Transport:  STDIO");
+        System.err.println("  Upstream:   " + upstreamClients.size() + " server(s)");
         System.err.println("  Tools:      " + registry.enabledCount());
         System.err.println("========================================");
         for (Tool tool : registry.getEnabled()) {
-            String category = (tool instanceof ToolMetadata meta) ? meta.getCategory() : "default";
-            System.err.println("  - " + tool.getName() + " [" + category + "]");
+            String source;
+            if (tool instanceof ToolMetadata meta) {
+                String cat = meta.getCategory();
+                source = cat.startsWith("mcp:") ? cat + " (upstream)" : cat;
+            } else {
+                source = "default";
+            }
+            System.err.println("  - " + tool.getName() + " [" + source + "]");
         }
         System.err.println("========================================");
-        System.err.println("  Server is running. Waiting for MCP client...");
-        System.err.println("  Press Ctrl+C to stop.");
-        System.err.println("========================================");
 
-        // 启动 MCP Server，阻塞直到 Ctrl+C
+        // 5. Shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            for (McpToolClient client : upstreamClients) {
+                try {
+                    client.close();
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+        }));
+
+        // 6. 启动 MCP Server
         McpToolServer server = McpToolServer.builder()
-            .serverName("demo-agent")
-            .serverVersion("0.1.0")
+            .serverName(config.server.getName())
+            .serverVersion(config.server.getVersion())
             .toolRegistry(registry)
             .build();
         server.startAndBlock();
     }
 
-    // ==================== 暴露的工具 ====================
+    // ==================== 配置加载 ====================
 
     /**
-     * 城市信息查询工具
+     * 统一配置结构：server + upstream
      */
+    static class Config {
+        McpServerConfig server = new McpServerConfig();
+        McpConfiguration upstream;
+    }
+
+    /**
+     * 从 YAML 加载统一配置
+     *
+     * 配置结构：
+     * <pre>
+     * server:
+     *   name: demo-agent
+     *   version: 0.1.0
+     * upstream:
+     *   servers:
+     *     nlp-service:
+     *       transport: sse
+     *       url: http://host:8080/sse
+     * </pre>
+     */
+    private static Config loadConfig() {
+        Config config = new Config();
+        String configPath = System.getProperty("mcp.server.config");
+
+        try {
+            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+            InputStream is;
+
+            if (configPath != null && !configPath.isBlank()) {
+                is = new java.io.FileInputStream(configPath);
+                System.err.println("  Config: " + configPath);
+            } else {
+                is = McpServerRunner.class.getClassLoader().getResourceAsStream(DEFAULT_CONFIG);
+                if (is == null) {
+                    System.err.println("  Config: (default, no " + DEFAULT_CONFIG + " found)");
+                    return config;
+                }
+                System.err.println("  Config: classpath:" + DEFAULT_CONFIG);
+            }
+
+            JsonNode root = yamlMapper.readTree(is);
+            is.close();
+
+            // server 配置
+            JsonNode serverNode = root.get("server");
+            if (serverNode != null) {
+                config.server = yamlMapper.treeToValue(serverNode, McpServerConfig.class);
+            }
+
+            // upstream 配置（复用 McpConfiguration 结构）
+            JsonNode upstreamNode = root.get("upstream");
+            if (upstreamNode != null) {
+                config.upstream = yamlMapper.treeToValue(upstreamNode, McpConfiguration.class);
+            }
+
+            return config;
+        } catch (Exception e) {
+            System.err.println("  Config load failed: " + e.getMessage());
+            return config;
+        }
+    }
+
+    // ==================== 上游 MCP Server 连接 ====================
+
+    private static void connectUpstreamServers(ToolRegistry registry, McpConfiguration upstream) {
+        Map<String, ServerConfig> enabled = upstream.getEnabledServers();
+        if (enabled.isEmpty()) {
+            System.err.println("  No enabled upstream servers");
+            return;
+        }
+
+        for (Map.Entry<String, ServerConfig> entry : enabled.entrySet()) {
+            String name = entry.getKey();
+            ServerConfig serverConfig = entry.getValue();
+            connectOneUpstream(registry, name, serverConfig);
+        }
+    }
+
+    private static void connectOneUpstream(ToolRegistry registry, String name, ServerConfig serverConfig) {
+        String transportType = serverConfig.getTransport();
+        System.err.println("  Connecting upstream: " + name + " [" + transportType + "]");
+
+        try {
+            McpClientTransport transport = createTransport(name, serverConfig);
+
+            McpToolClient client = McpToolClient.builder()
+                .serverName(name)
+                .transport(transport)
+                .requestTimeout(Duration.ofSeconds(serverConfig.getTimeoutSeconds()))
+                .build();
+
+            client.initialize();
+            int count = client.registerTools(registry);
+            upstreamClients.add(client);
+
+            System.err.println("  ✓ " + name + " → " + count + " tools [" + transportType + "]");
+        } catch (Exception e) {
+            System.err.println("  ✗ " + name + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * 根据配置创建传输层
+     *
+     * SSE：HttpClientSseClientTransport（HTTP 远程调用，真正的 RPC）
+     * STDIO：StdioClientTransport（本地子进程，开发/测试用）
+     */
+    private static McpClientTransport createTransport(String name, ServerConfig config) {
+        if ("sse".equalsIgnoreCase(config.getTransport())) {
+            if (config.getUrl() == null || config.getUrl().isBlank()) {
+                throw new IllegalStateException("Upstream '" + name + "': SSE requires 'url'");
+            }
+            // HTTP 远程调用 — 真正的 RPC
+            return HttpClientSseClientTransport.builder(config.getUrl())
+                .sseEndpoint("/sse")
+                .build();
+        }
+
+        // STDIO — 启动本地子进程
+        if (config.getCommand() == null || config.getCommand().isBlank()) {
+            throw new IllegalStateException("Upstream '" + name + "': STDIO requires 'command'");
+        }
+
+        List<String> resolvedArgs = resolveArgs(config.getArgs());
+        ServerParameters.Builder paramsBuilder = ServerParameters.builder(config.getCommand());
+        if (!resolvedArgs.isEmpty()) {
+            paramsBuilder.args(resolvedArgs.toArray(new String[0]));
+        }
+        if (config.getEnv() != null && !config.getEnv().isEmpty()) {
+            paramsBuilder.env(config.getEnv());
+        }
+        return new StdioClientTransport(paramsBuilder.build(),
+            new JacksonMcpJsonMapper(new ObjectMapper()));
+    }
+
+    private static List<String> resolveArgs(List<String> args) {
+        if (args == null) return List.of();
+        return args.stream()
+            .map(McpServerRunner::resolvePlaceholders)
+            .toList();
+    }
+
+    private static String resolvePlaceholders(String value) {
+        if (value == null || !value.contains("${")) return value;
+        value = value.replace("${CLASSPATH}", System.getProperty("java.class.path", ""));
+        // ${XXX} → System.getProperty or System.getenv
+        while (value.contains("${")) {
+            int start = value.indexOf("${");
+            int end = value.indexOf("}", start);
+            if (end < 0) break;
+            String key = value.substring(start + 2, end);
+            String resolved = System.getProperty(key);
+            if (resolved == null) resolved = System.getenv(key);
+            if (resolved == null) resolved = "";
+            value = value.substring(0, start) + resolved + value.substring(end + 1);
+        }
+        return value;
+    }
+
+    // ==================== 本地工具 ====================
+
     public static class CityInfoTools {
 
-        @ToolFunction(
-            name = "get_city_info",
+        @ToolFunction(name = "get_city_info",
             description = "Get population and area information of a city",
-            category = "geography",
-            tags = {"city", "info"},
-            readOnly = true
-        )
+            category = "geography", tags = {"city", "info"}, readOnly = true)
         public String getCityInfo(
             @ToolParam(name = "city", description = "City name", required = true) String city
         ) {
@@ -129,13 +310,9 @@ public class McpServerRunner {
             };
         }
 
-        @ToolFunction(
-            name = "get_weather",
+        @ToolFunction(name = "get_weather",
             description = "Get current weather for a city (simulated)",
-            category = "weather",
-            tags = {"weather", "city"},
-            readOnly = true
-        )
+            category = "weather", tags = {"weather", "city"}, readOnly = true)
         public String getWeather(
             @ToolParam(name = "city", description = "City name", required = true) String city
         ) {
@@ -148,17 +325,11 @@ public class McpServerRunner {
         }
     }
 
-    /**
-     * 数学计算工具
-     */
     public static class MathCalcTools {
 
-        @ToolFunction(
-            name = "calculate",
+        @ToolFunction(name = "calculate",
             description = "Evaluate a simple math expression (add, subtract, multiply, divide)",
-            category = "math",
-            tags = {"math", "calculate"}
-        )
+            category = "math", tags = {"math", "calculate"})
         public String calculate(
             @ToolParam(name = "a", description = "First number", required = true) double a,
             @ToolParam(name = "op", description = "Operator: +, -, *, /", required = true) String op,
@@ -174,14 +345,10 @@ public class McpServerRunner {
             return String.format("%.2f %s %.2f = %.2f", a, op, b, result);
         }
 
-        @ToolFunction(
-            name = "convert_currency",
+        @ToolFunction(name = "convert_currency",
             description = "Convert amount between currencies (simulated rates)",
-            category = "finance",
-            tags = {"currency", "conversion"},
-            readOnly = true,
-            idempotent = true
-        )
+            category = "finance", tags = {"currency", "conversion"},
+            readOnly = true, idempotent = true)
         public String convertCurrency(
             @ToolParam(name = "amount", description = "Amount to convert", required = true) double amount,
             @ToolParam(name = "from", description = "Source currency code (e.g., USD)", required = true) String from,
@@ -194,7 +361,6 @@ public class McpServerRunner {
 
         private double getRate(String from, String to) {
             if (from.equals(to)) return 1.0;
-            // 简化汇率表
             Map<String, Double> toUsd = Map.of(
                 "USD", 1.0, "CNY", 0.138, "JPY", 0.0067, "EUR", 1.08, "GBP", 1.27);
             double fromRate = toUsd.getOrDefault(from, 1.0);
