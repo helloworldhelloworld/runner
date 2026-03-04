@@ -12,10 +12,15 @@ import com.lightweightai.kernel.llm.*;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
 import com.lightweightai.mcp.McpConfiguration;
 import com.lightweightai.mcp.McpToolAdapter;
+import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolManager;
 import com.lightweightai.mcp.McpToolServer;
+import com.lightweightai.mcp.McpToolWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.modelcontextprotocol.client.transport.ServerParameters;
+import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -225,180 +230,102 @@ public class McpToolDemo {
     }
 
     // ================================================================
-    //  [E] 远程 MCP Server 配置 — McpConfiguration 配置驱动
+    //  [E] 调用远程 MCP 工具 — 真实 MCP 协议端到端
     //
-    //  两种配置方式：
-    //    1. YAML 配置文件（mcp-config.yaml）
-    //    2. 代码配置（McpConfiguration API）
-    //
-    //  支持两种传输类型：
-    //    - STDIO: 启动子进程，通过 stdin/stdout 通信（本地 MCP Server）
-    //    - SSE:   连接远程 HTTP 端点，通过 Server-Sent Events 通信（远程 MCP Server）
+    //  流程：
+    //    1. 启动 McpServerRunner 子进程（STDIO MCP Server）
+    //    2. MCP 握手 → 发现远程工具
+    //    3. 注册到 ToolRegistry
+    //    4. 通过 ToolExecutor 调用远程工具（和本地工具代码完全一样）
+    //    5. 关闭连接
     // ================================================================
 
     static void demoRemoteMcpConfig() {
-        System.out.println("--- [E] 远程 MCP Server 配置：McpConfiguration ---\n");
+        System.out.println("--- [E] 调用远程 MCP 工具（真实 MCP 协议） ---\n");
 
-        // ==================== 1. 从 YAML 配置文件加载 ====================
-        System.out.println("  === 方式一：YAML 配置文件加载（mcp-config.yaml） ===\n");
+        // Step 1: 启动 McpServerRunner 作为子进程
+        String javaCmd = ProcessHandle.current().info().command().orElse("java");
+        String classpath = System.getProperty("java.class.path");
 
-        McpConfiguration yamlConfig = loadMcpConfigFromYaml();
-        if (yamlConfig != null) {
-            printMcpConfiguration(yamlConfig);
-        }
+        ServerParameters serverParams = ServerParameters.builder(javaCmd)
+            .args("-cp", classpath, "com.lightweightai.demo.McpServerRunner")
+            .build();
 
-        // ==================== 2. 代码配置方式 ====================
-        System.out.println("\n  === 方式二：代码配置 ===\n");
+        System.out.println("[Step 1] 启动 MCP Server 子进程...");
+        System.out.println("  command: " + javaCmd + " -cp <classpath> com.lightweightai.demo.McpServerRunner\n");
 
-        McpConfiguration config = new McpConfiguration();
+        McpToolClient client = McpToolClient.builder()
+            .serverName("demo-agent")
+            .transport(new StdioClientTransport(serverParams,
+                new JacksonMcpJsonMapper(new ObjectMapper())))
+            .build();
 
-        // 本项目 Demo Server（开箱即用）
-        config.addServer("demo-agent",
-            McpConfiguration.ServerConfig.stdio("mvn", "-pl", "agent-demo",
-                "exec:java", "-Dexec.mainClass=com.lightweightai.demo.McpServerRunner")
-                .withTimeout(60));
+        try {
+            // Step 2: MCP 握手
+            client.initialize();
+            System.out.println("[Step 2] MCP 握手成功\n");
 
-        // 以下为示例，默认禁用（本地没有这些服务）
-        McpConfiguration.ServerConfig weather =
-            McpConfiguration.ServerConfig.stdio("npx", "-y", "@weather/mcp-server")
-                .withEnv("API_KEY", "${WEATHER_API_KEY}")
-                .withTimeout(30);
-        weather.setEnabled(false);  // 需要安装后启用
-        config.addServer("weather", weather);
-
-        McpConfiguration.ServerConfig remoteApi =
-            McpConfiguration.ServerConfig.sse("http://api-server.example.com:8080/sse")
-                .withTimeout(45);
-        remoteApi.setEnabled(false);  // 需要替换为实际地址
-        config.addServer("remote-api", remoteApi);
-
-        printMcpConfiguration(config);
-
-        // ==================== 3. 启动 MCP Server 并调试 ====================
-        System.out.println("\n  === 启动 MCP Server（McpServerRunner） ===\n");
-
-        System.out.println("  # 终端 1：启动 MCP Server（进程保持运行）");
-        System.out.println("  mvn -pl agent-demo exec:java \\");
-        System.out.println("      -Dexec.mainClass=com.lightweightai.demo.McpServerRunner");
-        System.out.println();
-        System.out.println("  # 输出:");
-        System.out.println("  # ========================================");
-        System.out.println("  # MCP Server: demo-agent");
-        System.out.println("  # Transport:  STDIO");
-        System.out.println("  # Tools:      get_city_info, get_weather, calculate, ...");
-        System.out.println("  # ========================================");
-        System.out.println("  # Server is running. Waiting for MCP client...");
-        System.out.println();
-        System.out.println("  # Claude Desktop 配置 (claude_desktop_config.json):");
-        System.out.println("  # {");
-        System.out.println("  #   \"mcpServers\": {");
-        System.out.println("  #     \"demo-agent\": {");
-        System.out.println("  #       \"command\": \"mvn\",");
-        System.out.println("  #       \"args\": [\"-pl\", \"agent-demo\", \"exec:java\",");
-        System.out.println("  #                \"-Dexec.mainClass=com.lightweightai.demo.McpServerRunner\"]");
-        System.out.println("  #     }");
-        System.out.println("  #   }");
-        System.out.println("  # }");
-
-        // ==================== 4. 结合 McpToolManager 使用 ====================
-        System.out.println("\n  === 结合 McpToolManager 使用 ===\n");
-
-        System.out.println("  // 从 YAML 加载配置并创建 manager：");
-        System.out.println("  McpConfiguration config = loadFromYaml(\"mcp-config.yaml\");");
-        System.out.println("  McpToolManager manager = McpToolManager.create()");
-        System.out.println("      .fromConfig(config)              // 自动 connect → discover → register");
-        System.out.println("      .registerLocal(new MathTools())  // 本地工具也可以混合注册");
-        System.out.println("      .autoScan()                      // SPI 扫描");
-        System.out.println("      .build();");
-        System.out.println();
-        System.out.println("  // 统一调用（调用方不需要知道工具来源）：");
-        System.out.println("  ToolExecutor executor = manager.getToolExecutor();");
-        System.out.println("  executor.executeToolCall(toolCall);  // 框架自动路由到正确的 MCP Server");
-        System.out.println();
-        System.out.println("  manager.close();  // 自动关闭所有 MCP 连接");
-
-        // 架构图
-        System.out.println("\n  配置驱动架构：");
-        System.out.println("  ┌──────────────────────────────────────────────────────────────┐");
-        System.out.println("  │  mcp-config.yaml / McpConfiguration                         │");
-        System.out.println("  │                                                              │");
-        System.out.println("  │  servers:                                                    │");
-        System.out.println("  │    weather:    [STDIO] npx @weather/mcp-server               │");
-        System.out.println("  │    filesystem: [STDIO] npx @mcp/server-filesystem            │");
-        System.out.println("  │    database:   [STDIO] python mcp_server_sqlite              │");
-        System.out.println("  │    remote-api: [SSE]   http://api-server:8080/sse            │");
-        System.out.println("  └──────────────────────────┬───────────────────────────────────┘");
-        System.out.println("                             │ fromConfig(config)");
-        System.out.println("                             ↓");
-        System.out.println("  ┌──────────────────────────────────────────────────────────────┐");
-        System.out.println("  │  McpToolManager                                              │");
-        System.out.println("  │                                                              │");
-        System.out.println("  │  对每个 enabled server 自动执行：                              │");
-        System.out.println("  │    1. 创建 Transport (StdioClientTransport / SseTransport)   │");
-        System.out.println("  │    2. McpToolClient.initialize() → MCP 握手                  │");
-        System.out.println("  │    3. discoverTools() → 获取远程工具列表                       │");
-        System.out.println("  │    4. McpToolWrapper 包装 → 注册到 ToolRegistry               │");
-        System.out.println("  │                                                              │");
-        System.out.println("  │  ToolRegistry: add, multiply, get_forecast, read_file, ...   │");
-        System.out.println("  │        ↓                                                     │");
-        System.out.println("  │  ToolExecutor / ToolCallingLoop / Agent  (统一调用)            │");
-        System.out.println("  └──────────────────────────────────────────────────────────────┘");
-        System.out.println();
-    }
-
-    /**
-     * 从 classpath 加载 mcp-config.yaml 并反序列化为 McpConfiguration
-     */
-    @SuppressWarnings("unchecked")
-    private static McpConfiguration loadMcpConfigFromYaml() {
-        try (InputStream is = McpToolDemo.class.getClassLoader()
-                .getResourceAsStream("mcp-config.yaml")) {
-            if (is == null) {
-                System.out.println("  [WARN] mcp-config.yaml not found in classpath");
-                return null;
+            // Step 3: 发现远程工具
+            List<McpToolWrapper> remoteTools = client.discoverMcpTools();
+            System.out.println("[Step 3] 发现 " + remoteTools.size() + " 个远程工具：");
+            for (McpToolWrapper tool : remoteTools) {
+                System.out.println("  - " + tool.getName() + ": " + tool.getDescription());
             }
 
-            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-            // YAML 结构是 { mcp: { servers: {...} } }，需要提取 mcp 节点
-            Map<String, Object> root = yamlMapper.readValue(is, Map.class);
-            Object mcpNode = root.get("mcp");
-            if (mcpNode == null) {
-                System.out.println("  [WARN] mcp-config.yaml missing 'mcp' root key");
-                return null;
+            // Step 4: 注册到 ToolRegistry，和本地工具混合
+            ToolRegistry registry = new ToolRegistry();
+            registry.registerObject(new CityInfoTool());   // 本地工具
+            client.registerTools(registry);                 // MCP 远程工具
+
+            ToolExecutor executor = new ToolExecutor(registry);
+
+            System.out.println("\n[Step 4] ToolExecutor 统一调用（本地 + 远程 MCP）：\n");
+
+            // 调用远程 MCP 工具
+            ToolResult r1 = executor.executeToolCall(
+                new ToolCall("1", "get_weather", Map.of("city", "上海")));
+            System.out.println("  get_weather({city:\"上海\"})");
+            System.out.println("    → " + r1.getContent());
+            System.out.println("    ↑ MCP 远程调用 (McpToolWrapper → mcpClient.callTool() → 子进程)\n");
+
+            ToolResult r2 = executor.executeToolCall(
+                new ToolCall("2", "calculate", Map.of("a", 42.0, "op", "+", "b", 58.0)));
+            System.out.println("  calculate({a:42, op:\"+\", b:58})");
+            System.out.println("    → " + r2.getContent());
+            System.out.println("    ↑ MCP 远程调用\n");
+
+            ToolResult r3 = executor.executeToolCall(
+                new ToolCall("3", "convert_currency", Map.of("amount", 100.0, "from", "USD", "to", "CNY")));
+            System.out.println("  convert_currency({amount:100, from:\"USD\", to:\"CNY\"})");
+            System.out.println("    → " + r3.getContent());
+            System.out.println("    ↑ MCP 远程调用\n");
+
+            // 调用本地工具（代码完全一样，调用方无感）
+            ToolResult r4 = executor.executeToolCall(
+                new ToolCall("4", "get_city_info", Map.of("city", "beijing")));
+            System.out.println("  get_city_info({city:\"beijing\"})");
+            System.out.println("    → " + r4.getContent());
+            System.out.println("    ↑ 本地执行（代码和上面完全一样，调用方无感）\n");
+
+            // Step 5: 验证工具来源
+            System.out.println("[Step 5] 工具来源：");
+            for (Tool tool : registry.getEnabled()) {
+                String source = (tool instanceof McpToolWrapper w) ? "mcp:" + w.getServerName() : "local";
+                System.out.println("  - " + tool.getName() + " → " + source);
             }
 
-            McpConfiguration config = yamlMapper.convertValue(mcpNode, McpConfiguration.class);
-            System.out.println("  [OK] 从 mcp-config.yaml 加载成功\n");
-            return config;
+            System.out.println("\n  ✓ 本地工具和 MCP 远程工具通过 ToolExecutor 统一调用，代码零区别");
+
         } catch (Exception e) {
-            System.out.println("  [ERROR] 加载 mcp-config.yaml 失败: " + e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 打印 McpConfiguration 中所有服务端信息
-     */
-    private static void printMcpConfiguration(McpConfiguration config) {
-        System.out.println("  已配置 " + config.getServers().size() + " 个 MCP 服务端：");
-        for (Map.Entry<String, McpConfiguration.ServerConfig> entry : config.getServers().entrySet()) {
-            McpConfiguration.ServerConfig sc = entry.getValue();
-            String status = sc.isEnabled() ? "enabled" : "DISABLED";
-            System.out.println("    - " + entry.getKey() + " [" + sc.getTransport() + "] " + status);
-            if ("stdio".equalsIgnoreCase(sc.getTransport())) {
-                System.out.println("      command: " + sc.getCommand() + " " + sc.getArgs());
-                if (sc.getEnv() != null && !sc.getEnv().isEmpty()) {
-                    System.out.println("      env: " + sc.getEnv());
-                }
-            } else {
-                System.out.println("      url: " + sc.getUrl());
-            }
-            System.out.println("      timeout: " + sc.getTimeoutSeconds() + "s");
+            System.out.println("[ERROR] MCP 远程调用失败: " + e.getMessage());
+            e.printStackTrace(System.out);
+        } finally {
+            // Step 6: 关闭
+            System.out.println("\n[Step 6] 关闭 MCP 连接，子进程退出");
+            client.close();
         }
 
-        System.out.println("\n  已启用 " + config.getEnabledServers().size() + " 个：");
-        config.getEnabledServers().keySet().forEach(name ->
-            System.out.println("    ✓ " + name));
+        System.out.println();
     }
 
     // ================================================================
