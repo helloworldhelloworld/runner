@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolExecutor;
+import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
@@ -257,9 +258,10 @@ public class McpToolManager implements AutoCloseable {
                     throw new IllegalStateException(
                         "MCP server '" + name + "': SSE transport requires 'url'");
                 }
-                throw new UnsupportedOperationException(
-                    "MCP server '" + name + "': SSE transport requires mcp-spring-webflux dependency. " +
-                    "Add io.modelcontextprotocol.sdk:mcp-spring-webflux and use HttpClientSseClientTransport.");
+                // HttpClientSseClientTransport 在 mcp 核心模块中，使用 JDK HttpClient，无需 Spring
+                return HttpClientSseClientTransport.builder(config.getUrl())
+                    .sseEndpoint("/sse")
+                    .build();
             }
 
             // Default: STDIO

@@ -241,31 +241,46 @@ public class McpToolDemo {
     // ================================================================
 
     static void demoRemoteMcpConfig() {
-        System.out.println("--- [E] MCP Server 代理上游 MCP Server（真实 MCP-to-MCP 链路） ---\n");
+        System.out.println("--- [E] MCP Server 代理上游 MCP Server（配置驱动 + MCP SDK） ---\n");
 
         //
-        // 架构图：
-        //   Demo [E]  ──MCP──→  McpServerRunner  ──MCP──→  UpstreamExampleServer
-        //   (Client)            (Server+Client)             (上游 Server)
-        //                       ├── 本地工具                 └── NLP 工具
-        //                       └── 代理上游工具                  translate_text
-        //                                                        lookup_definition
-        //                                                        sentiment_analysis
+        // 架构：
+        //   Demo [E]  ──MCP──→  McpServerRunner  ──MCP/SSE──→  上游 MCP Server
+        //   (Client)            (mcp-server.yaml)               (配置指定)
+        //                       ├── server: name, version
+        //                       ├── 本地工具
+        //                       └── upstream.servers:
+        //                             nlp-service-local → STDIO → UpstreamExampleServer
+        //                             nlp-service       → SSE   → http://host:8081/sse
+        //
+        // mcp-server.yaml 示例：
+        //   server:
+        //     name: demo-agent
+        //     version: 0.1.0
+        //   upstream:
+        //     servers:
+        //       nlp-service:
+        //         transport: sse              ← HTTP 远程调用
+        //         url: http://host:8081/sse
+        //       nlp-service-local:
+        //         transport: stdio            ← 本地子进程（开发用）
+        //         command: java
+        //         args: ["-cp", "${CLASSPATH}", "...UpstreamExampleServer"]
         //
 
         String javaCmd = ProcessHandle.current().info().command().orElse("java");
         String classpath = System.getProperty("java.class.path");
 
         // Step 1: 启动 McpServerRunner 子进程
-        // McpServerRunner 自动从 mcp-upstream.yaml 加载上游 MCP Server 配置
-        // 配置中 nlp-service 的 ${CLASSPATH} 会被替换为实际 classpath
+        // McpServerRunner 自动从 mcp-server.yaml 加载 server 配置和 upstream 配置
         ServerParameters serverParams = ServerParameters.builder(javaCmd)
             .args("-cp", classpath, "com.lightweightai.demo.McpServerRunner")
             .build();
 
-        System.out.println("[Step 1] 启动 McpServerRunner（自动加载 mcp-upstream.yaml）");
-        System.out.println("  McpServerRunner 从配置文件读取上游 MCP Server，通过 MCP SDK 自动连接");
-        System.out.println("  链路: Demo → MCP → McpServerRunner → MCP → UpstreamExampleServer\n");
+        System.out.println("[Step 1] 启动 McpServerRunner（自动加载 mcp-server.yaml）");
+        System.out.println("  server 配置 → name, version");
+        System.out.println("  upstream 配置 → 上游 MCP Server（SSE 或 STDIO）");
+        System.out.println("  链路: Demo → MCP → McpServerRunner → MCP → UpstreamServer\n");
 
         McpToolClient client = McpToolClient.builder()
             .serverName("demo-agent")
@@ -352,9 +367,10 @@ public class McpToolDemo {
                 System.out.println("  - " + tool.getName() + " → " + source);
             }
 
-            System.out.println("\n  ✓ McpServerRunner 从 mcp-upstream.yaml 加载上游 Server 配置");
-            System.out.println("  ✓ 通过 MCP SDK 自动连接、发现、代理（McpToolClient → McpToolWrapper）");
-            System.out.println("  ✓ 完整链路：Client → MCP → Server → MCP → Upstream Server → 逐层返回");
+            System.out.println("\n  ✓ 全部配置驱动：mcp-server.yaml 定义 server + upstream");
+            System.out.println("  ✓ upstream 支持 SSE（HTTP 远程调用）和 STDIO（本地进程）");
+            System.out.println("  ✓ SSE 使用 HttpClientSseClientTransport（MCP SDK，JDK HttpClient）");
+            System.out.println("  ✓ 完整链路：Client → MCP → Server → MCP/SSE → Upstream → 逐层返回");
             System.out.println("  ✓ 调用方完全无感，本地/远程/代理工具通过 ToolExecutor 统一调用");
 
         } catch (Exception e) {

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolWrapper;
+import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
@@ -103,8 +104,9 @@ public class McpConfig {
             if (url == null || url.isBlank()) {
                 throw new IllegalStateException("MCP server '" + name + "': SSE requires 'url'");
             }
-            throw new UnsupportedOperationException(
-                "SSE transport requires mcp-spring-webflux dependency");
+            mcpTransport = HttpClientSseClientTransport.builder(url)
+                .sseEndpoint("/sse")
+                .build();
         } else {
             // STDIO
             String command = config.get("command");
