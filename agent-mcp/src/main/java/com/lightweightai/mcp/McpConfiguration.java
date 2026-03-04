@@ -69,6 +69,9 @@ public class McpConfiguration {
      * 获取所有已启用的服务端配置
      */
     public Map<String, ServerConfig> getEnabledServers() {
+        if (servers == null || servers.isEmpty()) {
+            return Map.of();
+        }
         Map<String, ServerConfig> enabled = new LinkedHashMap<>();
         for (Map.Entry<String, ServerConfig> entry : servers.entrySet()) {
             if (entry.getValue().isEnabled()) {
