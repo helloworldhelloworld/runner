@@ -119,7 +119,7 @@ public class McpConfiguration {
      */
     public static class ServerConfig {
 
-        /** 传输类型: "stdio" (默认) 或 "sse" */
+        /** 传输类型: "stdio" (默认), "sse", "streamable_http" */
         private String transport = "stdio";
 
         /** STDIO 传输：启动命令 */
@@ -166,6 +166,18 @@ public class McpConfiguration {
         public static ServerConfig sse(String url) {
             ServerConfig config = new ServerConfig();
             config.transport = "sse";
+            config.url = url;
+            return config;
+        }
+
+        /**
+         * 创建 Streamable HTTP 传输配置
+         *
+         * @param url 服务端 MCP 端点 URL
+         */
+        public static ServerConfig streamableHttp(String url) {
+            ServerConfig config = new ServerConfig();
+            config.transport = "streamable_http";
             config.url = url;
             return config;
         }

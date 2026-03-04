@@ -5,6 +5,7 @@ import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolWrapper;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
+import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
@@ -99,7 +100,17 @@ public class McpConfig {
         long timeout = Long.parseLong(config.getOrDefault("timeout", "30"));
 
         McpClientTransport mcpTransport;
-        if ("sse".equalsIgnoreCase(transport) || "http".equalsIgnoreCase(transport)) {
+        if ("streamable_http".equalsIgnoreCase(transport)
+                || "streamable-http".equalsIgnoreCase(transport)
+                || "http".equalsIgnoreCase(transport)) {
+            // Streamable HTTP — 新版 MCP 传输协议
+            String url = config.get("url");
+            if (url == null || url.isBlank()) {
+                throw new IllegalStateException("MCP server '" + name + "': Streamable HTTP requires 'url'");
+            }
+            mcpTransport = HttpClientStreamableHttpTransport.builder(url).build();
+        } else if ("sse".equalsIgnoreCase(transport)) {
+            // SSE — 旧版传输协议
             String url = config.get("url");
             if (url == null || url.isBlank()) {
                 throw new IllegalStateException("MCP server '" + name + "': SSE requires 'url'");

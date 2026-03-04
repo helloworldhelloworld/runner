@@ -5,6 +5,7 @@ import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolExecutor;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
+import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
@@ -254,12 +255,24 @@ public class McpToolManager implements AutoCloseable {
          */
         private static McpClientTransport createTransport(String name, McpConfiguration.ServerConfig config) {
             String transport = config.getTransport();
-            if ("sse".equalsIgnoreCase(transport) || "http".equalsIgnoreCase(transport)) {
+
+            // Streamable HTTP — 新版 MCP 传输协议（2025-03-26+）
+            if ("streamable_http".equalsIgnoreCase(transport)
+                    || "streamable-http".equalsIgnoreCase(transport)
+                    || "http".equalsIgnoreCase(transport)) {
+                if (config.getUrl() == null || config.getUrl().isBlank()) {
+                    throw new IllegalStateException(
+                        "MCP server '" + name + "': Streamable HTTP transport requires 'url'");
+                }
+                return HttpClientStreamableHttpTransport.builder(config.getUrl()).build();
+            }
+
+            // SSE — 旧版传输协议
+            if ("sse".equalsIgnoreCase(transport)) {
                 if (config.getUrl() == null || config.getUrl().isBlank()) {
                     throw new IllegalStateException(
                         "MCP server '" + name + "': SSE transport requires 'url'");
                 }
-                // HttpClientSseClientTransport 在 mcp 核心模块中，使用 JDK HttpClient，无需 Spring
                 return HttpClientSseClientTransport.builder(config.getUrl())
                     .sseEndpoint("/sse")
                     .build();
