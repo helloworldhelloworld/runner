@@ -252,32 +252,25 @@ public class McpToolDemo {
 
         McpConfiguration config = new McpConfiguration();
 
-        // STDIO 类型：本地子进程 MCP Server
-        config.addServer("weather",
-            McpConfiguration.ServerConfig.stdio("npx", "-y", "@weather/mcp-server")
-                .withEnv("API_KEY", "${WEATHER_API_KEY}")
-                .withTimeout(30));
-
-        config.addServer("filesystem",
-            McpConfiguration.ServerConfig.stdio("npx", "-y",
-                "@modelcontextprotocol/server-filesystem", "/tmp"));
-
-        config.addServer("database",
-            McpConfiguration.ServerConfig.stdio("python", "-m",
-                "mcp_server_sqlite", "--db", "data.db")
-                .withEnv("SQLITE_PATH", "/data/app.db")
+        // 本项目 Demo Server（开箱即用）
+        config.addServer("demo-agent",
+            McpConfiguration.ServerConfig.stdio("mvn", "-pl", "agent-demo",
+                "exec:java", "-Dexec.mainClass=com.lightweightai.demo.McpServerRunner")
                 .withTimeout(60));
 
-        // SSE 类型：远程 HTTP MCP Server
-        config.addServer("remote-api",
-            McpConfiguration.ServerConfig.sse("http://api-server.example.com:8080/sse")
-                .withTimeout(45));
+        // 以下为示例，默认禁用（本地没有这些服务）
+        McpConfiguration.ServerConfig weather =
+            McpConfiguration.ServerConfig.stdio("npx", "-y", "@weather/mcp-server")
+                .withEnv("API_KEY", "${WEATHER_API_KEY}")
+                .withTimeout(30);
+        weather.setEnabled(false);  // 需要安装后启用
+        config.addServer("weather", weather);
 
-        // 禁用的服务端（配置保留但暂不连接）
-        McpConfiguration.ServerConfig debugServer =
-            McpConfiguration.ServerConfig.sse("http://localhost:9090/sse");
-        debugServer.setEnabled(false);
-        config.addServer("debug-server", debugServer);
+        McpConfiguration.ServerConfig remoteApi =
+            McpConfiguration.ServerConfig.sse("http://api-server.example.com:8080/sse")
+                .withTimeout(45);
+        remoteApi.setEnabled(false);  // 需要替换为实际地址
+        config.addServer("remote-api", remoteApi);
 
         printMcpConfiguration(config);
 

@@ -8,12 +8,17 @@
 # 支持两种传输方式：
 #   stdio - 启动本地子进程，通过 stdin/stdout 通信
 #   sse   - 连接远程 HTTP 端点，通过 Server-Sent Events 通信
+#
+# 使用方式：
+#   1. 先启动 demo-agent:
+#      mvn -pl agent-demo exec:java -Dexec.mainClass=com.lightweightai.demo.McpServerRunner
+#   2. 其他 server 按需安装后设置 enabled: true
 # ===========================================================
 
 mcp:
   servers:
 
-    # ------ 本项目 Demo MCP Server ------
+    # ------ 本项目 Demo MCP Server（开箱即用） ------
     # 启动方式: mvn -pl agent-demo exec:java -Dexec.mainClass=com.lightweightai.demo.McpServerRunner
     demo-agent:
       transport: stdio
@@ -25,7 +30,7 @@ mcp:
         - "-Dexec.mainClass=com.lightweightai.demo.McpServerRunner"
       timeoutSeconds: 60
 
-    # ------ STDIO 类型：本地子进程 MCP Server ------
+    # ------ 以下为示例配置，默认禁用，按需启用 ------
 
     # 天气查询 MCP Server（需要先 npm install）
     weather:
@@ -36,6 +41,7 @@ mcp:
         - "@weather/mcp-server"
       env:
         API_KEY: "${WEATHER_API_KEY}"
+      enabled: false
       timeoutSeconds: 30
 
     # 文件系统 MCP Server（官方）
@@ -46,6 +52,7 @@ mcp:
         - "-y"
         - "@modelcontextprotocol/server-filesystem"
         - "/tmp"
+      enabled: false
       timeoutSeconds: 30
 
     # SQLite 数据库 MCP Server
@@ -59,19 +66,14 @@ mcp:
         - "data.db"
       env:
         SQLITE_PATH: "/data/app.db"
+      enabled: false
       timeoutSeconds: 60
 
     # ------ SSE 类型：远程 HTTP MCP Server ------
 
-    # 远程 API 服务
+    # 远程 API 服务（示例，需替换为实际地址）
     remote-api:
       transport: sse
       url: "http://api-server.example.com:8080/sse"
-      timeoutSeconds: 45
-
-    # 调试服务（默认禁用）
-    debug-server:
-      transport: sse
-      url: "http://localhost:9090/sse"
       enabled: false
-      timeoutSeconds: 10
+      timeoutSeconds: 45
