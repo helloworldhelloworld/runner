@@ -36,12 +36,6 @@
             <artifactId>agent-mcp</artifactId>
         </dependency>
 
-        <!-- Embedded Tomcat for HTTP/SSE MCP Server demo -->
-        <dependency>
-            <groupId>org.apache.tomcat.embed</groupId>
-            <artifactId>tomcat-embed-core</artifactId>
-        </dependency>
-
         <!-- YAML config loading -->
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>

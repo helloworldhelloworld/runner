@@ -10,9 +10,9 @@
 #   2. 通过官方 MCP SDK 连接 upstream 中已启用的外部 MCP Server
 #   3. 发现并代理上游工具，和本地工具一起暴露给 Client
 #
-# 上游 MCP Server 不需要本项目实现，只需配置连接信息：
-#   - SSE: 外部 MCP Server 已在运行，配置 url 即可
-#   - STDIO: 配置 command + args 启动本地 MCP Server 进程
+# 上游 MCP Server 是外部已有的服务，只需配置连接信息：
+#   - SSE: 配置 url 指向已运行的 MCP Server
+#   - STDIO: 配置 command + args 启动已有的 MCP Server 进程
 #
 # 自定义配置路径：-Dmcp.server.config=/path/to/config.yaml
 # ===========================================================
@@ -31,16 +31,9 @@ upstream:
     # 连接外部已运行的 MCP Server，通过 HTTP/SSE 协议通信
 
     # 示例：远程 NLP 服务
-    nlp-service:
-      transport: sse
-      url: "http://localhost:8081"
-      timeoutSeconds: 30
-      enabled: false
-
-    # 示例：文件系统 MCP Server（SSE 模式）
-    #filesystem-remote:
+    #nlp-service:
     #  transport: sse
-    #  url: "http://fs-server:8080"
+    #  url: "http://localhost:8081"
     #  timeoutSeconds: 30
 
     # 示例：Brave 搜索 MCP Server
@@ -50,22 +43,18 @@ upstream:
     #  timeoutSeconds: 30
 
     # ------ STDIO 本地进程 ------
-    # 通过 STDIO 启动本地 MCP Server 子进程
+    # 通过 STDIO 启动已有的 MCP Server 进程
 
-    # 示例：本地 NLP 服务（STDIO 子进程）
-    nlp-service-local:
-      transport: stdio
-      command: java
-      args:
-        - "-cp"
-        - "${CLASSPATH}"
-        - "com.lightweightai.demo.UpstreamExampleServer"
-      timeoutSeconds: 30
-      enabled: true
-
-    # 示例：npx 启动的 MCP Server
+    # 示例：文件系统 MCP Server（官方）
     #filesystem:
     #  transport: stdio
     #  command: npx
     #  args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
     #  timeoutSeconds: 30
+
+    # 示例：SQLite MCP Server
+    #database:
+    #  transport: stdio
+    #  command: python
+    #  args: ["-m", "mcp_server_sqlite", "--db", "data.db"]
+    #  timeoutSeconds: 60

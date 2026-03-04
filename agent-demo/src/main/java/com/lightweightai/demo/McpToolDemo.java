@@ -245,13 +245,13 @@ public class McpToolDemo {
 
         //
         // 架构：
-        //   Demo [E]  ──MCP──→  McpServerRunner  ──MCP/SSE──→  上游 MCP Server
-        //   (Client)            (mcp-server.yaml)               (配置指定)
+        //   Demo [E]  ──MCP──→  McpServerRunner  ──MCP SDK──→  外部已有 MCP Server
+        //   (Client)            (mcp-server.yaml)               (只需配置，不用实现)
         //                       ├── server: name, version
         //                       ├── 本地工具
         //                       └── upstream.servers:
-        //                             nlp-service-local → STDIO → UpstreamExampleServer
-        //                             nlp-service       → SSE   → http://host:8081/sse
+        //                             nlp-service → SSE   → http://host:8081
+        //                             filesystem  → STDIO → npx @modelcontextprotocol/server-filesystem
         //
         // mcp-server.yaml 示例：
         //   server:
@@ -260,12 +260,12 @@ public class McpToolDemo {
         //   upstream:
         //     servers:
         //       nlp-service:
-        //         transport: sse              ← HTTP 远程调用
-        //         url: http://host:8081/sse
-        //       nlp-service-local:
-        //         transport: stdio            ← 本地子进程（开发用）
-        //         command: java
-        //         args: ["-cp", "${CLASSPATH}", "...UpstreamExampleServer"]
+        //         transport: sse
+        //         url: http://host:8081
+        //       filesystem:
+        //         transport: stdio
+        //         command: npx
+        //         args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
         //
 
         String javaCmd = ProcessHandle.current().info().command().orElse("java");
@@ -280,7 +280,7 @@ public class McpToolDemo {
         System.out.println("[Step 1] 启动 McpServerRunner（自动加载 mcp-server.yaml）");
         System.out.println("  server 配置 → name, version");
         System.out.println("  upstream 配置 → 上游 MCP Server（SSE 或 STDIO）");
-        System.out.println("  链路: Demo → MCP → McpServerRunner → MCP → UpstreamServer\n");
+        System.out.println("  链路: Demo → MCP → McpServerRunner → MCP SDK → 外部 MCP Server\n");
 
         McpToolClient client = McpToolClient.builder()
             .serverName("demo-agent")
@@ -330,21 +330,21 @@ public class McpToolDemo {
                     Map.of("text", "hello world", "from", "en", "to", "zh")));
             System.out.println("  translate_text({text:\"hello world\", from:\"en\", to:\"zh\"})");
             System.out.println("    → " + r3.getContent());
-            System.out.println("    ↑ Demo → MCP → McpServerRunner → MCP → UpstreamExampleServer → 逐层返回\n");
+            System.out.println("    ↑ Demo → MCP → McpServerRunner → MCP SDK → 外部 MCP Server → 逐层返回\n");
 
             ToolResult r4 = executor.executeToolCall(
                 new ToolCall("4", "lookup_definition",
                     Map.of("word", "kernel", "language", "en")));
             System.out.println("  lookup_definition({word:\"kernel\"})");
             System.out.println("    → " + r4.getContent());
-            System.out.println("    ↑ Demo → MCP → McpServerRunner → MCP → UpstreamExampleServer → 逐层返回\n");
+            System.out.println("    ↑ Demo → MCP → McpServerRunner → MCP SDK → 外部 MCP Server → 逐层返回\n");
 
             ToolResult r5 = executor.executeToolCall(
                 new ToolCall("5", "sentiment_analysis",
                     Map.of("text", "This framework is great!")));
             System.out.println("  sentiment_analysis({text:\"This framework is great!\"})");
             System.out.println("    → " + r5.getContent());
-            System.out.println("    ↑ Demo → MCP → McpServerRunner → MCP → UpstreamExampleServer → 逐层返回\n");
+            System.out.println("    ↑ Demo → MCP → McpServerRunner → MCP SDK → 外部 MCP Server → 逐层返回\n");
 
             // ---- 4c: 调用本地工具（对比） ----
             System.out.println("[Step 4c] 本地工具调用（对比）：\n");
