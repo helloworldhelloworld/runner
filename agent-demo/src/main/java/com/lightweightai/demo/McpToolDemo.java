@@ -241,18 +241,34 @@ public class McpToolDemo {
     // ================================================================
 
     static void demoRemoteMcpConfig() {
-        System.out.println("--- [E] 调用远程 MCP 工具（真实 MCP 协议 + 真实 RPC） ---\n");
+        System.out.println("--- [E] MCP Server 代理上游 MCP Server（真实 MCP-to-MCP 链路） ---\n");
 
-        // Step 1: 启动 McpServerRunner 作为子进程
+        //
+        // 架构图：
+        //   Demo [E]  ──MCP──→  McpServerRunner  ──MCP──→  UpstreamExampleServer
+        //   (Client)            (Server+Client)             (上游 Server)
+        //                       ├── 本地工具                 └── NLP 工具
+        //                       └── 代理上游工具                  translate_text
+        //                                                        lookup_definition
+        //                                                        sentiment_analysis
+        //
+
         String javaCmd = ProcessHandle.current().info().command().orElse("java");
         String classpath = System.getProperty("java.class.path");
 
+        // Step 1: 启动 McpServerRunner，带 --upstream 参数连接 UpstreamExampleServer
+        // McpServerRunner 内部会用 MCP SDK 启动 UpstreamExampleServer 子进程并连接
+        String upstreamSpec = "nlp-service:" + javaCmd + ":-cp:" + classpath
+            + ":com.lightweightai.demo.UpstreamExampleServer";
+
         ServerParameters serverParams = ServerParameters.builder(javaCmd)
-            .args("-cp", classpath, "com.lightweightai.demo.McpServerRunner")
+            .args("-cp", classpath, "com.lightweightai.demo.McpServerRunner",
+                  "--upstream", upstreamSpec)
             .build();
 
-        System.out.println("[Step 1] 启动 MCP Server 子进程...");
-        System.out.println("  command: " + javaCmd + " -cp <classpath> com.lightweightai.demo.McpServerRunner\n");
+        System.out.println("[Step 1] 启动 McpServerRunner（带上游 MCP Server）");
+        System.out.println("  McpServerRunner 内部通过 MCP SDK 连接 UpstreamExampleServer");
+        System.out.println("  链路: Demo → MCP → McpServerRunner → MCP → UpstreamExampleServer\n");
 
         McpToolClient client = McpToolClient.builder()
             .serverName("demo-agent")
@@ -265,64 +281,60 @@ public class McpToolDemo {
             client.initialize();
             System.out.println("[Step 2] MCP 握手成功\n");
 
-            // Step 3: 发现远程工具
+            // Step 3: 发现远程工具（包含 McpServerRunner 本地 + 上游代理的工具）
             List<McpToolWrapper> remoteTools = client.discoverMcpTools();
             System.out.println("[Step 3] 发现 " + remoteTools.size() + " 个远程工具：");
             for (McpToolWrapper tool : remoteTools) {
-                String tag = tool.getTags().contains("rpc") ? " ★RPC" : "";
-                System.out.println("  - " + tool.getName() + ": " + tool.getDescription() + tag);
+                System.out.println("  - " + tool.getName() + ": " + tool.getDescription());
             }
 
-            // Step 4: 注册到 ToolRegistry，和本地工具混合
+            // Step 4: 注册到 ToolRegistry
             ToolRegistry registry = new ToolRegistry();
             registry.registerObject(new CityInfoTool());   // 本地工具
             client.registerTools(registry);                 // MCP 远程工具
 
             ToolExecutor executor = new ToolExecutor(registry);
 
-            // ---- 4a: 调用 MCP 远程本地工具（Server 内纯本地计算） ----
-            System.out.println("\n[Step 4a] MCP 远程调用（Server 内本地计算）：\n");
+            // ---- 4a: 调用 McpServerRunner 的本地工具 ----
+            System.out.println("\n[Step 4a] 调用 McpServerRunner 本地工具：\n");
 
             ToolResult r1 = executor.executeToolCall(
                 new ToolCall("1", "get_weather", Map.of("city", "上海")));
             System.out.println("  get_weather({city:\"上海\"})");
             System.out.println("    → " + r1.getContent());
-            System.out.println("    ↑ Client → MCP → Server（本地计算） → MCP → Client\n");
+            System.out.println("    ↑ Demo → MCP → McpServerRunner（本地计算） → MCP → Demo\n");
 
             ToolResult r2 = executor.executeToolCall(
                 new ToolCall("2", "calculate", Map.of("a", 42.0, "op", "+", "b", 58.0)));
             System.out.println("  calculate({a:42, op:\"+\", b:58})");
             System.out.println("    → " + r2.getContent());
-            System.out.println("    ↑ Client → MCP → Server（本地计算） → MCP → Client\n");
+            System.out.println("    ↑ Demo → MCP → McpServerRunner（本地计算） → MCP → Demo\n");
 
-            // ---- 4b: 调用 MCP 远程 RPC 工具（Server 内发起真实 HTTP 请求） ----
-            System.out.println("[Step 4b] MCP 远程调用（Server 内真实 HTTP RPC）：\n");
+            // ---- 4b: 调用上游 MCP Server 的工具（通过 McpServerRunner 代理） ----
+            System.out.println("[Step 4b] 调用上游 MCP Server 工具（MCP-to-MCP 代理）：\n");
 
             ToolResult r3 = executor.executeToolCall(
-                new ToolCall("3", "http_fetch", Map.of("url", "https://httpbin.org/get", "max_length", 500)));
-            System.out.println("  http_fetch({url:\"https://httpbin.org/get\"})");
-            System.out.println("    → " + (r3.getContent().length() > 200
-                ? r3.getContent().substring(0, 200) + "..." : r3.getContent()));
-            System.out.println("    ↑ Client → MCP → Server → HTTP GET → httpbin.org → Server → MCP → Client\n");
+                new ToolCall("3", "translate_text",
+                    Map.of("text", "hello world", "from", "en", "to", "zh")));
+            System.out.println("  translate_text({text:\"hello world\", from:\"en\", to:\"zh\"})");
+            System.out.println("    → " + r3.getContent());
+            System.out.println("    ↑ Demo → MCP → McpServerRunner → MCP → UpstreamExampleServer → 逐层返回\n");
 
             ToolResult r4 = executor.executeToolCall(
-                new ToolCall("4", "json_api_call", Map.of(
-                    "url", "https://httpbin.org/post",
-                    "body", "{\"hello\":\"world\",\"from\":\"mcp-server\"}",
-                    "headers", "")));
-            System.out.println("  json_api_call({url:\"https://httpbin.org/post\", body:{hello:world}})");
-            System.out.println("    → " + (r4.getContent().length() > 200
-                ? r4.getContent().substring(0, 200) + "..." : r4.getContent()));
-            System.out.println("    ↑ Client → MCP → Server → HTTP POST → httpbin.org → Server → MCP → Client\n");
+                new ToolCall("4", "lookup_definition",
+                    Map.of("word", "kernel", "language", "en")));
+            System.out.println("  lookup_definition({word:\"kernel\"})");
+            System.out.println("    → " + r4.getContent());
+            System.out.println("    ↑ Demo → MCP → McpServerRunner → MCP → UpstreamExampleServer → 逐层返回\n");
 
-            // llm_ask：调用 Claude API（需要 ANTHROPIC_API_KEY）
             ToolResult r5 = executor.executeToolCall(
-                new ToolCall("5", "llm_ask", Map.of("question", "What is 2+2? Reply in one word.", "max_tokens", 10)));
-            System.out.println("  llm_ask({question:\"What is 2+2? Reply in one word.\"})");
+                new ToolCall("5", "sentiment_analysis",
+                    Map.of("text", "This framework is great!")));
+            System.out.println("  sentiment_analysis({text:\"This framework is great!\"})");
             System.out.println("    → " + r5.getContent());
-            System.out.println("    ↑ Client → MCP → Server → HTTP POST → api.anthropic.com → Server → MCP → Client\n");
+            System.out.println("    ↑ Demo → MCP → McpServerRunner → MCP → UpstreamExampleServer → 逐层返回\n");
 
-            // ---- 4c: 调用本地工具（代码完全一样，调用方无感） ----
+            // ---- 4c: 调用本地工具（对比） ----
             System.out.println("[Step 4c] 本地工具调用（对比）：\n");
 
             ToolResult r6 = executor.executeToolCall(
@@ -331,29 +343,29 @@ public class McpToolDemo {
             System.out.println("    → " + r6.getContent());
             System.out.println("    ↑ 本地执行（代码和上面完全一样，调用方无感）\n");
 
-            // Step 5: 验证工具来源
+            // Step 5: 工具来源总览
             System.out.println("[Step 5] 工具来源总览：");
             for (Tool tool : registry.getEnabled()) {
                 String source;
                 if (tool instanceof McpToolWrapper w) {
-                    boolean isRpc = w.getTags().contains("rpc");
-                    source = "mcp:" + w.getServerName() + (isRpc ? " (★真实RPC)" : " (本地计算)");
+                    source = "mcp:" + w.getServerName();
                 } else {
                     source = "local";
                 }
                 System.out.println("  - " + tool.getName() + " → " + source);
             }
 
-            System.out.println("\n  ✓ MCP Server 同时挂接本地工具和真实 RPC 工具");
-            System.out.println("  ✓ Client 通过 ToolExecutor 统一调用，代码零区别");
-            System.out.println("  ✓ 完整链路：Client → MCP → Server → HTTP/RPC → 外部服务 → 逐层返回");
+            System.out.println("\n  ✓ McpServerRunner 通过 MCP SDK 连接上游 MCP Server");
+            System.out.println("  ✓ 上游工具自动发现、注册、代理（McpToolClient → McpToolWrapper）");
+            System.out.println("  ✓ 完整链路：Client → MCP → Server → MCP → Upstream Server → 逐层返回");
+            System.out.println("  ✓ 调用方完全无感，本地/远程/代理工具通过 ToolExecutor 统一调用");
 
         } catch (Exception e) {
             System.out.println("[ERROR] MCP 远程调用失败: " + e.getMessage());
             e.printStackTrace(System.out);
         } finally {
-            // Step 6: 关闭
-            System.out.println("\n[Step 6] 关闭 MCP 连接，子进程退出");
+            // Step 6: 关闭（McpServerRunner 的 shutdown hook 会自动关闭上游连接）
+            System.out.println("\n[Step 6] 关闭 MCP 连接，McpServerRunner 及上游子进程退出");
             client.close();
         }
 
