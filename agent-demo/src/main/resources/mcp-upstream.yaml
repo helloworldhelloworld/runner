@@ -1,0 +1,47 @@
+# ===========================================================
+# McpServerRunner 上游 MCP Server 配置
+#
+# McpServerRunner 启动时自动加载此文件，连接已启用的上游 MCP Server，
+# 发现并代理它们的工具。代理后的工具和本地工具一起暴露给外部 Client。
+#
+# 完整链路：
+#   外部 Client ──MCP──→ McpServerRunner ──MCP──→ 上游 Server
+#                        (加载此配置)              (此文件配置的)
+#
+# 配置格式与 mcp-config.yaml 完全一致（McpConfiguration）
+# ===========================================================
+
+mcp:
+  servers:
+
+    # ------ 本项目上游 MCP Server ------
+
+    # NLP 服务（翻译、释义、情感分析）
+    # McpServerRunner 启动时自动启动此子进程并通过 MCP 连接
+    nlp-service:
+      transport: stdio
+      command: java
+      args:
+        - "-cp"
+        - "${CLASSPATH}"
+        - "com.lightweightai.demo.UpstreamExampleServer"
+      timeoutSeconds: 30
+      enabled: true
+
+    # ------ 以下为外部 MCP Server 示例，按需启用 ------
+
+    # 文件系统 MCP Server
+    #filesystem:
+    #  transport: stdio
+    #  command: npx
+    #  args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    #  timeoutSeconds: 30
+
+    # Brave 搜索 MCP Server
+    #brave-search:
+    #  transport: stdio
+    #  command: npx
+    #  args: ["-y", "@anthropic/mcp-server-brave-search"]
+    #  env:
+    #    BRAVE_API_KEY: "${BRAVE_API_KEY}"
+    #  timeoutSeconds: 30

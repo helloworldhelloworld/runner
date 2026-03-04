@@ -5,52 +5,65 @@ import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.annotation.ToolFunction;
 import com.lightweightai.kernel.agent.annotation.ToolParam;
+import com.lightweightai.mcp.McpConfiguration;
+import com.lightweightai.mcp.McpConfiguration.ServerConfig;
 import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolServer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 
+import java.io.InputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 独立 MCP Server 启动入口 — 支持上游 MCP Server 代理
+ * 独立 MCP Server 启动入口 — 配置驱动的上游 MCP Server 代理
  *
  * 既是 MCP Server（暴露工具给外部 Client），也是 MCP Client（连接上游 MCP Server）。
- * 上游 MCP Server 的工具通过 MCP SDK 自动发现、注册，和本地工具一起暴露。
+ * 上游 Server 在 {@code mcp-upstream.yaml} 中配置，启动时自动连接、发现、代理。
  *
  * <h2>架构</h2>
  * <pre>
  * 外部 Client ──MCP──→ McpServerRunner ──MCP──→ 上游 MCP Server
- *                      (Server + Client)         (如 nlp-service, filesystem 等)
+ *                      (Server + Client)         (mcp-upstream.yaml 配置)
  *                      ├── 本地工具
  *                      ├── SPI 工具
  *                      └── 上游 MCP 工具（代理）
  * </pre>
  *
+ * <h2>上游配置 (mcp-upstream.yaml)</h2>
+ * <pre>
+ * mcp:
+ *   servers:
+ *     nlp-service:
+ *       transport: stdio
+ *       command: java
+ *       args: ["-cp", "${CLASSPATH}", "com.lightweightai.demo.UpstreamExampleServer"]
+ *       timeoutSeconds: 30
+ *
+ *     filesystem:
+ *       transport: stdio
+ *       command: npx
+ *       args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+ *       enabled: false
+ * </pre>
+ *
  * <h2>启动方式</h2>
  * <pre>
- * # 不带上游 Server（仅本地工具）
+ * # 默认加载 classpath 下的 mcp-upstream.yaml
  * java -cp &lt;classpath&gt; com.lightweightai.demo.McpServerRunner
  *
- * # 带上游 MCP Server（代理模式）
- * java -cp &lt;classpath&gt; com.lightweightai.demo.McpServerRunner \
- *     --upstream nlp-service:java:-cp:&lt;classpath&gt;:com.lightweightai.demo.UpstreamExampleServer
+ * # 指定自定义配置文件
+ * java -Dmcp.upstream.config=/path/to/upstream.yaml -cp &lt;classpath&gt; com.lightweightai.demo.McpServerRunner
  *
  * # Maven 运行
- * mvn -pl agent-demo exec:java \
- *     -Dexec.mainClass=com.lightweightai.demo.McpServerRunner \
- *     -Dexec.args="--upstream nlp-service:java:-cp:CLASSPATH:com.lightweightai.demo.UpstreamExampleServer"
+ * mvn -pl agent-demo exec:java -Dexec.mainClass=com.lightweightai.demo.McpServerRunner
  * </pre>
- *
- * <h2>--upstream 参数格式</h2>
- * <pre>
- * --upstream name:command:arg1:arg2:...
- * </pre>
- * 可以指定多个 --upstream 参数连接多个上游 Server。
  *
  * <h2>Claude Desktop / Cursor 配置</h2>
  * <pre>
@@ -58,8 +71,7 @@ import java.util.Map;
  *   "mcpServers": {
  *     "demo-agent": {
  *       "command": "java",
- *       "args": ["-cp", "classpath", "com.lightweightai.demo.McpServerRunner",
- *                "--upstream", "nlp:java:-cp:classpath:com.lightweightai.demo.UpstreamExampleServer"]
+ *       "args": ["-cp", "classpath", "com.lightweightai.demo.McpServerRunner"]
  *     }
  *   }
  * }
@@ -67,6 +79,7 @@ import java.util.Map;
  */
 public class McpServerRunner {
 
+    private static final String DEFAULT_CONFIG = "mcp-upstream.yaml";
     private static final List<McpToolClient> upstreamClients = new ArrayList<>();
 
     public static void main(String[] args) {
@@ -76,8 +89,8 @@ public class McpServerRunner {
         registry.registerObject(new MathCalcTools());
         registry.scanAndRegister();  // SPI 扫描
 
-        // 2. 连接上游 MCP Server，发现并注册其工具（代理模式）
-        connectUpstreamServers(registry, args);
+        // 2. 从配置文件加载上游 MCP Server 并连接
+        connectUpstreamFromConfig(registry);
 
         // 3. 打印工具清单
         System.err.println("========================================");
@@ -122,63 +135,157 @@ public class McpServerRunner {
         server.startAndBlock();
     }
 
-    // ==================== 上游 MCP Server 连接 ====================
+    // ==================== 上游 MCP Server 配置加载 ====================
 
     /**
-     * 解析 --upstream 参数，连接上游 MCP Server
+     * 从配置文件加载上游 MCP Server 并连接
      *
-     * 格式：--upstream name:command:arg1:arg2:...
-     * 例如：--upstream nlp-service:java:-cp:classpath:com.lightweightai.demo.UpstreamExampleServer
+     * 配置文件查找顺序：
+     * 1. 系统属性 mcp.upstream.config 指定的路径
+     * 2. classpath 下的 mcp-upstream.yaml
      *
-     * 流程：
-     * 1. 创建 StdioClientTransport（启动上游进程）
-     * 2. McpToolClient 握手
-     * 3. 发现上游工具
-     * 4. 注册到本地 ToolRegistry（McpToolWrapper 自动代理）
+     * 对每个 enabled 的 Server 执行：
+     *   创建 Transport → McpToolClient → initialize → discoverTools → registerTools
      */
-    private static void connectUpstreamServers(ToolRegistry registry, String[] args) {
-        for (int i = 0; i < args.length; i++) {
-            if ("--upstream".equals(args[i]) && i + 1 < args.length) {
-                String spec = args[++i];
-                connectOneUpstream(registry, spec);
-            }
-        }
-    }
-
-    private static void connectOneUpstream(ToolRegistry registry, String spec) {
-        String[] parts = spec.split(":", 2);
-        if (parts.length < 2) {
-            System.err.println("  ✗ Invalid upstream spec: " + spec + " (expected name:command:args...)");
+    private static void connectUpstreamFromConfig(ToolRegistry registry) {
+        McpConfiguration config = loadUpstreamConfig();
+        if (config == null || config.getServers() == null || config.getServers().isEmpty()) {
+            System.err.println("  No upstream MCP servers configured");
             return;
         }
 
-        String name = parts[0];
-        String[] cmdParts = parts[1].split(":");
-        String command = cmdParts[0];
-        String[] cmdArgs = new String[cmdParts.length - 1];
-        System.arraycopy(cmdParts, 1, cmdArgs, 0, cmdArgs.length);
+        Map<String, ServerConfig> enabledServers = config.getEnabledServers();
+        if (enabledServers.isEmpty()) {
+            System.err.println("  No enabled upstream MCP servers");
+            return;
+        }
 
-        System.err.println("  Connecting upstream: " + name + " (" + command + " " + String.join(" ", cmdArgs) + ")");
+        for (Map.Entry<String, ServerConfig> entry : enabledServers.entrySet()) {
+            String name = entry.getKey();
+            ServerConfig serverConfig = entry.getValue();
+            connectOneUpstream(registry, name, serverConfig);
+        }
+    }
+
+    /**
+     * 加载上游配置文件
+     */
+    private static McpConfiguration loadUpstreamConfig() {
+        // 优先使用系统属性指定的配置文件
+        String configPath = System.getProperty("mcp.upstream.config");
 
         try {
-            ServerParameters serverParams = ServerParameters.builder(command)
-                .args(cmdArgs)
-                .build();
+            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+            InputStream is;
+
+            if (configPath != null && !configPath.isBlank()) {
+                is = new java.io.FileInputStream(configPath);
+                System.err.println("  Loading upstream config: " + configPath);
+            } else {
+                is = McpServerRunner.class.getClassLoader().getResourceAsStream(DEFAULT_CONFIG);
+                if (is == null) {
+                    System.err.println("  No " + DEFAULT_CONFIG + " found on classpath");
+                    return null;
+                }
+                System.err.println("  Loading upstream config: classpath:" + DEFAULT_CONFIG);
+            }
+
+            // 读取顶层 { mcp: { servers: ... } } 结构
+            var root = yamlMapper.readTree(is);
+            is.close();
+
+            var mcpNode = root.get("mcp");
+            if (mcpNode == null) {
+                return null;
+            }
+            return yamlMapper.treeToValue(mcpNode, McpConfiguration.class);
+        } catch (Exception e) {
+            System.err.println("  Failed to load upstream config: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 连接单个上游 MCP Server
+     *
+     * 支持 ${CLASSPATH} 占位符，运行时替换为当前进程的 java.class.path
+     */
+    private static void connectOneUpstream(ToolRegistry registry, String name, ServerConfig serverConfig) {
+        System.err.println("  Connecting upstream: " + name + " (" + serverConfig + ")");
+
+        try {
+            // 解析 args 中的 ${CLASSPATH} 占位符
+            List<String> resolvedArgs = resolveArgs(serverConfig.getArgs());
+
+            ServerParameters.Builder paramsBuilder = ServerParameters.builder(serverConfig.getCommand());
+            if (!resolvedArgs.isEmpty()) {
+                paramsBuilder.args(resolvedArgs.toArray(new String[0]));
+            }
+            if (serverConfig.getEnv() != null && !serverConfig.getEnv().isEmpty()) {
+                paramsBuilder.env(serverConfig.getEnv());
+            }
 
             McpToolClient client = McpToolClient.builder()
                 .serverName(name)
-                .transport(new StdioClientTransport(serverParams,
+                .transport(new StdioClientTransport(paramsBuilder.build(),
                     new JacksonMcpJsonMapper(new ObjectMapper())))
+                .requestTimeout(Duration.ofSeconds(serverConfig.getTimeoutSeconds()))
                 .build();
 
             client.initialize();
             int count = client.registerTools(registry);
             upstreamClients.add(client);
 
-            System.err.println("  ✓ Connected upstream: " + name + " (" + count + " tools discovered)");
+            System.err.println("  ✓ Connected upstream: " + name + " (" + count + " tools)");
         } catch (Exception e) {
             System.err.println("  ✗ Failed upstream: " + name + ": " + e.getMessage());
         }
+    }
+
+    /**
+     * 解析 args 中的占位符
+     *
+     * 支持：
+     *   ${CLASSPATH} → System.getProperty("java.class.path")
+     *   ${env.XXX}   → System.getenv("XXX")
+     *   ${XXX}       → System.getProperty("XXX") 或 System.getenv("XXX")
+     */
+    private static List<String> resolveArgs(List<String> args) {
+        if (args == null) return List.of();
+        return args.stream()
+            .map(McpServerRunner::resolvePlaceholders)
+            .toList();
+    }
+
+    private static String resolvePlaceholders(String value) {
+        if (value == null || !value.contains("${")) return value;
+
+        // ${CLASSPATH} → java.class.path
+        value = value.replace("${CLASSPATH}", System.getProperty("java.class.path", ""));
+
+        // ${env.XXX} → System.getenv("XXX")
+        while (value.contains("${env.")) {
+            int start = value.indexOf("${env.");
+            int end = value.indexOf("}", start);
+            if (end < 0) break;
+            String envKey = value.substring(start + 6, end);
+            String envVal = System.getenv(envKey);
+            value = value.substring(0, start) + (envVal != null ? envVal : "") + value.substring(end + 1);
+        }
+
+        // ${XXX} → System.getProperty or System.getenv
+        while (value.contains("${")) {
+            int start = value.indexOf("${");
+            int end = value.indexOf("}", start);
+            if (end < 0) break;
+            String key = value.substring(start + 2, end);
+            String resolved = System.getProperty(key);
+            if (resolved == null) resolved = System.getenv(key);
+            if (resolved == null) resolved = "";
+            value = value.substring(0, start) + resolved + value.substring(end + 1);
+        }
+
+        return value;
     }
 
     // ==================== 本地工具 ====================

@@ -256,18 +256,15 @@ public class McpToolDemo {
         String javaCmd = ProcessHandle.current().info().command().orElse("java");
         String classpath = System.getProperty("java.class.path");
 
-        // Step 1: 启动 McpServerRunner，带 --upstream 参数连接 UpstreamExampleServer
-        // McpServerRunner 内部会用 MCP SDK 启动 UpstreamExampleServer 子进程并连接
-        String upstreamSpec = "nlp-service:" + javaCmd + ":-cp:" + classpath
-            + ":com.lightweightai.demo.UpstreamExampleServer";
-
+        // Step 1: 启动 McpServerRunner 子进程
+        // McpServerRunner 自动从 mcp-upstream.yaml 加载上游 MCP Server 配置
+        // 配置中 nlp-service 的 ${CLASSPATH} 会被替换为实际 classpath
         ServerParameters serverParams = ServerParameters.builder(javaCmd)
-            .args("-cp", classpath, "com.lightweightai.demo.McpServerRunner",
-                  "--upstream", upstreamSpec)
+            .args("-cp", classpath, "com.lightweightai.demo.McpServerRunner")
             .build();
 
-        System.out.println("[Step 1] 启动 McpServerRunner（带上游 MCP Server）");
-        System.out.println("  McpServerRunner 内部通过 MCP SDK 连接 UpstreamExampleServer");
+        System.out.println("[Step 1] 启动 McpServerRunner（自动加载 mcp-upstream.yaml）");
+        System.out.println("  McpServerRunner 从配置文件读取上游 MCP Server，通过 MCP SDK 自动连接");
         System.out.println("  链路: Demo → MCP → McpServerRunner → MCP → UpstreamExampleServer\n");
 
         McpToolClient client = McpToolClient.builder()
@@ -355,8 +352,8 @@ public class McpToolDemo {
                 System.out.println("  - " + tool.getName() + " → " + source);
             }
 
-            System.out.println("\n  ✓ McpServerRunner 通过 MCP SDK 连接上游 MCP Server");
-            System.out.println("  ✓ 上游工具自动发现、注册、代理（McpToolClient → McpToolWrapper）");
+            System.out.println("\n  ✓ McpServerRunner 从 mcp-upstream.yaml 加载上游 Server 配置");
+            System.out.println("  ✓ 通过 MCP SDK 自动连接、发现、代理（McpToolClient → McpToolWrapper）");
             System.out.println("  ✓ 完整链路：Client → MCP → Server → MCP → Upstream Server → 逐层返回");
             System.out.println("  ✓ 调用方完全无感，本地/远程/代理工具通过 ToolExecutor 统一调用");
 
