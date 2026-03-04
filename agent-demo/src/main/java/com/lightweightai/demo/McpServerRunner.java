@@ -239,7 +239,8 @@ public class McpServerRunner {
      * STDIO：StdioClientTransport（本地子进程，开发/测试用）
      */
     private static McpClientTransport createTransport(String name, ServerConfig config) {
-        if ("sse".equalsIgnoreCase(config.getTransport())) {
+        String transport = config.getTransport();
+        if ("sse".equalsIgnoreCase(transport) || "http".equalsIgnoreCase(transport)) {
             if (config.getUrl() == null || config.getUrl().isBlank()) {
                 throw new IllegalStateException("Upstream '" + name + "': SSE requires 'url'");
             }
