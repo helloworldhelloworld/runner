@@ -1,18 +1,18 @@
 # ===========================================================
 # McpServerRunner 统一配置
 #
-# 包含两部分：
-#   server   — MCP Server 自身配置（名称、版本）
-#   upstream — 上游 MCP Server 连接配置
+# 架构：
+#   McpClientDemo ──STDIO──→ McpServerRunner ──MCP SDK──→ 外部已有 MCP Server
+#                            (本文件配置)
 #
 # McpServerRunner 启动时自动加载此文件：
 #   1. 读取 server 配置，初始化 McpToolServer
-#   2. 连接 upstream 中已启用的上游 Server（MCP SDK）
-#   3. 发现并代理上游工具，和本地工具一起暴露
+#   2. 通过官方 MCP SDK 连接 upstream 中已启用的外部 MCP Server
+#   3. 发现并代理上游工具，和本地工具一起暴露给 Client
 #
-# 完整链路：
-#   外部 Client ──MCP──→ McpServerRunner ──MCP/SSE──→ 上游 Server
-#                        (server 配置)                 (upstream 配置)
+# 上游 MCP Server 不需要本项目实现，只需配置连接信息：
+#   - SSE: 外部 MCP Server 已在运行，配置 url 即可
+#   - STDIO: 配置 command + args 启动本地 MCP Server 进程
 #
 # 自定义配置路径：-Dmcp.server.config=/path/to/config.yaml
 # ===========================================================
@@ -22,30 +22,37 @@ server:
   name: demo-agent
   version: 0.1.0
 
-# 上游 MCP Server 配置（McpServerRunner 作为 Client 连接）
+# 上游 MCP Server 配置（McpServerRunner 通过官方 MCP SDK 连接）
+# 外部已有的 MCP Server，只需配置，不需要实现
 upstream:
   servers:
 
-    # ------ SSE/HTTP 远程调用（真正的 RPC） ------
+    # ------ SSE/HTTP 远程调用 ------
+    # 连接外部已运行的 MCP Server，通过 HTTP/SSE 协议通信
 
-    # 远程 NLP 服务（翻译、释义、情感分析）
-    # 需要先在远程主机上启动 UpstreamExampleServer 的 HTTP/SSE 端口
-    # 示例启动命令（远程）: java -cp <classpath> com.lightweightai.demo.UpstreamExampleServer --sse --port 8081
+    # 示例：远程 NLP 服务
     nlp-service:
       transport: sse
-      url: "http://localhost:8081/sse"
+      url: "http://localhost:8081"
       timeoutSeconds: 30
       enabled: false
 
-    # 远程 API 服务
-    #remote-api:
+    # 示例：文件系统 MCP Server（SSE 模式）
+    #filesystem-remote:
     #  transport: sse
-    #  url: "http://api-server:8080/sse"
-    #  timeoutSeconds: 45
+    #  url: "http://fs-server:8080"
+    #  timeoutSeconds: 30
 
-    # ------ STDIO 本地进程（开发/测试用） ------
+    # 示例：Brave 搜索 MCP Server
+    #brave-search:
+    #  transport: sse
+    #  url: "http://brave-search-mcp:8080"
+    #  timeoutSeconds: 30
 
-    # 本地 NLP 服务（STDIO 子进程模式，开发时使用）
+    # ------ STDIO 本地进程 ------
+    # 通过 STDIO 启动本地 MCP Server 子进程
+
+    # 示例：本地 NLP 服务（STDIO 子进程）
     nlp-service-local:
       transport: stdio
       command: java
@@ -56,15 +63,9 @@ upstream:
       timeoutSeconds: 30
       enabled: true
 
-    # 文件系统 MCP Server
+    # 示例：npx 启动的 MCP Server
     #filesystem:
     #  transport: stdio
     #  command: npx
     #  args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-    #  timeoutSeconds: 30
-
-    # Brave 搜索 MCP Server
-    #brave-search:
-    #  transport: sse
-    #  url: "http://brave-search-mcp:8080/sse"
     #  timeoutSeconds: 30
