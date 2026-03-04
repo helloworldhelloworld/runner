@@ -7,17 +7,14 @@ import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.mcp.McpToolClient;
-import com.lightweightai.mcp.McpToolServer;
 import com.lightweightai.mcp.McpToolWrapper;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
-import io.modelcontextprotocol.server.transport.HttpServletSseServerTransportProvider;
-import org.apache.catalina.Context;
-import org.apache.catalina.startup.Tomcat;
 
-import java.io.File;
+import java.io.BufferedReader;
 import java.io.FileWriter;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -35,13 +32,11 @@ import java.util.Map;
  * <pre>
  * Phase 1: McpServerRunner 上游为 STDIO
  *   McpClientDemo ──STDIO──→ McpServerRunner ──STDIO──→ UpstreamExampleServer
- *                             (mcp-server.yaml 默认配置)
  *
  * Phase 2: McpServerRunner 上游为 SSE（HTTP RPC）
- *   McpClientDemo ──STDIO──→ McpServerRunner ──HTTP/SSE──→ Tomcat SSE Server
- *                             (临时配置: upstream.transport=sse)
+ *   McpClientDemo ──STDIO──→ McpServerRunner ──HTTP/SSE──→ UpstreamExampleServer --sse
  *
- * 两种场景都是通过 McpServerRunner 代理，验证它内部的 SSE RPC 是否正常。
+ * 同一个 UpstreamExampleServer，两种传输方式。Phase 2 验证真正的 HTTP 远程调用。
  * </pre>
  */
 public class McpClientDemo {
@@ -51,20 +46,20 @@ public class McpClientDemo {
         System.out.println("║  MCP 端到端调试 — 验证 McpServerRunner 上游链路  ║");
         System.out.println("╚══════════════════════════════════════════════════╝\n");
 
-        // Phase 1: McpServerRunner → STDIO → UpstreamExampleServer
-        System.out.println("┌──────────────────────────────────────────────────────┐");
-        System.out.println("│  Phase 1: 上游 STDIO                                │");
-        System.out.println("│  Client ──STDIO──→ McpServerRunner ──STDIO──→ 上游   │");
-        System.out.println("└──────────────────────────────────────────────────────┘\n");
+        // Phase 1
+        System.out.println("┌──────────────────────────────────────────────────────────────┐");
+        System.out.println("│  Phase 1: 上游 STDIO                                        │");
+        System.out.println("│  Client → STDIO → McpServerRunner → STDIO → UpstreamServer  │");
+        System.out.println("└──────────────────────────────────────────────────────────────┘\n");
         demoUpstreamStdio();
 
         System.out.println("\n");
 
-        // Phase 2: McpServerRunner → SSE/HTTP → Tomcat SSE Server
-        System.out.println("┌──────────────────────────────────────────────────────┐");
-        System.out.println("│  Phase 2: 上游 SSE（HTTP RPC）                       │");
-        System.out.println("│  Client ──STDIO──→ McpServerRunner ──SSE──→ 上游     │");
-        System.out.println("└──────────────────────────────────────────────────────┘\n");
+        // Phase 2
+        System.out.println("┌──────────────────────────────────────────────────────────────┐");
+        System.out.println("│  Phase 2: 上游 SSE（HTTP RPC）                               │");
+        System.out.println("│  Client → STDIO → McpServerRunner → SSE → UpstreamServer    │");
+        System.out.println("└──────────────────────────────────────────────────────────────┘\n");
         demoUpstreamSse();
 
         System.out.println("\n╔══════════════════════════════════════════════════╗");
@@ -74,16 +69,10 @@ public class McpClientDemo {
 
     // ==================== Phase 1: 上游 STDIO ====================
 
-    /**
-     * McpServerRunner → STDIO → UpstreamExampleServer
-     *
-     * 使用默认 mcp-server.yaml，上游 nlp-service-local 通过 STDIO 连接。
-     */
     static void demoUpstreamStdio() {
         String javaCmd = ProcessHandle.current().info().command().orElse("java");
         String classpath = System.getProperty("java.class.path");
 
-        // 启动 McpServerRunner（默认配置，上游 STDIO）
         ServerParameters serverParams = ServerParameters.builder(javaCmd)
             .args("-cp", classpath, "com.lightweightai.demo.McpServerRunner")
             .build();
@@ -101,11 +90,10 @@ public class McpClientDemo {
             client.initialize();
             System.out.println("[2] MCP 握手成功\n");
 
-            // 发现工具（包含 McpServerRunner 本地 + 上游代理）
             List<McpToolWrapper> tools = client.discoverMcpTools();
             System.out.println("[3] 发现 " + tools.size() + " 个工具：");
             for (McpToolWrapper tool : tools) {
-                System.out.println("    - " + tool.getName() + ": " + tool.getDescription());
+                System.out.println("    - " + tool.getName());
             }
 
             ToolRegistry registry = new ToolRegistry();
@@ -114,21 +102,16 @@ public class McpClientDemo {
 
             System.out.println("\n[4] 调用工具：\n");
 
-            // McpServerRunner 本地工具
             callAndPrint(executor, "get_city_info", Map.of("city", "beijing"),
-                "Client → STDIO → McpServerRunner(本地)");
-            callAndPrint(executor, "calculate", Map.of("a", 42.0, "op", "+", "b", 58.0),
-                "Client → STDIO → McpServerRunner(本地)");
-
-            // 上游代理工具（通过 STDIO）
+                "McpServerRunner(本地)");
             callAndPrint(executor, "translate_text",
                 Map.of("text", "hello world", "from", "en", "to", "zh"),
-                "Client → STDIO → McpServerRunner → STDIO → UpstreamServer");
+                "McpServerRunner → STDIO → UpstreamServer");
             callAndPrint(executor, "sentiment_analysis",
                 Map.of("text", "This framework is great!"),
-                "Client → STDIO → McpServerRunner → STDIO → UpstreamServer");
+                "McpServerRunner → STDIO → UpstreamServer");
 
-            System.out.println("  >> Phase 1 验证通过: 上游 STDIO 链路正常 <<");
+            System.out.println("  >> Phase 1 验证通过 <<");
 
         } catch (Exception e) {
             System.err.println("[ERROR] Phase 1 失败: " + e.getMessage());
@@ -138,71 +121,51 @@ public class McpClientDemo {
         }
     }
 
-    // ==================== Phase 2: 上游 SSE（HTTP RPC）====================
+    // ==================== Phase 2: 上游 SSE ====================
 
     /**
-     * 验证 McpServerRunner 内部的 SSE 上游连接
+     * 验证 McpServerRunner 通过 SSE/HTTP 连接外部 UpstreamExampleServer
      *
      * <pre>
-     * [本进程 JVM]                                   [子进程 JVM]
-     * ┌─────────────┐    ┌──────────────┐           ┌───────────────┐
-     * │ Tomcat SSE  │←───│ McpServer    │←──STDIO───│ McpClientDemo │
-     * │ NLP Server  │SSE │ Runner       │           │ (本方法)       │
-     * │ :randomPort │───→│ (子进程)      │──STDIO──→│               │
-     * └─────────────┘    └──────────────┘           └───────────────┘
-     *  上游 Server         Gateway                    Client
-     *  (HTTP/SSE)          upstream:
-     *                        nlp-service:
-     *                          transport: sse
-     *                          url: http://localhost:PORT/sse
+     * 进程 1: UpstreamExampleServer --sse --port 0  (独立 HTTP 进程)
+     *         监听 http://localhost:PORT/sse
      *
-     * 核心验证点：McpServerRunner 通过 HttpClientSseClientTransport
-     *            以 HTTP/SSE 方式连接上游，而不是 STDIO 子进程。
+     * 进程 2: McpServerRunner                        (子进程)
+     *         mcp-server.yaml:
+     *           upstream.nlp-service.transport = sse
+     *           upstream.nlp-service.url = http://localhost:PORT
+     *         通过 HttpClientSseClientTransport 连接进程 1
+     *
+     * 本进程: McpClientDemo                           (Client)
+     *         通过 STDIO 连接进程 2
+     *         调用 translate_text → 进程 2 → HTTP/SSE → 进程 1 → 返回
      * </pre>
      */
     static void demoUpstreamSse() {
-        Tomcat tomcat = null;
-        McpToolServer sseServer = null;
+        String javaCmd = ProcessHandle.current().info().command().orElse("java");
+        String classpath = System.getProperty("java.class.path");
+
+        Process upstreamProcess = null;
         McpToolClient client = null;
         Path tempConfig = null;
 
         try {
-            // Step 1: 启动上游 SSE Server（嵌入式 Tomcat + NLP 工具）
-            System.out.println("[1] 启动上游 SSE Server（嵌入式 Tomcat）...");
+            // Step 1: 启动 UpstreamExampleServer --sse --port 0（独立 HTTP 进程）
+            System.out.println("[1] 启动 UpstreamExampleServer（SSE/HTTP 模式）...");
+            ProcessBuilder pb = new ProcessBuilder(
+                javaCmd, "-cp", classpath,
+                "com.lightweightai.demo.UpstreamExampleServer",
+                "--sse", "--port", "0");
+            pb.redirectErrorStream(false);
+            upstreamProcess = pb.start();
 
-            ToolRegistry upstreamRegistry = new ToolRegistry();
-            upstreamRegistry.registerObject(new UpstreamExampleServer.NlpTools());
+            // 读取 stderr 等待就绪信号 SSE_READY:PORT
+            int ssePort = waitForSseReady(upstreamProcess);
+            System.out.println("    UpstreamExampleServer 启动: http://localhost:" + ssePort + "/sse");
+            System.out.println("    PID: " + upstreamProcess.pid());
 
-            HttpServletSseServerTransportProvider sseTransport =
-                HttpServletSseServerTransportProvider.builder()
-                    .objectMapper(new ObjectMapper())
-                    .messageEndpoint("/message")
-                    .build();
-
-            sseServer = McpToolServer.builder()
-                .serverName("nlp-service-sse")
-                .serverVersion("0.1.0")
-                .toolRegistry(upstreamRegistry)
-                .transportProvider(sseTransport)
-                .build();
-            sseServer.start();
-
-            tomcat = new Tomcat();
-            tomcat.setBaseDir(System.getProperty("java.io.tmpdir"));
-            tomcat.setPort(0);
-            tomcat.getConnector();
-
-            Context ctx = tomcat.addContext("", new File(System.getProperty("java.io.tmpdir")).getAbsolutePath());
-            Tomcat.addServlet(ctx, "mcp-sse", sseTransport);
-            ctx.addServletMappingDecoded("/*", "mcp-sse");
-
-            tomcat.start();
-            int ssePort = tomcat.getConnector().getLocalPort();
-            System.out.println("    上游 SSE Server 启动: http://localhost:" + ssePort + "/sse");
-            System.out.println("    工具: translate_text, lookup_definition, sentiment_analysis");
-
-            // Step 2: 生成临时 mcp-server.yaml，上游指向 SSE
-            System.out.println("\n[2] 生成临时配置（upstream.transport=sse）...");
+            // Step 2: 生成临时 mcp-server.yaml
+            System.out.println("\n[2] 生成临时 mcp-server.yaml（upstream → SSE）...");
             tempConfig = Files.createTempFile("mcp-server-sse-", ".yaml");
             try (FileWriter w = new FileWriter(tempConfig.toFile())) {
                 w.write("server:\n");
@@ -216,16 +179,12 @@ public class McpClientDemo {
                 w.write("      timeoutSeconds: 30\n");
                 w.write("      enabled: true\n");
             }
-            System.out.println("    配置: " + tempConfig);
             System.out.println("    upstream.nlp-service.transport = sse");
             System.out.println("    upstream.nlp-service.url = http://localhost:" + ssePort);
 
-            // Step 3: 启动 McpServerRunner 子进程，指向临时配置
+            // Step 3: 启动 McpServerRunner（读取临时配置，通过 SSE 连接上游）
             System.out.println("\n[3] 启动 McpServerRunner（-Dmcp.server.config=临时配置）...");
-            System.out.println("    链路: Client → STDIO → McpServerRunner → HTTP/SSE → Tomcat");
-
-            String javaCmd = ProcessHandle.current().info().command().orElse("java");
-            String classpath = System.getProperty("java.class.path");
+            System.out.println("    链路: Client → STDIO → McpServerRunner → HTTP/SSE → UpstreamServer");
 
             ServerParameters serverParams = ServerParameters.builder(javaCmd)
                 .args("-Dmcp.server.config=" + tempConfig.toAbsolutePath(),
@@ -246,43 +205,40 @@ public class McpClientDemo {
             List<McpToolWrapper> tools = client.discoverMcpTools();
             System.out.println("[5] 发现 " + tools.size() + " 个工具：");
             for (McpToolWrapper tool : tools) {
-                System.out.println("    - " + tool.getName() + ": " + tool.getDescription());
+                System.out.println("    - " + tool.getName());
             }
 
-            ToolRegistry clientRegistry = new ToolRegistry();
-            client.registerTools(clientRegistry);
-            ToolExecutor executor = new ToolExecutor(clientRegistry);
+            ToolRegistry registry = new ToolRegistry();
+            client.registerTools(registry);
+            ToolExecutor executor = new ToolExecutor(registry);
 
-            // Step 5: 调用工具 — NLP 工具通过 SSE 代理
-            System.out.println("\n[6] 调用工具（NLP 工具走 HTTP/SSE RPC）：\n");
+            // Step 5: 调用工具
+            System.out.println("\n[6] 调用工具（NLP 工具走 HTTP/SSE）：\n");
 
-            // McpServerRunner 本地工具
+            // 本地工具
             callAndPrint(executor, "get_city_info", Map.of("city", "tokyo"),
-                "Client → STDIO → McpServerRunner(本地)");
-            callAndPrint(executor, "get_weather", Map.of("city", "北京"),
-                "Client → STDIO → McpServerRunner(本地)");
+                "McpServerRunner(本地)");
 
-            // NLP 工具 — 通过 SSE/HTTP 代理到上游 Tomcat
+            // NLP 工具 — 通过 SSE 代理到独立 UpstreamExampleServer 进程
             callAndPrint(executor, "translate_text",
                 Map.of("text", "hello world", "from", "en", "to", "zh"),
-                "Client → STDIO → McpServerRunner → HTTP/SSE → Tomcat");
+                "McpServerRunner → HTTP/SSE → UpstreamServer(PID:" + upstreamProcess.pid() + ")");
             callAndPrint(executor, "lookup_definition",
                 Map.of("word", "kernel", "language", "en"),
-                "Client → STDIO → McpServerRunner → HTTP/SSE → Tomcat");
+                "McpServerRunner → HTTP/SSE → UpstreamServer(PID:" + upstreamProcess.pid() + ")");
             callAndPrint(executor, "sentiment_analysis",
                 Map.of("text", "This framework is great!"),
-                "Client → STDIO → McpServerRunner → HTTP/SSE → Tomcat");
+                "McpServerRunner → HTTP/SSE → UpstreamServer(PID:" + upstreamProcess.pid() + ")");
 
-            // Step 6: 工具来源
-            System.out.println("[7] 工具来源验证：");
-            for (Tool tool : clientRegistry.getEnabled()) {
+            // 工具来源
+            System.out.println("[7] 工具来源：");
+            for (Tool tool : registry.getEnabled()) {
                 String source = (tool instanceof McpToolWrapper w) ? "mcp:" + w.getServerName() : "local";
                 System.out.println("    - " + tool.getName() + " → " + source);
             }
 
-            System.out.println("\n  >> Phase 2 验证通过: McpServerRunner 的 SSE 上游 RPC 正常 <<");
-            System.out.println("  >> McpServerRunner 通过 HttpClientSseClientTransport 连接上游 <<");
-            System.out.println("  >> NLP 工具的请求经 HTTP/SSE 到达 Tomcat，再逐层返回 <<");
+            System.out.println("\n  >> Phase 2 验证通过 <<");
+            System.out.println("  >> McpServerRunner 通过 HTTP/SSE 连接独立 UpstreamExampleServer 进程 <<");
 
         } catch (Exception e) {
             System.err.println("[ERROR] Phase 2 失败: " + e.getMessage());
@@ -292,16 +248,34 @@ public class McpClientDemo {
             if (client != null) {
                 try { client.close(); } catch (Exception e) { /* ignore */ }
             }
-            if (sseServer != null) {
-                try { sseServer.close(); } catch (Exception e) { /* ignore */ }
-            }
-            if (tomcat != null) {
-                try { tomcat.stop(); tomcat.destroy(); } catch (Exception e) { /* ignore */ }
+            if (upstreamProcess != null && upstreamProcess.isAlive()) {
+                upstreamProcess.destroy();
+                System.out.println("    UpstreamExampleServer 进程已终止");
             }
             if (tempConfig != null) {
                 try { Files.deleteIfExists(tempConfig); } catch (Exception e) { /* ignore */ }
             }
         }
+    }
+
+    /**
+     * 等待 UpstreamExampleServer 输出 SSE_READY:PORT 信号
+     */
+    private static int waitForSseReady(Process process) throws Exception {
+        BufferedReader stderr = new BufferedReader(
+            new InputStreamReader(process.getErrorStream()));
+        String line;
+        long deadline = System.currentTimeMillis() + 30_000; // 30s 超时
+        while ((line = stderr.readLine()) != null) {
+            System.err.println("    [upstream] " + line);
+            if (line.startsWith("SSE_READY:")) {
+                return Integer.parseInt(line.substring("SSE_READY:".length()).trim());
+            }
+            if (System.currentTimeMillis() > deadline) {
+                throw new RuntimeException("UpstreamExampleServer 启动超时（30s）");
+            }
+        }
+        throw new RuntimeException("UpstreamExampleServer 进程意外退出");
     }
 
     // ==================== 工具方法 ====================
