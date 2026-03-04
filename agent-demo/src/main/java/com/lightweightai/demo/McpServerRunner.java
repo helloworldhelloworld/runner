@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
+import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
@@ -235,16 +236,28 @@ public class McpServerRunner {
     /**
      * 根据配置创建传输层
      *
-     * SSE：HttpClientSseClientTransport（HTTP 远程调用，真正的 RPC）
+     * SSE：HttpClientSseClientTransport（旧版 SSE 协议）
+     * Streamable HTTP：HttpClientStreamableHttpTransport（新版 HTTP 协议，推荐）
      * STDIO：StdioClientTransport（本地子进程，开发/测试用）
      */
     private static McpClientTransport createTransport(String name, ServerConfig config) {
         String transport = config.getTransport();
-        if ("sse".equalsIgnoreCase(transport) || "http".equalsIgnoreCase(transport)) {
+
+        // Streamable HTTP — 新版 MCP 传输协议（2025-03-26+）
+        if ("streamable_http".equalsIgnoreCase(transport)
+                || "streamable-http".equalsIgnoreCase(transport)
+                || "http".equalsIgnoreCase(transport)) {
+            if (config.getUrl() == null || config.getUrl().isBlank()) {
+                throw new IllegalStateException("Upstream '" + name + "': Streamable HTTP requires 'url'");
+            }
+            return HttpClientStreamableHttpTransport.builder(config.getUrl()).build();
+        }
+
+        // SSE — 旧版传输协议
+        if ("sse".equalsIgnoreCase(transport)) {
             if (config.getUrl() == null || config.getUrl().isBlank()) {
                 throw new IllegalStateException("Upstream '" + name + "': SSE requires 'url'");
             }
-            // HTTP 远程调用 — 真正的 RPC
             return HttpClientSseClientTransport.builder(config.getUrl())
                 .sseEndpoint("/sse")
                 .build();

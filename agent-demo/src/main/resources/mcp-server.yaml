@@ -27,14 +27,18 @@ server:
 upstream:
   servers:
 
-    # ------ SSE/HTTP 远程调用 ------
-    # 连接外部已运行的 MCP Server，通过 HTTP/SSE 协议通信
+    # ------ Streamable HTTP 远程调用（推荐） ------
+    # 新版 MCP 传输协议（2025-03-26+），直接 POST 到 MCP 端点
+    # transport 值：streamable_http 或 http
 
     # 示例：远程 NLP 服务
     #nlp-service:
-    #  transport: sse
-    #  url: "http://localhost:8081"
+    #  transport: streamable_http
+    #  url: "http://localhost:8081/mcp"
     #  timeoutSeconds: 30
+
+    # ------ SSE 远程调用（旧版） ------
+    # 旧版 SSE 传输协议，先 GET /sse 建立长连接，再 POST 请求
 
     # 示例：Brave 搜索 MCP Server
     #brave-search:
@@ -48,8 +52,8 @@ upstream:
     # 测试用：最简 MCP Server（echo + random_number）
     test-server:
       transport: stdio
-      command: node
-      args: ["test-mcp-server.mjs"]
+      command: java
+      args: ["-cp", "${CLASSPATH}", "com.lightweightai.demo.TestMcpServer"]
       timeoutSeconds: 10
 
     # 示例：文件系统 MCP Server（官方）
