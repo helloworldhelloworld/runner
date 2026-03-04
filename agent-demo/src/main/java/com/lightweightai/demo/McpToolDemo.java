@@ -281,7 +281,33 @@ public class McpToolDemo {
 
         printMcpConfiguration(config);
 
-        // ==================== 3. 结合 McpToolManager 使用 ====================
+        // ==================== 3. 启动 MCP Server 并调试 ====================
+        System.out.println("\n  === 启动 MCP Server（McpServerRunner） ===\n");
+
+        System.out.println("  # 终端 1：启动 MCP Server（进程保持运行）");
+        System.out.println("  mvn -pl agent-demo exec:java \\");
+        System.out.println("      -Dexec.mainClass=com.lightweightai.demo.McpServerRunner");
+        System.out.println();
+        System.out.println("  # 输出:");
+        System.out.println("  # ========================================");
+        System.out.println("  # MCP Server: demo-agent");
+        System.out.println("  # Transport:  STDIO");
+        System.out.println("  # Tools:      get_city_info, get_weather, calculate, ...");
+        System.out.println("  # ========================================");
+        System.out.println("  # Server is running. Waiting for MCP client...");
+        System.out.println();
+        System.out.println("  # Claude Desktop 配置 (claude_desktop_config.json):");
+        System.out.println("  # {");
+        System.out.println("  #   \"mcpServers\": {");
+        System.out.println("  #     \"demo-agent\": {");
+        System.out.println("  #       \"command\": \"mvn\",");
+        System.out.println("  #       \"args\": [\"-pl\", \"agent-demo\", \"exec:java\",");
+        System.out.println("  #                \"-Dexec.mainClass=com.lightweightai.demo.McpServerRunner\"]");
+        System.out.println("  #     }");
+        System.out.println("  #   }");
+        System.out.println("  # }");
+
+        // ==================== 4. 结合 McpToolManager 使用 ====================
         System.out.println("\n  === 结合 McpToolManager 使用 ===\n");
 
         System.out.println("  // 从 YAML 加载配置并创建 manager：");
@@ -295,13 +321,6 @@ public class McpToolDemo {
         System.out.println("  // 统一调用（调用方不需要知道工具来源）：");
         System.out.println("  ToolExecutor executor = manager.getToolExecutor();");
         System.out.println("  executor.executeToolCall(toolCall);  // 框架自动路由到正确的 MCP Server");
-        System.out.println();
-        System.out.println("  // 或给 Agent 使用：");
-        System.out.println("  Agent agent = Agent.builder()");
-        System.out.println("      .claude(apiKey)");
-        System.out.println("      .tools(manager.getToolRegistry())");
-        System.out.println("      .build();");
-        System.out.println("  agent.chat(\"查一下上海的天气\");  // 自动调用 weather MCP Server");
         System.out.println();
         System.out.println("  manager.close();  // 自动关闭所有 MCP 连接");
 
