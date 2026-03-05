@@ -1,8 +1,6 @@
 package com.lightweightai.mcp;
 
 import com.lightweightai.kernel.agent.ToolRegistry;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpSyncServer;
@@ -180,8 +178,7 @@ public class McpToolServer {
                 throw new IllegalStateException("ToolRegistry is required");
             }
             if (transportProvider == null) {
-                transportProvider = new StdioServerTransportProvider(
-                    new JacksonMcpJsonMapper(new ObjectMapper()));
+                transportProvider = new StdioServerTransportProvider();
             }
             return new McpToolServer(this);
         }
