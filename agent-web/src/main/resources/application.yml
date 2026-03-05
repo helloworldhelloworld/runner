@@ -43,10 +43,16 @@ app:
     api-key: ${WEB_SEARCH_API_KEY:}   # 留空 → Mock 模式
     provider: brave                    # 预留：brave | serper
     max-results: 3
-  # MCP 远程工具配置
-  # 启用后，Spring 启动时自动连接 MCP Server，远程工具注册到 ToolRegistry
-  # LLM 通过 ToolCallingLoop 可以透明调用这些远程工具
+  # MCP 配置
   mcp:
+    # ---- MCP HTTP Server：将本地工具通过 HTTP 暴露给外部 MCP Client ----
+    server:
+      enabled: ${MCP_SERVER_ENABLED:false}  # 设置 MCP_SERVER_ENABLED=true 启用
+      name: agent-web
+      version: 0.1.0
+      endpoint: /mcp  # 外部 Client 通过 http://host:8080/mcp 连接
+
+    # ---- MCP Client：连接外部 MCP Server，注册远程工具到 ToolRegistry ----
     enabled: ${MCP_ENABLED:false}  # 设置 MCP_ENABLED=true 启用
     servers:
       # 示例：本项目 Demo MCP Server
