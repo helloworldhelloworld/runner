@@ -35,9 +35,9 @@ upstream:
     # 修改 url 指向你的 HTTP MCP Server 地址，设置 enabled: true 启用
     http-upstream:
       transport: http
-      url: "http://localhost:8081/mcp"
+      url: "http://10.97.134.15:6645/searchgate/mcp"
       timeoutSeconds: 30
-      enabled: false
+      enabled: true
 
     # 示例：远程 NLP 服务
     #nlp-service:
