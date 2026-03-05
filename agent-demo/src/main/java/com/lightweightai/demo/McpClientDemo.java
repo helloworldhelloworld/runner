@@ -14,6 +14,7 @@ import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * MCP Client Demo — 验证 McpServerRunner 的端到端链路
@@ -111,13 +112,15 @@ public class McpClientDemo {
             callAndPrint(executor, "get_weather", Map.of("city", "tokyo"));
             callAndPrint(executor, "calculate", Map.of("a", 12.5, "op", "+", "b", 7.3));
 
-            // 上游代理工具（来自配置的外部 MCP Server）
-            callAndPrint(executor, "translate_text",
-                Map.of("text", "hello world", "from", "en", "to", "zh"));
-            callAndPrint(executor, "sentiment_analysis",
-                Map.of("text", "This framework is great!"));
-            callAndPrint(executor, "lookup_definition",
-                Map.of("word", "kernel", "language", "en"));
+            // 上游代理工具（动态发现，来自配置的外部 MCP Server）
+            Set<String> localTools = Set.of("get_city_info", "get_weather", "calculate");
+            for (Tool tool : registry.getEnabled()) {
+                if (tool instanceof McpToolWrapper w && !localTools.contains(tool.getName())) {
+                    System.out.println("  [upstream:" + w.getServerName() + "] " + tool.getName());
+                    System.out.println("    schema: " + tool.getSchema().toMap());
+                    callAndPrint(executor, tool.getName(), Map.of());
+                }
+            }
 
             // 工具来源
             System.out.println("[5] 工具来源：");
