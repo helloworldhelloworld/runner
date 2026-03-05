@@ -112,8 +112,13 @@ public class McpClientDemo {
             callAndPrint(executor, "get_weather", Map.of("city", "tokyo"));
             callAndPrint(executor, "calculate", Map.of("a", 12.5, "op", "+", "b", 7.3));
 
+            // 上游代理工具 — 带参数的示例调用
+            callAndPrint(executor, "goldPrice/search",
+                Map.of("query", "黄金价格", "extraInfo", Map.of()));
+
             // 上游代理工具（动态发现，来自配置的外部 MCP Server）
-            Set<String> localTools = Set.of("get_city_info", "get_weather", "calculate");
+            Set<String> localTools = Set.of("get_city_info", "get_weather", "calculate",
+                "goldPrice/search");
             for (Tool tool : registry.getEnabled()) {
                 if (tool instanceof McpToolWrapper w && !localTools.contains(tool.getName())) {
                     System.out.println("  [upstream:" + w.getServerName() + "] " + tool.getName());
