@@ -108,7 +108,15 @@ public class McpConfig {
             if (url == null || url.isBlank()) {
                 throw new IllegalStateException("MCP server '" + name + "': Streamable HTTP requires 'url'");
             }
-            mcpTransport = HttpClientStreamableHttpTransport.builder(url).build();
+            java.net.URI uri = java.net.URI.create(url);
+            String baseUrl = uri.getScheme() + "://" + uri.getAuthority();
+            String endpoint = uri.getRawPath();
+            if (endpoint == null || endpoint.isEmpty()) {
+                endpoint = "/mcp";
+            }
+            mcpTransport = HttpClientStreamableHttpTransport.builder(baseUrl)
+                .endpoint(endpoint)
+                .build();
         } else if ("sse".equalsIgnoreCase(transport)) {
             // SSE — 旧版传输协议
             String url = config.get("url");

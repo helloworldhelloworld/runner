@@ -31,6 +31,14 @@ upstream:
     # 新版 MCP 传输协议（2025-03-26+），直接 POST 到 MCP 端点
     # transport 值：streamable_http 或 http
 
+    # HTTP 远程 MCP Server
+    # 修改 url 指向你的 HTTP MCP Server 地址，设置 enabled: true 启用
+    http-upstream:
+      transport: http
+      url: "http://localhost:8081/mcp"
+      timeoutSeconds: 30
+      enabled: false
+
     # 示例：远程 NLP 服务
     #nlp-service:
     #  transport: streamable_http
