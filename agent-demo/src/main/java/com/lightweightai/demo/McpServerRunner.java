@@ -250,7 +250,15 @@ public class McpServerRunner {
             if (config.getUrl() == null || config.getUrl().isBlank()) {
                 throw new IllegalStateException("Upstream '" + name + "': Streamable HTTP requires 'url'");
             }
-            return HttpClientStreamableHttpTransport.builder(config.getUrl()).build();
+            java.net.URI uri = java.net.URI.create(config.getUrl());
+            String baseUrl = uri.getScheme() + "://" + uri.getAuthority();
+            String endpoint = uri.getRawPath();
+            if (endpoint == null || endpoint.isEmpty()) {
+                endpoint = "/mcp";
+            }
+            return HttpClientStreamableHttpTransport.builder(baseUrl)
+                .endpoint(endpoint)
+                .build();
         }
 
         // SSE — 旧版传输协议
