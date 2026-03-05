@@ -1,5 +1,6 @@
 package com.lightweightai.web.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolWrapper;
@@ -7,6 +8,7 @@ import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpClientTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -144,7 +146,8 @@ public class McpConfig {
                 }
             }
 
-            mcpTransport = new StdioClientTransport(paramsBuilder.build());
+            mcpTransport = new StdioClientTransport(paramsBuilder.build(),
+                new JacksonMcpJsonMapper(new ObjectMapper()));
         }
 
         McpToolClient client = McpToolClient.builder()

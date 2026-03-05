@@ -17,6 +17,7 @@ import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpClientTransport;
 
 import java.io.InputStream;
@@ -275,7 +276,8 @@ public class McpServerRunner {
         if (config.getEnv() != null && !config.getEnv().isEmpty()) {
             paramsBuilder.env(config.getEnv());
         }
-        return new StdioClientTransport(paramsBuilder.build());
+        return new StdioClientTransport(paramsBuilder.build(),
+            new JacksonMcpJsonMapper(new ObjectMapper()));
     }
 
     private static List<String> resolveArgs(List<String> args) {

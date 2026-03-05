@@ -1,5 +1,6 @@
 package com.lightweightai.demo;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolExecutor;
@@ -9,6 +10,7 @@ import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolWrapper;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 
 import java.util.List;
 import java.util.Map;
@@ -82,7 +84,8 @@ public class McpClientDemo {
 
         McpToolClient client = McpToolClient.builder()
             .serverName("demo-agent")
-            .transport(new StdioClientTransport(paramsBuilder.build()))
+            .transport(new StdioClientTransport(paramsBuilder.build(),
+                new JacksonMcpJsonMapper(new ObjectMapper())))
             .build();
 
         try {
