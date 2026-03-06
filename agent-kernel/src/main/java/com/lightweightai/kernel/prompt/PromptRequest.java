@@ -1,6 +1,9 @@
 package com.lightweightai.kernel.prompt;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Prompt 构建请求

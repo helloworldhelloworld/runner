@@ -1,6 +1,9 @@
 package com.lightweightai.assessment;
 
-import com.lightweightai.assessment.model.*;
+import com.lightweightai.assessment.model.AssessmentResult;
+import com.lightweightai.assessment.model.AssessmentSubmission;
+import com.lightweightai.assessment.model.ScaleDefinition;
+import com.lightweightai.assessment.model.ScaleType;
 import com.lightweightai.assessment.scale.Gad7Scale;
 import com.lightweightai.assessment.scale.Phq9Scale;
 import com.lightweightai.assessment.scale.Pss10Scale;

@@ -4,14 +4,28 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.lightweightai.kernel.llm.*;
+import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
-import okhttp3.*;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.llm.ToolCall;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -23,6 +37,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class OpenRouterProvider implements LLMProvider {
 
+    private static final Logger logger = LoggerFactory.getLogger(OpenRouterProvider.class);
     private static final String API_BASE_URL = "https://openrouter.ai/api/v1";
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
@@ -58,8 +73,7 @@ public class OpenRouterProvider implements LLMProvider {
         this.objectMapper = new ObjectMapper();
         this.modelCapability = new OpenRouterModelCapability(model);
 
-        // 调试日志
-        System.out.println("[OpenRouterProvider] Initialized with model: " + model);
+        logger.info("Initialized with model: {}", model);
     }
 
     @Override
@@ -67,7 +81,7 @@ public class OpenRouterProvider implements LLMProvider {
         try {
             // Build request
             String requestBody = buildRequestBody(messages, options, false);
-            System.out.println("[OpenRouterProvider] Calling API with " + messages.size() + " messages");
+            logger.debug("Calling API with {} messages", messages.size());
 
             // Make HTTP request
             Request request = new Request.Builder()
@@ -79,9 +93,9 @@ public class OpenRouterProvider implements LLMProvider {
                 .post(RequestBody.create(requestBody, JSON))
                 .build();
 
-            System.out.println("[OpenRouterProvider] Making HTTP request...");
+            logger.debug("Making HTTP request...");
             try (Response response = httpClient.newCall(request).execute()) {
-                System.out.println("[OpenRouterProvider] Got response: " + response.code());
+                logger.debug("Got response: {}", response.code());
                 if (!response.isSuccessful()) {
                     String errorBody = response.body() != null ? response.body().string() : "No error details";
                     throw new RuntimeException("OpenRouter API call failed: " + response.code() +
@@ -265,7 +279,7 @@ public class OpenRouterProvider implements LLMProvider {
                 toolCalls.add(new ToolCall(id, name, argsMap));
             }
             if (!toolCalls.isEmpty()) {
-                System.out.println("[OpenRouterProvider] tool_calls detected: " + toolCalls.size());
+                logger.debug("tool_calls detected: {}", toolCalls.size());
             }
         }
 
@@ -379,11 +393,11 @@ public class OpenRouterProvider implements LLMProvider {
                     : objectMapper.readValue(argsStr, Map.class);
                 toolCalls.add(new ToolCall(acc.id, acc.name, argsMap));
             } catch (Exception e) {
-                System.err.println("[OpenRouterProvider] Failed to parse streaming tool call args: " + e.getMessage());
+                logger.warn("Failed to parse streaming tool call args: {}", e.getMessage());
             }
         }
         if (!toolCalls.isEmpty()) {
-            System.out.println("[OpenRouterProvider] Streaming tool_calls assembled: " + toolCalls.size());
+            logger.debug("Streaming tool_calls assembled: {}", toolCalls.size());
         }
 
         // Build final response

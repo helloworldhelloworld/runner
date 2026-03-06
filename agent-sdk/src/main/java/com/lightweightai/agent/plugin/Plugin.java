@@ -3,7 +3,9 @@ package com.lightweightai.agent.plugin;
 import com.lightweightai.kernel.plugin.PluginFunction;
 import com.lightweightai.kernel.plugin.TypedPluginFunction;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**

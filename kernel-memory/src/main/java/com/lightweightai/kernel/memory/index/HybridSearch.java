@@ -6,7 +6,11 @@ import com.lightweightai.kernel.memory.model.SearchResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Hybrid search combining BM25 (keyword) and Vector (semantic) search.

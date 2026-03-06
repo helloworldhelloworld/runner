@@ -1,7 +1,8 @@
 package com.lightweightai.kernel.skill;
 
 import java.nio.file.Path;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Claude Skill - Instruction-based task package

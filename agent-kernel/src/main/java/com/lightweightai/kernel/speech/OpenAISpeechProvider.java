@@ -2,7 +2,12 @@ package com.lightweightai.kernel.speech;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import okhttp3.*;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,14 +96,12 @@ public class OpenAISpeechProvider implements SpeechProvider {
                 // Note: OpenAI TTS doesn't support emotion control directly,
                 // but different voices have different characteristics
 
-                String requestBody = objectMapper.writeValueAsString(
-                    new java.util.HashMap<String, Object>() {{
-                        put("model", "tts-1");
-                        put("input", text);
-                        put("voice", selectVoiceByEmotion(emotion));
-                        put("response_format", "mp3");
-                    }}
-                );
+                Map<String, Object> ttsRequest = new java.util.HashMap<>();
+                ttsRequest.put("model", "tts-1");
+                ttsRequest.put("input", text);
+                ttsRequest.put("voice", selectVoiceByEmotion(emotion));
+                ttsRequest.put("response_format", "mp3");
+                String requestBody = objectMapper.writeValueAsString(ttsRequest);
 
                 Request request = new Request.Builder()
                     .url(API_BASE_URL + "/audio/speech")

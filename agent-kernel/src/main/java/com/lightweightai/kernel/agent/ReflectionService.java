@@ -5,6 +5,8 @@ import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.memory.UserMemory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.List;
  */
 public class ReflectionService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ReflectionService.class);
     private final LLMProvider llmProvider;
 
     public ReflectionService(LLMProvider llmProvider) {
@@ -24,7 +27,7 @@ public class ReflectionService {
      * 分析用户情绪
      */
     public String analyzeEmotion(String userMessage) {
-        System.out.println("[ReflectionService] analyzeEmotion called");
+        logger.debug("analyzeEmotion called");
         List<ConversationMessage> messages = new ArrayList<>();
 
         // 系统提示
@@ -40,19 +43,18 @@ public class ReflectionService {
             .build());
 
         try {
-            System.out.println("[ReflectionService] Building LLM options...");
+            logger.debug("Building LLM options...");
             LLMOptions options = LLMOptions.builder()
                 .maxTokens(50)
                 .temperature(0.3)
                 .build();
 
-            System.out.println("[ReflectionService] Calling llmProvider.complete()...");
+            logger.debug("Calling llmProvider.complete()...");
             LLMResponse response = llmProvider.complete(messages, options);
-            System.out.println("[ReflectionService] Got LLM response");
+            logger.debug("Got LLM response");
             return response.getMessage().getTextContent().trim();
         } catch (Exception e) {
-            System.out.println("[ReflectionService] Error: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error analyzing emotion: {}", e.getMessage(), e);
             return "未知";
         }
     }

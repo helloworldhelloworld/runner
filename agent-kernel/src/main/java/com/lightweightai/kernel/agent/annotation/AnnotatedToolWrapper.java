@@ -8,7 +8,11 @@ import com.lightweightai.kernel.llm.ToolResult;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * 将 @ToolFunction 注解的方法适配为 Tool 接口

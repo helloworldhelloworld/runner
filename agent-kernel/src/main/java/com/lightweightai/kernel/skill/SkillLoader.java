@@ -1,8 +1,14 @@
 package com.lightweightai.kernel.skill;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -27,6 +33,7 @@ import java.util.stream.Collectors;
  */
 public class SkillLoader {
 
+    private static final Logger logger = LoggerFactory.getLogger(SkillLoader.class);
     private static final String SKILL_MANIFEST = "SKILL.md";
     private static final Pattern FRONTMATTER_PATTERN = Pattern.compile(
         "^---\\s*$(.*?)^---\\s*$(.*)$",
@@ -112,9 +119,9 @@ public class SkillLoader {
                 try {
                     Skill skill = loadSkill(skillDir);
                     skills.put(skill.getName(), skill);
-                    System.out.println("Loaded skill: " + skill.getName());
+                    logger.info("Loaded skill: {}", skill.getName());
                 } catch (IOException e) {
-                    System.err.println("Failed to load skill from " + skillDir + ": " + e.getMessage());
+                    logger.warn("Failed to load skill from {}: {}", skillDir, e.getMessage());
                 }
             }
         }
@@ -138,7 +145,7 @@ public class SkillLoader {
                         byte[] content = Files.readAllBytes(resourcePath);
                         resources.put(resourceName, content);
                     } catch (IOException e) {
-                        System.err.println("Failed to load resource " + resourcePath + ": " + e.getMessage());
+                        logger.warn("Failed to load resource {}: {}", resourcePath, e.getMessage());
                     }
                 });
         }
@@ -225,6 +232,6 @@ public class SkillLoader {
         String sampleResource = "This is a sample resource file for the skill.";
         Files.writeString(skillDir.resolve("example.txt"), sampleResource);
 
-        System.out.println("Created sample skill at: " + skillDir);
+        logger.info("Created sample skill at: {}", skillDir);
     }
 }
