@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, 'claude/**' ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Compile all modules (excluding agent-web)
+        run: mvn compile -B --no-transfer-progress
+
+      - name: Run tests (excluding agent-web)
+        run: mvn test -B --no-transfer-progress
+
+      - name: Compile agent-web (with Spring Boot)
+        run: mvn compile -B --no-transfer-progress -Pweb -pl agent-web -am
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "=== Test Results ==="
+          find . -path "*/surefire-reports/*.txt" -exec echo "--- {} ---" \; -exec cat {} \;
