@@ -16,17 +16,17 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * McpToolManager 测试
+ * ToolClient 测试
  *
  * 验证核心设计：ToolExecutor 透明调用本地工具和 MCP 工具
  */
-@DisplayName("McpToolManager - Transparent tool execution")
-class McpToolManagerTest {
+@DisplayName("ToolClient - Transparent tool execution")
+class ToolClientTest {
 
     @Test
     @DisplayName("Local tools registered via builder are accessible")
     void shouldRegisterLocalTools() {
-        McpToolManager manager = McpToolManager.create()
+        ToolClient manager = ToolClient.create()
             .registerLocal(new FakeLocalTool("add", "Add numbers"))
             .registerLocal(new FakeLocalTool("multiply", "Multiply numbers"))
             .build();
@@ -45,7 +45,7 @@ class McpToolManagerTest {
         Tool localTool = new FakeLocalTool("local_add", "Local add");
         Tool mcpTool = new FakeMcpTool("mcp_forecast", "MCP weather forecast");
 
-        McpToolManager manager = McpToolManager.create()
+        ToolClient manager = ToolClient.create()
             .registerLocal(localTool)
             .registerLocal(mcpTool)  // In real usage, this comes from addMcpServer()
             .build();
@@ -69,7 +69,7 @@ class McpToolManagerTest {
     @Test
     @DisplayName("ToolExecutor returns error for unknown tools")
     void shouldReturnErrorForUnknownTool() {
-        McpToolManager manager = McpToolManager.create()
+        ToolClient manager = ToolClient.create()
             .registerLocal(new FakeLocalTool("known", "Known tool"))
             .build();
 
@@ -86,7 +86,7 @@ class McpToolManagerTest {
     @Test
     @DisplayName("getToolDefinitions includes all tools regardless of source")
     void shouldIncludeAllToolDefinitions() {
-        McpToolManager manager = McpToolManager.create()
+        ToolClient manager = ToolClient.create()
             .registerLocal(new FakeLocalTool("local1", "Local 1"))
             .registerLocal(new FakeLocalTool("local2", "Local 2"))
             .registerLocal(new FakeMcpTool("mcp1", "MCP 1"))
@@ -101,7 +101,7 @@ class McpToolManagerTest {
     @Test
     @DisplayName("Dynamic tool registration after build")
     void shouldSupportDynamicRegistration() {
-        McpToolManager manager = McpToolManager.create()
+        ToolClient manager = ToolClient.create()
             .registerLocal(new FakeLocalTool("initial", "Initial"))
             .build();
 
@@ -120,7 +120,7 @@ class McpToolManagerTest {
     @Test
     @DisplayName("Close clears MCP clients list")
     void shouldCloseCleanly() {
-        McpToolManager manager = McpToolManager.create()
+        ToolClient manager = ToolClient.create()
             .registerLocal(new FakeLocalTool("tool", "Tool"))
             .build();
 

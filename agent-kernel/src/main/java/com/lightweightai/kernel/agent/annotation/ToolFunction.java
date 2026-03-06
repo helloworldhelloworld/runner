@@ -70,4 +70,11 @@ public @interface ToolFunction {
      * 是否为 AI 自主调用（默认 true）
      */
     boolean autoExecute() default true;
+
+    /**
+     * 是否在客户端执行（默认 false）
+     *
+     * 设为 true 时，工具不在服务端执行，而是通过 WebSocket 派发到客户端。
+     */
+    boolean clientSide() default false;
 }

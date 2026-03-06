@@ -96,4 +96,20 @@ public interface ToolMetadata {
     default boolean isOpenWorld() {
         return true;
     }
+
+    /**
+     * 工具是否在客户端执行
+     *
+     * 如果为 true，工具不会在服务端调用 execute()，而是通过 WebSocket
+     * 派发到客户端（浏览器/App）执行，服务端阻塞等待客户端回传结果。
+     *
+     * 适用于需要设备能力的工具（拍照、GPS、签名等），
+     * 或虽然定义在服务端但实际逻辑需要在端上运行的工具。
+     *
+     * 自定义工具通过 {@code @ToolFunction(clientSide = true)} 标记；
+     * MCP 工具通过配置或构造时指定。
+     */
+    default boolean isClientSide() {
+        return false;
+    }
 }
