@@ -154,6 +154,69 @@ class ToolClientTest {
         assertTrue(((ToolMetadata) mcpTool).getCategory().startsWith("mcp:"));
     }
 
+    // ==================== Header Provider Tests ====================
+
+    @Test
+    @DisplayName("resolveHeaders merges static config headers and dynamic provider")
+    void shouldMergeStaticAndDynamicHeaders() {
+        McpConfiguration.ServerConfig config = McpConfiguration.ServerConfig
+            .streamableHttp("http://api:8080/mcp")
+            .withHeader("X-Static", "static-value")
+            .withHeader("Authorization", "Bearer static-token");
+
+        McpHeaderProvider provider = () -> Map.of(
+            "Authorization", "Bearer dynamic-token",
+            "X-Dynamic", "dynamic-value"
+        );
+
+        Map<String, String> merged = ToolClient.Builder.resolveHeaders(config, provider);
+
+        assertEquals(3, merged.size());
+        // 动态 provider 覆盖同名 key
+        assertEquals("Bearer dynamic-token", merged.get("Authorization"));
+        assertEquals("static-value", merged.get("X-Static"));
+        assertEquals("dynamic-value", merged.get("X-Dynamic"));
+    }
+
+    @Test
+    @DisplayName("resolveHeaders works with null provider")
+    void shouldResolveHeadersWithNullProvider() {
+        McpConfiguration.ServerConfig config = McpConfiguration.ServerConfig
+            .sse("http://api:8080/sse")
+            .withHeader("Authorization", "Bearer token");
+
+        Map<String, String> merged = ToolClient.Builder.resolveHeaders(config, null);
+
+        assertEquals(1, merged.size());
+        assertEquals("Bearer token", merged.get("Authorization"));
+    }
+
+    @Test
+    @DisplayName("resolveHeaders returns empty map when no headers configured")
+    void shouldResolveEmptyHeaders() {
+        McpConfiguration.ServerConfig config = McpConfiguration.ServerConfig.stdio("cmd");
+
+        Map<String, String> merged = ToolClient.Builder.resolveHeaders(config, null);
+
+        assertTrue(merged.isEmpty());
+    }
+
+    @Test
+    @DisplayName("headerProvider can be set on builder")
+    void shouldAcceptHeaderProvider() {
+        McpHeaderProvider provider = () -> Map.of("Authorization", "Bearer test");
+
+        ToolClient client = ToolClient.create()
+            .headerProvider(provider)
+            .registerLocal(new FakeLocalTool("tool", "Test"))
+            .build();
+
+        // headerProvider doesn't affect local tool execution
+        assertNotNull(client.getToolExecutor());
+        assertEquals(1, client.getToolRegistry().enabledCount());
+        client.close();
+    }
+
     // ==================== Test Helpers ====================
 
     /**

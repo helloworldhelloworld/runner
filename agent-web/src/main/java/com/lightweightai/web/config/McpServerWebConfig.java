@@ -98,38 +98,51 @@ public class McpServerWebConfig {
     /**
      * 创建 Streamable HTTP 传输（推荐）
      *
-     * MCP SDK 的 HttpServletStreamableHttpTransportProvider 会自动注册
-     * Servlet 处理 POST /mcp 请求。
+     * MCP SDK 的 HttpServletStreamableHttpTransportProvider 处理 POST /mcp 请求。
+     * 通过反射实例化，避免对 mcp-spring-webmvc 的编译期依赖。
      */
     private McpServerTransportProvider createStreamableHttpTransport(JacksonMcpJsonMapper jsonMapper) {
-        try {
-            Class<?> clazz = Class.forName(
-                "io.modelcontextprotocol.server.transport.HttpServletStreamableHttpTransportProvider");
-            var constructor = clazz.getConstructor(
-                io.modelcontextprotocol.spec.McpJsonMapper.class, String.class);
-            return (McpServerTransportProvider) constructor.newInstance(jsonMapper, "/mcp");
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                "Failed to create Streamable HTTP transport. Ensure mcp-spring-webmvc is on classpath.", e);
-        }
+        return createTransportByReflection(
+            "io.modelcontextprotocol.server.transport.HttpServletStreamableHttpTransportProvider",
+            jsonMapper, "/mcp");
     }
 
     /**
      * 创建 SSE 传输（旧版兼容）
      *
-     * MCP SDK 的 HttpServletSseServerTransportProvider 会自动注册
-     * Servlet 处理 SSE 连接和消息。
+     * MCP SDK 的 HttpServletSseServerTransportProvider 处理 SSE 连接和消息。
      */
     private McpServerTransportProvider createSseTransport(JacksonMcpJsonMapper jsonMapper) {
+        return createTransportByReflection(
+            "io.modelcontextprotocol.server.transport.HttpServletSseServerTransportProvider",
+            jsonMapper, "/mcp/sse");
+    }
+
+    /**
+     * 通过反射创建 transport provider，避免编译期对 mcp-spring-webmvc 的强依赖
+     *
+     * 查找接受 (McpJsonMapper, String) 参数的构造函数。
+     */
+    @SuppressWarnings("unchecked")
+    private McpServerTransportProvider createTransportByReflection(
+            String className, JacksonMcpJsonMapper jsonMapper, String endpoint) {
         try {
-            Class<?> clazz = Class.forName(
-                "io.modelcontextprotocol.server.transport.HttpServletSseServerTransportProvider");
-            var constructor = clazz.getConstructor(
-                io.modelcontextprotocol.spec.McpJsonMapper.class, String.class);
-            return (McpServerTransportProvider) constructor.newInstance(jsonMapper, "/mcp/sse");
+            Class<?> clazz = Class.forName(className);
+            // 查找匹配的双参数构造函数：(McpJsonMapper 子类, String)
+            for (var ctor : clazz.getConstructors()) {
+                Class<?>[] params = ctor.getParameterTypes();
+                if (params.length == 2
+                        && params[0].isAssignableFrom(jsonMapper.getClass())
+                        && params[1] == String.class) {
+                    return (McpServerTransportProvider) ctor.newInstance(jsonMapper, endpoint);
+                }
+            }
+            throw new NoSuchMethodException(
+                "No constructor (McpJsonMapper, String) found in " + className);
         } catch (Exception e) {
             throw new IllegalStateException(
-                "Failed to create SSE transport. Ensure mcp-spring-webmvc is on classpath.", e);
+                "Failed to create transport: " + className
+                    + ". Ensure mcp-spring-webmvc is on classpath.", e);
         }
     }
 }
