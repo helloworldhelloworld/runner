@@ -140,6 +140,11 @@ public class AnnotatedToolWrapper implements Tool, ToolMetadata {
         return annotation.openWorld();
     }
 
+    @Override
+    public boolean isClientSide() {
+        return annotation.clientSide();
+    }
+
     // ==================== 内部逻辑 ====================
 
     /**

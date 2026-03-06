@@ -20,6 +20,7 @@ public class ToolCallingLoop {
     private final LLMProvider provider;
     private final ToolExecutor toolExecutor;
     private final int maxIterations;
+    private final ToolExecutionContext executionContext;
 
     /**
      * Create a new ToolCallingLoop
@@ -29,6 +30,11 @@ public class ToolCallingLoop {
      * @param maxIterations Maximum number of tool calling iterations (prevents infinite loops)
      */
     public ToolCallingLoop(LLMProvider provider, ToolExecutor toolExecutor, int maxIterations) {
+        this(provider, toolExecutor, maxIterations, null);
+    }
+
+    public ToolCallingLoop(LLMProvider provider, ToolExecutor toolExecutor, int maxIterations,
+                           ToolExecutionContext executionContext) {
         if (provider == null) {
             throw new IllegalArgumentException("LLM provider cannot be null");
         }
@@ -42,6 +48,7 @@ public class ToolCallingLoop {
         this.provider = provider;
         this.toolExecutor = toolExecutor;
         this.maxIterations = maxIterations;
+        this.executionContext = executionContext;
     }
 
     /**
@@ -65,9 +72,11 @@ public class ToolCallingLoop {
                 return response;
             }
 
-            // Execute all tool calls
+            // Execute all tool calls (with client-side routing if context present)
             List<ToolCall> toolCalls = response.getToolCalls();
-            List<ToolResult> toolResults = toolExecutor.executeToolCalls(toolCalls);
+            List<ToolResult> toolResults = executionContext != null
+                ? toolExecutor.executeToolCalls(toolCalls, executionContext)
+                : toolExecutor.executeToolCalls(toolCalls);
 
             // Add assistant's response (with tool calls) to conversation
             conversation.add(response.getMessage());
@@ -132,9 +141,12 @@ public class ToolCallingLoop {
                     return CompletableFuture.completedFuture(response);
                 }
 
-                // Step 3: Execute tools asynchronously (non-blocking)
+                // Step 3: Execute tools asynchronously (with client-side routing if context present)
                 List<ToolCall> toolCalls = response.getToolCalls();
-                return toolExecutor.executeToolCallsAsync(toolCalls)
+                CompletableFuture<List<ToolResult>> toolFuture = executionContext != null
+                    ? toolExecutor.executeToolCallsAsync(toolCalls, executionContext)
+                    : toolExecutor.executeToolCallsAsync(toolCalls);
+                return toolFuture
                     .thenCompose(toolResults -> {
                         // Step 4: Add assistant's response and tool results to conversation
                         conversation.add(response.getMessage());
@@ -191,7 +203,8 @@ public class ToolCallingLoop {
     public static class Builder {
         private LLMProvider provider;
         private ToolExecutor toolExecutor;
-        private int maxIterations = 10; // Default to 10 iterations
+        private int maxIterations = 10;
+        private ToolExecutionContext executionContext;
 
         public Builder provider(LLMProvider provider) {
             this.provider = provider;
@@ -208,8 +221,16 @@ public class ToolCallingLoop {
             return this;
         }
 
+        /**
+         * 设置工具执行上下文（用于客户端工具路由）
+         */
+        public Builder executionContext(ToolExecutionContext context) {
+            this.executionContext = context;
+            return this;
+        }
+
         public ToolCallingLoop build() {
-            return new ToolCallingLoop(provider, toolExecutor, maxIterations);
+            return new ToolCallingLoop(provider, toolExecutor, maxIterations, executionContext);
         }
     }
 

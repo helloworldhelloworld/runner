@@ -35,6 +35,7 @@ public class McpToolWrapper implements Tool, ToolMetadata {
     private final McpSyncClient mcpClient;
     private final McpSchema.Tool mcpTool;
     private final String serverName;
+    private boolean clientSide;
 
     /**
      * @param mcpClient  MCP 同步客户端（用于调用远程工具）
@@ -113,6 +114,20 @@ public class McpToolWrapper implements Tool, ToolMetadata {
     @Override
     public String getAuthor() {
         return "mcp-server:" + serverName;
+    }
+
+    @Override
+    public boolean isClientSide() {
+        return clientSide;
+    }
+
+    /**
+     * 设置是否在客户端执行
+     *
+     * @param clientSide true 表示此工具需要派发到客户端执行
+     */
+    public void setClientSide(boolean clientSide) {
+        this.clientSide = clientSide;
     }
 
     /**

@@ -165,7 +165,12 @@ public class ClientToolWrapper implements Tool, ToolMetadata {
 
     @Override
     public boolean isOpenWorld() {
-        return true;  // 客户端工具与外部世界交互
+        return true;
+    }
+
+    @Override
+    public boolean isClientSide() {
+        return true;
     }
 
     /**

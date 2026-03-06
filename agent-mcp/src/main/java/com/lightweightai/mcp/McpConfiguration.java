@@ -11,7 +11,7 @@ import java.util.Map;
  *
  * 支持两种使用场景：
  *
- * <h2>场景一：作为 MCP Client 连接远程 Server（McpToolManager）</h2>
+ * <h2>场景一：作为 MCP Client 连接远程 Server（ToolClient）</h2>
  * <pre>
  * // mcp-config.yaml
  * mcp:
@@ -24,7 +24,7 @@ import java.util.Map;
  *       command: npx
  *       args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
  *
- * McpToolManager manager = McpToolManager.create()
+ * ToolClient client = ToolClient.create()
  *     .fromConfig(config)
  *     .build();
  * </pre>

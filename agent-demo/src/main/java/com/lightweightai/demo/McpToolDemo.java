@@ -13,7 +13,7 @@ import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
 import com.lightweightai.mcp.McpConfiguration;
 import com.lightweightai.mcp.McpToolAdapter;
 import com.lightweightai.mcp.McpToolClient;
-import com.lightweightai.mcp.McpToolManager;
+import com.lightweightai.mcp.ToolClient;
 import com.lightweightai.mcp.McpToolServer;
 import com.lightweightai.mcp.McpToolWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,7 +42,7 @@ import java.util.concurrent.CompletableFuture;
  *     ToolExecutor.executeToolCall() 不区分工具来源
  *     ToolCallingLoop 使用完全相同的代码处理两种工具
  *
- * [B] McpToolManager — 一站式管理本地+MCP工具生命周期
+ * [B] ToolClient — 一站式管理本地+MCP工具生命周期
  *     create() → registerLocal() → addMcpServer() → build()
  *     自动 connect → discover → register → close
  *
@@ -66,7 +66,7 @@ public class McpToolDemo {
         System.out.println("========================================\n");
 
         demoTransparentExecution();
-        demoMcpToolManager();
+        demoToolClient();
         demoRemoteMcpConfig();
         demoMcpServerExpose();
         demoAgentIntegration();
@@ -167,10 +167,10 @@ public class McpToolDemo {
     }
 
     // ================================================================
-    //  [B] McpToolManager — 一站式管理
+    //  [B] ToolClient — 一站式管理
     //
     //  真实使用时，只需：
-    //    McpToolManager.create()
+    //    ToolClient.create()
     //      .registerLocal(...)      // 本地工具
     //      .addMcpServer(name, t)   // MCP 自动 connect+discover+register
     //      .build()
@@ -178,11 +178,11 @@ public class McpToolDemo {
     //  然后 manager.getToolExecutor() 即可统一调用所有工具
     // ================================================================
 
-    static void demoMcpToolManager() {
-        System.out.println("--- [B] McpToolManager: 一站式工具管理 ---\n");
+    static void demoToolClient() {
+        System.out.println("--- [B] ToolClient: 一站式工具管理 ---\n");
 
         System.out.println("  // 真实使用代码（需要 MCP 服务端运行时连接）：");
-        System.out.println("  McpToolManager manager = McpToolManager.create()");
+        System.out.println("  ToolClient manager = ToolClient.create()");
         System.out.println("      .registerLocal(new MathTools())");
         System.out.println("      .registerLocal(new CityInfoTool())");
         System.out.println("      .addMcpServer(\"weather\",              // 自动 connect+discover+register");
@@ -211,7 +211,7 @@ public class McpToolDemo {
         // 设计图
         System.out.println("  架构图：");
         System.out.println("  ┌─────────────────────────────────────────────────┐");
-        System.out.println("  │           McpToolManager                        │");
+        System.out.println("  │           ToolClient                        │");
         System.out.println("  │                                                 │");
         System.out.println("  │  ┌───────────────┐  ┌───────────────────────┐  │");
         System.out.println("  │  │ ToolRegistry   │  │ MCP Client Lifecycle │  │");
@@ -449,8 +449,8 @@ public class McpToolDemo {
         System.out.println("  agent.chat(\"Tokyo 天气如何？\");    // 自动调用 MCP weather 工具");
         System.out.println("  // Agent 内部 ToolCallingLoop 完全透明\n");
 
-        System.out.println("  // 方式二：用 McpToolManager（推荐，自动管理 MCP 生命周期）");
-        System.out.println("  McpToolManager manager = McpToolManager.create()");
+        System.out.println("  // 方式二：用 ToolClient（推荐，自动管理 MCP 生命周期）");
+        System.out.println("  ToolClient manager = ToolClient.create()");
         System.out.println("      .registerLocal(new MathTools())");
         System.out.println("      .addMcpServer(\"weather\", transport)");
         System.out.println("      .build();");

@@ -80,17 +80,17 @@ public class AgentBuilder {
      * 使用统一 ToolRegistry（支持本地工具、MCP 工具、SPI 工具等）
      *
      * 通过此方法注册的工具，agent 调用时完全透明，不区分工具来源。
-     * 配合 McpToolManager 使用，可实现 MCP 工具无感调用：
+     * 配合 ToolClient 使用，可实现 MCP 工具无感调用：
      *
      * <pre>
-     * McpToolManager manager = McpToolManager.create()
+     * ToolClient client = ToolClient.create()
      *     .registerLocal(new MathTools())
      *     .addMcpServer("weather", transport)
      *     .build();
      *
      * Agent agent = Agent.builder()
      *     .claude(apiKey)
-     *     .tools(manager.getToolRegistry())  // MCP 和本地工具统一注册
+     *     .tools(client.getToolRegistry())  // 本地/MCP/客户端工具统一注册
      *     .build();
      * </pre>
      *

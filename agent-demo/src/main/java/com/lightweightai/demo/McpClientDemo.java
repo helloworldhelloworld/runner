@@ -2,17 +2,16 @@ package com.lightweightai.demo;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
-import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
-import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolWrapper;
+import com.lightweightai.mcp.ToolClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -83,26 +82,25 @@ public class McpClientDemo {
         System.out.println("[1] 启动 McpServerRunner...");
         System.out.println("    McpServerRunner 根据配置连接上游 MCP Server（SSE/STDIO）\n");
 
-        McpToolClient client = McpToolClient.builder()
-            .serverName("demo-agent")
-            .transport(new StdioClientTransport(paramsBuilder.build(),
-                new JacksonMcpJsonMapper(new ObjectMapper())))
+        // 使用 ToolClient 统一管理：addMcpServer 会自动 initialize + discover + register
+        StdioClientTransport transport = new StdioClientTransport(paramsBuilder.build(),
+            new JacksonMcpJsonMapper(new ObjectMapper()));
+
+        ToolClient client = ToolClient.create()
+            .addMcpServer("demo-agent", transport)
             .build();
 
         try {
-            client.initialize();
             System.out.println("[2] MCP 握手成功\n");
 
-            // 发现工具（本地工具 + 上游代理工具）
-            List<McpToolWrapper> tools = client.discoverMcpTools();
-            System.out.println("[3] 发现 " + tools.size() + " 个工具：");
-            for (McpToolWrapper tool : tools) {
+            // 通过 ToolClient 获取统一的 ToolExecutor
+            ToolExecutor executor = client.getToolExecutor();
+
+            // 发现的工具
+            System.out.println("[3] 发现 " + client.getToolRegistry().enabledCount() + " 个工具：");
+            for (Tool tool : client.getToolRegistry().getEnabled()) {
                 System.out.println("    - " + tool.getName());
             }
-
-            ToolRegistry registry = new ToolRegistry();
-            client.registerTools(registry);
-            ToolExecutor executor = new ToolExecutor(registry);
 
             // 调用工具
             System.out.println("\n[4] 调用工具：\n");
@@ -119,7 +117,7 @@ public class McpClientDemo {
             // 上游代理工具（动态发现，来自配置的外部 MCP Server）
             Set<String> localTools = Set.of("get_city_info", "get_weather", "calculate",
                 "goldPrice/search");
-            for (Tool tool : registry.getEnabled()) {
+            for (Tool tool : client.getToolRegistry().getEnabled()) {
                 if (tool instanceof McpToolWrapper w && !localTools.contains(tool.getName())) {
                     System.out.println("  [upstream:" + w.getServerName() + "] " + tool.getName());
                     System.out.println("    schema: " + tool.getSchema().toMap());
@@ -129,7 +127,7 @@ public class McpClientDemo {
 
             // 工具来源
             System.out.println("[5] 工具来源：");
-            for (Tool tool : registry.getEnabled()) {
+            for (Tool tool : client.getToolRegistry().getEnabled()) {
                 String source = (tool instanceof McpToolWrapper w)
                     ? "upstream:" + w.getServerName() : "local";
                 System.out.println("    - " + tool.getName() + " → " + source);
