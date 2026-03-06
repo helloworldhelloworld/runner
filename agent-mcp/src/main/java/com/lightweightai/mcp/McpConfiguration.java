@@ -140,6 +140,9 @@ public class McpConfiguration {
         /** 请求超时（秒） */
         private long timeoutSeconds = 30;
 
+        /** HTTP 自定义 Header（SSE / Streamable HTTP 生效，STDIO 忽略） */
+        private Map<String, String> headers = new HashMap<>();
+
         public ServerConfig() {}
 
         // ==================== 快捷工厂方法 ====================
@@ -238,6 +241,24 @@ public class McpConfiguration {
 
         public void setTimeoutSeconds(long timeoutSeconds) {
             this.timeoutSeconds = timeoutSeconds;
+        }
+
+        public Map<String, String> getHeaders() {
+            return headers;
+        }
+
+        public void setHeaders(Map<String, String> headers) {
+            this.headers = headers;
+        }
+
+        /**
+         * 添加 HTTP Header（链式调用）
+         *
+         * SSE / Streamable HTTP 传输时生效，STDIO 忽略。
+         */
+        public ServerConfig withHeader(String key, String value) {
+            this.headers.put(key, value);
+            return this;
         }
 
         /**

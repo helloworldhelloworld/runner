@@ -1,5 +1,6 @@
 package com.lightweightai.kernel.llm;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,8 +16,14 @@ public class ToolResult {
     private final String toolUseId;
     private final String content;
     private final boolean isError;
+    private final Map<String, Object> structuredContent;
 
     private ToolResult(String toolUseId, String content, boolean isError) {
+        this(toolUseId, content, isError, null);
+    }
+
+    private ToolResult(String toolUseId, String content, boolean isError,
+                       Map<String, Object> structuredContent) {
         if (content == null) {
             throw new IllegalArgumentException("Content cannot be null");
         }
@@ -24,6 +31,7 @@ public class ToolResult {
         this.toolUseId = toolUseId;
         this.content = content;
         this.isError = isError;
+        this.structuredContent = structuredContent;
     }
 
     // ==================== 推荐 API（工具实现使用）====================
@@ -36,6 +44,17 @@ public class ToolResult {
      */
     public static ToolResult success(String content) {
         return new ToolResult(null, content, false);
+    }
+
+    /**
+     * 创建成功结果（带结构化内容，MCP 2025-06-18 structuredContent）
+     *
+     * @param content           文本内容
+     * @param structuredContent 结构化 JSON 对象（可为 null）
+     * @return ToolResult 实例
+     */
+    public static ToolResult success(String content, Map<String, Object> structuredContent) {
+        return new ToolResult(null, content, false, structuredContent);
     }
 
     /**
@@ -123,7 +142,7 @@ public class ToolResult {
      * @return 新的 ToolResult 实例
      */
     public ToolResult withToolUseId(String toolUseId) {
-        return new ToolResult(toolUseId, this.content, this.isError);
+        return new ToolResult(toolUseId, this.content, this.isError, this.structuredContent);
     }
 
     // ==================== Getters ====================
@@ -147,6 +166,22 @@ public class ToolResult {
      */
     public boolean isError() {
         return isError;
+    }
+
+    /**
+     * 获取结构化内容（MCP 2025-06-18 structuredContent）
+     *
+     * @return 结构化 JSON 对象，可能为 null
+     */
+    public Map<String, Object> getStructuredContent() {
+        return structuredContent;
+    }
+
+    /**
+     * 是否包含结构化内容
+     */
+    public boolean hasStructuredContent() {
+        return structuredContent != null && !structuredContent.isEmpty();
     }
 
     /**

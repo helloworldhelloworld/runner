@@ -256,9 +256,15 @@ public class McpServerRunner {
             if (endpoint == null || endpoint.isEmpty()) {
                 endpoint = "/mcp";
             }
-            return HttpClientStreamableHttpTransport.builder(baseUrl)
-                .endpoint(endpoint)
-                .build();
+            var httpBuilder = HttpClientStreamableHttpTransport.builder(baseUrl)
+                .endpoint(endpoint);
+            Map<String, String> headers = config.getHeaders();
+            if (headers != null && !headers.isEmpty()) {
+                httpBuilder.customizeRequest(reqBuilder -> {
+                    headers.forEach(reqBuilder::header);
+                });
+            }
+            return httpBuilder.build();
         }
 
         // SSE — 旧版传输协议
@@ -266,9 +272,15 @@ public class McpServerRunner {
             if (config.getUrl() == null || config.getUrl().isBlank()) {
                 throw new IllegalStateException("Upstream '" + name + "': SSE requires 'url'");
             }
-            return HttpClientSseClientTransport.builder(config.getUrl())
-                .sseEndpoint("/sse")
-                .build();
+            var sseBuilder = HttpClientSseClientTransport.builder(config.getUrl())
+                .sseEndpoint("/sse");
+            Map<String, String> headers = config.getHeaders();
+            if (headers != null && !headers.isEmpty()) {
+                java.net.http.HttpRequest.Builder reqBuilder = java.net.http.HttpRequest.newBuilder();
+                headers.forEach(reqBuilder::header);
+                sseBuilder.requestBuilder(reqBuilder);
+            }
+            return sseBuilder.build();
         }
 
         // STDIO — 启动本地子进程
