@@ -159,6 +159,11 @@
                 <artifactId>mcp</artifactId>
                 <version>${mcp.sdk.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.modelcontextprotocol.sdk</groupId>
+                <artifactId>mcp-spring-webmvc</artifactId>
+                <version>${mcp.sdk.version}</version>
+            </dependency>
 
             <!-- Testing -->
             <dependency>

@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -146,6 +147,7 @@ public class ToolClient implements AutoCloseable {
         private final ToolRegistry registry = new ToolRegistry();
         private final List<McpToolClient> mcpClients = new ArrayList<>();
         private boolean autoScan = false;
+        private McpHeaderProvider headerProvider;
 
         /**
          * 注册本地注解工具（@ToolFunction）
@@ -168,6 +170,25 @@ public class ToolClient implements AutoCloseable {
          */
         public Builder registerLocal(Collection<Tool> tools) {
             registry.registerAll(tools);
+            return this;
+        }
+
+        /**
+         * 设置全局 Header 提供者
+         *
+         * 每次 MCP HTTP 请求发送前调用，动态添加 Header。
+         * 与 ServerConfig.headers 静态配置合并（动态优先）。
+         *
+         * <pre>
+         * ToolClient.create()
+         *     .headerProvider(() -> Map.of(
+         *         "Authorization", "Bearer " + tokenService.getToken()))
+         *     .fromConfig(config)
+         *     .build();
+         * </pre>
+         */
+        public Builder headerProvider(McpHeaderProvider headerProvider) {
+            this.headerProvider = headerProvider;
             return this;
         }
 
@@ -198,7 +219,7 @@ public class ToolClient implements AutoCloseable {
                 String name = entry.getKey();
                 McpConfiguration.ServerConfig serverConfig = entry.getValue();
 
-                McpClientTransport transport = createTransport(name, serverConfig);
+                McpClientTransport transport = createTransport(name, serverConfig, headerProvider);
                 Duration timeout = Duration.ofSeconds(serverConfig.getTimeoutSeconds());
                 addMcpServer(name, transport, timeout);
 
@@ -207,8 +228,33 @@ public class ToolClient implements AutoCloseable {
             return this;
         }
 
-        private static McpClientTransport createTransport(String name, McpConfiguration.ServerConfig config) {
+        /**
+         * 合并静态配置 headers 和动态 headerProvider
+         *
+         * 动态 provider 的值优先于静态配置（同名 key 覆盖）。
+         */
+        static Map<String, String> resolveHeaders(McpConfiguration.ServerConfig config,
+                                                    McpHeaderProvider headerProvider) {
+            Map<String, String> merged = new HashMap<>();
+            // 静态配置
+            if (config.getHeaders() != null && !config.getHeaders().isEmpty()) {
+                merged.putAll(config.getHeaders());
+            }
+            // 动态 provider 覆盖
+            if (headerProvider != null) {
+                Map<String, String> dynamic = headerProvider.getHeaders();
+                if (dynamic != null && !dynamic.isEmpty()) {
+                    merged.putAll(dynamic);
+                }
+            }
+            return merged;
+        }
+
+        static McpClientTransport createTransport(String name,
+                                                    McpConfiguration.ServerConfig config,
+                                                    McpHeaderProvider headerProvider) {
             String transport = config.getTransport();
+            Map<String, String> headers = resolveHeaders(config, headerProvider);
 
             if ("streamable_http".equalsIgnoreCase(transport)
                     || "streamable-http".equalsIgnoreCase(transport)
@@ -223,9 +269,14 @@ public class ToolClient implements AutoCloseable {
                 if (endpoint == null || endpoint.isEmpty()) {
                     endpoint = "/mcp";
                 }
-                return HttpClientStreamableHttpTransport.builder(baseUrl)
-                    .endpoint(endpoint)
-                    .build();
+                var builder = HttpClientStreamableHttpTransport.builder(baseUrl)
+                    .endpoint(endpoint);
+                if (!headers.isEmpty()) {
+                    builder.customizeRequest(reqBuilder -> {
+                        headers.forEach(reqBuilder::header);
+                    });
+                }
+                return builder.build();
             }
 
             if ("sse".equalsIgnoreCase(transport)) {
@@ -233,9 +284,14 @@ public class ToolClient implements AutoCloseable {
                     throw new IllegalStateException(
                         "MCP server '" + name + "': SSE transport requires 'url'");
                 }
-                return HttpClientSseClientTransport.builder(config.getUrl())
-                    .sseEndpoint("/sse")
-                    .build();
+                var sseBuilder = HttpClientSseClientTransport.builder(config.getUrl())
+                    .sseEndpoint("/sse");
+                if (!headers.isEmpty()) {
+                    java.net.http.HttpRequest.Builder reqBuilder = java.net.http.HttpRequest.newBuilder();
+                    headers.forEach(reqBuilder::header);
+                    sseBuilder.requestBuilder(reqBuilder);
+                }
+                return sseBuilder.build();
             }
 
             if (config.getCommand() == null || config.getCommand().isBlank()) {

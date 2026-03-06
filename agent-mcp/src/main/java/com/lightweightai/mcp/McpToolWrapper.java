@@ -82,6 +82,7 @@ public class McpToolWrapper implements Tool, ToolMetadata {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public ToolResult execute(Map<String, Object> args) {
         try {
             McpSchema.CallToolResult mcpResult = mcpClient.callTool(
@@ -94,7 +95,21 @@ public class McpToolWrapper implements Tool, ToolMetadata {
             if (isError) {
                 return ToolResult.error(content);
             }
-            return ToolResult.success(content);
+
+            // 提取 structuredContent（MCP 2025-06-18 规范）
+            Map<String, Object> structured = null;
+            try {
+                Object sc = mcpResult.structuredContent();
+                if (sc instanceof Map) {
+                    structured = (Map<String, Object>) sc;
+                }
+            } catch (Exception e) {
+                logger.debug("structuredContent not available for tool '{}': {}", getName(), e.getMessage());
+            }
+
+            return structured != null
+                ? ToolResult.success(content, structured)
+                : ToolResult.success(content);
         } catch (Exception e) {
             logger.error("MCP tool call failed: {} - {}", getName(), e.getMessage());
             return ToolResult.error("MCP call failed: " + e.getMessage());

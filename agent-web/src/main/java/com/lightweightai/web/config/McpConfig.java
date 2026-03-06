@@ -99,6 +99,14 @@ public class McpConfig {
         String transport = config.getOrDefault("transport", "stdio");
         long timeout = Long.parseLong(config.getOrDefault("timeout", "30"));
 
+        // 提取 header.xxx 前缀的自定义 HTTP Header
+        Map<String, String> headers = new java.util.HashMap<>();
+        config.forEach((k, v) -> {
+            if (k.startsWith("header.")) {
+                headers.put(k.substring("header.".length()), v);
+            }
+        });
+
         McpClientTransport mcpTransport;
         if ("streamable_http".equalsIgnoreCase(transport)
                 || "streamable-http".equalsIgnoreCase(transport)
@@ -114,18 +122,28 @@ public class McpConfig {
             if (endpoint == null || endpoint.isEmpty()) {
                 endpoint = "/mcp";
             }
-            mcpTransport = HttpClientStreamableHttpTransport.builder(baseUrl)
-                .endpoint(endpoint)
-                .build();
+            var httpBuilder = HttpClientStreamableHttpTransport.builder(baseUrl)
+                .endpoint(endpoint);
+            if (!headers.isEmpty()) {
+                httpBuilder.customizeRequest(reqBuilder -> {
+                    headers.forEach(reqBuilder::header);
+                });
+            }
+            mcpTransport = httpBuilder.build();
         } else if ("sse".equalsIgnoreCase(transport)) {
             // SSE — 旧版传输协议
             String url = config.get("url");
             if (url == null || url.isBlank()) {
                 throw new IllegalStateException("MCP server '" + name + "': SSE requires 'url'");
             }
-            mcpTransport = HttpClientSseClientTransport.builder(url)
-                .sseEndpoint("/sse")
-                .build();
+            var sseBuilder = HttpClientSseClientTransport.builder(url)
+                .sseEndpoint("/sse");
+            if (!headers.isEmpty()) {
+                java.net.http.HttpRequest.Builder reqBuilder = java.net.http.HttpRequest.newBuilder();
+                headers.forEach(reqBuilder::header);
+                sseBuilder.requestBuilder(reqBuilder);
+            }
+            mcpTransport = sseBuilder.build();
         } else {
             // STDIO
             String command = config.get("command");
