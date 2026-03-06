@@ -6,6 +6,8 @@ import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
+import com.lightweightai.mcp.McpConfiguration;
+import com.lightweightai.mcp.McpHeaderProvider;
 import com.lightweightai.mcp.McpToolWrapper;
 import com.lightweightai.mcp.ToolClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
@@ -54,6 +56,26 @@ import java.util.Set;
  *       transport: sse
  *       url: "http://remote-host:8081/sse"
  *       enabled: true
+ * </pre>
+ *
+ * <h2>带 Header 的使用方式</h2>
+ * <pre>
+ * // 方式 1：YAML 静态 Header
+ * // mcp-server.yaml:
+ * //   upstream:
+ * //     servers:
+ * //       auth-api:
+ * //         transport: streamable_http
+ * //         url: "http://api:8080/mcp"
+ * //         headers:
+ * //           Authorization: "Bearer ${API_TOKEN}"
+ *
+ * // 方式 2：编程式动态 Header（见 demoHeaderUsage()）
+ * McpConfiguration config = loadConfig();
+ * ToolClient client = ToolClient.create()
+ *     .headerProvider(() -> Map.of("Authorization", "Bearer " + getToken()))
+ *     .fromConfig(config)
+ *     .build();
  * </pre>
  */
 public class McpClientDemo {
@@ -133,6 +155,9 @@ public class McpClientDemo {
                 System.out.println("    - " + tool.getName() + " → " + source);
             }
 
+            // Header 使用示例
+            demoHeaderUsage();
+
             System.out.println("\n╔══════════════════════════════════════════════╗");
             System.out.println("║  验证通过！                                  ║");
             System.out.println("╚══════════════════════════════════════════════╝");
@@ -158,5 +183,56 @@ public class McpClientDemo {
             System.out.println("    → ERROR: " + e.getMessage());
             System.out.println();
         }
+    }
+
+    // ==================== Header 使用示例 ====================
+
+    /**
+     * 展示 3 种方式为 MCP 连接添加 HTTP Header
+     *
+     * 此方法仅展示 API 用法，不实际连接远程服务。
+     * 实际使用时将 url 替换为真实 MCP Server 地址。
+     */
+    private static void demoHeaderUsage() {
+        System.out.println("\n[6] Header 使用示例 — 3 种方式：\n");
+
+        // ── 方式 1：YAML 静态配置 ──
+        System.out.println("  1. YAML 静态 Header（见 mcp-server.yaml 中 auth-service 示例）");
+        System.out.println("     upstream:");
+        System.out.println("       servers:");
+        System.out.println("         auth-api:");
+        System.out.println("           transport: streamable_http");
+        System.out.println("           url: \"http://api:8080/mcp\"");
+        System.out.println("           headers:");
+        System.out.println("             Authorization: \"Bearer ${API_TOKEN}\"");
+        System.out.println("             X-Trace-Id: \"my-trace\"");
+        System.out.println();
+
+        // ── 方式 2：编程式静态 Header（withHeader） ──
+        McpConfiguration config = new McpConfiguration();
+        config.addServer("api-server", McpConfiguration.ServerConfig
+            .streamableHttp("http://api:8080/mcp")
+            .withHeader("Authorization", "Bearer my-static-token")
+            .withHeader("X-Client-Id", "demo-client"));
+        System.out.println("  2. 编程式 withHeader():");
+        System.out.println("     ServerConfig.streamableHttp(url).withHeader(\"Authorization\", \"Bearer xxx\")");
+        System.out.println("     → " + config.getServers().get("api-server").getHeaders());
+        System.out.println();
+
+        // ── 方式 3：动态 Header Provider ──
+        McpHeaderProvider provider = () -> Map.of(
+            "Authorization", "Bearer dynamic-" + (System.currentTimeMillis() % 10000),
+            "X-Request-Id", "req-" + System.currentTimeMillis()
+        );
+        System.out.println("  3. 动态 McpHeaderProvider（每次请求时调用）:");
+        System.out.println("     ToolClient.create()");
+        System.out.println("         .headerProvider(() -> Map.of(\"Authorization\", \"Bearer \" + getToken()))");
+        System.out.println("         .fromConfig(config)");
+        System.out.println("         .build();");
+        System.out.println("     当前 provider 返回: " + provider.getHeaders());
+        System.out.println();
+
+        System.out.println("  合并规则：动态 provider 覆盖静态配置中的同名 key");
+        System.out.println("  STDIO 传输忽略所有 header（仅 SSE / Streamable HTTP 生效）");
     }
 }

@@ -208,6 +208,22 @@ public class McpToolDemo {
         System.out.println("  manager.close();  // 自动关闭所有 MCP 连接");
         System.out.println();
 
+        System.out.println("  // 方式三：带 Header 认证的远程 MCP Server");
+        System.out.println("  ToolClient client = ToolClient.create()");
+        System.out.println("      .headerProvider(() -> Map.of(");
+        System.out.println("          \"Authorization\", \"Bearer \" + tokenService.getToken()))");
+        System.out.println("      .fromConfig(config)    // YAML 中的 headers 与 provider 合并");
+        System.out.println("      .build();");
+        System.out.println();
+        System.out.println("  // 或 YAML 中直接配置 headers:");
+        System.out.println("  //   servers:");
+        System.out.println("  //     auth-api:");
+        System.out.println("  //       transport: streamable_http");
+        System.out.println("  //       url: \"http://api:8080/mcp\"");
+        System.out.println("  //       headers:");
+        System.out.println("  //         Authorization: \"Bearer ${API_TOKEN}\"");
+        System.out.println();
+
         // 设计图
         System.out.println("  架构图：");
         System.out.println("  ┌─────────────────────────────────────────────────┐");
