@@ -126,4 +126,62 @@ class McpConfigurationTest {
         assertTrue(sse.toString().contains("sse"));
         assertTrue(sse.toString().contains("http://example.com/sse"));
     }
+
+    // ==================== Headers Tests ====================
+
+    @Test
+    @DisplayName("ServerConfig headers default to empty map")
+    void shouldHaveEmptyHeadersByDefault() {
+        McpConfiguration.ServerConfig config = new McpConfiguration.ServerConfig();
+        assertNotNull(config.getHeaders());
+        assertTrue(config.getHeaders().isEmpty());
+    }
+
+    @Test
+    @DisplayName("withHeader adds headers fluently")
+    void shouldSupportFluentHeaders() {
+        McpConfiguration.ServerConfig config = McpConfiguration.ServerConfig
+            .streamableHttp("http://api:8080/mcp")
+            .withHeader("Authorization", "Bearer token123")
+            .withHeader("X-Trace-Id", "trace-abc");
+
+        assertEquals(2, config.getHeaders().size());
+        assertEquals("Bearer token123", config.getHeaders().get("Authorization"));
+        assertEquals("trace-abc", config.getHeaders().get("X-Trace-Id"));
+    }
+
+    @Test
+    @DisplayName("setHeaders replaces all headers (for YAML deserialization)")
+    void shouldSupportSetHeaders() {
+        McpConfiguration.ServerConfig config = new McpConfiguration.ServerConfig();
+        config.setHeaders(Map.of("Authorization", "Bearer xxx", "X-Custom", "value"));
+
+        assertEquals(2, config.getHeaders().size());
+        assertEquals("Bearer xxx", config.getHeaders().get("Authorization"));
+    }
+
+    @Test
+    @DisplayName("withHeader chains with other fluent methods")
+    void shouldChainHeadersWithOtherMethods() {
+        McpConfiguration.ServerConfig config = McpConfiguration.ServerConfig
+            .sse("http://api:8080/sse")
+            .withHeader("Authorization", "Bearer token")
+            .withTimeout(60);
+
+        assertEquals("sse", config.getTransport());
+        assertEquals("http://api:8080/sse", config.getUrl());
+        assertEquals(60, config.getTimeoutSeconds());
+        assertEquals("Bearer token", config.getHeaders().get("Authorization"));
+    }
+
+    @Test
+    @DisplayName("Create Streamable HTTP config via factory method")
+    void shouldCreateStreamableHttpConfig() {
+        McpConfiguration.ServerConfig config = McpConfiguration.ServerConfig
+            .streamableHttp("http://api:8080/mcp");
+
+        assertEquals("streamable_http", config.getTransport());
+        assertEquals("http://api:8080/mcp", config.getUrl());
+        assertTrue(config.isEnabled());
+    }
 }

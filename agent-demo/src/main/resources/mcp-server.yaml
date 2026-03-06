@@ -45,6 +45,15 @@ upstream:
     #  url: "http://localhost:8081/mcp"
     #  timeoutSeconds: 30
 
+    # 示例：带认证 Header 的远程服务
+    #auth-service:
+    #  transport: streamable_http
+    #  url: "http://api-server:8080/mcp"
+    #  timeoutSeconds: 30
+    #  headers:
+    #    Authorization: "Bearer ${API_TOKEN}"
+    #    X-Trace-Id: "my-trace-id"
+
     # ------ SSE 远程调用（旧版） ------
     # 旧版 SSE 传输协议，先 GET /sse 建立长连接，再 POST 请求
 
