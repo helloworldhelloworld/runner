@@ -63,9 +63,9 @@ public class McpToolAdapter {
 
         return new McpServerFeatures.SyncToolSpecification(
             mcpTool,
-            (exchange, args) -> {
+            (exchange, request) -> {
                 try {
-                    ToolResult result = tool.execute(args);
+                    ToolResult result = tool.execute(request.arguments());
                     return new CallToolResult(
                         List.of(new TextContent(result.getContent())),
                         result.isError()
