@@ -2,14 +2,21 @@ package com.lightweightai.web.service;
 
 import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.instruction.InstructionRegistry;
-import com.lightweightai.kernel.llm.*;
+import com.lightweightai.kernel.llm.ConversationMessage;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.web.model.ChatRequest;
 import com.lightweightai.web.model.ChatResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**

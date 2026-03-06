@@ -2,7 +2,14 @@ package com.lightweightai.kernel.agent;
 
 import com.lightweightai.kernel.agent.annotation.AnnotatedToolScanner;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;

@@ -2,7 +2,11 @@ package com.lightweightai.kernel.prompt;
 
 import com.lightweightai.kernel.agent.Tool;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Skill 规范 (OpenClaw 风格)

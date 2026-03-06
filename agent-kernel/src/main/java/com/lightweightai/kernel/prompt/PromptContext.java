@@ -3,7 +3,10 @@ package com.lightweightai.kernel.prompt;
 import com.lightweightai.kernel.memory.Message;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Prompt 上下文（可观测的完整上下文）

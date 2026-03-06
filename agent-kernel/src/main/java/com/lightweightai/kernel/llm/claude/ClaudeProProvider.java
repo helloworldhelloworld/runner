@@ -4,12 +4,23 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.lightweightai.kernel.llm.*;
+import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
-import okhttp3.*;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ModelCapability;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -20,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public class ClaudeProProvider implements LLMProvider {
 
+    private static final Logger logger = LoggerFactory.getLogger(ClaudeProProvider.class);
     private static final String BOOTSTRAP_URL = "https://claude.ai/api/bootstrap";
     private static final String CREATE_CHAT_URL = "https://claude.ai/api/organizations/%s/chat_conversations";
     private static final String APPEND_MESSAGE_URL = "https://claude.ai/api/append_message";
@@ -56,7 +68,7 @@ public class ClaudeProProvider implements LLMProvider {
             try {
                 fetchOrganizationId();
             } catch (Exception e) {
-                System.err.println("Warning: Failed to fetch organization ID: " + e.getMessage());
+                logger.warn("Failed to fetch organization ID: {}", e.getMessage());
             }
         }
     }
@@ -177,7 +189,7 @@ public class ClaudeProProvider implements LLMProvider {
                     JsonNode firstMembership = memberships.get(0);
                     if (firstMembership.has("organization")) {
                         this.organizationId = firstMembership.get("organization").get("uuid").asText();
-                        System.out.println("✓ Fetched organization ID: " + organizationId);
+                        logger.info("Fetched organization ID: {}", organizationId);
                         return;
                     }
                 }
@@ -213,7 +225,7 @@ public class ClaudeProProvider implements LLMProvider {
 
             JsonNode responseData = objectMapper.readTree(response.body().string());
             String uuid = responseData.get("uuid").asText();
-            System.out.println("✓ Created conversation: " + uuid);
+            logger.info("Created conversation: {}", uuid);
             return uuid;
         }
     }

@@ -1,18 +1,23 @@
 package com.lightweightai.kernel.agent;
 
-import com.lightweightai.kernel.llm.*;
+import com.lightweightai.kernel.llm.ConversationMessage;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ToolResult;
+import com.lightweightai.kernel.llm.ToolUse;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.MemorySearchResult;
 import com.lightweightai.kernel.memory.Message;
-import com.lightweightai.kernel.prompt.PromptContext;
 import com.lightweightai.kernel.prompt.PromptEngine;
-import com.lightweightai.kernel.prompt.PromptRequest;
 import com.lightweightai.kernel.prompt.Skill;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import java.util.Collections;
 
 /**
  * Agent 执行循环 (OpenClaw 风格)

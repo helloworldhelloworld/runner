@@ -2,7 +2,8 @@ package com.lightweightai.kernel.gateway;
 
 import com.lightweightai.kernel.agent.AgentResponse;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Gateway 响应

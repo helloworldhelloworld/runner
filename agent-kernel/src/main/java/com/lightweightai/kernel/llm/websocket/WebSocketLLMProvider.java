@@ -1,14 +1,34 @@
 package com.lightweightai.kernel.llm.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lightweightai.kernel.llm.*;
+import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
-import okhttp3.*;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.llm.ToolCall;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
 import okio.ByteString;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -25,6 +45,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * Based on OkHttp WebSocket - lightweight and battle-tested
  */
 public class WebSocketLLMProvider implements LLMProvider {
+
+    private static final Logger logger = LoggerFactory.getLogger(WebSocketLLMProvider.class);
 
     private final String websocketUrl;
     private final String model;
@@ -79,7 +101,7 @@ public class WebSocketLLMProvider implements LLMProvider {
         webSocket = httpClient.newWebSocket(request, new WebSocketListener() {
             @Override
             public void onOpen(WebSocket webSocket, Response response) {
-                System.out.println("WebSocket connected: " + websocketUrl);
+                logger.info("WebSocket connected: {}", websocketUrl);
                 connected = true;
                 startHeartbeat();
                 connectFuture.complete(null);
@@ -97,19 +119,19 @@ public class WebSocketLLMProvider implements LLMProvider {
 
             @Override
             public void onClosing(WebSocket webSocket, int code, String reason) {
-                System.out.println("WebSocket closing: " + code + " " + reason);
+                logger.info("WebSocket closing: {} {}", code, reason);
                 webSocket.close(1000, null);
             }
 
             @Override
             public void onClosed(WebSocket webSocket, int code, String reason) {
-                System.out.println("WebSocket closed: " + code + " " + reason);
+                logger.info("WebSocket closed: {} {}", code, reason);
                 handleDisconnection();
             }
 
             @Override
             public void onFailure(WebSocket webSocket, Throwable t, Response response) {
-                System.err.println("WebSocket failure: " + t.getMessage());
+                logger.error("WebSocket failure: {}", t.getMessage());
                 connectFuture.completeExceptionally(t);
                 handleDisconnection();
 
@@ -174,11 +196,11 @@ public class WebSocketLLMProvider implements LLMProvider {
      */
     private void scheduleReconnect() {
         heartbeatExecutor.schedule(() -> {
-            System.out.println("Attempting to reconnect...");
+            logger.info("Attempting to reconnect...");
             try {
                 connect().get();
             } catch (Exception e) {
-                System.err.println("Reconnection failed: " + e.getMessage());
+                logger.error("Reconnection failed: {}", e.getMessage());
             }
         }, reconnectDelay, TimeUnit.SECONDS);
     }
@@ -213,10 +235,10 @@ public class WebSocketLLMProvider implements LLMProvider {
                     break;
 
                 default:
-                    System.err.println("Unknown message type: " + message.getType());
+                    logger.warn("Unknown message type: {}", message.getType());
             }
         } catch (Exception e) {
-            System.err.println("Failed to parse WebSocket message: " + e.getMessage());
+            logger.error("Failed to parse WebSocket message: {}", e.getMessage());
         }
     }
 
@@ -357,7 +379,7 @@ public class WebSocketLLMProvider implements LLMProvider {
                     sendMessage(WebSocketMessage.ping(requestId));
                 }
             } catch (Exception e) {
-                System.err.println("Heartbeat failed: " + e.getMessage());
+                logger.warn("Heartbeat failed: {}", e.getMessage());
             }
         }, heartbeatInterval, heartbeatInterval, TimeUnit.SECONDS);
     }
