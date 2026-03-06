@@ -1,0 +1,5 @@
+dependencies {
+    implementation project(':agent-kernel')
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+}

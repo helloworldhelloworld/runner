@@ -1,0 +1,7 @@
+dependencies {
+    implementation project(':agent-kernel')
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testImplementation "ch.qos.logback:logback-classic:${logbackVersion}"
+}

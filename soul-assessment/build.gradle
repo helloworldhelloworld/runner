@@ -1,0 +1,9 @@
+dependencies {
+    implementation project(':agent-kernel')
+    implementation project(':soul-user')
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testImplementation "ch.qos.logback:logback-classic:${logbackVersion}"
+}

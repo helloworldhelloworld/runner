@@ -1,0 +1,11 @@
+rootProject.name = 'lightweight-ai-kernel'
+
+include 'agent-kernel'
+include 'agent-tools'
+include 'agent-mcp'
+include 'kernel-memory'
+include 'agent-sdk'
+include 'soul-safety'
+include 'soul-assessment'
+include 'soul-user'
+include 'agent-demo'

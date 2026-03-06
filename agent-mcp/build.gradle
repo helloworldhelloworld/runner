@@ -1,0 +1,7 @@
+dependencies {
+    implementation project(':agent-kernel')
+    implementation "io.modelcontextprotocol.sdk:mcp:${mcpSdkVersion}"
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+}

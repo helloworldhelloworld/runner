@@ -1,0 +1,30 @@
+allprojects {
+    group = 'com.lightweightai'
+    version = '0.1.0-SNAPSHOT'
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    ext {
+        okhttpVersion = '4.12.0'
+        jacksonVersion = '2.16.1'
+        slf4jVersion = '2.0.9'
+        logbackVersion = '1.4.14'
+        junitVersion = '5.10.1'
+        mcpSdkVersion = '0.17.0'
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
