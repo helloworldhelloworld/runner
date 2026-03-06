@@ -8,49 +8,14 @@ on:
 
 jobs:
   build:
-    name: Build & Test
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
-
-      - name: Configure Maven settings
-        run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml << 'SETTINGS'
-          <settings>
-            <mirrors>
-              <mirror>
-                <id>central-mirror</id>
-                <mirrorOf>central</mirrorOf>
-                <url>https://repo1.maven.org/maven2</url>
-              </mirror>
-            </mirrors>
-          </settings>
-          SETTINGS
-
-      - name: Compile all modules
-        run: mvn compile -B --no-transfer-progress
-
-      - name: Run tests
-        run: mvn test -B --no-transfer-progress
-        continue-on-error: true
+      - run: mvn -B package --no-transfer-progress
         env:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
-
-      - name: Show failed tests
-        if: always()
-        run: |
-          find . -name "*.txt" -path "*/surefire-reports/*" -exec grep -l "FAILED\|ERROR" {} \; | \
-          xargs -I{} sh -c 'echo "=== {} ==="; grep -A5 "FAILED\|ERROR\|Exception" {} | head -20' || true
-
-      - name: Package
-        run: mvn package -B --no-transfer-progress -DskipTests
