@@ -11,26 +11,24 @@ jobs:
     name: Build & Test
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        java-version: [ 21 ]
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ matrix.java-version }}
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ matrix.java-version }}
+          java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
 
       - name: Compile all modules
-        run: mvn compile -B -q
+        run: mvn compile -B --no-transfer-progress
 
       - name: Run tests
-        run: mvn test -B
+        run: mvn test -B --no-transfer-progress
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
       - name: Package
-        run: mvn package -B -DskipTests
+        run: mvn package -B --no-transfer-progress -DskipTests
