@@ -22,8 +22,20 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Show Java version
-        run: java -version && mvn -version
+      - name: Configure Maven settings
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'SETTINGS'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>central-mirror</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://repo1.maven.org/maven2</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          SETTINGS
 
       - name: Compile all modules
         run: mvn compile -B --no-transfer-progress
@@ -34,11 +46,11 @@ jobs:
         env:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
-      - name: Show test results
+      - name: Show failed tests
         if: always()
         run: |
-          echo "=== Surefire Reports ==="
-          find . -name "*.txt" -path "*/surefire-reports/*" | head -20 | xargs -I{} sh -c 'echo "--- {} ---"; cat {}'
+          find . -name "*.txt" -path "*/surefire-reports/*" -exec grep -l "FAILED\|ERROR" {} \; | \
+          xargs -I{} sh -c 'echo "=== {} ==="; grep -A5 "FAILED\|ERROR\|Exception" {} | head -20' || true
 
       - name: Package
         run: mvn package -B --no-transfer-progress -DskipTests
