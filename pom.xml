@@ -13,6 +13,7 @@
     <name>Lightweight AI Kernel Parent</name>
     <description>Parent POM for Lightweight AI Kernel - AI orchestration framework</description>
 
+    <!-- agent-web requires Spring Boot BOM; build it with: mvn ... -Pweb -->
     <modules>
         <module>agent-kernel</module>
         <module>agent-tools</module>
@@ -22,9 +23,17 @@
         <module>soul-safety</module>
         <module>soul-assessment</module>
         <module>soul-user</module>
-        <module>agent-web</module>
         <module>agent-demo</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>web</id>
+            <modules>
+                <module>agent-web</module>
+            </modules>
+        </profile>
+    </profiles>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -43,14 +52,8 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- Spring Boot BOM -->
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring.boot.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
+            <!-- NOTE: Spring Boot BOM is imported in agent-web/pom.xml only,
+                 so non-Spring modules can build without access to Maven Central. -->
 
             <!-- Internal modules -->
             <dependency>
