@@ -31,13 +31,15 @@ public class WebSocketMessage {
     public enum MessageType {
         // Client -> Server
         CHAT_REQUEST,           // 发起对话请求
-        TOOL_RESULT,            // 工具执行结果
+        TOOL_RESULT,            // 工具执行结果（服务端工具）
+        CLIENT_TOOL_RESULT,     // 客户端工具执行结果（客户端回传）
         PING,                   // 心跳检测
 
         // Server -> Client
         CHAT_RESPONSE,          // 完整响应
         TEXT_DELTA,             // 流式文本片段
-        TOOL_CALL,              // 工具调用请求
+        TOOL_CALL,              // 工具调用请求（服务端工具）
+        CLIENT_TOOL_CALL,       // 客户端工具调用请求（派发到客户端执行）
         ERROR,                  // 错误消息
         PONG                    // 心跳响应
     }
@@ -105,6 +107,14 @@ public class WebSocketMessage {
 
     public static WebSocketMessage ping(String requestId) {
         return new WebSocketMessage(MessageType.PING, requestId, null);
+    }
+
+    public static WebSocketMessage clientToolCall(String requestId, ClientToolCallData data) {
+        return new WebSocketMessage(MessageType.CLIENT_TOOL_CALL, requestId, data);
+    }
+
+    public static WebSocketMessage clientToolResult(String requestId, ClientToolResultData data) {
+        return new WebSocketMessage(MessageType.CLIENT_TOOL_RESULT, requestId, data);
     }
 
     public static WebSocketMessage error(String requestId, String errorMessage) {
@@ -352,6 +362,73 @@ public class WebSocketMessage {
         public void setOutputTokens(Integer outputTokens) {
             this.outputTokens = outputTokens;
         }
+    }
+
+    /**
+     * 客户端工具调用数据（Server → Client）
+     */
+    public static class ClientToolCallData {
+        @JsonProperty("call_id")
+        private String callId;
+
+        @JsonProperty("tool_name")
+        private String toolName;
+
+        @JsonProperty("arguments")
+        private Map<String, Object> arguments;
+
+        @JsonProperty("timeout_ms")
+        private Long timeoutMs;
+
+        public ClientToolCallData() {
+        }
+
+        public ClientToolCallData(String callId, String toolName,
+                                  Map<String, Object> arguments, Long timeoutMs) {
+            this.callId = callId;
+            this.toolName = toolName;
+            this.arguments = arguments;
+            this.timeoutMs = timeoutMs;
+        }
+
+        public String getCallId() { return callId; }
+        public void setCallId(String callId) { this.callId = callId; }
+        public String getToolName() { return toolName; }
+        public void setToolName(String toolName) { this.toolName = toolName; }
+        public Map<String, Object> getArguments() { return arguments; }
+        public void setArguments(Map<String, Object> arguments) { this.arguments = arguments; }
+        public Long getTimeoutMs() { return timeoutMs; }
+        public void setTimeoutMs(Long timeoutMs) { this.timeoutMs = timeoutMs; }
+    }
+
+    /**
+     * 客户端工具执行结果（Client → Server）
+     */
+    public static class ClientToolResultData {
+        @JsonProperty("call_id")
+        private String callId;
+
+        @JsonProperty("content")
+        private String content;
+
+        @JsonProperty("is_error")
+        private Boolean isError;
+
+        public ClientToolResultData() {
+        }
+
+        public ClientToolResultData(String callId, String content, Boolean isError) {
+            this.callId = callId;
+            this.content = content;
+            this.isError = isError;
+        }
+
+        public String getCallId() { return callId; }
+        public void setCallId(String callId) { this.callId = callId; }
+        public String getContent() { return content; }
+        public void setContent(String content) { this.content = content; }
+        public Boolean getIsError() { return isError; }
+        public void setIsError(Boolean isError) { this.isError = isError; }
     }
 
     @Override

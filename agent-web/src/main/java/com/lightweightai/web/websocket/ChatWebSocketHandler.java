@@ -15,6 +15,8 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import com.lightweightai.kernel.llm.ToolResult;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +40,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
+    private final Map<String, WebSocketClientToolDispatcher> dispatchers = new ConcurrentHashMap<>();
     private final SoulComfortChatService chatService;
     private final CrisisDetector crisisDetector;
 
@@ -50,13 +53,28 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         sessions.put(session.getId(), session);
+        dispatchers.put(session.getId(), new WebSocketClientToolDispatcher(session));
         logger.info("WebSocket connected: {}", session.getId());
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessions.remove(session.getId());
+        WebSocketClientToolDispatcher dispatcher = dispatchers.remove(session.getId());
+        if (dispatcher != null) {
+            dispatcher.cancelAll();
+        }
         logger.info("WebSocket disconnected: {} ({})", session.getId(), status);
+    }
+
+    /**
+     * 获取指定 session 的客户端工具调度器
+     *
+     * @param sessionId WebSocket session ID
+     * @return 调度器实例，不存在时返回 null
+     */
+    public WebSocketClientToolDispatcher getDispatcher(String sessionId) {
+        return dispatchers.get(sessionId);
     }
 
     @Override
@@ -67,6 +85,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
             if ("chat".equals(type)) {
                 handleChatMessage(session, payload);
+            } else if ("client_tool_result".equals(type)) {
+                handleClientToolResult(session, payload);
             } else {
                 logger.warn("Unknown WS message type: {}", type);
             }
@@ -104,6 +124,36 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             sendError(session, "处理失败: " + e.getMessage());
             return null;
         });
+    }
+
+    /**
+     * 处理客户端回传的工具执行结果
+     *
+     * 客户端消息格式:
+     *   { "type": "client_tool_result", "callId": "...", "content": "...", "isError": false }
+     */
+    private void handleClientToolResult(WebSocketSession session, JsonNode payload) {
+        String callId = payload.path("callId").asText("");
+        String content = payload.path("content").asText("");
+        boolean isError = payload.path("isError").asBoolean(false);
+
+        if (callId.isEmpty()) {
+            logger.warn("client_tool_result missing callId");
+            return;
+        }
+
+        WebSocketClientToolDispatcher dispatcher = dispatchers.get(session.getId());
+        if (dispatcher == null) {
+            logger.warn("No dispatcher for session: {}", session.getId());
+            return;
+        }
+
+        ToolResult result = isError ? ToolResult.error(content) : ToolResult.success(content);
+        boolean matched = dispatcher.completeCall(callId, result);
+
+        if (!matched) {
+            logger.warn("No pending client tool call for callId: {}", callId);
+        }
     }
 
     private void sendToken(WebSocketSession session, String delta) {
@@ -164,5 +214,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         logger.error("WebSocket transport error for session {}", session.getId(), exception);
         sessions.remove(session.getId());
+        WebSocketClientToolDispatcher dispatcher = dispatchers.remove(session.getId());
+        if (dispatcher != null) {
+            dispatcher.cancelAll();
+        }
     }
 }
