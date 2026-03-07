@@ -50,18 +50,127 @@
 [INFO] Compiling 17 source files with javac [debug target 21] to target/test-classes
 [INFO] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/instruction/InstructionAbstractionExample.java: Some input files use or override a deprecated API.
 [INFO] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/instruction/InstructionAbstractionExample.java: Recompile with -Xlint:deprecation for details.
-[INFO] -------------------------------------------------------------
-[ERROR] COMPILATION ERROR : 
-[INFO] -------------------------------------------------------------
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/llm/ToolResultTest.java:[64,39] reference to success is ambiguous
-  both method success(java.lang.String,java.util.Map<java.lang.String,java.lang.Object>) in com.lightweightai.kernel.llm.ToolResult and method success(java.lang.String,java.lang.String) in com.lightweightai.kernel.llm.ToolResult match
-[INFO] 1 error
-[INFO] -------------------------------------------------------------
+[INFO] 
+[INFO] --- surefire:3.0.0:test (default-test) @ agent-kernel ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.lightweightai.kernel.instruction.InstructionRegistryTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.122 s - in com.lightweightai.kernel.instruction.InstructionRegistryTest
+[INFO] Running com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.018 s - in com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest
+[INFO] Running com.lightweightai.kernel.agent.ToolScannerTest
+06:59:35.312 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.315 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.315 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+06:59:35.318 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.318 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.321 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.322 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.323 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+06:59:35.325 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.325 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.328 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 0 tools
+06:59:35.330 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.330 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.330 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+06:59:35.332 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.332 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.332 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+06:59:35.335 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.335 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.336 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.336 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.338 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.338 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.340 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.340 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.343 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.343 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+06:59:35.343 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+06:59:35.347 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+06:59:35.347 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.148 s - in com.lightweightai.kernel.agent.ToolScannerTest
+[INFO] Running com.lightweightai.kernel.agent.AgentLoopTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.034 s - in com.lightweightai.kernel.agent.AgentLoopTest
+[INFO] Running com.lightweightai.kernel.agent.ToolRegistryTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s - in com.lightweightai.kernel.agent.ToolRegistryTest
+[INFO] Running com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest
+[ERROR] Tests run: 25, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.079 s <<< FAILURE! - in com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest
+[ERROR] com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest.testCategoryAndTagQueries  Time elapsed: 0.008 s  <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <2> but was: <1>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:150)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:145)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:531)
+	at com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest.testCategoryAndTagQueries(AnnotatedToolWrapperTest.java:424)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[INFO] Running com.lightweightai.kernel.gateway.GatewayTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.034 s - in com.lightweightai.kernel.gateway.GatewayTest
+[INFO] Running com.lightweightai.kernel.prompt.PromptEngineTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.035 s - in com.lightweightai.kernel.prompt.PromptEngineTest
+[INFO] Running com.lightweightai.kernel.prompt.SkillToolIntegrationTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s - in com.lightweightai.kernel.prompt.SkillToolIntegrationTest
+[INFO] Running com.lightweightai.kernel.skill.SkillLoaderTest
+06:59:35.606 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit18321036690894275294/my-sample-skill
+06:59:35.614 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-2
+06:59:35.615 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-1
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.038 s - in com.lightweightai.kernel.skill.SkillLoaderTest
+[INFO] Running com.lightweightai.kernel.skill.SkillRegistryTest
+06:59:35.636 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit5912868710858603195/skill-a
+06:59:35.636 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit5912868710858603195/skill-b
+06:59:35.637 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-a
+06:59:35.638 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-b
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s - in com.lightweightai.kernel.skill.SkillRegistryTest
+[INFO] Running com.lightweightai.kernel.memory.MemoryProviderTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.kernel.memory.MemoryProviderTest
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
+[ERROR] Tests run: 2, Failures: 0, Errors: 2, Skipped: 0, Time elapsed: 0.327 s <<< FAILURE! - in com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
+[ERROR] com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest.shouldHandleStreamingTextResponse  Time elapsed: 0.321 s  <<< ERROR!
+java.lang.UnsupportedOperationException: Streaming not yet implemented
+	at com.lightweightai.kernel.llm.claude.ClaudeProvider.completeStream(ClaudeProvider.java:124)
+	at com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest.shouldHandleStreamingTextResponse(ClaudeProviderStreamTest.java:90)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[ERROR] com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest.shouldHandleStreamingToolUse  Time elapsed: 0.003 s  <<< ERROR!
+java.lang.UnsupportedOperationException: Streaming not yet implemented
+	at com.lightweightai.kernel.llm.claude.ClaudeProvider.completeStream(ClaudeProvider.java:124)
+	at com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest.shouldHandleStreamingToolUse(ClaudeProviderStreamTest.java:164)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[INFO] Running com.lightweightai.kernel.llm.ToolResultTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.llm.ToolResultTest
+[INFO] Running com.lightweightai.kernel.core.ToolCallingLoopAsyncTest
+Main thread: main
+Async thread: main
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.22 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   AnnotatedToolWrapperTest.testCategoryAndTagQueries:424 expected: <2> but was: <1>
+[ERROR] Errors: 
+[ERROR]   ClaudeProviderStreamTest.shouldHandleStreamingTextResponse:90 » UnsupportedOperation Streaming not yet implemented
+[ERROR]   ClaudeProviderStreamTest.shouldHandleStreamingToolUse:164 » UnsupportedOperation Streaming not yet implemented
+[INFO] 
+[ERROR] Tests run: 142, Failures: 1, Errors: 2, Skipped: 0
+[INFO] 
 [INFO] ------------------------------------------------------------------------
 [INFO] Reactor Summary for Lightweight AI Kernel Parent 0.1.0-SNAPSHOT:
 [INFO] 
-[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.002 s]
-[INFO] Agent Kernel ....................................... FAILURE [  3.219 s]
+[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.003 s]
+[INFO] Agent Kernel ....................................... FAILURE [  9.036 s]
 [INFO] Agent Tools ........................................ SKIPPED
 [INFO] Agent MCP .......................................... SKIPPED
 [INFO] Kernel Memory ...................................... SKIPPED
@@ -74,12 +183,13 @@
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  3.537 s
-[INFO] Finished at: 2026-03-07T06:58:34Z
+[INFO] Total time:  9.421 s
+[INFO] Finished at: 2026-03-07T06:59:36Z
 [INFO] ------------------------------------------------------------------------
-[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:testCompile (default-testCompile) on project agent-kernel: Compilation failure
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/llm/ToolResultTest.java:[64,39] reference to success is ambiguous
-[ERROR]   both method success(java.lang.String,java.util.Map<java.lang.String,java.lang.Object>) in com.lightweightai.kernel.llm.ToolResult and method success(java.lang.String,java.lang.String) in com.lightweightai.kernel.llm.ToolResult match
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.0.0:test (default-test) on project agent-kernel: There are test failures.
+[ERROR] 
+[ERROR] Please refer to /home/runner/work/runner/runner/agent-kernel/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
 [ERROR] -> [Help 1]
 [ERROR] 
 [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.

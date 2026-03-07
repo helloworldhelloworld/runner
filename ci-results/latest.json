@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "ed12d2d969b6378fa9e2c9567b1b2b60708c9672",
+  "trigger_sha": "4593093ae2b4770a2fda3bd89605f634c5669a7e",
   "exit_code": 1,
-  "timestamp": "2026-03-07T06:58:34Z",
+  "timestamp": "2026-03-07T06:59:36Z",
   "branch": "main",
-  "run_id": "22794278876",
-  "test_summary": ""
+  "run_id": "22794292416",
+  "test_summary": "[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.034 s - in com.lightweightai.kernel.gateway.GatewayTest|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.035 s - in com.lightweightai.kernel.prompt.PromptEngineTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s - in com.lightweightai.kernel.prompt.SkillToolIntegrationTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.038 s - in com.lightweightai.kernel.skill.SkillLoaderTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s - in com.lightweightai.kernel.skill.SkillRegistryTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.kernel.memory.MemoryProviderTest|[ERROR] Tests run: 2, Failures: 0, Errors: 2, Skipped: 0, Time elapsed: 0.327 s <<< FAILURE! - in com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.llm.ToolResultTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.22 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest|[ERROR] Tests run: 142, Failures: 1, Errors: 2, Skipped: 0|"
 }
