@@ -28,10 +28,12 @@ jobs:
       - name: Build and Test
         id: build
         run: |
+          set +e
           mvn -B package --no-transfer-progress 2>&1 | tee /tmp/build.log
           BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
           echo "exit_code=$BUILD_EXIT" >> $GITHUB_OUTPUT
-          TEST_SUMMARY=$(grep -E "Tests run:" /tmp/build.log | tail -5 | tr '\n' '|' || echo "N/A")
+          TEST_SUMMARY=$(grep -E "Tests run:" /tmp/build.log | tail -10 | tr '\n' '|' || echo "N/A")
           echo "test_summary=$TEST_SUMMARY" >> $GITHUB_OUTPUT
           exit $BUILD_EXIT
         env:
@@ -41,19 +43,26 @@ jobs:
         if: always()
         run: |
           mkdir -p ci-results
-          EXIT=${{ steps.build.outputs.exit_code }}
+          EXIT="${{ steps.build.outputs.exit_code }}"
           [ -z "$EXIT" ] && EXIT=1
-          cat > ci-results/latest.json << JSONEOF
-          {
-            "trigger_sha": "${{ github.sha }}",
-            "exit_code": $EXIT,
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "branch": "${{ github.ref_name }}",
-            "run_id": "${{ github.run_id }}",
-            "test_summary": "${{ steps.build.outputs.test_summary }}"
-          }
-          JSONEOF
-          cp /tmp/build.log ci-results/build.log 2>/dev/null || echo "(no log)" > ci-results/build.log
+
+          # 写元数据
+          printf '{\n  "trigger_sha": "%s",\n  "exit_code": %s,\n  "timestamp": "%s",\n  "branch": "%s",\n  "run_id": "%s",\n  "test_summary": "%s"\n}\n' \
+            "${{ github.sha }}" \
+            "$EXIT" \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            "${{ github.ref_name }}" \
+            "${{ github.run_id }}" \
+            "${{ steps.build.outputs.test_summary }}" \
+            > ci-results/latest.json
+
+          # 写日志（build.log 一定存在，因为 set +e 保证了 tee 完整执行）
+          if [ -f /tmp/build.log ]; then
+            cp /tmp/build.log ci-results/build.log
+          else
+            echo "(build did not produce log)" > ci-results/build.log
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add ci-results/
