@@ -27,11 +27,11 @@ jobs:
 
       - name: Build and Test
         id: build
+        continue-on-error: true
         run: |
-          set +e
+          touch /tmp/build.log
           mvn -B package --no-transfer-progress 2>&1 | tee /tmp/build.log
           BUILD_EXIT=${PIPESTATUS[0]}
-          set -e
           echo "exit_code=$BUILD_EXIT" >> $GITHUB_OUTPUT
           TEST_SUMMARY=$(grep -E "Tests run:" /tmp/build.log | tail -10 | tr '\n' '|' || echo "N/A")
           echo "test_summary=$TEST_SUMMARY" >> $GITHUB_OUTPUT
@@ -43,28 +43,24 @@ jobs:
         if: always()
         run: |
           mkdir -p ci-results
+
           EXIT="${{ steps.build.outputs.exit_code }}"
           [ -z "$EXIT" ] && EXIT=1
 
-          # 写元数据
           printf '{\n  "trigger_sha": "%s",\n  "exit_code": %s,\n  "timestamp": "%s",\n  "branch": "%s",\n  "run_id": "%s",\n  "test_summary": "%s"\n}\n' \
-            "${{ github.sha }}" \
-            "$EXIT" \
+            "${{ github.sha }}" "$EXIT" \
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             "${{ github.ref_name }}" \
             "${{ github.run_id }}" \
             "${{ steps.build.outputs.test_summary }}" \
             > ci-results/latest.json
 
-          # 写日志（build.log 一定存在，因为 set +e 保证了 tee 完整执行）
-          if [ -f /tmp/build.log ]; then
-            cp /tmp/build.log ci-results/build.log
-          else
-            echo "(build did not produce log)" > ci-results/build.log
-          fi
+          cp /tmp/build.log ci-results/build.log 2>/dev/null \
+            || echo "(build log not available - step may have failed before maven ran)" > ci-results/build.log
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add ci-results/
+          git diff --staged --stat
           git commit -m "ci-results: ${{ github.sha }} [skip ci]" || echo "nothing to commit"
           git push
