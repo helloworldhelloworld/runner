@@ -1,0 +1,102 @@
+[INFO] Scanning for projects...
+[WARNING] 
+[WARNING] Some problems were encountered while building the effective model for com.lightweightai:kernel-memory:jar:0.1.0-SNAPSHOT
+[WARNING] 'dependencies.dependency.(groupId:artifactId:type:classifier)' must be unique: ch.qos.logback:logback-classic:jar -> duplicate declaration of version (?) @ line 70, column 21
+[WARNING] 
+[WARNING] It is highly recommended to fix these problems because they threaten the stability of your build.
+[WARNING] 
+[WARNING] For this reason, future Maven versions might no longer support building such malformed projects.
+[WARNING] 
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] Lightweight AI Kernel Parent                                       [pom]
+[INFO] Agent Kernel                                                       [jar]
+[INFO] Agent Tools                                                        [jar]
+[INFO] Agent MCP                                                          [jar]
+[INFO] Kernel Memory                                                      [jar]
+[INFO] Agent SDK                                                          [jar]
+[INFO] Soul Safety                                                        [jar]
+[INFO] Soul User                                                          [jar]
+[INFO] Soul Assessment                                                    [jar]
+[INFO] Agent Web                                                          [jar]
+[INFO] Agent Demo                                                         [jar]
+[INFO] 
+[INFO] -----------< com.lightweightai:lightweight-ai-kernel-parent >-----------
+[INFO] Building Lightweight AI Kernel Parent 0.1.0-SNAPSHOT              [1/11]
+[INFO]   from pom.xml
+[INFO] --------------------------------[ pom ]---------------------------------
+[INFO] 
+[INFO] -------------------< com.lightweightai:agent-kernel >-------------------
+[INFO] Building Agent Kernel 0.1.0-SNAPSHOT                              [2/11]
+[INFO]   from agent-kernel/pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ agent-kernel ---
+[INFO] skip non existing resourceDirectory /home/runner/work/runner/runner/agent-kernel/src/main/resources
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ agent-kernel ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 93 source files with javac [debug target 21] to target/classes
+[INFO] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/llm/claude/ClaudeProvider.java: Some input files use unchecked or unsafe operations.
+[INFO] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/llm/claude/ClaudeProvider.java: Recompile with -Xlint:unchecked for details.
+[INFO] -------------------------------------------------------------
+[WARNING] COMPILATION WARNING : 
+[INFO] -------------------------------------------------------------
+[WARNING] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/skill/SkillRegistry.java:[43,8] deprecated item is not annotated with @Deprecated
+[INFO] 1 warning
+[INFO] -------------------------------------------------------------
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/llm/websocket/WebSocketLLMProvider.java:[599,16] cannot find symbol
+  symbol:   class MessageFormatter
+  location: class com.lightweightai.kernel.llm.websocket.WebSocketLLMProvider.WebSocketModelCapability
+[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/llm/websocket/WebSocketLLMProvider.java:[604,16] cannot find symbol
+  symbol:   class TokenCounter
+  location: class com.lightweightai.kernel.llm.websocket.WebSocketLLMProvider.WebSocketModelCapability
+[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/speech/OpenAISpeechProvider.java:[99,17] cannot find symbol
+  symbol:   class Map
+  location: class com.lightweightai.kernel.speech.OpenAISpeechProvider
+[INFO] 3 errors 
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for Lightweight AI Kernel Parent 0.1.0-SNAPSHOT:
+[INFO] 
+[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.002 s]
+[INFO] Agent Kernel ....................................... FAILURE [  2.819 s]
+[INFO] Agent Tools ........................................ SKIPPED
+[INFO] Agent MCP .......................................... SKIPPED
+[INFO] Kernel Memory ...................................... SKIPPED
+[INFO] Agent SDK .......................................... SKIPPED
+[INFO] Soul Safety ........................................ SKIPPED
+[INFO] Soul User .......................................... SKIPPED
+[INFO] Soul Assessment .................................... SKIPPED
+[INFO] Agent Web .......................................... SKIPPED
+[INFO] Agent Demo ......................................... SKIPPED
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  3.179 s
+[INFO] Finished at: 2026-03-07T06:56:04Z
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project agent-kernel: Compilation failure: Compilation failure: 
+[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/llm/websocket/WebSocketLLMProvider.java:[599,16] cannot find symbol
+[ERROR]   symbol:   class MessageFormatter
+[ERROR]   location: class com.lightweightai.kernel.llm.websocket.WebSocketLLMProvider.WebSocketModelCapability
+[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/llm/websocket/WebSocketLLMProvider.java:[604,16] cannot find symbol
+[ERROR]   symbol:   class TokenCounter
+[ERROR]   location: class com.lightweightai.kernel.llm.websocket.WebSocketLLMProvider.WebSocketModelCapability
+[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/speech/OpenAISpeechProvider.java:[99,17] cannot find symbol
+[ERROR]   symbol:   class Map
+[ERROR]   location: class com.lightweightai.kernel.speech.OpenAISpeechProvider
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[ERROR] 
+[ERROR] After correcting the problems, you can resume the build with the command
+[ERROR]   mvn <args> -rf :agent-kernel
