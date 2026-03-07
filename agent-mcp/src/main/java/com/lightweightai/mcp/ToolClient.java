@@ -233,7 +233,7 @@ public class ToolClient implements AutoCloseable {
          *
          * 动态 provider 的值优先于静态配置（同名 key 覆盖）。
          */
-        static Map<String, String> resolveHeaders(McpConfiguration.ServerConfig config,
+        public static Map<String, String> resolveHeaders(McpConfiguration.ServerConfig config,
                                                     McpHeaderProvider headerProvider) {
             Map<String, String> merged = new HashMap<>();
             // 静态配置

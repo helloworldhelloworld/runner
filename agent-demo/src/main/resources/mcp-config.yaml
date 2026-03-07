@@ -75,8 +75,12 @@ mcp:
     # ------ SSE 类型：远程 HTTP MCP Server ------
 
     # 远程 API 服务（示例，需替换为实际地址）
+    # headers 仅 SSE / Streamable HTTP 生效，可配合 McpHeaderProvider 动态覆盖
     remote-api:
       transport: sse
       url: "http://api-server.example.com:8080/sse"
+      headers:
+        X-API-Key: "${REMOTE_API_KEY}"
+        X-Client-Version: "1.0.0"
       enabled: false
       timeoutSeconds: 45
