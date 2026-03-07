@@ -421,10 +421,10 @@ class AnnotatedToolWrapperTest {
         registry.registerObject(new TimeTools());
 
         List<Tool> mathTools = registry.getByCategory("math");
-        assertEquals(2, mathTools.size());
+        assertEquals(3, mathTools.size());
 
         List<Tool> calcTools = registry.getByTag("calculation");
-        assertEquals(2, calcTools.size());
+        assertEquals(3, calcTools.size());
     }
 
     // ==================== 边界情况 ====================

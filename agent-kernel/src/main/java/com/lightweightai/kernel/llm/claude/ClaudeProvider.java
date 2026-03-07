@@ -120,8 +120,110 @@ public class ClaudeProvider implements LLMProvider {
         LLMOptions options,
         StreamEventHandler handler
     ) {
-        // TODO: Implement streaming
-        throw new UnsupportedOperationException("Streaming not yet implemented");
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                // Build request with stream=true
+                ObjectNode requestJson = objectMapper.readValue(
+                    buildRequestBody(messages, options), ObjectNode.class);
+                requestJson.put("stream", true);
+                String requestBody = objectMapper.writeValueAsString(requestJson);
+
+                Request request = new Request.Builder()
+                    .url(API_BASE_URL + "/messages")
+                    .header("x-api-key", apiKey)
+                    .header("anthropic-version", API_VERSION)
+                    .header("content-type", "application/json")
+                    .header("accept", "text/event-stream")
+                    .post(RequestBody.create(requestBody, JSON))
+                    .build();
+
+                if (handler != null) handler.onStart();
+
+                try (Response response = httpClient.newCall(request).execute()) {
+                    if (!response.isSuccessful()) {
+                        RuntimeException ex = new RuntimeException(
+                            "API call failed: " + response.code() + " " + response.message());
+                        if (handler != null) handler.onError(ex);
+                        throw ex;
+                    }
+
+                    // Parse SSE stream
+                    StringBuilder fullText = new StringBuilder();
+                    List<ToolCall> toolCalls = new ArrayList<>();
+                    // tool_use accumulation: id, name, partial JSON
+                    String currentToolId = null;
+                    String currentToolName = null;
+                    StringBuilder currentToolJson = new StringBuilder();
+
+                    String body = response.body().string();
+                    for (String line : body.split("\n")) {
+                        line = line.trim();
+                        if (!line.startsWith("data: ")) continue;
+                        String data = line.substring(6).trim();
+                        if (data.isEmpty() || "[DONE]".equals(data)) continue;
+
+                        JsonNode event = objectMapper.readTree(data);
+                        String type = event.has("type") ? event.get("type").asText() : "";
+
+                        switch (type) {
+                            case "content_block_start": {
+                                JsonNode block = event.get("content_block");
+                                if (block != null && "tool_use".equals(block.get("type").asText())) {
+                                    currentToolId = block.get("id").asText();
+                                    currentToolName = block.get("name").asText();
+                                    currentToolJson = new StringBuilder();
+                                }
+                                break;
+                            }
+                            case "content_block_delta": {
+                                JsonNode delta = event.get("delta");
+                                if (delta == null) break;
+                                String deltaType = delta.get("type").asText();
+                                if ("text_delta".equals(deltaType)) {
+                                    String text = delta.get("text").asText();
+                                    fullText.append(text);
+                                    if (handler != null) handler.onTextDelta(text);
+                                } else if ("input_json_delta".equals(deltaType)) {
+                                    currentToolJson.append(delta.get("partial_json").asText());
+                                }
+                                break;
+                            }
+                            case "content_block_stop": {
+                                if (currentToolId != null) {
+                                    Map<String, Object> args = objectMapper.readValue(
+                                        currentToolJson.toString(), Map.class);
+                                    ToolCall tc = new ToolCall(currentToolId, currentToolName, args);
+                                    toolCalls.add(tc);
+                                    if (handler != null) handler.onToolCallDelta(tc);
+                                    currentToolId = null;
+                                    currentToolName = null;
+                                    currentToolJson = new StringBuilder();
+                                }
+                                break;
+                            }
+                            default:
+                                break;
+                        }
+                    }
+
+                    ConversationMessage message = ConversationMessage.builder()
+                        .role(MessageRole.ASSISTANT)
+                        .textContent(fullText.toString())
+                        .build();
+
+                    LLMResponse result = LLMResponse.builder()
+                        .message(message)
+                        .toolCalls(toolCalls)
+                        .build();
+
+                    if (handler != null) handler.onComplete(result);
+                    return result;
+                }
+            } catch (Exception e) {
+                if (handler != null) handler.onError(e);
+                throw new RuntimeException("Streaming failed", e);
+            }
+        });
     }
 
     @Override
