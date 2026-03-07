@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "745a57c4cdc79f735d723befecc3211bd369097b",
+  "trigger_sha": "952e01b33041fd735131a3a270fef67d8358eead",
   "exit_code": 1,
-  "timestamp": "2026-03-07T07:05:34Z",
+  "timestamp": "2026-03-07T07:06:28Z",
   "branch": "main",
-  "run_id": "22794382112",
-  "test_summary": "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.22 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest|[INFO] Tests run: 142, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.196 s - in com.lightweightai.tools.ToolRegistryIntegrationTest|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.121 s - in com.lightweightai.mcp.McpToolAdapterTest|[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.139 s - in com.lightweightai.mcp.McpToolServerTest|[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.026 s - in com.lightweightai.mcp.ToolClientTest|[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.mcp.McpToolClientTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.033 s - in com.lightweightai.mcp.McpConfigurationTest|[INFO] Tests run: 37, Failures: 0, Errors: 0, Skipped: 0|"
+  "run_id": "22794394745",
+  "test_summary": "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.223 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest|[INFO] Tests run: 142, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.198 s - in com.lightweightai.tools.ToolRegistryIntegrationTest|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.136 s - in com.lightweightai.mcp.McpToolAdapterTest|[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.152 s - in com.lightweightai.mcp.McpToolServerTest|[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.022 s - in com.lightweightai.mcp.ToolClientTest|[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.mcp.McpToolClientTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s - in com.lightweightai.mcp.McpConfigurationTest|[INFO] Tests run: 37, Failures: 0, Errors: 0, Skipped: 0|"
 }
