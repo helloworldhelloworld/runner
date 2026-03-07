@@ -29,11 +29,10 @@ jobs:
         id: build
         continue-on-error: true
         run: |
-          touch /tmp/build.log
-          mvn -B package --no-transfer-progress 2>&1 | tee /tmp/build.log
-          BUILD_EXIT=${PIPESTATUS[0]}
+          mkdir -p ci-results
+          mvn -B package --no-transfer-progress 2>&1 | tee ci-results/build.log; BUILD_EXIT=${PIPESTATUS[0]}
+          TEST_SUMMARY=$(grep -E "Tests run:" ci-results/build.log | tail -10 | tr '\n' '|' || echo "N/A")
           echo "exit_code=$BUILD_EXIT" >> $GITHUB_OUTPUT
-          TEST_SUMMARY=$(grep -E "Tests run:" /tmp/build.log | tail -10 | tr '\n' '|' || echo "N/A")
           echo "test_summary=$TEST_SUMMARY" >> $GITHUB_OUTPUT
           exit $BUILD_EXIT
         env:
@@ -43,6 +42,7 @@ jobs:
         if: always()
         run: |
           mkdir -p ci-results
+          [ ! -f ci-results/build.log ] && echo "(build did not start)" > ci-results/build.log
 
           EXIT="${{ steps.build.outputs.exit_code }}"
           [ -z "$EXIT" ] && EXIT=1
@@ -55,12 +55,9 @@ jobs:
             "${{ steps.build.outputs.test_summary }}" \
             > ci-results/latest.json
 
-          cp /tmp/build.log ci-results/build.log 2>/dev/null \
-            || echo "(build log not available - step may have failed before maven ran)" > ci-results/build.log
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add ci-results/
-          git diff --staged --stat
+          git status
           git commit -m "ci-results: ${{ github.sha }} [skip ci]" || echo "nothing to commit"
           git push
