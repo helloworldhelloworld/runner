@@ -6,6 +6,8 @@ import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
+import com.lightweightai.mcp.McpConfiguration;
+import com.lightweightai.mcp.McpHeaderProvider;
 import com.lightweightai.mcp.McpToolWrapper;
 import com.lightweightai.mcp.ToolClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
@@ -62,6 +64,8 @@ public class McpClientDemo {
         System.out.println("╔══════════════════════════════════════════════╗");
         System.out.println("║  MCP Client Demo — 验证 McpServerRunner     ║");
         System.out.println("╚══════════════════════════════════════════════╝\n");
+
+        demoHeaderConfiguration();
 
         String javaCmd = ProcessHandle.current().info().command().orElse("java");
         String classpath = System.getProperty("java.class.path");
@@ -143,6 +147,96 @@ public class McpClientDemo {
         } finally {
             client.close();
         }
+    }
+
+    // ================================================================
+    //  Header 配置 — 静态 + 动态 Header 合并
+    //
+    //  MCP 通过 SSE / Streamable HTTP 连接远程 Server 时，
+    //  常需要附加认证、链路追踪等 HTTP Header。
+    //
+    //  框架提供两种方式，可单独使用也可组合：
+    //    1. 静态 Header   — YAML 或 ServerConfig.withHeader() 配置
+    //    2. 动态 Header   — McpHeaderProvider 函数式接口，每次请求调用
+    //
+    //  合并规则：动态 Header 覆盖同名静态 Header。
+    // ================================================================
+
+    static void demoHeaderConfiguration() {
+        System.out.println("--- [F] Header 配置：静态 + 动态合并 ---\n");
+
+        // ---- 1. 静态 Header（ServerConfig / YAML） ----
+        System.out.println("[1] 静态 Header（ServerConfig.withHeader / YAML headers:）\n");
+
+        McpConfiguration.ServerConfig sseConfig = McpConfiguration.ServerConfig.sse("http://api.example.com/sse")
+            .withHeader("X-API-Key", "sk-static-key-12345")
+            .withHeader("X-Client-Version", "1.0.0");
+
+        System.out.println("  ServerConfig.sse(\"http://api.example.com/sse\")");
+        System.out.println("      .withHeader(\"X-API-Key\", \"sk-static-key-12345\")");
+        System.out.println("      .withHeader(\"X-Client-Version\", \"1.0.0\")");
+        System.out.println("  静态 headers: " + sseConfig.getHeaders());
+
+        // ---- 2. 动态 Header（McpHeaderProvider） ----
+        System.out.println("\n[2] 动态 Header（McpHeaderProvider）\n");
+
+        // 模拟：每次调用返回新的 token 和 trace ID
+        McpHeaderProvider dynamicProvider = () -> Map.of(
+            "Authorization", "Bearer " + "tok-" + System.currentTimeMillis(),
+            "X-Trace-Id", "trace-" + java.util.UUID.randomUUID().toString().substring(0, 8),
+            "X-API-Key", "sk-dynamic-override"  // 与静态同名，动态优先
+        );
+
+        System.out.println("  McpHeaderProvider provider = () -> Map.of(");
+        System.out.println("      \"Authorization\", \"Bearer \" + tokenService.getToken(),");
+        System.out.println("      \"X-Trace-Id\",    \"trace-\" + TraceContext.traceId(),");
+        System.out.println("      \"X-API-Key\",     \"sk-dynamic-override\"  // 覆盖静态值");
+        System.out.println("  );");
+        System.out.println("  动态 headers: " + dynamicProvider.getHeaders());
+
+        // ---- 3. 合并结果 ----
+        System.out.println("\n[3] 合并结果（resolveHeaders）\n");
+
+        Map<String, String> merged = ToolClient.Builder.resolveHeaders(sseConfig, dynamicProvider);
+
+        System.out.println("  resolveHeaders(staticConfig, dynamicProvider):");
+        for (Map.Entry<String, String> h : merged.entrySet()) {
+            String source;
+            if ("X-Client-Version".equals(h.getKey())) {
+                source = "← 仅静态";
+            } else if ("Authorization".equals(h.getKey()) || "X-Trace-Id".equals(h.getKey())) {
+                source = "← 仅动态";
+            } else {
+                source = "← 动态覆盖静态";
+            }
+            System.out.println("    " + h.getKey() + ": " + h.getValue() + "  " + source);
+        }
+
+        // ---- 4. ToolClient 集成用法 ----
+        System.out.println("\n[4] ToolClient 集成用法\n");
+
+        System.out.println("  ToolClient client = ToolClient.create()");
+        System.out.println("      .headerProvider(() -> Map.of(                // 全局动态 Header");
+        System.out.println("          \"Authorization\", \"Bearer \" + getToken()))");
+        System.out.println("      .fromConfig(config)                          // YAML 中可含静态 headers");
+        System.out.println("      .build();");
+        System.out.println();
+        System.out.println("  // YAML 配置示例：");
+        System.out.println("  // mcp:");
+        System.out.println("  //   servers:");
+        System.out.println("  //     remote-api:");
+        System.out.println("  //       transport: sse");
+        System.out.println("  //       url: \"http://api.example.com/sse\"");
+        System.out.println("  //       headers:");
+        System.out.println("  //         X-API-Key: \"sk-static-key\"");
+        System.out.println("  //         X-Client-Version: \"1.0.0\"");
+
+        System.out.println();
+        System.out.println("  ✓ 静态 Header：YAML headers 或 withHeader()，适合固定配置");
+        System.out.println("  ✓ 动态 Header：McpHeaderProvider，适合 Token 刷新、链路追踪");
+        System.out.println("  ✓ 合并规则：动态覆盖同名静态 Header");
+        System.out.println("  ✓ 仅 SSE / Streamable HTTP 生效，STDIO 忽略");
+        System.out.println();
     }
 
     private static void callAndPrint(ToolExecutor executor, String toolName,
