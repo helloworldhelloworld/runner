@@ -66,16 +66,19 @@ public class McpToolAdapter {
             (exchange, args) -> {
                 try {
                     ToolResult result = tool.execute(args);
-                    return new CallToolResult(
-                        List.of(new TextContent(result.getContent())),
-                        result.isError()
-                    );
+                    CallToolResult.Builder builder = CallToolResult.builder()
+                        .content(List.of(new TextContent(result.getContent())))
+                        .isError(result.isError());
+                    if (result.hasStructuredContent()) {
+                        builder.structuredContent(result.getStructuredContent());
+                    }
+                    return builder.build();
                 } catch (Exception e) {
                     logger.error("Tool execution failed: {} - {}", tool.getName(), e.getMessage());
-                    return new CallToolResult(
-                        List.of(new TextContent("Error: " + e.getMessage())),
-                        true
-                    );
+                    return CallToolResult.builder()
+                        .content(List.of(new TextContent("Error: " + e.getMessage())))
+                        .isError(true)
+                        .build();
                 }
             }
         );

@@ -155,6 +155,49 @@ class McpToolAdapterTest {
         assertEquals("enabled", specs.get(0).tool().name());
     }
 
+    @Test
+    @DisplayName("MCP tool handler preserves structuredContent from ToolResult")
+    void shouldPreserveStructuredContent() {
+        Map<String, Object> structured = Map.of(
+            "temperature", 25.0,
+            "unit", "celsius",
+            "city", "beijing"
+        );
+        Tool tool = new SimpleTool("weather", "Get weather",
+            ToolSchema.empty(),
+            args -> ToolResult.success("Beijing: 25°C", structured)
+        );
+
+        McpServerFeatures.SyncToolSpecification spec = McpToolAdapter.toMcpTool(tool);
+        McpSchema.CallToolResult result = spec.call().apply(null, Map.of());
+
+        assertNotNull(result);
+        assertFalse(result.isError());
+        assertEquals("Beijing: 25°C", ((McpSchema.TextContent) result.content().get(0)).text());
+        assertNotNull(result.structuredContent());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sc = (Map<String, Object>) result.structuredContent();
+        assertEquals(25.0, sc.get("temperature"));
+        assertEquals("celsius", sc.get("unit"));
+        assertEquals("beijing", sc.get("city"));
+    }
+
+    @Test
+    @DisplayName("MCP tool handler omits structuredContent when not present")
+    void shouldOmitStructuredContentWhenAbsent() {
+        Tool tool = new SimpleTool("echo", "Echo",
+            ToolSchema.empty(),
+            args -> ToolResult.success("hello")
+        );
+
+        McpServerFeatures.SyncToolSpecification spec = McpToolAdapter.toMcpTool(tool);
+        McpSchema.CallToolResult result = spec.call().apply(null, Map.of());
+
+        assertNotNull(result);
+        assertFalse(result.isError());
+        assertNull(result.structuredContent());
+    }
+
     // ==================== Helper ====================
 
     @FunctionalInterface
