@@ -220,7 +220,7 @@ class ClaudeProviderStreamTest {
 
         @Override
         public Response execute() throws IOException {
-            ResponseBody body = ResponseBody.create(responseBody, MediaType.get("text/event-stream"));
+            ResponseBody body = ResponseBody.create(MediaType.get("text/event-stream"), responseBody);
             return new Response.Builder()
                 .request(request)
                 .protocol(Protocol.HTTP_1_1)
