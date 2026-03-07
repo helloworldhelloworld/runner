@@ -61,7 +61,7 @@ class ToolResultTest {
     @Test
     @DisplayName("structuredContent null means hasStructuredContent() is false")
     void shouldReportNoStructuredContentWhenNull() {
-        ToolResult result = ToolResult.success("plain text", null);
+        ToolResult result = ToolResult.success("plain text", (java.util.Map<String, Object>) null);
 
         assertFalse(result.hasStructuredContent());
         assertNull(result.getStructuredContent());
