@@ -152,6 +152,9 @@ public class McpClientDemo {
                 new ToolCall("debug-" + toolName, toolName, args));
             System.out.println("  " + toolName + "(" + args + ")");
             System.out.println("    → " + result.getContent());
+            if (result.hasStructuredContent()) {
+                System.out.println("    → structuredContent: " + result.getStructuredContent());
+            }
             System.out.println();
         } catch (Exception e) {
             System.out.println("  " + toolName + "(" + args + ")");

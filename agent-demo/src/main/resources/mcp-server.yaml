@@ -37,6 +37,13 @@ upstream:
       transport: http
       url: "http://10.97.134.15:6645/searchgate/mcp"
       timeoutSeconds: 30
+      enabled: false
+
+    # SSE 远程 MCP Server（复用同一服务地址，SSE 传输）
+    sse-upstream:
+      transport: sse
+      url: "http://10.97.134.15:6645/searchgate"
+      timeoutSeconds: 30
       enabled: true
 
     # 示例：远程 NLP 服务
