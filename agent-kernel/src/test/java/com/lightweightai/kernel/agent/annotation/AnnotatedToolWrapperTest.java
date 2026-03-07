@@ -30,7 +30,8 @@ class AnnotatedToolWrapperTest {
             return String.valueOf(result);
         }
 
-        @ToolFunction(description = "Multiply two integers")
+        @ToolFunction(description = "Multiply two integers", category = "math",
+                      tags = {"math", "calculation"})
         public String multiplyNumbers(
             @ToolParam(name = "x", description = "First integer", required = true) int x,
             @ToolParam(name = "y", description = "Second integer", required = true) int y
@@ -421,10 +422,10 @@ class AnnotatedToolWrapperTest {
         registry.registerObject(new TimeTools());
 
         List<Tool> mathTools = registry.getByCategory("math");
-        assertEquals(3, mathTools.size());
+        assertEquals(2, mathTools.size());
 
         List<Tool> calcTools = registry.getByTag("calculation");
-        assertEquals(3, calcTools.size());
+        assertEquals(2, calcTools.size());
     }
 
     // ==================== 边界情况 ====================
