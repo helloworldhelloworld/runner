@@ -12,6 +12,7 @@ import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
 import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMProviderFactory;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.plugin.PluginFunction;
