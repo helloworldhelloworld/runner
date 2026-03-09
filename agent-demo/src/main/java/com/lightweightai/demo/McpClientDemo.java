@@ -1,6 +1,8 @@
 package com.lightweightai.demo;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.core.ToolExecutor;
@@ -14,6 +16,7 @@ import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 
+import java.io.InputStream;
 import java.util.Map;
 import java.util.Set;
 
@@ -163,43 +166,50 @@ public class McpClientDemo {
     // ================================================================
 
     static void demoHeaderConfiguration() {
-        System.out.println("--- [F] Header 配置：静态 + 动态合并 ---\n");
+        System.out.println("--- [F] Header 配置：Config + ToolClient 集成 ---\n");
 
-        // ---- 1. 静态 Header（ServerConfig / YAML） ----
-        System.out.println("[1] 静态 Header（ServerConfig.withHeader / YAML headers:）\n");
+        // ---- 1. 从 mcp-config.yaml 加载配置，展示 YAML 中的静态 headers ----
+        System.out.println("[1] 从 mcp-config.yaml 加载配置\n");
+
+        McpConfiguration yamlConfig = loadMcpConfig("mcp-config.yaml");
+        if (yamlConfig != null) {
+            McpConfiguration.ServerConfig remoteApi = yamlConfig.getServers().get("remote-api");
+            if (remoteApi != null) {
+                System.out.println("  remote-api (transport=" + remoteApi.getTransport()
+                    + ", enabled=" + remoteApi.isEnabled() + ")");
+                System.out.println("  YAML 静态 headers: " + remoteApi.getHeaders());
+            } else {
+                System.out.println("  remote-api 未配置");
+            }
+        }
+
+        // ---- 2. 代码方式添加静态 Header ----
+        System.out.println("\n[2] 代码方式添加静态 Header\n");
 
         McpConfiguration.ServerConfig sseConfig = McpConfiguration.ServerConfig.sse("http://api.example.com/sse")
             .withHeader("X-API-Key", "sk-static-key-12345")
             .withHeader("X-Client-Version", "1.0.0");
 
-        System.out.println("  ServerConfig.sse(\"http://api.example.com/sse\")");
-        System.out.println("      .withHeader(\"X-API-Key\", \"sk-static-key-12345\")");
-        System.out.println("      .withHeader(\"X-Client-Version\", \"1.0.0\")");
+        System.out.println("  ServerConfig.sse(...).withHeader(\"X-API-Key\", ...).withHeader(\"X-Client-Version\", ...)");
         System.out.println("  静态 headers: " + sseConfig.getHeaders());
 
-        // ---- 2. 动态 Header（McpHeaderProvider） ----
-        System.out.println("\n[2] 动态 Header（McpHeaderProvider）\n");
+        // ---- 3. 动态 Header（McpHeaderProvider） ----
+        System.out.println("\n[3] 动态 Header（McpHeaderProvider）\n");
 
-        // 模拟：每次调用返回新的 token 和 trace ID
         McpHeaderProvider dynamicProvider = () -> Map.of(
-            "Authorization", "Bearer " + "tok-" + System.currentTimeMillis(),
+            "Authorization", "Bearer tok-" + System.currentTimeMillis(),
             "X-Trace-Id", "trace-" + java.util.UUID.randomUUID().toString().substring(0, 8),
             "X-API-Key", "sk-dynamic-override"  // 与静态同名，动态优先
         );
 
-        System.out.println("  McpHeaderProvider provider = () -> Map.of(");
-        System.out.println("      \"Authorization\", \"Bearer \" + tokenService.getToken(),");
-        System.out.println("      \"X-Trace-Id\",    \"trace-\" + TraceContext.traceId(),");
-        System.out.println("      \"X-API-Key\",     \"sk-dynamic-override\"  // 覆盖静态值");
-        System.out.println("  );");
         System.out.println("  动态 headers: " + dynamicProvider.getHeaders());
+        System.out.println("  （每次调用产生新值：token 刷新、trace ID 等）");
 
-        // ---- 3. 合并结果 ----
-        System.out.println("\n[3] 合并结果（resolveHeaders）\n");
+        // ---- 4. resolveHeaders 合并 — 真实调用 ----
+        System.out.println("\n[4] resolveHeaders 合并结果（动态覆盖同名静态）\n");
 
         Map<String, String> merged = ToolClient.Builder.resolveHeaders(sseConfig, dynamicProvider);
 
-        System.out.println("  resolveHeaders(staticConfig, dynamicProvider):");
         for (Map.Entry<String, String> h : merged.entrySet()) {
             String source;
             if ("X-Client-Version".equals(h.getKey())) {
@@ -209,34 +219,65 @@ public class McpClientDemo {
             } else {
                 source = "← 动态覆盖静态";
             }
-            System.out.println("    " + h.getKey() + ": " + h.getValue() + "  " + source);
+            System.out.println("  " + h.getKey() + ": " + h.getValue() + "  " + source);
         }
 
-        // ---- 4. ToolClient 集成用法 ----
-        System.out.println("\n[4] ToolClient 集成用法\n");
+        // ---- 5. ToolClient + Config 集成 ----
+        System.out.println("\n[5] ToolClient + Config 集成\n");
 
-        System.out.println("  ToolClient client = ToolClient.create()");
-        System.out.println("      .headerProvider(() -> Map.of(                // 全局动态 Header");
-        System.out.println("          \"Authorization\", \"Bearer \" + getToken()))");
-        System.out.println("      .fromConfig(config)                          // YAML 中可含静态 headers");
-        System.out.println("      .build();");
+        // 构建包含 header 的配置
+        McpConfiguration config = new McpConfiguration();
+        McpConfiguration.ServerConfig apiServer = McpConfiguration.ServerConfig.sse("http://api.example.com/sse")
+            .withHeader("X-API-Key", "sk-from-config");
+        apiServer.setEnabled(false);  // 不实际连接
+        config.addServer("api-server", apiServer);
+
+        // 创建 ToolClient：headerProvider + fromConfig 配合
+        // fromConfig 内部对每个 enabled SSE server 自动调用 resolveHeaders
+        ToolClient client = ToolClient.create()
+            .headerProvider(() -> Map.of(
+                "Authorization", "Bearer tok-dynamic-123"
+            ))
+            .fromConfig(config)  // api-server disabled，不会连接；但演示了集成方式
+            .build();
+
+        System.out.println("  ToolClient.create()");
+        System.out.println("      .headerProvider(() -> Map.of(\"Authorization\", \"Bearer ...\"))");
+        System.out.println("      .fromConfig(config)   // 自动对每个 SSE server resolveHeaders");
+        System.out.println("      .build()");
         System.out.println();
-        System.out.println("  // YAML 配置示例：");
-        System.out.println("  // mcp:");
-        System.out.println("  //   servers:");
-        System.out.println("  //     remote-api:");
-        System.out.println("  //       transport: sse");
-        System.out.println("  //       url: \"http://api.example.com/sse\"");
-        System.out.println("  //       headers:");
-        System.out.println("  //         X-API-Key: \"sk-static-key\"");
-        System.out.println("  //         X-Client-Version: \"1.0.0\"");
+        System.out.println("  fromConfig 内部流程：");
+        System.out.println("    1. 遍历 config 中所有 enabled server");
+        System.out.println("    2. 对 SSE/Streamable HTTP server 调用 resolveHeaders(serverConfig, headerProvider)");
+        System.out.println("    3. 合并后的 headers 注入到 HTTP transport 的 request builder");
+        System.out.println("    4. STDIO server 忽略 headers");
+
+        client.close();
 
         System.out.println();
-        System.out.println("  ✓ 静态 Header：YAML headers 或 withHeader()，适合固定配置");
-        System.out.println("  ✓ 动态 Header：McpHeaderProvider，适合 Token 刷新、链路追踪");
-        System.out.println("  ✓ 合并规则：动态覆盖同名静态 Header");
-        System.out.println("  ✓ 仅 SSE / Streamable HTTP 生效，STDIO 忽略");
-        System.out.println();
+    }
+
+    /**
+     * 从 classpath 加载 mcp-config.yaml 中的 mcp 节点为 McpConfiguration
+     */
+    private static McpConfiguration loadMcpConfig(String resourceName) {
+        try (InputStream is = McpClientDemo.class.getClassLoader().getResourceAsStream(resourceName)) {
+            if (is == null) {
+                System.out.println("  [WARN] " + resourceName + " 未找到");
+                return null;
+            }
+            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+            JsonNode root = yamlMapper.readTree(is);
+            JsonNode mcpNode = root.get("mcp");
+            if (mcpNode == null) {
+                System.out.println("  [WARN] " + resourceName + " 中无 mcp 节点");
+                return null;
+            }
+            return yamlMapper.treeToValue(mcpNode, McpConfiguration.class);
+        } catch (Exception e) {
+            System.out.println("  [WARN] 加载 " + resourceName + " 失败: " + e.getMessage());
+            return null;
+        }
     }
 
     private static void callAndPrint(ToolExecutor executor, String toolName,
