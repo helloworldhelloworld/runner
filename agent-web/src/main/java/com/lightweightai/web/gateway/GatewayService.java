@@ -1,11 +1,9 @@
 package com.lightweightai.web.gateway;
 
-import com.lightweightai.kernel.gateway.Gateway;
+import com.lightweightai.kernel.gateway.ChatHandler;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
-import com.lightweightai.kernel.gateway.GatewayStreamHandler;
-import com.lightweightai.web.model.ChatRequest;
-import com.lightweightai.web.model.ChatResponse;
+import com.lightweightai.kernel.gateway.SessionManager;
 import com.lightweightai.web.service.SoulComfortChatService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,250 +13,144 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 /**
- * Gateway 服务层 - 统一入口
+ * Gateway 服务层 - ChatHandler + SessionManager 实现
  *
- * 适配 kernel-gateway 到 web 层：
- * - 将 HTTP 请求转换为 GatewayRequest
- * - 将 GatewayResponse 转换为 ChatResponse
- * - 支持多种 Agent 模式路由
+ * 将业务逻辑（SoulComfortChatService）适配为 kernel 层的通用接口。
+ * Gateway / Controller / WebSocket 只依赖 ChatHandler 和 SessionManager，
+ * 不再直接依赖 SoulComfortChatService。
  */
 @Service
-public class GatewayService {
+public class GatewayService implements ChatHandler, SessionManager {
 
     private static final Logger logger = LoggerFactory.getLogger(GatewayService.class);
 
     private final SoulComfortChatService soulComfortService;
-    private final Gateway gateway; // 可选的标准 Gateway
 
-    @org.springframework.beans.factory.annotation.Autowired
     public GatewayService(SoulComfortChatService soulComfortService) {
         this.soulComfortService = soulComfortService;
-        this.gateway = null; // 暂时使用 SoulComfortService
     }
 
-    /**
-     * 处理聊天请求（同步）
-     */
-    public ChatResponse chat(ChatRequest request) {
-        String mode = determineMode(request);
-        logger.info("Gateway chat - mode: {}, session: {}", mode, request.getSessionId());
+    // ==================== ChatHandler ====================
 
-        switch (mode) {
-            case "soul-comfort":
-                return soulComfortService.chat(request);
+    @Override
+    public GatewayResponse chat(GatewayRequest request) {
+        logger.info("ChatHandler.chat - session: {}", request.getSessionId());
 
-            case "gateway":
-                return handleViaGateway(request);
+        try {
+            com.lightweightai.web.model.ChatRequest internal = toInternal(request);
+            com.lightweightai.web.model.ChatResponse response = soulComfortService.chat(internal);
 
-            default:
-                return soulComfortService.chat(request);
+            return toGatewayResponse(response, request);
+        } catch (Exception e) {
+            logger.error("ChatHandler.chat failed", e);
+            return GatewayResponse.error(
+                request.getRequestId(),
+                request.getSessionId(),
+                e.getMessage()
+            );
         }
     }
 
-    /**
-     * 处理聊天请求（流式）
-     *
-     * 修复：链式 thenAccept 在 future 完成后调 callback.onComplete()，
-     * 让 GatewayController 可以发送 COMPLETE 事件并关闭 SSE emitter。
-     * 空 delta（SoulComfortChatService 的内部完成信号）被过滤，不转发给客户端。
-     */
-    public CompletableFuture<String> chatStream(
-            ChatRequest request,
-            StreamCallback callback) {
-
-        String mode = determineMode(request);
+    @Override
+    public CompletableFuture<GatewayResponse> chatStream(GatewayRequest request, StreamCallback callback) {
         String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
+        logger.info("ChatHandler.chatStream - session: {}", sessionId);
 
-        logger.info("Gateway stream - mode: {}, session: {}", mode, sessionId);
-
-        switch (mode) {
-            case "soul-comfort": {
-                CompletableFuture<String> future = soulComfortService.chat(
-                    request.getMessage(),
-                    sessionId,
-                    chunk -> {
-                        if (!chunk.getDelta().isEmpty()) {
-                            callback.onDelta(chunk.getDelta(), chunk.getEmotion());
-                        }
+        CompletableFuture<String> future = soulComfortService.chat(
+            request.getMessage(),
+            sessionId,
+            chunk -> {
+                if (!chunk.getDelta().isEmpty()) {
+                    Map<String, Object> metadata = new HashMap<>();
+                    if (chunk.getEmotion() != null && !chunk.getEmotion().isEmpty()) {
+                        metadata.put("emotion", chunk.getEmotion());
                     }
-                );
-                future.thenAccept(fullText -> {
-                    ChatResponse cr = new ChatResponse();
-                    cr.setResponse(fullText);
-                    cr.setSkillsApplied(List.of("soul-comfort", "openclaw-memory"));
-                    Map<String, Object> meta = new HashMap<>();
-                    meta.put("mode", "soul-comfort");
-                    meta.put("hasMemory", true);
-                    cr.setMetadata(meta);
-                    callback.onComplete(cr);
-                }).exceptionally(e -> {
-                    callback.onError(e);
-                    return null;
-                });
-                return future;
+                    callback.onDelta(chunk.getDelta(), metadata);
+                }
             }
+        );
 
-            case "gateway":
-                return handleStreamViaGateway(request, callback);
+        CompletableFuture<GatewayResponse> result = new CompletableFuture<>();
 
-            default: {
-                CompletableFuture<String> future = soulComfortService.chat(
-                    request.getMessage(),
-                    sessionId,
-                    chunk -> {
-                        if (!chunk.getDelta().isEmpty()) {
-                            callback.onDelta(chunk.getDelta(), chunk.getEmotion());
-                        }
-                    }
-                );
-                future.thenAccept(fullText -> {
-                    ChatResponse cr = new ChatResponse();
-                    cr.setResponse(fullText);
-                    callback.onComplete(cr);
-                }).exceptionally(e -> {
-                    callback.onError(e);
-                    return null;
-                });
-                return future;
-            }
-        }
+        future.thenAccept(fullText -> {
+            GatewayResponse response = GatewayResponse.builder()
+                .requestId(request.getRequestId())
+                .sessionId(sessionId)
+                .text(fullText)
+                .metadata("mode", "soul-comfort")
+                .metadata("hasMemory", true)
+                .metadata("skillsApplied", List.of("soul-comfort", "openclaw-memory"))
+                .build();
+            callback.onComplete(response);
+            result.complete(response);
+        }).exceptionally(e -> {
+            callback.onError(e);
+            result.completeExceptionally(e);
+            return null;
+        });
+
+        return result;
     }
 
-    /**
-     * 获取会话历史（委托给 SoulComfortChatService）
-     */
+    // ==================== SessionManager ====================
+
+    @Override
     public List<Map<String, String>> getSessionHistory(String sessionId) {
         return soulComfortService.getSessionHistory(sessionId);
     }
 
-    /**
-     * 获取会话摘要（委托给 SoulComfortChatService）
-     */
+    @Override
     public Map<String, Object> getSessionSummary(String sessionId) {
         return soulComfortService.getSessionSummary(sessionId);
     }
 
-    /**
-     * 清空会话（委托给 SoulComfortChatService）
-     */
+    @Override
     public void clearSession(String sessionId) {
         soulComfortService.clearSession(sessionId);
     }
 
-    /**
-     * 流式回调接口
-     */
-    public interface StreamCallback {
-        void onDelta(String delta, String emotion);
-        void onComplete(ChatResponse response);
-        void onError(Throwable error);
-    }
+    // ==================== 内部转换 ====================
 
-    // ==================== 私有方法 ====================
+    private com.lightweightai.web.model.ChatRequest toInternal(GatewayRequest request) {
+        com.lightweightai.web.model.ChatRequest internal = new com.lightweightai.web.model.ChatRequest();
+        internal.setMessage(request.getMessage());
+        internal.setSessionId(request.getSessionId());
+        internal.setSoulComfortMode(true);
 
-    /**
-     * 确定请求处理模式
-     */
-    private String determineMode(ChatRequest request) {
-        // 优先使用请求中指定的模式
-        if (request.isSoulComfortMode()) {
-            return "soul-comfort";
+        Object model = request.getMetadata().get("model");
+        if (model instanceof String) {
+            internal.setModel((String) model);
         }
 
-        // 如果有标准 Gateway 配置，使用 gateway 模式
-        if (gateway != null) {
-            return "gateway";
-        }
-
-        // 默认使用 soul-comfort
-        return "soul-comfort";
+        return internal;
     }
 
-    /**
-     * 通过标准 Gateway 处理请求
-     */
-    private ChatResponse handleViaGateway(ChatRequest request) {
-        if (gateway == null) {
-            return soulComfortService.chat(request);
-        }
+    private GatewayResponse toGatewayResponse(
+            com.lightweightai.web.model.ChatResponse response,
+            GatewayRequest request) {
 
-        GatewayRequest gatewayRequest = GatewayRequest.builder()
-            .sessionId(request.getSessionId())
-            .message(request.getMessage())
-            .metadata("model", request.getModel())
-            .build();
-
-        GatewayResponse gatewayResponse = gateway.handle(gatewayRequest);
-
-        return convertToChaChatResponse(gatewayResponse);
-    }
-
-    /**
-     * 通过标准 Gateway 处理流式请求
-     */
-    private CompletableFuture<String> handleStreamViaGateway(
-            ChatRequest request,
-            StreamCallback callback) {
-
-        if (gateway == null) {
-            return soulComfortService.chat(
-                request.getMessage(),
+        if (response.getError() != null) {
+            return GatewayResponse.error(
+                request.getRequestId(),
                 request.getSessionId(),
-                chunk -> callback.onDelta(chunk.getDelta(), chunk.getEmotion())
+                response.getError()
             );
         }
 
-        GatewayRequest gatewayRequest = GatewayRequest.builder()
+        GatewayResponse.Builder builder = GatewayResponse.builder()
+            .requestId(request.getRequestId())
             .sessionId(request.getSessionId())
-            .message(request.getMessage())
-            .build();
+            .text(response.getResponse());
 
-        CompletableFuture<String> future = new CompletableFuture<>();
-
-        gateway.handleStream(gatewayRequest, new GatewayStreamHandler() {
-            @Override
-            public void onDelta(String delta) {
-                callback.onDelta(delta, "");
-            }
-
-            @Override
-            public void onComplete(GatewayResponse response) {
-                callback.onComplete(convertToChaChatResponse(response));
-                future.complete(response.getText());
-            }
-
-            @Override
-            public void onError(Throwable error) {
-                callback.onError(error);
-                future.completeExceptionally(error);
-            }
-        });
-
-        return future;
-    }
-
-    /**
-     * 转换 GatewayResponse 到 ChatResponse
-     */
-    private ChatResponse convertToChaChatResponse(GatewayResponse gatewayResponse) {
-        ChatResponse response = new ChatResponse();
-
-        if (gatewayResponse.isError()) {
-            return ChatResponse.error(gatewayResponse.getErrorMessage());
+        if (response.getSkillsApplied() != null) {
+            builder.metadata("skillsApplied", response.getSkillsApplied());
+        }
+        if (response.getMetadata() != null) {
+            builder.metadata(response.getMetadata());
         }
 
-        response.setResponse(gatewayResponse.getText());
-        response.setSkillsApplied(List.of("gateway"));
-
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("requestId", gatewayResponse.getRequestId());
-        metadata.put("latencyMs", gatewayResponse.getLatencyMs());
-        metadata.put("mode", "gateway");
-        response.setMetadata(metadata);
-
-        return response;
+        return builder.build();
     }
 }
