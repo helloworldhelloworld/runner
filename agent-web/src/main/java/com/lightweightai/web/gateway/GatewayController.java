@@ -2,8 +2,12 @@ package com.lightweightai.web.gateway;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.lightweightai.web.model.ChatRequest;
-import com.lightweightai.web.model.ChatResponse;
+import com.lightweightai.kernel.gateway.ChatHandler;
+import com.lightweightai.kernel.gateway.Gateway;
+import com.lightweightai.kernel.gateway.GatewayRequest;
+import com.lightweightai.kernel.gateway.GatewayResponse;
+import com.lightweightai.kernel.gateway.GatewayStreamHandler;
+import com.lightweightai.kernel.gateway.SessionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -11,19 +15,16 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Gateway Controller - 统一入口
+ * Gateway Controller - 纯协议适配器
  *
- * 提供客户端无关的 API：
- * - POST /gateway/chat - 同步聊天
- * - POST /gateway/chat/stream - 流式聊天 (SSE)
- * - GET  /gateway/health - 健康检查
- *
+ * 仅负责 HTTP/SSE 协议适配，所有业务逻辑委托 Gateway（kernel）。
  * 支持所有客户端：Web / iOS / Android / HarmonyOS
  */
 @RestController
@@ -33,12 +34,12 @@ public class GatewayController {
 
     private static final Logger logger = LoggerFactory.getLogger(GatewayController.class);
 
-    private final GatewayService gatewayService;
+    private final Gateway gateway;
     private final ObjectMapper compactMapper;
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
-    public GatewayController(GatewayService gatewayService, ObjectMapper objectMapper) {
-        this.gatewayService = gatewayService;
+    public GatewayController(Gateway gateway, ObjectMapper objectMapper) {
+        this.gateway = gateway;
         this.compactMapper = objectMapper.copy()
             .disable(SerializationFeature.INDENT_OUTPUT);
     }
@@ -55,22 +56,10 @@ public class GatewayController {
             requestId, request.getClientType(), request.getSessionId());
 
         try {
-            // 转换为内部请求
-            ChatRequest internal = convertToInternal(request);
-            ChatResponse response = gatewayService.chat(internal);
+            GatewayRequest gatewayRequest = toGatewayRequest(request, requestId);
+            GatewayResponse response = gateway.handle(gatewayRequest);
 
-            // 转换为统一响应
-            UnifiedChatResponse result = UnifiedChatResponse.full(
-                requestId,
-                request.getSessionId(),
-                response.getResponse()
-            );
-            result.setLatencyMs(System.currentTimeMillis() - startTime);
-            result.setSkillsApplied(response.getSkillsApplied());
-            result.setMetadata(response.getMetadata());
-
-            return result;
-
+            return toUnifiedResponse(response, request.getSessionId(), startTime);
         } catch (Exception e) {
             logger.error("Gateway chat failed", e);
             return UnifiedChatResponse.error(requestId, e.getMessage());
@@ -92,16 +81,20 @@ public class GatewayController {
 
         executor.submit(() -> {
             try {
-                ChatRequest internal = convertToInternal(request);
-                internal.setSessionId(sessionId);
+                GatewayRequest gatewayRequest = toGatewayRequest(request, requestId);
 
-                gatewayService.chatStream(internal, new GatewayService.StreamCallback() {
+                gateway.handleStream(gatewayRequest, new GatewayStreamHandler() {
                     @Override
-                    public void onDelta(String delta, String emotion) {
+                    public void onDelta(String delta) {
+                        // 不会被调用（Gateway 使用带 metadata 的版本）
+                    }
+
+                    @Override
+                    public void onDelta(String delta, Map<String, Object> metadata) {
                         try {
                             UnifiedChatResponse deltaResponse = UnifiedChatResponse.delta(requestId, delta);
-                            if (emotion != null && !emotion.isEmpty()) {
-                                deltaResponse.setMetadata(Map.of("emotion", emotion));
+                            if (metadata != null && !metadata.isEmpty()) {
+                                deltaResponse.setMetadata(metadata);
                             }
                             emitter.send(SseEmitter.event()
                                 .name("message")
@@ -112,15 +105,26 @@ public class GatewayController {
                     }
 
                     @Override
-                    public void onComplete(ChatResponse response) {
+                    public void onComplete(GatewayResponse response) {
                         try {
                             UnifiedChatResponse completeResponse = UnifiedChatResponse.complete(
                                 requestId,
                                 sessionId,
-                                response.getResponse()
+                                response.getText()
                             );
-                            completeResponse.setSkillsApplied(response.getSkillsApplied());
-                            completeResponse.setMetadata(response.getMetadata());
+                            completeResponse.setLatencyMs(response.getLatencyMs());
+
+                            // 从 metadata 提取 skillsApplied
+                            Map<String, Object> meta = response.getMetadata();
+                            if (meta != null) {
+                                Object skills = meta.get("skillsApplied");
+                                if (skills instanceof List) {
+                                    @SuppressWarnings("unchecked")
+                                    List<String> skillsList = (List<String>) skills;
+                                    completeResponse.setSkillsApplied(skillsList);
+                                }
+                                completeResponse.setMetadata(meta);
+                            }
 
                             emitter.send(SseEmitter.event()
                                 .name("message")
@@ -181,19 +185,27 @@ public class GatewayController {
     @GetMapping("/session/{sessionId}/history")
     public Map<String, Object> getSessionHistory(@PathVariable("sessionId") String sessionId) {
         logger.info("Gateway get history - session: {}", sessionId);
+        SessionManager sm = gateway.getSessionManager();
+        if (sm == null) {
+            return Map.of("sessionId", sessionId, "history", List.of());
+        }
         return Map.of(
             "sessionId", sessionId,
-            "history", gatewayService.getSessionHistory(sessionId)
+            "history", sm.getSessionHistory(sessionId)
         );
     }
 
     /**
-     * 获取会话摘要（含记忆统计）
+     * 获取会话摘要
      */
     @GetMapping("/session/{sessionId}/summary")
     public Map<String, Object> getSessionSummary(@PathVariable("sessionId") String sessionId) {
         logger.info("Gateway get summary - session: {}", sessionId);
-        return gatewayService.getSessionSummary(sessionId);
+        SessionManager sm = gateway.getSessionManager();
+        if (sm == null) {
+            return Map.of("sessionId", sessionId);
+        }
+        return sm.getSessionSummary(sessionId);
     }
 
     /**
@@ -202,37 +214,59 @@ public class GatewayController {
     @DeleteMapping("/session/{sessionId}")
     public Map<String, Object> clearSession(@PathVariable("sessionId") String sessionId) {
         logger.info("Gateway clear session: {}", sessionId);
-        gatewayService.clearSession(sessionId);
+        SessionManager sm = gateway.getSessionManager();
+        if (sm != null) {
+            sm.clearSession(sessionId);
+        }
         return Map.of("sessionId", sessionId, "cleared", true);
     }
 
-    // ==================== 私有方法 ====================
+    // ==================== 协议转换（业务无关） ====================
 
-    /**
-     * 转换为内部请求格式
-     */
-    private ChatRequest convertToInternal(UnifiedChatRequest unified) {
-        ChatRequest internal = new ChatRequest();
-        internal.setMessage(unified.getMessage());
-        internal.setSessionId(unified.getSessionId());
-        internal.setModel(unified.getModel());
-        internal.setSoulComfortMode(true); // 默认使用心灵引导模式
+    private GatewayRequest toGatewayRequest(UnifiedChatRequest unified, String requestId) {
+        GatewayRequest.Builder builder = GatewayRequest.builder()
+            .requestId(requestId)
+            .sessionId(unified.getSessionId())
+            .message(unified.getMessage());
 
-        // 根据客户端类型调整
+        if (unified.getModel() != null) {
+            builder.metadata("model", unified.getModel());
+        }
         if (unified.getClientType() != null) {
-            switch (unified.getClientType()) {
-                case HARMONYOS:
-                case IOS:
-                case ANDROID:
-                    // 移动端可能有特殊配置
-                    break;
-                case WEB:
-                case MINIPROGRAM:
-                default:
-                    break;
-            }
+            builder.metadata("clientType", unified.getClientType().name());
+        }
+        if (unified.getExtra() != null) {
+            builder.metadata(unified.getExtra());
         }
 
-        return internal;
+        return builder.build();
+    }
+
+    private UnifiedChatResponse toUnifiedResponse(GatewayResponse response, String sessionId, long startTime) {
+        if (response.isError()) {
+            return UnifiedChatResponse.error(response.getRequestId(), response.getErrorMessage());
+        }
+
+        UnifiedChatResponse result = UnifiedChatResponse.full(
+            response.getRequestId(),
+            sessionId,
+            response.getText()
+        );
+        result.setLatencyMs(response.getLatencyMs() > 0
+            ? response.getLatencyMs()
+            : System.currentTimeMillis() - startTime);
+
+        Map<String, Object> meta = response.getMetadata();
+        if (meta != null) {
+            Object skills = meta.get("skillsApplied");
+            if (skills instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<String> skillsList = (List<String>) skills;
+                result.setSkillsApplied(skillsList);
+            }
+            result.setMetadata(meta);
+        }
+
+        return result;
     }
 }

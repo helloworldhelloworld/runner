@@ -9,7 +9,11 @@ import com.lightweightai.kernel.memory.InMemoryProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -23,207 +27,366 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * TDD: Gateway 抽象测试
  *
- * Gateway 是 AgentLoop 的客户端无关入口：
+ * Gateway 是业务逻辑的客户端无关入口：
  * - 支持同步/异步/流式调用
  * - 协议无关（HTTP/WebSocket/gRPC/本地调用）
+ * - 通过 ChatHandler 接入任意业务逻辑
+ * - 通过 AgentLoop 保持向后兼容
  * - 会话管理
  * - 可观测性
  */
-@DisplayName("Gateway - 客户端无关入口")
 class GatewayTest {
 
-    private Gateway gateway;
-    private MockLLMProvider llmProvider;
-    private InMemoryProvider memoryProvider;
+    // ==================== AgentLoop 向后兼容测试 ====================
 
-    @BeforeEach
-    void setUp() {
-        llmProvider = new MockLLMProvider();
-        memoryProvider = new InMemoryProvider();
+    @Nested
+    @DisplayName("AgentLoop 向后兼容")
+    class AgentLoopBackwardCompatibility {
 
-        // 构建 Gateway
-        gateway = Gateway.builder()
-            .agentLoop(AgentLoop.builder()
-                .llmProvider(llmProvider)
-                .memoryProvider(memoryProvider)
-                .systemPrompt("你是一个助手。")
-                .build())
-            .build();
+        private Gateway gateway;
+        private MockLLMProvider llmProvider;
+        private InMemoryProvider memoryProvider;
+
+        @BeforeEach
+        void setUp() {
+            llmProvider = new MockLLMProvider();
+            memoryProvider = new InMemoryProvider();
+
+            // 旧方式：通过 AgentLoop 构建 Gateway
+            gateway = Gateway.builder()
+                .agentLoop(AgentLoop.builder()
+                    .llmProvider(llmProvider)
+                    .memoryProvider(memoryProvider)
+                    .systemPrompt("你是一个助手。")
+                    .build())
+                .build();
+        }
+
+        @Test
+        @DisplayName("同步处理请求")
+        void shouldHandleRequestSync() {
+            llmProvider.setNextResponse("你好！我是助手。");
+            GatewayRequest request = GatewayRequest.builder()
+                .sessionId("session-1")
+                .message("你好")
+                .build();
+
+            GatewayResponse response = gateway.handle(request);
+
+            assertNotNull(response);
+            assertTrue(response.getText().contains("助手"));
+            assertEquals("session-1", response.getSessionId());
+        }
+
+        @Test
+        @DisplayName("同步请求包含完整元数据")
+        void shouldIncludeMetadataInResponse() {
+            llmProvider.setNextResponse("回复");
+            GatewayRequest request = GatewayRequest.builder()
+                .sessionId("session-1")
+                .message("测试")
+                .build();
+
+            GatewayResponse response = gateway.handle(request);
+
+            assertNotNull(response.getRequestId());
+            assertNotNull(response.getTimestamp());
+            assertTrue(response.getLatencyMs() >= 0);
+        }
+
+        @Test
+        @DisplayName("异步处理请求")
+        void shouldHandleRequestAsync() throws Exception {
+            llmProvider.setNextResponse("异步回复");
+            GatewayRequest request = GatewayRequest.builder()
+                .sessionId("session-1")
+                .message("异步测试")
+                .build();
+
+            CompletableFuture<GatewayResponse> future = gateway.handleAsync(request);
+
+            GatewayResponse response = future.get(5, TimeUnit.SECONDS);
+            assertEquals("异步回复", response.getText());
+        }
+
+        @Test
+        @DisplayName("流式处理请求")
+        void shouldHandleRequestStream() throws Exception {
+            llmProvider.setStreamResponse(List.of("你", "好", "！"));
+            GatewayRequest request = GatewayRequest.builder()
+                .sessionId("session-1")
+                .message("流式测试")
+                .build();
+
+            CountDownLatch completeLatch = new CountDownLatch(1);
+            StringBuilder received = new StringBuilder();
+            AtomicReference<GatewayResponse> finalResponse = new AtomicReference<>();
+
+            gateway.handleStream(request, new GatewayStreamHandler() {
+                @Override
+                public void onDelta(String delta) {
+                    received.append(delta);
+                }
+
+                @Override
+                public void onComplete(GatewayResponse response) {
+                    finalResponse.set(response);
+                    completeLatch.countDown();
+                }
+
+                @Override
+                public void onError(Throwable error) {
+                    completeLatch.countDown();
+                }
+            });
+
+            assertTrue(completeLatch.await(5, TimeUnit.SECONDS));
+            assertEquals("你好！", received.toString());
+            assertNotNull(finalResponse.get());
+        }
+
+        @Test
+        @DisplayName("会话内保持上下文")
+        void shouldMaintainSessionContext() {
+            llmProvider.setNextResponse("我记得你叫张三。");
+
+            gateway.handle(GatewayRequest.builder()
+                .sessionId("session-1")
+                .message("我叫张三")
+                .build());
+
+            GatewayResponse response = gateway.handle(GatewayRequest.builder()
+                .sessionId("session-1")
+                .message("我叫什么？")
+                .build());
+
+            assertNotNull(response);
+            assertTrue(memoryProvider.getHistory("session-1", 10).size() >= 2);
+        }
+
+        @Test
+        @DisplayName("不同会话相互隔离")
+        void shouldIsolateSessionContexts() {
+            llmProvider.setNextResponse("回复");
+
+            gateway.handle(GatewayRequest.builder()
+                .sessionId("session-1")
+                .message("会话1的消息")
+                .build());
+
+            gateway.handle(GatewayRequest.builder()
+                .sessionId("session-2")
+                .message("会话2的消息")
+                .build());
+
+            List<?> history1 = memoryProvider.getHistory("session-1", 10);
+            List<?> history2 = memoryProvider.getHistory("session-2", 10);
+
+            assertEquals(2, history1.size());
+            assertEquals(2, history2.size());
+        }
+
+        @Test
+        @DisplayName("处理 LLM 错误")
+        void shouldHandleLLMError() {
+            llmProvider.setError(new RuntimeException("API 错误"));
+            GatewayRequest request = GatewayRequest.builder()
+                .sessionId("session-1")
+                .message("测试")
+                .build();
+
+            GatewayResponse response = gateway.handle(request);
+
+            assertTrue(response.isError());
+            assertNotNull(response.getErrorMessage());
+        }
     }
 
-    // ==================== 同步调用测试 ====================
+    // ==================== ChatHandler 测试 ====================
 
-    @Test
-    @DisplayName("同步处理请求")
-    void shouldHandleRequestSync() {
-        // Given
-        llmProvider.setNextResponse("你好！我是助手。");
-        GatewayRequest request = GatewayRequest.builder()
-            .sessionId("session-1")
-            .message("你好")
-            .build();
+    @Nested
+    @DisplayName("ChatHandler 抽象接口")
+    class ChatHandlerTests {
 
-        // When
-        GatewayResponse response = gateway.handle(request);
+        @Test
+        @DisplayName("通过 ChatHandler 构建 Gateway")
+        void shouldBuildWithChatHandler() {
+            MockChatHandler handler = new MockChatHandler("测试回复");
 
-        // Then
-        assertNotNull(response);
-        assertTrue(response.getText().contains("助手"));
-        assertEquals("session-1", response.getSessionId());
+            Gateway gw = Gateway.builder()
+                .chatHandler(handler)
+                .build();
+
+            GatewayResponse response = gw.handle(GatewayRequest.builder()
+                .sessionId("s1")
+                .message("你好")
+                .build());
+
+            assertNotNull(response);
+            assertEquals("测试回复", response.getText());
+            assertFalse(response.isError());
+            assertTrue(response.getLatencyMs() >= 0);
+        }
+
+        @Test
+        @DisplayName("ChatHandler 错误被包装为 error response")
+        void shouldHandleChatHandlerError() {
+            ChatHandler failingHandler = new ChatHandler() {
+                @Override
+                public GatewayResponse chat(GatewayRequest request) {
+                    throw new RuntimeException("业务错误");
+                }
+
+                @Override
+                public CompletableFuture<GatewayResponse> chatStream(GatewayRequest request, StreamCallback callback) {
+                    return CompletableFuture.failedFuture(new RuntimeException("业务错误"));
+                }
+            };
+
+            Gateway gw = Gateway.builder().chatHandler(failingHandler).build();
+
+            GatewayResponse response = gw.handle(GatewayRequest.builder()
+                .sessionId("s1").message("test").build());
+
+            assertTrue(response.isError());
+            assertEquals("业务错误", response.getErrorMessage());
+        }
+
+        @Test
+        @DisplayName("ChatHandler 流式调用带 metadata")
+        void shouldStreamWithMetadata() throws Exception {
+            MockChatHandler handler = new MockChatHandler("完整回复");
+
+            Gateway gw = Gateway.builder().chatHandler(handler).build();
+
+            GatewayRequest request = GatewayRequest.builder()
+                .sessionId("s1").message("流式测试").build();
+
+            CountDownLatch latch = new CountDownLatch(1);
+            List<String> deltas = new ArrayList<>();
+            List<Map<String, Object>> metadatas = new ArrayList<>();
+            AtomicReference<GatewayResponse> finalResponse = new AtomicReference<>();
+
+            gw.handleStream(request, new GatewayStreamHandler() {
+                @Override
+                public void onDelta(String delta) {
+                    // 不会被调用（Gateway 使用带 metadata 的版本）
+                    fail("Should not call onDelta without metadata");
+                }
+
+                @Override
+                public void onDelta(String delta, Map<String, Object> metadata) {
+                    deltas.add(delta);
+                    metadatas.add(metadata);
+                }
+
+                @Override
+                public void onComplete(GatewayResponse response) {
+                    finalResponse.set(response);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onError(Throwable error) {
+                    latch.countDown();
+                }
+            });
+
+            assertTrue(latch.await(5, TimeUnit.SECONDS));
+            assertEquals(List.of("完整", "回复"), deltas);
+            assertEquals(2, metadatas.size());
+            assertEquals("温柔", metadatas.get(0).get("emotion"));
+            assertNotNull(finalResponse.get());
+            assertEquals("完整回复", finalResponse.get().getText());
+        }
+
+        @Test
+        @DisplayName("SessionManager 可选注入")
+        void shouldSupportOptionalSessionManager() {
+            MockChatHandler handler = new MockChatHandler("ok");
+            MockSessionManager sm = new MockSessionManager();
+
+            Gateway gw = Gateway.builder()
+                .chatHandler(handler)
+                .sessionManager(sm)
+                .build();
+
+            assertNotNull(gw.getSessionManager());
+            assertEquals(0, gw.getSessionManager().getSessionHistory("any").size());
+
+            // 无 SessionManager 的 Gateway
+            Gateway gw2 = Gateway.builder()
+                .chatHandler(handler)
+                .build();
+            assertNull(gw2.getSessionManager());
+        }
+
+        @Test
+        @DisplayName("必须提供 chatHandler 或 agentLoop")
+        void shouldRequireHandlerOrLoop() {
+            assertThrows(IllegalArgumentException.class, () ->
+                Gateway.builder().build()
+            );
+        }
     }
 
-    @Test
-    @DisplayName("同步请求包含完整元数据")
-    void shouldIncludeMetadataInResponse() {
-        // Given
-        llmProvider.setNextResponse("回复");
-        GatewayRequest request = GatewayRequest.builder()
-            .sessionId("session-1")
-            .message("测试")
-            .build();
+    // ==================== Mock 实现 ====================
 
-        // When
-        GatewayResponse response = gateway.handle(request);
+    private static class MockChatHandler implements ChatHandler {
+        private final String responseText;
 
-        // Then
-        assertNotNull(response.getRequestId());
-        assertNotNull(response.getTimestamp());
-        assertTrue(response.getLatencyMs() >= 0);
-    }
+        MockChatHandler(String responseText) {
+            this.responseText = responseText;
+        }
 
-    // ==================== 异步调用测试 ====================
+        @Override
+        public GatewayResponse chat(GatewayRequest request) {
+            return GatewayResponse.builder()
+                .requestId(request.getRequestId())
+                .sessionId(request.getSessionId())
+                .text(responseText)
+                .build();
+        }
 
-    @Test
-    @DisplayName("异步处理请求")
-    void shouldHandleRequestAsync() throws Exception {
-        // Given
-        llmProvider.setNextResponse("异步回复");
-        GatewayRequest request = GatewayRequest.builder()
-            .sessionId("session-1")
-            .message("异步测试")
-            .build();
+        @Override
+        public CompletableFuture<GatewayResponse> chatStream(GatewayRequest request, StreamCallback callback) {
+            // 模拟分两块流式返回
+            String[] chunks = {responseText.substring(0, responseText.length() / 2),
+                               responseText.substring(responseText.length() / 2)};
 
-        // When
-        CompletableFuture<GatewayResponse> future = gateway.handleAsync(request);
-
-        // Then
-        GatewayResponse response = future.get(5, TimeUnit.SECONDS);
-        assertEquals("异步回复", response.getText());
-    }
-
-    // ==================== 流式调用测试 ====================
-
-    @Test
-    @DisplayName("流式处理请求")
-    void shouldHandleRequestStream() throws Exception {
-        // Given
-        llmProvider.setStreamResponse(List.of("你", "好", "！"));
-        GatewayRequest request = GatewayRequest.builder()
-            .sessionId("session-1")
-            .message("流式测试")
-            .build();
-
-        CountDownLatch completeLatch = new CountDownLatch(1);
-        StringBuilder received = new StringBuilder();
-        AtomicReference<GatewayResponse> finalResponse = new AtomicReference<>();
-
-        // When
-        gateway.handleStream(request, new GatewayStreamHandler() {
-            @Override
-            public void onDelta(String delta) {
-                received.append(delta);
+            for (String chunk : chunks) {
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("emotion", "温柔");
+                callback.onDelta(chunk, metadata);
             }
 
-            @Override
-            public void onComplete(GatewayResponse response) {
-                finalResponse.set(response);
-                completeLatch.countDown();
-            }
+            GatewayResponse response = GatewayResponse.builder()
+                .requestId(request.getRequestId())
+                .sessionId(request.getSessionId())
+                .text(responseText)
+                .build();
+            callback.onComplete(response);
 
-            @Override
-            public void onError(Throwable error) {
-                completeLatch.countDown();
-            }
-        });
-
-        // Then
-        assertTrue(completeLatch.await(5, TimeUnit.SECONDS));
-        assertEquals("你好！", received.toString());
-        assertNotNull(finalResponse.get());
+            return CompletableFuture.completedFuture(response);
+        }
     }
 
-    // ==================== 会话管理测试 ====================
+    private static class MockSessionManager implements SessionManager {
+        @Override
+        public List<Map<String, String>> getSessionHistory(String sessionId) {
+            return List.of();
+        }
 
-    @Test
-    @DisplayName("会话内保持上下文")
-    void shouldMaintainSessionContext() {
-        // Given
-        llmProvider.setNextResponse("我记得你叫张三。");
+        @Override
+        public Map<String, Object> getSessionSummary(String sessionId) {
+            return Map.of("sessionId", sessionId);
+        }
 
-        // When - 第一次对话
-        gateway.handle(GatewayRequest.builder()
-            .sessionId("session-1")
-            .message("我叫张三")
-            .build());
-
-        // When - 第二次对话（同一会话）
-        GatewayResponse response = gateway.handle(GatewayRequest.builder()
-            .sessionId("session-1")
-            .message("我叫什么？")
-            .build());
-
-        // Then
-        assertNotNull(response);
-        // 验证记忆中有上下文
-        assertTrue(memoryProvider.getHistory("session-1", 10).size() >= 2);
+        @Override
+        public void clearSession(String sessionId) {
+            // no-op
+        }
     }
-
-    @Test
-    @DisplayName("不同会话相互隔离")
-    void shouldIsolateSessionContexts() {
-        // Given
-        llmProvider.setNextResponse("回复");
-
-        // When
-        gateway.handle(GatewayRequest.builder()
-            .sessionId("session-1")
-            .message("会话1的消息")
-            .build());
-
-        gateway.handle(GatewayRequest.builder()
-            .sessionId("session-2")
-            .message("会话2的消息")
-            .build());
-
-        // Then
-        List<?> history1 = memoryProvider.getHistory("session-1", 10);
-        List<?> history2 = memoryProvider.getHistory("session-2", 10);
-
-        assertEquals(2, history1.size()); // user + assistant
-        assertEquals(2, history2.size());
-    }
-
-    // ==================== 错误处理测试 ====================
-
-    @Test
-    @DisplayName("处理 LLM 错误")
-    void shouldHandleLLMError() {
-        // Given
-        llmProvider.setError(new RuntimeException("API 错误"));
-        GatewayRequest request = GatewayRequest.builder()
-            .sessionId("session-1")
-            .message("测试")
-            .build();
-
-        // When
-        GatewayResponse response = gateway.handle(request);
-
-        // Then
-        assertTrue(response.isError());
-        assertNotNull(response.getErrorMessage());
-    }
-
-    // ==================== 辅助类 ====================
 
     private static class MockLLMProvider implements LLMProvider {
         private String nextResponse = "Default response";

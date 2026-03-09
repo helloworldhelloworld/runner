@@ -3,10 +3,13 @@ package com.lightweightai.web.websocket;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.lightweightai.kernel.gateway.Gateway;
+import com.lightweightai.kernel.gateway.GatewayRequest;
+import com.lightweightai.kernel.gateway.GatewayResponse;
+import com.lightweightai.kernel.gateway.GatewayStreamHandler;
 import com.lightweightai.safety.CrisisDetector;
 import com.lightweightai.safety.CrisisResource;
 import com.lightweightai.safety.SafetyResult;
-import com.lightweightai.web.service.SoulComfortChatService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -23,6 +26,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Raw WebSocket handler for streaming chat.
+ *
+ * 纯 WebSocket 协议适配器，通过 Gateway（kernel）委托业务逻辑。
+ * 仅保留 crisis detection 作为安全前置检查。
  *
  * Client → Server message format:
  *   { "type": "chat", "sessionId": "...", "userId": "...", "message": "..." }
@@ -41,12 +47,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
     private final Map<String, WebSocketClientToolDispatcher> dispatchers = new ConcurrentHashMap<>();
-    private final SoulComfortChatService chatService;
+    private final Gateway gateway;
     private final CrisisDetector crisisDetector;
 
-    public ChatWebSocketHandler(SoulComfortChatService chatService,
+    public ChatWebSocketHandler(Gateway gateway,
                                 CrisisDetector crisisDetector) {
-        this.chatService = chatService;
+        this.gateway = gateway;
         this.crisisDetector = crisisDetector;
     }
 
@@ -69,9 +75,6 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     /**
      * 获取指定 session 的客户端工具调度器
-     *
-     * @param sessionId WebSocket session ID
-     * @return 调度器实例，不存在时返回 null
      */
     public WebSocketClientToolDispatcher getDispatcher(String sessionId) {
         return dispatchers.get(sessionId);
@@ -105,32 +108,61 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        // Crisis detection before LLM
+        // Crisis detection（安全前置检查，保留在协议层）
         SafetyResult safetyResult = crisisDetector.check(message);
         if (safetyResult.isCrisis()) {
             sendCrisisAlert(session, safetyResult.resources());
             return;
         }
 
-        // Stream via SoulComfortChatService
-        chatService.chat(message, sessionId, chunk -> {
-            if (chunk.getDelta() != null && !chunk.getDelta().isEmpty()) {
-                sendToken(session, chunk.getDelta());
+        // 通过 Gateway 委托业务逻辑
+        GatewayRequest request = GatewayRequest.builder()
+            .sessionId(sessionId)
+            .message(message)
+            .metadata("protocol", "websocket")
+            .build();
+
+        // 记录最后的 emotion，用于 stream_end
+        final String[] lastEmotion = {""};
+
+        gateway.handleStream(request, new GatewayStreamHandler() {
+            @Override
+            public void onDelta(String delta) {
+                // 不会被调用
             }
-        }).thenAccept(fullResponse -> {
-            sendStreamEnd(session, "温柔");
-        }).exceptionally(e -> {
-            logger.error("Streaming failed for session {}", sessionId, e);
-            sendError(session, "处理失败: " + e.getMessage());
-            return null;
+
+            @Override
+            public void onDelta(String delta, Map<String, Object> metadata) {
+                if (delta != null && !delta.isEmpty()) {
+                    sendToken(session, delta);
+                }
+                // 从 metadata 中读取 emotion
+                if (metadata != null && metadata.containsKey("emotion")) {
+                    lastEmotion[0] = String.valueOf(metadata.get("emotion"));
+                }
+            }
+
+            @Override
+            public void onComplete(GatewayResponse response) {
+                // 从 response metadata 提取 emotion，或用 stream 中最后记录的
+                String emotion = lastEmotion[0];
+                Map<String, Object> meta = response.getMetadata();
+                if (meta != null && meta.containsKey("emotion")) {
+                    emotion = String.valueOf(meta.get("emotion"));
+                }
+                sendStreamEnd(session, emotion);
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                logger.error("Streaming failed for session {}", sessionId, error);
+                sendError(session, "处理失败: " + error.getMessage());
+            }
         });
     }
 
     /**
      * 处理客户端回传的工具执行结果
-     *
-     * 客户端消息格式:
-     *   { "type": "client_tool_result", "callId": "...", "content": "...", "isError": false }
      */
     private void handleClientToolResult(WebSocketSession session, JsonNode payload) {
         String callId = payload.path("callId").asText("");
@@ -155,6 +187,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             logger.warn("No pending client tool call for callId: {}", callId);
         }
     }
+
+    // ==================== WebSocket 协议序列化（基础设施） ====================
 
     private void sendToken(WebSocketSession session, String delta) {
         try {

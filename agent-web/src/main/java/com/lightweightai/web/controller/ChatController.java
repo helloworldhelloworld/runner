@@ -2,11 +2,14 @@ package com.lightweightai.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.lightweightai.kernel.gateway.Gateway;
+import com.lightweightai.kernel.gateway.GatewayRequest;
+import com.lightweightai.kernel.gateway.GatewayResponse;
+import com.lightweightai.kernel.gateway.GatewayStreamHandler;
+import com.lightweightai.kernel.gateway.SessionManager;
 import com.lightweightai.web.model.ChatRequest;
 import com.lightweightai.web.model.ChatResponse;
-import com.lightweightai.web.observer.DebugAgentObserver;
 import com.lightweightai.web.service.ChatService;
-import com.lightweightai.web.service.SoulComfortChatService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -21,6 +24,9 @@ import java.util.concurrent.Executors;
 
 /**
  * Chat API controller
+ *
+ * /api/chat 和 /api/chat/stream 通过 Gateway 委托，
+ * /api/skills、/api/tools、/api/health 保留原有逻辑。
  */
 @RestController
 @RequestMapping("/api")
@@ -30,99 +36,137 @@ public class ChatController {
     private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
 
     private final ChatService chatService;
-    private final SoulComfortChatService soulComfortChatService;
-    private final ObjectMapper compactMapper; // SSE需要单行JSON
+    private final Gateway gateway;
+    private final ObjectMapper compactMapper;
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     public ChatController(ChatService chatService,
-                         SoulComfortChatService soulComfortChatService,
+                         Gateway gateway,
                          ObjectMapper objectMapper) {
         this.chatService = chatService;
-        this.soulComfortChatService = soulComfortChatService;
-        // 创建紧凑格式的ObjectMapper用于SSE
+        this.gateway = gateway;
         this.compactMapper = objectMapper.copy()
             .disable(SerializationFeature.INDENT_OUTPUT);
     }
 
     /**
-     * Chat endpoint
+     * Chat endpoint - delegates to Gateway
      */
     @PostMapping("/chat")
     public ChatResponse chat(@RequestBody ChatRequest request) {
         logger.info("Received chat request (soul comfort mode: {})", request.isSoulComfortMode());
 
-        // 使用心灵引导模式
-        if (request.isSoulComfortMode()) {
-            return soulComfortChatService.chat(request);
+        GatewayRequest gatewayRequest = GatewayRequest.builder()
+            .sessionId(request.getSessionId())
+            .message(request.getMessage())
+            .metadata("model", request.getModel())
+            .build();
+
+        GatewayResponse response = gateway.handle(gatewayRequest);
+
+        ChatResponse chatResponse = new ChatResponse();
+        if (response.isError()) {
+            return ChatResponse.error(response.getErrorMessage());
+        }
+        chatResponse.setResponse(response.getText());
+
+        Map<String, Object> meta = response.getMetadata();
+        if (meta != null) {
+            Object skills = meta.get("skillsApplied");
+            if (skills instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<String> skillsList = (List<String>) skills;
+                chatResponse.setSkillsApplied(skillsList);
+            }
+            chatResponse.setMetadata(meta);
         }
 
-        // 使用普通模式
-        return chatService.chat(request);
+        return chatResponse;
     }
 
     /**
-     * Streaming chat endpoint (SSE)
+     * Streaming chat endpoint (SSE) - delegates to Gateway
      */
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(@RequestBody ChatRequest request) {
         logger.info("Received streaming chat request (session: {})", request.getSessionId());
 
-        SseEmitter emitter = new SseEmitter(60000L); // 60 second timeout
+        SseEmitter emitter = new SseEmitter(60000L);
 
         executor.submit(() -> {
             try {
                 String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
-                DebugAgentObserver debugObserver = request.isDebug() ? new DebugAgentObserver() : null;
 
-                soulComfortChatService.chat(request.getMessage(), sessionId,
-                    chunk -> {
+                GatewayRequest gatewayRequest = GatewayRequest.builder()
+                    .sessionId(sessionId)
+                    .message(request.getMessage())
+                    .metadata("model", request.getModel())
+                    .metadata("debug", request.isDebug())
+                    .build();
+
+                gateway.handleStream(gatewayRequest, new GatewayStreamHandler() {
+                    @Override
+                    public void onDelta(String delta) {
+                        // 不会被调用
+                    }
+
+                    @Override
+                    public void onDelta(String delta, Map<String, Object> metadata) {
                         try {
-                            // Send delta event
-                            Map<String, Object> event = Map.of(
-                                "type", "delta",
-                                "delta", chunk.getDelta(),
-                                "emotion", chunk.getEmotion() != null ? chunk.getEmotion() : ""
-                            );
+                            Map<String, Object> event = new java.util.HashMap<>();
+                            event.put("type", "delta");
+                            event.put("delta", delta);
+                            if (metadata != null && metadata.containsKey("emotion")) {
+                                event.put("emotion", metadata.get("emotion"));
+                            } else {
+                                event.put("emotion", "");
+                            }
                             emitter.send(SseEmitter.event()
                                 .name("message")
                                 .data(compactMapper.writeValueAsString(event)));
                         } catch (IOException e) {
                             logger.error("Failed to send SSE event", e);
                         }
-                    }, debugObserver
-                ).thenAccept(fullResponse -> {
-                    try {
-                        // Send complete event (含 debug info 如果开启了调试模式)
-                        Map<String, Object> completeEvent = new java.util.HashMap<>();
-                        completeEvent.put("type", "complete");
-                        completeEvent.put("response", fullResponse);
-                        completeEvent.put("skillsApplied", List.of("soul-comfort", "openclaw-memory"));
-                        if (debugObserver != null) {
-                            completeEvent.put("debug", debugObserver.getDebugInfo());
+                    }
+
+                    @Override
+                    public void onComplete(GatewayResponse response) {
+                        try {
+                            Map<String, Object> completeEvent = new java.util.HashMap<>();
+                            completeEvent.put("type", "complete");
+                            completeEvent.put("response", response.getText());
+
+                            Map<String, Object> meta = response.getMetadata();
+                            Object skills = meta != null ? meta.get("skillsApplied") : null;
+                            completeEvent.put("skillsApplied",
+                                skills != null ? skills : List.of("soul-comfort", "openclaw-memory"));
+
+                            emitter.send(SseEmitter.event()
+                                .name("message")
+                                .data(compactMapper.writeValueAsString(completeEvent)));
+                            emitter.complete();
+                        } catch (IOException e) {
+                            logger.error("Failed to send complete event", e);
+                            emitter.completeWithError(e);
                         }
-                        emitter.send(SseEmitter.event()
-                            .name("message")
-                            .data(compactMapper.writeValueAsString(completeEvent)));
-                        emitter.complete();
-                    } catch (IOException e) {
-                        logger.error("Failed to send complete event", e);
-                        emitter.completeWithError(e);
                     }
-                }).exceptionally(error -> {
-                    logger.error("Streaming chat error", error);
-                    try {
-                        Map<String, Object> errorEvent = Map.of(
-                            "type", "error",
-                            "message", error.getMessage() != null ? error.getMessage() : "Unknown error"
-                        );
-                        emitter.send(SseEmitter.event()
-                            .name("error")
-                            .data(compactMapper.writeValueAsString(errorEvent)));
-                    } catch (IOException e) {
-                        logger.error("Failed to send error event", e);
+
+                    @Override
+                    public void onError(Throwable error) {
+                        logger.error("Streaming chat error", error);
+                        try {
+                            Map<String, Object> errorEvent = Map.of(
+                                "type", "error",
+                                "message", error.getMessage() != null ? error.getMessage() : "Unknown error"
+                            );
+                            emitter.send(SseEmitter.event()
+                                .name("error")
+                                .data(compactMapper.writeValueAsString(errorEvent)));
+                        } catch (IOException e) {
+                            logger.error("Failed to send error event", e);
+                        }
+                        emitter.completeWithError(error);
                     }
-                    emitter.completeWithError(error);
-                    return null;
                 });
 
             } catch (Exception e) {
@@ -168,30 +212,41 @@ public class ChatController {
     }
 
     /**
-     * Get session history (for restoring UI after refresh)
+     * Get session history
      */
     @GetMapping("/session/{sessionId}/history")
     public List<Map<String, String>> getSessionHistory(@PathVariable("sessionId") String sessionId) {
         logger.info("Getting session history for: {}", sessionId);
-        return soulComfortChatService.getSessionHistory(sessionId);
+        SessionManager sm = gateway.getSessionManager();
+        if (sm == null) {
+            return List.of();
+        }
+        return sm.getSessionHistory(sessionId);
     }
 
     /**
-     * Get session summary (soul comfort mode)
+     * Get session summary
      */
     @GetMapping("/session/{sessionId}/summary")
     public Map<String, Object> getSessionSummary(@PathVariable("sessionId") String sessionId) {
         logger.info("Getting session summary for: {}", sessionId);
-        return soulComfortChatService.getSessionSummary(sessionId);
+        SessionManager sm = gateway.getSessionManager();
+        if (sm == null) {
+            return Map.of("sessionId", sessionId);
+        }
+        return sm.getSessionSummary(sessionId);
     }
 
     /**
-     * Clear session (soul comfort mode)
+     * Clear session
      */
     @DeleteMapping("/session/{sessionId}")
     public Map<String, Object> clearSession(@PathVariable("sessionId") String sessionId) {
         logger.info("Clearing session: {}", sessionId);
-        soulComfortChatService.clearSession(sessionId);
+        SessionManager sm = gateway.getSessionManager();
+        if (sm != null) {
+            sm.clearSession(sessionId);
+        }
         return Map.of("status", "cleared", "sessionId", sessionId);
     }
 }
