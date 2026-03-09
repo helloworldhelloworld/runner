@@ -120,6 +120,13 @@ public class GatewayResponse {
             return this;
         }
 
+        public Builder metadata(Map<String, Object> metadata) {
+            if (metadata != null) {
+                this.metadata.putAll(metadata);
+            }
+            return this;
+        }
+
         public GatewayResponse build() {
             return new GatewayResponse(this);
         }
