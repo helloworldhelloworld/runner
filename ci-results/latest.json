@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "bbe96f735dffc3ad52d11501ce36e69ff5dda118",
+  "trigger_sha": "fc1fdcb40236e3a22825e5e17f0b1fc9ce74a6b7",
   "exit_code": 0,
-  "timestamp": "2026-03-11T08:04:44Z",
-  "branch": "claude/fix-directives-jk8oq",
-  "run_id": "22942730056",
-  "test_summary": "[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.122 s - in com.lightweightai.kernel.memory.integration.EndToEndTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.047 s - in com.lightweightai.kernel.memory.FileMemoryProviderTest|[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.131 s - in com.lightweightai.kernel.memory.tools.MemoryToolsTest|[INFO] Tests run: 131, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.114 s - in com.lightweightai.agent.AgentBasicTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.agent.AgentMemoryTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.agent.AgentStreamTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.18 s - in com.lightweightai.agent.ClaudeSkillsTest|[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.agent.AgentPluginTest|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0|"
+  "timestamp": "2026-03-11T08:08:54Z",
+  "branch": "main",
+  "run_id": "22942869562",
+  "test_summary": "[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.122 s - in com.lightweightai.kernel.memory.integration.EndToEndTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.047 s - in com.lightweightai.kernel.memory.FileMemoryProviderTest|[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.147 s - in com.lightweightai.kernel.memory.tools.MemoryToolsTest|[INFO] Tests run: 131, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.112 s - in com.lightweightai.agent.AgentBasicTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.agent.AgentMemoryTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.agent.AgentStreamTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.177 s - in com.lightweightai.agent.ClaudeSkillsTest|[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.agent.AgentPluginTest|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0|"
 }
