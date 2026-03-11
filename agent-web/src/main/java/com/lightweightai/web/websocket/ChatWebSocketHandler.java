@@ -3,6 +3,11 @@ package com.lightweightai.web.websocket;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.directive.ClientCapability;
+import com.lightweightai.kernel.agent.directive.ClientManifest;
+import com.lightweightai.kernel.agent.directive.DirectiveResult;
+import com.lightweightai.kernel.agent.directive.DirectiveToolBridge;
 import com.lightweightai.kernel.gateway.Gateway;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
@@ -20,6 +25,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.lightweightai.kernel.llm.ToolResult;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,13 +53,17 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
     private final Map<String, WebSocketClientToolDispatcher> dispatchers = new ConcurrentHashMap<>();
+    private final Map<String, DirectiveToolBridge> bridges = new ConcurrentHashMap<>();
     private final Gateway gateway;
     private final CrisisDetector crisisDetector;
+    private final ToolRegistry toolRegistry;
 
     public ChatWebSocketHandler(Gateway gateway,
-                                CrisisDetector crisisDetector) {
+                                CrisisDetector crisisDetector,
+                                ToolRegistry toolRegistry) {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
+        this.toolRegistry = toolRegistry;
     }
 
     @Override
@@ -68,8 +78,16 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         sessions.remove(session.getId());
         WebSocketClientToolDispatcher dispatcher = dispatchers.remove(session.getId());
         if (dispatcher != null) {
+            // Unregister directive tools if manifest was present
+            if (dispatcher.hasManifest()) {
+                DirectiveToolBridge bridge = bridges.get(session.getId());
+                if (bridge != null) {
+                    bridge.unregisterCapabilities(dispatcher.getManifest());
+                }
+            }
             dispatcher.cancelAll();
         }
+        bridges.remove(session.getId());
         logger.info("WebSocket disconnected: {} ({})", session.getId(), status);
     }
 
@@ -90,6 +108,10 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 handleChatMessage(session, payload);
             } else if ("client_tool_result".equals(type)) {
                 handleClientToolResult(session, payload);
+            } else if ("client_manifest".equals(type)) {
+                handleClientManifest(session, payload);
+            } else if ("directive_result".equals(type)) {
+                handleDirectiveResult(session, payload);
             } else {
                 logger.warn("Unknown WS message type: {}", type);
             }
@@ -188,6 +210,91 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    /**
+     * 处理端侧上报的能力清单（Directive 协议）
+     */
+    private void handleClientManifest(WebSocketSession session, JsonNode payload) {
+        try {
+            String clientType = payload.path("clientType").asText("");
+            String clientVersion = payload.path("clientVersion").asText("");
+            JsonNode capNode = payload.path("capabilities");
+
+            List<ClientCapability> capabilities = new ArrayList<>();
+            if (capNode.isArray()) {
+                for (JsonNode cap : capNode) {
+                    ClientCapability capability = new ClientCapability();
+                    capability.setNamespace(cap.path("namespace").asText(""));
+                    capability.setName(cap.path("name").asText(""));
+                    capability.setDescription(cap.path("description").asText(""));
+                    if (cap.has("input_schema")) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> schema = MAPPER.convertValue(
+                            cap.get("input_schema"), Map.class);
+                        capability.setInputSchema(schema);
+                    }
+                    capability.setDefaultTimeoutMs(cap.path("default_timeout_ms").asLong(60000));
+                    capabilities.add(capability);
+                }
+            }
+
+            ClientManifest manifest = new ClientManifest(clientType, clientVersion, capabilities);
+
+            // Store manifest on dispatcher (enables Directive protocol for dispatch)
+            WebSocketClientToolDispatcher dispatcher = dispatchers.get(session.getId());
+            if (dispatcher == null) {
+                logger.warn("No dispatcher for session: {}", session.getId());
+                return;
+            }
+            dispatcher.setManifest(manifest);
+
+            // Create bridge and register capabilities as tools
+            DirectiveToolBridge bridge = new DirectiveToolBridge(toolRegistry, dispatcher);
+            bridges.put(session.getId(), bridge);
+            List<String> registered = bridge.registerCapabilities(manifest);
+
+            logger.info("Client manifest processed: {} tools registered from {} {}",
+                registered.size(), clientType, clientVersion);
+
+        } catch (Exception e) {
+            logger.error("Failed to process client manifest", e);
+        }
+    }
+
+    /**
+     * 处理端侧回传的 Directive 执行结果
+     */
+    private void handleDirectiveResult(WebSocketSession session, JsonNode payload) {
+        String directiveId = payload.path("directiveId").asText("");
+        boolean success = payload.path("success").asBoolean(false);
+        String content = payload.path("content").asText("");
+        Map<String, Object> metadata = null;
+        if (payload.has("metadata") && !payload.get("metadata").isNull()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> m = MAPPER.convertValue(payload.get("metadata"), Map.class);
+            metadata = m;
+        }
+
+        if (directiveId.isEmpty()) {
+            logger.warn("directive_result missing directiveId");
+            return;
+        }
+
+        WebSocketClientToolDispatcher dispatcher = dispatchers.get(session.getId());
+        if (dispatcher == null) {
+            logger.warn("No dispatcher for session: {}", session.getId());
+            return;
+        }
+
+        // Convert DirectiveResult → ToolResult via bridge
+        DirectiveResult directiveResult = new DirectiveResult(directiveId, success, content, metadata);
+        ToolResult toolResult = directiveResult.toToolResult();
+        boolean matched = dispatcher.completeCall(directiveId, toolResult);
+
+        if (!matched) {
+            logger.warn("No pending directive call for directiveId: {}", directiveId);
+        }
+    }
+
     // ==================== WebSocket 协议序列化（基础设施） ====================
 
     private void sendToken(WebSocketSession session, String delta) {
@@ -250,7 +357,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         sessions.remove(session.getId());
         WebSocketClientToolDispatcher dispatcher = dispatchers.remove(session.getId());
         if (dispatcher != null) {
+            if (dispatcher.hasManifest()) {
+                DirectiveToolBridge bridge = bridges.get(session.getId());
+                if (bridge != null) {
+                    bridge.unregisterCapabilities(dispatcher.getManifest());
+                }
+            }
             dispatcher.cancelAll();
         }
+        bridges.remove(session.getId());
     }
 }

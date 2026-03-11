@@ -33,6 +33,8 @@ public class WebSocketMessage {
         CHAT_REQUEST,           // 发起对话请求
         TOOL_RESULT,            // 工具执行结果（服务端工具）
         CLIENT_TOOL_RESULT,     // 客户端工具执行结果（客户端回传）
+        CLIENT_MANIFEST,        // 端侧上报能力清单（Directive 协议）
+        DIRECTIVE_RESULT,       // 端侧回传 Directive 结果（Directive 协议）
         PING,                   // 心跳检测
 
         // Server -> Client
@@ -40,6 +42,7 @@ public class WebSocketMessage {
         TEXT_DELTA,             // 流式文本片段
         TOOL_CALL,              // 工具调用请求（服务端工具）
         CLIENT_TOOL_CALL,       // 客户端工具调用请求（派发到客户端执行）
+        DIRECTIVE,              // 云端下发 Directive 指令（Directive 协议）
         ERROR,                  // 错误消息
         PONG                    // 心跳响应
     }
@@ -362,6 +365,156 @@ public class WebSocketMessage {
         public void setOutputTokens(Integer outputTokens) {
             this.outputTokens = outputTokens;
         }
+    }
+
+    public static WebSocketMessage directive(String requestId, DirectiveData data) {
+        return new WebSocketMessage(MessageType.DIRECTIVE, requestId, data);
+    }
+
+    public static WebSocketMessage directiveResult(String requestId, DirectiveResultData data) {
+        return new WebSocketMessage(MessageType.DIRECTIVE_RESULT, requestId, data);
+    }
+
+    public static WebSocketMessage clientManifest(String requestId, ClientManifestData data) {
+        return new WebSocketMessage(MessageType.CLIENT_MANIFEST, requestId, data);
+    }
+
+    /**
+     * Directive 指令数据（Server → Client）
+     */
+    public static class DirectiveData {
+        @JsonProperty("directive_id")
+        private String directiveId;
+
+        @JsonProperty("namespace")
+        private String namespace;
+
+        @JsonProperty("name")
+        private String name;
+
+        @JsonProperty("payload")
+        private Map<String, Object> payload;
+
+        @JsonProperty("timeout_ms")
+        private Long timeoutMs;
+
+        public DirectiveData() {
+        }
+
+        public DirectiveData(String directiveId, String namespace, String name,
+                             Map<String, Object> payload, Long timeoutMs) {
+            this.directiveId = directiveId;
+            this.namespace = namespace;
+            this.name = name;
+            this.payload = payload;
+            this.timeoutMs = timeoutMs;
+        }
+
+        public String getDirectiveId() { return directiveId; }
+        public void setDirectiveId(String directiveId) { this.directiveId = directiveId; }
+        public String getNamespace() { return namespace; }
+        public void setNamespace(String namespace) { this.namespace = namespace; }
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public Map<String, Object> getPayload() { return payload; }
+        public void setPayload(Map<String, Object> payload) { this.payload = payload; }
+        public Long getTimeoutMs() { return timeoutMs; }
+        public void setTimeoutMs(Long timeoutMs) { this.timeoutMs = timeoutMs; }
+    }
+
+    /**
+     * Directive 结果数据（Client → Server）
+     */
+    public static class DirectiveResultData {
+        @JsonProperty("directive_id")
+        private String directiveId;
+
+        @JsonProperty("success")
+        private Boolean success;
+
+        @JsonProperty("content")
+        private String content;
+
+        @JsonProperty("metadata")
+        private Map<String, Object> metadata;
+
+        public DirectiveResultData() {
+        }
+
+        public DirectiveResultData(String directiveId, Boolean success,
+                                    String content, Map<String, Object> metadata) {
+            this.directiveId = directiveId;
+            this.success = success;
+            this.content = content;
+            this.metadata = metadata;
+        }
+
+        public String getDirectiveId() { return directiveId; }
+        public void setDirectiveId(String directiveId) { this.directiveId = directiveId; }
+        public Boolean getSuccess() { return success; }
+        public void setSuccess(Boolean success) { this.success = success; }
+        public String getContent() { return content; }
+        public void setContent(String content) { this.content = content; }
+        public Map<String, Object> getMetadata() { return metadata; }
+        public void setMetadata(Map<String, Object> metadata) { this.metadata = metadata; }
+    }
+
+    /**
+     * 端侧能力清单数据（Client → Server）
+     */
+    public static class ClientManifestData {
+        @JsonProperty("client_type")
+        private String clientType;
+
+        @JsonProperty("client_version")
+        private String clientVersion;
+
+        @JsonProperty("capabilities")
+        private List<CapabilityData> capabilities;
+
+        public ClientManifestData() {
+        }
+
+        public String getClientType() { return clientType; }
+        public void setClientType(String clientType) { this.clientType = clientType; }
+        public String getClientVersion() { return clientVersion; }
+        public void setClientVersion(String clientVersion) { this.clientVersion = clientVersion; }
+        public List<CapabilityData> getCapabilities() { return capabilities; }
+        public void setCapabilities(List<CapabilityData> capabilities) { this.capabilities = capabilities; }
+    }
+
+    /**
+     * 端侧单个能力声明数据
+     */
+    public static class CapabilityData {
+        @JsonProperty("namespace")
+        private String namespace;
+
+        @JsonProperty("name")
+        private String name;
+
+        @JsonProperty("description")
+        private String description;
+
+        @JsonProperty("input_schema")
+        private Map<String, Object> inputSchema;
+
+        @JsonProperty("default_timeout_ms")
+        private Long defaultTimeoutMs;
+
+        public CapabilityData() {
+        }
+
+        public String getNamespace() { return namespace; }
+        public void setNamespace(String namespace) { this.namespace = namespace; }
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+        public Map<String, Object> getInputSchema() { return inputSchema; }
+        public void setInputSchema(Map<String, Object> inputSchema) { this.inputSchema = inputSchema; }
+        public Long getDefaultTimeoutMs() { return defaultTimeoutMs; }
+        public void setDefaultTimeoutMs(Long defaultTimeoutMs) { this.defaultTimeoutMs = defaultTimeoutMs; }
     }
 
     /**

@@ -2,9 +2,12 @@ package com.lightweightai.web.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.ClientToolDispatcher;
+import com.lightweightai.kernel.agent.directive.ClientManifest;
+import com.lightweightai.kernel.agent.directive.Directive;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage.ClientToolCallData;
+import com.lightweightai.kernel.llm.websocket.WebSocketMessage.DirectiveData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.TextMessage;
@@ -39,8 +42,32 @@ public class WebSocketClientToolDispatcher implements ClientToolDispatcher {
     private final ConcurrentHashMap<String, CompletableFuture<ToolResult>> pendingCalls =
             new ConcurrentHashMap<>();
 
+    /** 端侧上报的能力清单，非 null 表示支持 Directive 协议 */
+    private volatile ClientManifest manifest;
+
     public WebSocketClientToolDispatcher(WebSocketSession session) {
         this.session = session;
+    }
+
+    /**
+     * 设置端侧 manifest（表示该 session 支持 Directive 协议）
+     */
+    public void setManifest(ClientManifest manifest) {
+        this.manifest = manifest;
+    }
+
+    /**
+     * 获取端侧 manifest
+     */
+    public ClientManifest getManifest() {
+        return manifest;
+    }
+
+    /**
+     * 是否支持 Directive 协议（端侧已上报 manifest）
+     */
+    public boolean hasManifest() {
+        return manifest != null;
     }
 
     @Override
@@ -49,17 +76,32 @@ public class WebSocketClientToolDispatcher implements ClientToolDispatcher {
         CompletableFuture<ToolResult> future = new CompletableFuture<>();
         pendingCalls.put(callId, future);
 
-        // 构造 CLIENT_TOOL_CALL 消息并推送到客户端
         try {
-            ClientToolCallData data = new ClientToolCallData(callId, toolName, args, null);
-            WebSocketMessage message = WebSocketMessage.clientToolCall(callId, data);
-            String json = MAPPER.writeValueAsString(message);
+            String json;
+            if (hasManifest()) {
+                // Directive 协议格式（新客户端）
+                Directive directive = Directive.fromToolName(callId, toolName, args, 0);
+                DirectiveData data = new DirectiveData(
+                    directive.getDirectiveId(),
+                    directive.getNamespace(),
+                    directive.getName(),
+                    directive.getPayload(),
+                    directive.getTimeoutMs() > 0 ? directive.getTimeoutMs() : null
+                );
+                WebSocketMessage message = WebSocketMessage.directive(callId, data);
+                json = MAPPER.writeValueAsString(message);
+                logger.debug("Directive dispatched: {} (directiveId={})", toolName, callId);
+            } else {
+                // 旧协议格式（向后兼容）
+                ClientToolCallData data = new ClientToolCallData(callId, toolName, args, null);
+                WebSocketMessage message = WebSocketMessage.clientToolCall(callId, data);
+                json = MAPPER.writeValueAsString(message);
+                logger.debug("Client tool call dispatched: {} (callId={})", toolName, callId);
+            }
 
             synchronized (session) {
                 session.sendMessage(new TextMessage(json));
             }
-
-            logger.debug("Client tool call dispatched: {} (callId={})", toolName, callId);
 
         } catch (IOException e) {
             pendingCalls.remove(callId);
