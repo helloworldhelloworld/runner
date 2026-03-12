@@ -39,6 +39,7 @@
         <logback.version>1.4.14</logback.version>
         <junit.version>5.10.1</junit.version>
         <mcp.sdk.version>0.17.0</mcp.sdk.version>
+        <vertx.version>4.5.12</vertx.version>
     </properties>
 
     <dependencyManagement>
@@ -163,6 +164,13 @@
                 <groupId>io.modelcontextprotocol.sdk</groupId>
                 <artifactId>mcp-spring-webmvc</artifactId>
                 <version>${mcp.sdk.version}</version>
+            </dependency>
+
+            <!-- Vert.x -->
+            <dependency>
+                <groupId>io.vertx</groupId>
+                <artifactId>vertx-core</artifactId>
+                <version>${vertx.version}</version>
             </dependency>
 
             <!-- Testing -->

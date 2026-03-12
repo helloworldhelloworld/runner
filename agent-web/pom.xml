@@ -70,10 +70,10 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- WebSocket Support for Streaming -->
+        <!-- Vert.x WebSocket Support for Streaming -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-websocket</artifactId>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-core</artifactId>
         </dependency>
 
         <!-- MCP Server Servlet transport (SSE + Streamable HTTP) -->
