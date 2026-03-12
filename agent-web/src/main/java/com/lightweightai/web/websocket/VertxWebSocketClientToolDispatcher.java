@@ -8,35 +8,36 @@ import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage.ClientToolCallData;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage.DirectiveData;
+import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.WebSocketSession;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 基于 WebSocket 的客户端工具调度器
+ * 基于 Vert.x WebSocket 的客户端工具调度器。
  *
  * 负责将工具调用通过 WebSocket 推送到客户端，并管理挂起请求的 Future。
- * 当客户端回传 CLIENT_TOOL_RESULT 消息时，由 ChatWebSocketHandler 调用
+ * 当客户端回传 CLIENT_TOOL_RESULT 消息时，由 VertxChatWebSocketHandler 调用
  * {@link #completeCall(String, ToolResult)} 来完成对应的 Future。
  *
- * <pre>
- * 生命周期绑定到一个 WebSocketSession:
- *   - 一个 session 对应一个 dispatcher 实例
- *   - session 断开时，所有挂起的 Future 都会被异常完成
- * </pre>
+ * <p>生命周期绑定到一个 ServerWebSocket：
+ * <ul>
+ *   <li>一个 connection 对应一个 dispatcher 实例</li>
+ *   <li>连接断开时，所有挂起的 Future 都会被异常完成</li>
+ * </ul>
+ *
+ * <p>线程安全：Vert.x ServerWebSocket.writeTextMessage() 在 4.x 中是线程安全的，
+ * 内部会调度到正确的 event loop。ConcurrentHashMap 保证挂起调用的跨线程安全访问。
  */
-public class WebSocketClientToolDispatcher implements ClientToolDispatcher {
+public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher {
 
-    private static final Logger logger = LoggerFactory.getLogger(WebSocketClientToolDispatcher.class);
+    private static final Logger logger = LoggerFactory.getLogger(VertxWebSocketClientToolDispatcher.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final WebSocketSession session;
+    private final ServerWebSocket ws;
 
     /** callId → CompletableFuture，等待客户端回传结果 */
     private final ConcurrentHashMap<String, CompletableFuture<ToolResult>> pendingCalls =
@@ -45,8 +46,8 @@ public class WebSocketClientToolDispatcher implements ClientToolDispatcher {
     /** 端侧上报的能力清单，非 null 表示支持 Directive 协议 */
     private volatile ClientManifest manifest;
 
-    public WebSocketClientToolDispatcher(WebSocketSession session) {
-        this.session = session;
+    public VertxWebSocketClientToolDispatcher(ServerWebSocket ws) {
+        this.ws = ws;
     }
 
     /**
@@ -99,17 +100,28 @@ public class WebSocketClientToolDispatcher implements ClientToolDispatcher {
                 logger.debug("Client tool call dispatched: {} (callId={})", toolName, callId);
             }
 
-            synchronized (session) {
-                session.sendMessage(new TextMessage(json));
+            if (ws.isClosed()) {
+                pendingCalls.remove(callId);
+                future.completeExceptionally(
+                    new RuntimeException("WebSocket connection is closed, cannot dispatch tool call"));
+                return future;
             }
 
-        } catch (IOException e) {
+            ws.writeTextMessage(json).onFailure(err -> {
+                pendingCalls.remove(callId);
+                if (!future.isDone()) {
+                    future.completeExceptionally(
+                        new RuntimeException("Failed to send client tool call: " + err.getMessage(), err));
+                }
+            });
+
+        } catch (Exception e) {
             pendingCalls.remove(callId);
             future.completeExceptionally(
-                    new RuntimeException("Failed to send client tool call: " + e.getMessage(), e));
+                    new RuntimeException("Failed to serialize client tool call: " + e.getMessage(), e));
         }
 
-        // Future 超时由 ClientToolWrapper 的 get(timeout) 控制，这里不额外设置
+        // Future 超时由 ClientToolWrapper 的 get(timeout) 控制
         future.whenComplete((result, error) -> pendingCalls.remove(callId));
 
         return future;
@@ -133,12 +145,12 @@ public class WebSocketClientToolDispatcher implements ClientToolDispatcher {
     }
 
     /**
-     * 会话断开时，取消所有挂起的调用
+     * 连接断开时，取消所有挂起的调用
      */
     public void cancelAll() {
         pendingCalls.forEach((callId, future) -> {
             future.completeExceptionally(
-                    new RuntimeException("WebSocket session closed, client tool call cancelled"));
+                    new RuntimeException("WebSocket connection closed, client tool call cancelled"));
         });
         pendingCalls.clear();
     }

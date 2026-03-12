@@ -1,6 +1,11 @@
 server:
   port: 8080
 
+# Vert.x WebSocket 配置
+vertx:
+  websocket:
+    port: ${VERTX_WS_PORT:8081}
+
 spring:
   application:
     name: agent-web
