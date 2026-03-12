@@ -59,9 +59,6 @@ public class VertxChatWebSocketHandler {
     /** 最大同时连接数（防止资源耗尽） */
     private static final int MAX_CONNECTIONS = 10000;
 
-    /** 单条消息最大字节数（64KB） */
-    private static final int MAX_MESSAGE_SIZE = 64 * 1024;
-
     /** 每连接每秒最大消息数（速率限制） */
     private static final int MAX_MESSAGES_PER_SECOND = 30;
 
@@ -107,9 +104,6 @@ public class VertxChatWebSocketHandler {
         dispatchers.put(socketId, new VertxWebSocketClientToolDispatcher(ws));
         rateLimiters.put(socketId, new RateLimiter(MAX_MESSAGES_PER_SECOND));
         activeConnections.incrementAndGet();
-
-        // 设置最大消息大小
-        ws.setMaxWebSocketMessageSize(MAX_MESSAGE_SIZE);
 
         logger.info("WebSocket connected: {} (active: {})", socketId, activeConnections.get());
     }
