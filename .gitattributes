@@ -1,0 +1,2 @@
+# CI artifacts: always keep our version on merge conflicts
+ci-results/** merge=ours
