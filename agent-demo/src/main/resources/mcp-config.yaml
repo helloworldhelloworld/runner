@@ -33,6 +33,23 @@ mcp:
         - "-Dexec.mainClass=com.lightweightai.demo.McpServerRunner"
       timeoutSeconds: 60
 
+    # 网页抓取 MCP Server（官方免费）
+    fetch:
+      transport: stdio
+      command: npx
+      args:
+        - "-y"
+        - "@modelcontextprotocol/server-fetch"
+      enabled: true
+      timeoutSeconds: 30
+
+    # DeepWiki 公开 MCP Server（免费，无需认证）
+    deepwiki:
+      transport: http
+      url: "https://mcp.deepwiki.com/mcp"
+      enabled: true
+      timeoutSeconds: 30
+
     # ------ 以下为外部 MCP Server 示例，默认禁用 ------
 
     # 天气查询 MCP Server（需要先 npm install）

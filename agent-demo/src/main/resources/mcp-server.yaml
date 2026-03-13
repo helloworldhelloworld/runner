@@ -33,6 +33,15 @@ upstream:
 
     # HTTP 远程 MCP Server
     # 修改 url 指向你的 HTTP MCP Server 地址，设置 enabled: true 启用
+    # DeepWiki 公开 MCP Server（免费，无需认证）
+    # 提供 GitHub 公开仓库的 wiki 查询能力
+    deepwiki:
+      transport: http
+      url: "https://mcp.deepwiki.com/mcp"
+      timeoutSeconds: 30
+      enabled: true
+
+    # 内部 HTTP 远程 MCP Server（按需启用）
     http-upstream:
       transport: http
       url: "http://10.97.134.15:6645/searchgate/mcp"
@@ -44,7 +53,7 @@ upstream:
       transport: sse
       url: "http://10.97.134.15:6645/searchgate"
       timeoutSeconds: 30
-      enabled: true
+      enabled: false
 
     # 示例：远程 NLP 服务
     #nlp-service:
@@ -79,6 +88,14 @@ upstream:
     #  command: java
     #  args: ["-cp", "${CLASSPATH}", "com.lightweightai.demo.TestMcpServer"]
     #  timeoutSeconds: 10
+
+    # 网页抓取 MCP Server（官方免费，无需 API Key）
+    fetch-server:
+      transport: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-fetch"]
+      enabled: true
+      timeoutSeconds: 30
 
     # 示例：文件系统 MCP Server（官方）
     #filesystem:
