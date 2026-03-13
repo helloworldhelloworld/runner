@@ -3,47 +3,41 @@ package com.lightweightai.mcp;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolSchema;
+import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.llm.ToolResult;
-import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
- * 将 MCP 远程工具包装为框架的 Tool 接口
+ * 将 MCP 远程工具包装为框架的 Tool 接口（Reactive 版本）
  *
- * 从 MCP 服务端发现的工具可以通过此包装器转换为框架的 Tool 对象，
- * 注册到 ToolRegistry 后即可像本地工具一样使用。
- *
- * <pre>
- * // 从 MCP 客户端获取远程工具
- * McpSchema.ListToolsResult tools = mcpClient.listTools();
- * for (McpSchema.Tool mcpTool : tools.tools()) {
- *     Tool wrapped = new McpToolWrapper(mcpClient, mcpTool, "remote-server");
- *     registry.register(wrapped);
- * }
- * </pre>
+ * 通过 McpToolClient（McpAsyncClient）执行工具调用，
+ * 支持将 ProgressNotification 和 LoggingNotification 作为流式事件推送。
  */
 public class McpToolWrapper implements Tool, ToolMetadata {
 
     private static final Logger logger = LoggerFactory.getLogger(McpToolWrapper.class);
 
-    private final McpSyncClient mcpClient;
+    private final McpToolClient toolClient;
     private final McpSchema.Tool mcpTool;
     private final String serverName;
     private boolean clientSide;
 
     /**
-     * @param mcpClient  MCP 同步客户端（用于调用远程工具）
+     * @param toolClient MCP 工具客户端（持有 McpAsyncClient + routers）
      * @param mcpTool    MCP 工具定义
-     * @param serverName MCP 服务端名称（用于分类和追踪）
+     * @param serverName MCP 服务端名称
      */
-    public McpToolWrapper(McpSyncClient mcpClient, McpSchema.Tool mcpTool, String serverName) {
-        this.mcpClient = mcpClient;
+    public McpToolWrapper(McpToolClient toolClient, McpSchema.Tool mcpTool, String serverName) {
+        this.toolClient = toolClient;
         this.mcpTool = mcpTool;
         this.serverName = serverName;
     }
@@ -82,38 +76,69 @@ public class McpToolWrapper implements Tool, ToolMetadata {
     }
 
     @Override
+    public Flux<ToolResultChunk> executeReactive(Map<String, Object> args) {
+        String progressToken = UUID.randomUUID().toString();
+        String toolName = getName();
+
+        // 1. 注册进度监听
+        Flux<ToolResultChunk> progressFlux = toolClient.getProgressRouter()
+            .register(progressToken)
+            .map(pn -> ToolResultChunk.progress(
+                toolName,
+                pn.message() != null ? pn.message() : "",
+                pn.progress() != null ? pn.progress() : 0.0,
+                pn.total() != null ? pn.total() : 1.0
+            ));
+
+        // 2. 注册日志监听
+        Flux<ToolResultChunk> loggingFlux = toolClient.getLoggingRouter()
+            .register(progressToken)
+            .map(ln -> ToolResultChunk.log(
+                toolName,
+                ln.level() != null ? ln.level().name() : "INFO",
+                ln.data() != null ? ln.data() : ""
+            ));
+
+        // 3. 调用工具（Mono，完成时 emit COMPLETE 并关闭 router）
+        Mono<ToolResultChunk> resultMono = toolClient
+            .callToolReactive(mcpTool.name(), args, progressToken)
+            .map(mcpResult -> {
+                String content = extractContent(mcpResult);
+                boolean isError = mcpResult.isError() != null && mcpResult.isError();
+                ToolResult toolResult = isError
+                    ? ToolResult.error(content)
+                    : ToolResult.success(content);
+                return ToolResultChunk.complete(toolName, toolResult);
+            })
+            .onErrorResume(e -> {
+                logger.error("MCP tool call failed: {} - {}", toolName, e.getMessage());
+                return Mono.just(ToolResultChunk.error(toolName, "MCP call failed: " + e.getMessage()));
+            })
+            .doFinally(signal -> {
+                toolClient.getProgressRouter().complete(progressToken);
+                toolClient.getLoggingRouter().complete(progressToken);
+            });
+
+        // 4. 合并：progress + logging 与 result 并行
+        // resultMono 完成时 router 关闭，progress/logging flux 自然终止
+        return Flux.merge(progressFlux, loggingFlux)
+            .mergeWith(resultMono);
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public ToolResult execute(Map<String, Object> args) {
-        try {
-            McpSchema.CallToolResult mcpResult = mcpClient.callTool(
-                new McpSchema.CallToolRequest(getName(), args)
-            );
-
-            String content = extractContent(mcpResult);
-            boolean isError = mcpResult.isError() != null && mcpResult.isError();
-
-            if (isError) {
-                return ToolResult.error(content);
-            }
-
-            // 提取 structuredContent（MCP 2025-06-18 规范）
-            Map<String, Object> structured = null;
-            try {
-                Object sc = mcpResult.structuredContent();
-                if (sc instanceof Map) {
-                    structured = (Map<String, Object>) sc;
+        return executeReactive(args)
+            .filter(c -> c.getType() == ToolResultChunk.ChunkType.COMPLETE
+                      || c.getType() == ToolResultChunk.ChunkType.ERROR)
+            .next()
+            .map(c -> {
+                if (c.getType() == ToolResultChunk.ChunkType.COMPLETE) {
+                    return c.getResult();
                 }
-            } catch (Exception e) {
-                logger.debug("structuredContent not available for tool '{}': {}", getName(), e.getMessage());
-            }
-
-            return structured != null
-                ? ToolResult.success(content, structured)
-                : ToolResult.success(content);
-        } catch (Exception e) {
-            logger.error("MCP tool call failed: {} - {}", getName(), e.getMessage());
-            return ToolResult.error("MCP call failed: " + e.getMessage());
-        }
+                return ToolResult.error(c.getMessage());
+            })
+            .block();
     }
 
     @Override
@@ -136,32 +161,22 @@ public class McpToolWrapper implements Tool, ToolMetadata {
         return clientSide;
     }
 
-    /**
-     * 设置是否在客户端执行
-     *
-     * @param clientSide true 表示此工具需要派发到客户端执行
-     */
     public void setClientSide(boolean clientSide) {
         this.clientSide = clientSide;
     }
 
-    /**
-     * 获取 MCP 服务端名称
-     */
     public String getServerName() {
         return serverName;
     }
 
-    /**
-     * 获取原始 MCP 工具定义
-     */
     public McpSchema.Tool getMcpTool() {
         return mcpTool;
     }
 
-    /**
-     * 从 MCP CallToolResult 中提取文本内容
-     */
+    public McpToolClient getToolClient() {
+        return toolClient;
+    }
+
     private String extractContent(McpSchema.CallToolResult result) {
         if (result.content() == null || result.content().isEmpty()) {
             return "";

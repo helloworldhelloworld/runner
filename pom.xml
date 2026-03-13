@@ -39,6 +39,7 @@
         <logback.version>1.4.14</logback.version>
         <junit.version>5.10.1</junit.version>
         <mcp.sdk.version>0.17.0</mcp.sdk.version>
+        <reactor.version>3.6.1</reactor.version>
         <vertx.version>4.5.12</vertx.version>
     </properties>
 
@@ -164,6 +165,13 @@
                 <groupId>io.modelcontextprotocol.sdk</groupId>
                 <artifactId>mcp-spring-webmvc</artifactId>
                 <version>${mcp.sdk.version}</version>
+            </dependency>
+
+            <!-- Reactor Core -->
+            <dependency>
+                <groupId>io.projectreactor</groupId>
+                <artifactId>reactor-core</artifactId>
+                <version>${reactor.version}</version>
             </dependency>
 
             <!-- Vert.x -->

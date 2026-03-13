@@ -8,6 +8,8 @@ import com.lightweightai.kernel.agent.directive.ClientCapability;
 import com.lightweightai.kernel.agent.directive.ClientManifest;
 import com.lightweightai.kernel.agent.directive.DirectiveResult;
 import com.lightweightai.kernel.agent.directive.DirectiveToolBridge;
+import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.gateway.Gateway;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
@@ -164,6 +166,7 @@ public class VertxChatWebSocketHandler {
         String socketId = ws.textHandlerID();
         String sessionId = payload.path("sessionId").asText(socketId);
         String message = payload.path("message").asText("").trim();
+        boolean useReactive = payload.path("reactive").asBoolean(true);
 
         if (message.isEmpty()) {
             sendError(ws, "消息不能为空");
@@ -184,7 +187,45 @@ public class VertxChatWebSocketHandler {
             .metadata("protocol", "websocket")
             .build();
 
-        // 记录最后的 emotion
+        if (useReactive) {
+            handleChatMessageReactive(ws, request, sessionId);
+        } else {
+            handleChatMessageCallback(ws, request, sessionId);
+        }
+    }
+
+    /**
+     * Reactive 流式处理 — 订阅 Flux&lt;StreamEvent&gt;
+     *
+     * 支持工具进度（TOOL_PROGRESS）和日志（TOOL_LOG）事件推送。
+     */
+    private void handleChatMessageReactive(ServerWebSocket ws, GatewayRequest request, String sessionId) {
+        gateway.handleStreamReactive(request)
+            .subscribe(
+                event -> {
+                    switch (event.getType()) {
+                        case TEXT_DELTA -> sendToken(ws, event.getTextDelta());
+                        case TOOL_CALL_START -> sendToolCallStart(ws, event);
+                        case TOOL_PROGRESS -> sendToolProgress(ws, event);
+                        case TOOL_LOG -> sendToolLog(ws, event);
+                        case TOOL_RESULT -> { /* 工具结果已喂回 LLM，不需要额外通知 */ }
+                        case TOOL_ERROR -> sendToolError(ws, event);
+                        case LLM_COMPLETE -> sendStreamEnd(ws, "");
+                        case ERROR -> sendError(ws,
+                                event.getError() != null ? event.getError().getMessage() : "Unknown error");
+                    }
+                },
+                error -> {
+                    logger.error("Reactive streaming failed for session {}", sessionId, error);
+                    sendError(ws, "处理失败: " + error.getMessage());
+                }
+            );
+    }
+
+    /**
+     * 传统 callback 流式处理（向后兼容）
+     */
+    private void handleChatMessageCallback(ServerWebSocket ws, GatewayRequest request, String sessionId) {
         final String[] lastEmotion = {""};
 
         gateway.handleStream(request, new GatewayStreamHandler() {
@@ -373,6 +414,75 @@ public class VertxChatWebSocketHandler {
             safeSend(ws, MAPPER.writeValueAsString(msg));
         } catch (Exception e) {
             logger.error("Failed to serialize crisis_alert message", e);
+        }
+    }
+
+    private void sendToolCallStart(ServerWebSocket ws, StreamEvent event) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "tool_call_start");
+            ObjectNode data = MAPPER.createObjectNode();
+            if (event.getToolCall() != null) {
+                data.put("toolName", event.getToolCall().getName());
+                data.put("toolCallId", event.getToolCall().getId());
+            }
+            msg.set("data", data);
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize tool_call_start message", e);
+        }
+    }
+
+    private void sendToolProgress(ServerWebSocket ws, StreamEvent event) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "tool_progress");
+            ObjectNode data = MAPPER.createObjectNode();
+            ToolResultChunk chunk = event.getChunk();
+            if (chunk != null) {
+                data.put("toolName", chunk.getToolName());
+                data.put("progress", chunk.getProgress());
+                data.put("total", chunk.getTotal());
+                data.put("message", chunk.getMessage() != null ? chunk.getMessage() : "");
+            }
+            msg.set("data", data);
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize tool_progress message", e);
+        }
+    }
+
+    private void sendToolLog(ServerWebSocket ws, StreamEvent event) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "tool_log");
+            ObjectNode data = MAPPER.createObjectNode();
+            ToolResultChunk chunk = event.getChunk();
+            if (chunk != null) {
+                data.put("toolName", chunk.getToolName());
+                data.put("message", chunk.getMessage() != null ? chunk.getMessage() : "");
+            }
+            msg.set("data", data);
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize tool_log message", e);
+        }
+    }
+
+    private void sendToolError(ServerWebSocket ws, StreamEvent event) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "tool_error");
+            ObjectNode data = MAPPER.createObjectNode();
+            ToolResultChunk chunk = event.getChunk();
+            if (chunk != null) {
+                data.put("toolName", chunk.getToolName());
+                data.put("message", chunk.getMessage() != null ? chunk.getMessage() : "Tool execution failed");
+            }
+            msg.set("data", data);
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize tool_error message", e);
         }
     }
 

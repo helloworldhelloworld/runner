@@ -3,6 +3,7 @@ package com.lightweightai.demo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.core.ToolExecutor;
+import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.mcp.McpToolWrapper;
@@ -12,6 +13,8 @@ import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * MCP Fetch Demo — 验证通过 McpServerRunner 代理外部免费 MCP Server
@@ -93,8 +96,65 @@ public class McpFetchDemo {
             System.out.println("[6] 验证本地工具仍可用：\n");
             callAndPrint(executor, "get_city_info", Map.of("city", "beijing"));
 
+            // ==================== [7] Reactive 异步调用（MCP 真实链路） ====================
+            System.out.println("[7] Reactive 异步调用（MCP 真实链路）：\n");
+            System.out.println("  通过 McpToolWrapper.executeReactive() 走真实 MCP 协议");
+            System.out.println("  McpAsyncClient → ProgressNotificationRouter → Flux<ToolResultChunk>\n");
+
+            // 7a: DeepWiki 工具 Reactive 调用
+            Tool wikiTool = client.getToolRegistry().get("read_wiki_structure").orElse(null);
+            if (wikiTool != null) {
+                System.out.println("  [7a] read_wiki_structure — Reactive（真实 MCP → DeepWiki）：\n");
+                callReactiveAndPrint(wikiTool, Map.of("repoName", "modelcontextprotocol/specification"));
+            }
+
+            // 7b: ask_question 工具 Reactive 调用（如果存在，更可能有进度通知）
+            Tool askTool = client.getToolRegistry().get("ask_question").orElse(null);
+            if (askTool != null) {
+                System.out.println("  [7b] ask_question — Reactive（真实 MCP → DeepWiki）：\n");
+                callReactiveAndPrint(askTool, Map.of(
+                    "repoName", "modelcontextprotocol/specification",
+                    "question", "What is MCP?"));
+            }
+
+            // 7c: 同步 vs Reactive 对比
+            if (wikiTool != null) {
+                System.out.println("  [7c] 同步 vs Reactive 对比（read_wiki_structure）：\n");
+                Map<String, Object> wikiArgs = Map.of("repoName", "spring-projects/spring-boot");
+
+                // 同步
+                long syncStart = System.currentTimeMillis();
+                ToolResult syncResult = executor.executeToolCall(
+                    new ToolCall("cmp-sync", "read_wiki_structure", wikiArgs));
+                long syncMs = System.currentTimeMillis() - syncStart;
+                System.out.println("    同步: " + truncate(syncResult.getContent(), 80)
+                    + " (" + syncMs + "ms)");
+
+                // Reactive
+                long reactStart = System.currentTimeMillis();
+                int[] eventCount = {0};
+                CountDownLatch cmpLatch = new CountDownLatch(1);
+                wikiTool.executeReactive(wikiArgs)
+                    .doOnNext(chunk -> {
+                        eventCount[0]++;
+                        long elapsed = System.currentTimeMillis() - reactStart;
+                        System.out.printf("    异步 [%4dms] %s: %s%n", elapsed, chunk.getType(),
+                            chunk.getType() == ToolResultChunk.ChunkType.COMPLETE
+                                ? truncate(chunk.getResult().getContent(), 60)
+                                : chunk.getMessage());
+                    })
+                    .doOnComplete(cmpLatch::countDown)
+                    .doOnError(e -> cmpLatch.countDown())
+                    .subscribe();
+                cmpLatch.await(60, TimeUnit.SECONDS);
+                long reactMs = System.currentTimeMillis() - reactStart;
+                System.out.println("    异步总计: " + eventCount[0] + " 个事件, " + reactMs + "ms");
+                System.out.println("    如果上游 MCP Server 支持 ProgressNotification，");
+                System.out.println("    会在 COMPLETE 之前看到 PROGRESS/LOG 事件\n");
+            }
+
             System.out.println("╔══════════════════════════════════════════════╗");
-            System.out.println("║  Demo 验证通过！                             ║");
+            System.out.println("║  Demo 验证通过！（含 Reactive 异步链路）      ║");
             System.out.println("╚══════════════════════════════════════════════╝");
 
         } catch (Exception e) {
@@ -103,6 +163,43 @@ public class McpFetchDemo {
         } finally {
             client.close();
         }
+    }
+
+    private static void callReactiveAndPrint(Tool tool, Map<String, Object> args)
+            throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        long startTime = System.currentTimeMillis();
+        int[] eventCount = {0};
+
+        System.out.println("    " + tool.getName() + "(" + args + ") → Flux<ToolResultChunk>:");
+
+        tool.executeReactive(args)
+            .doOnNext(chunk -> {
+                eventCount[0]++;
+                long elapsed = System.currentTimeMillis() - startTime;
+                switch (chunk.getType()) {
+                    case PROGRESS -> System.out.printf("      [%5dms] PROGRESS  %.0f%%  %s%n",
+                        elapsed, chunk.getProgress() * 100, chunk.getMessage());
+                    case LOG -> System.out.printf("      [%5dms] LOG       %s%n",
+                        elapsed, chunk.getMessage());
+                    case COMPLETE -> System.out.printf("      [%5dms] COMPLETE  %s%n",
+                        elapsed, truncate(chunk.getResult().getContent(), 200));
+                    case ERROR -> System.out.printf("      [%5dms] ERROR     %s%n",
+                        elapsed, chunk.getMessage());
+                }
+            })
+            .doOnComplete(() -> {
+                long elapsed = System.currentTimeMillis() - startTime;
+                System.out.printf("      完成: %d 个事件, %dms%n%n", eventCount[0], elapsed);
+                latch.countDown();
+            })
+            .doOnError(e -> {
+                System.out.println("      ERROR: " + e.getMessage() + "\n");
+                latch.countDown();
+            })
+            .subscribe();
+
+        latch.await(60, TimeUnit.SECONDS);
     }
 
     private static void callAndPrint(ToolExecutor executor, String toolName,

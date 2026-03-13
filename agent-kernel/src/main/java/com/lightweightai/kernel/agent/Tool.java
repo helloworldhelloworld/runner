@@ -1,6 +1,8 @@
 package com.lightweightai.kernel.agent;
 
+import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.llm.ToolResult;
+import reactor.core.publisher.Flux;
 
 import java.util.Map;
 
@@ -33,6 +35,26 @@ public interface Tool {
      * @return 执行结果
      */
     ToolResult execute(Map<String, Object> args);
+
+    /**
+     * Reactive 流式执行
+     *
+     * 默认实现将同步 execute() 包装为单个 COMPLETE 事件。
+     * MCP 工具可 override 此方法来实现真正的流式（进度+日志+结果）。
+     *
+     * @param args 参数
+     * @return 工具结果事件流
+     */
+    default Flux<ToolResultChunk> executeReactive(Map<String, Object> args) {
+        return Flux.defer(() -> {
+            try {
+                ToolResult result = execute(args);
+                return Flux.just(ToolResultChunk.complete(getName(), result));
+            } catch (Exception e) {
+                return Flux.just(ToolResultChunk.error(getName(), e.getMessage()));
+            }
+        });
+    }
 
     /**
      * 是否为 AI 自主调用（默认 true）

@@ -9,6 +9,8 @@ import com.lightweightai.kernel.plugin.FunctionResult;
 import com.lightweightai.kernel.plugin.PluginFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -312,6 +314,54 @@ public class ToolExecutor {
             .thenApply(v -> futures.stream()
                 .map(CompletableFuture::join)
                 .collect(Collectors.toList()));
+    }
+
+    // ==================== Reactive 执行 ====================
+
+    /**
+     * 单工具 reactive 调用，返回流式工具结果事件
+     */
+    public Flux<ToolResultChunk> executeToolCallReactive(ToolCall toolCall) {
+        if (toolCall == null) {
+            return Flux.error(new IllegalArgumentException("ToolCall cannot be null"));
+        }
+        Tool tool = toolRegistry.get(toolCall.getName()).orElse(null);
+        if (tool == null || !toolRegistry.isEnabled(toolCall.getName())) {
+            return Flux.just(ToolResultChunk.error(toolCall.getName(),
+                    "Tool not found: " + toolCall.getName())
+                .withToolCallId(toolCall.getId()));
+        }
+        return tool.executeReactive(toolCall.getArguments())
+            .map(chunk -> chunk.withToolCallId(toolCall.getId()));
+    }
+
+    /**
+     * 多工具并行 reactive 调用（Flux.merge 自然并发）
+     */
+    public Flux<ToolResultChunk> executeToolCallsReactive(List<ToolCall> toolCalls) {
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            return Flux.empty();
+        }
+        List<Flux<ToolResultChunk>> fluxes = toolCalls.stream()
+            .map(this::executeToolCallReactive)
+            .toList();
+        return Flux.merge(fluxes);
+    }
+
+    /**
+     * 收集所有最终结果（用于喂回 LLM）
+     */
+    public Mono<List<ToolResult>> executeToolCallsAndCollect(List<ToolCall> toolCalls) {
+        return executeToolCallsReactive(toolCalls)
+            .filter(c -> c.getType() == ToolResultChunk.ChunkType.COMPLETE
+                      || c.getType() == ToolResultChunk.ChunkType.ERROR)
+            .map(c -> {
+                if (c.getType() == ToolResultChunk.ChunkType.COMPLETE) {
+                    return c.getResult().withToolUseId(c.getToolCallId());
+                }
+                return ToolResult.error(c.getToolCallId(), c.getMessage());
+            })
+            .collectList();
     }
 
     /**

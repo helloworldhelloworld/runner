@@ -2,6 +2,8 @@ package com.lightweightai.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.gateway.Gateway;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
@@ -180,6 +182,124 @@ public class ChatController {
         emitter.onError(e -> logger.error("SSE error", e));
 
         return emitter;
+    }
+
+    /**
+     * Reactive streaming chat endpoint (SSE)
+     *
+     * 支持工具进度（tool_progress）、工具日志（tool_log）等全链路流式事件。
+     */
+    @PostMapping(value = "/chat/stream/reactive", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter chatStreamReactive(@RequestBody ChatRequest request) {
+        logger.info("Received reactive streaming chat request (session: {})", request.getSessionId());
+
+        SseEmitter emitter = new SseEmitter(120000L);
+
+        executor.submit(() -> {
+            try {
+                String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
+
+                GatewayRequest gatewayRequest = GatewayRequest.builder()
+                    .sessionId(sessionId)
+                    .message(request.getMessage())
+                    .metadata("model", request.getModel())
+                    .metadata("debug", request.isDebug())
+                    .build();
+
+                gateway.handleStreamReactive(gatewayRequest)
+                    .subscribe(
+                        event -> {
+                            try {
+                                Map<String, Object> eventData = toEventMap(event);
+                                emitter.send(SseEmitter.event()
+                                    .name("message")
+                                    .data(compactMapper.writeValueAsString(eventData)));
+                            } catch (IOException e) {
+                                logger.error("Failed to send SSE event", e);
+                            }
+                        },
+                        error -> {
+                            logger.error("Reactive streaming chat error", error);
+                            try {
+                                Map<String, Object> errorEvent = Map.of(
+                                    "type", "error",
+                                    "message", error.getMessage() != null ? error.getMessage() : "Unknown error"
+                                );
+                                emitter.send(SseEmitter.event()
+                                    .name("error")
+                                    .data(compactMapper.writeValueAsString(errorEvent)));
+                            } catch (IOException e) {
+                                logger.error("Failed to send error event", e);
+                            }
+                            emitter.completeWithError(error);
+                        },
+                        () -> {
+                            try {
+                                emitter.complete();
+                            } catch (Exception e) {
+                                logger.debug("Emitter already completed", e);
+                            }
+                        }
+                    );
+            } catch (Exception e) {
+                logger.error("Failed to start reactive streaming chat", e);
+                emitter.completeWithError(e);
+            }
+        });
+
+        emitter.onCompletion(() -> logger.debug("Reactive SSE connection completed"));
+        emitter.onTimeout(() -> logger.warn("Reactive SSE connection timed out"));
+        emitter.onError(e -> logger.error("Reactive SSE error", e));
+
+        return emitter;
+    }
+
+    /**
+     * 将 StreamEvent 转换为可序列化的 Map
+     */
+    private Map<String, Object> toEventMap(StreamEvent event) {
+        Map<String, Object> map = new java.util.HashMap<>();
+        map.put("type", event.getType().name().toLowerCase());
+
+        switch (event.getType()) {
+            case TEXT_DELTA -> map.put("delta", event.getTextDelta());
+            case TOOL_CALL_START -> {
+                if (event.getToolCall() != null) {
+                    map.put("toolName", event.getToolCall().getName());
+                    map.put("toolCallId", event.getToolCall().getId());
+                }
+            }
+            case TOOL_PROGRESS -> {
+                ToolResultChunk chunk = event.getChunk();
+                if (chunk != null) {
+                    map.put("toolName", chunk.getToolName());
+                    map.put("progress", chunk.getProgress());
+                    map.put("total", chunk.getTotal());
+                    map.put("message", chunk.getMessage());
+                }
+            }
+            case TOOL_LOG -> {
+                ToolResultChunk chunk = event.getChunk();
+                if (chunk != null) {
+                    map.put("toolName", chunk.getToolName());
+                    map.put("message", chunk.getMessage());
+                }
+            }
+            case TOOL_RESULT, TOOL_ERROR -> {
+                ToolResultChunk chunk = event.getChunk();
+                if (chunk != null) {
+                    map.put("toolName", chunk.getToolName());
+                    map.put("message", chunk.getMessage());
+                }
+            }
+            case LLM_COMPLETE -> map.put("complete", true);
+            case ERROR -> {
+                if (event.getError() != null) {
+                    map.put("message", event.getError().getMessage());
+                }
+            }
+        }
+        return map;
     }
 
     /**

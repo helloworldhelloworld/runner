@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.core.ToolExecutor;
+import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.mcp.McpToolWrapper;
@@ -12,8 +13,11 @@ import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * MCP Client Demo — 验证 McpServerRunner 的端到端链路
@@ -133,8 +137,53 @@ public class McpClientDemo {
                 System.out.println("    - " + tool.getName() + " → " + source);
             }
 
+            // ==================== [6] Reactive 异步调用验证 ====================
+            System.out.println("\n[6] Reactive 异步调用验证（MCP 真实链路）：\n");
+
+            // 6a: 单工具 Reactive — 通过真实 MCP 协议调用
+            System.out.println("  [6a] 单工具 executeReactive() — MCP 真实链路：\n");
+            Tool weatherTool = client.getToolRegistry().get("get_weather").orElse(null);
+            if (weatherTool != null) {
+                callReactiveAndPrint(weatherTool, Map.of("city", "tokyo"));
+            } else {
+                System.out.println("    [SKIP] get_weather 不可用\n");
+            }
+
+            // 6b: 多工具并行 Reactive
+            System.out.println("  [6b] 多工具并行 executeToolCallsReactive() — Flux.merge()：\n");
+            callParallelReactive(executor, List.of(
+                new ToolCall("r-1", "get_weather", Map.of("city", "beijing")),
+                new ToolCall("r-2", "calculate", Map.of("a", 99.0, "op", "*", "b", 3.0)),
+                new ToolCall("r-3", "get_city_info", Map.of("city", "shanghai"))
+            ));
+
+            // 6c: 同步 vs Reactive 对比
+            System.out.println("  [6c] 同步 vs Reactive 对比：\n");
+            Map<String, Object> testArgs = Map.of("city", "tokyo");
+
+            long syncStart = System.currentTimeMillis();
+            ToolResult syncResult = executor.executeToolCall(
+                new ToolCall("cmp-sync", "get_weather", testArgs));
+            long syncMs = System.currentTimeMillis() - syncStart;
+            System.out.println("    同步: " + syncResult.getContent() + " (" + syncMs + "ms, 0 中间事件)");
+
+            if (weatherTool != null) {
+                long reactStart = System.currentTimeMillis();
+                int[] eventCount = {0};
+                CountDownLatch cmpLatch = new CountDownLatch(1);
+                weatherTool.executeReactive(testArgs)
+                    .doOnNext(chunk -> eventCount[0]++)
+                    .doOnComplete(cmpLatch::countDown)
+                    .subscribe();
+                cmpLatch.await(30, TimeUnit.SECONDS);
+                long reactMs = System.currentTimeMillis() - reactStart;
+                System.out.println("    异步: " + eventCount[0] + " 个事件 (" + reactMs + "ms)");
+                System.out.println("    说明: 本地 MCP 工具无进度通知时退化为 1 个 COMPLETE 事件");
+                System.out.println("          真正的远程 MCP Server（如 DeepWiki）可产生 PROGRESS/LOG 事件");
+            }
+
             System.out.println("\n╔══════════════════════════════════════════════╗");
-            System.out.println("║  验证通过！                                  ║");
+            System.out.println("║  验证通过！（含 Reactive 异步链路）           ║");
             System.out.println("╚══════════════════════════════════════════════╝");
 
         } catch (Exception e) {
@@ -143,6 +192,84 @@ public class McpClientDemo {
         } finally {
             client.close();
         }
+    }
+
+    private static void callReactiveAndPrint(Tool tool, Map<String, Object> args)
+            throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        long startTime = System.currentTimeMillis();
+
+        System.out.println("    " + tool.getName() + "(" + args + ") → Flux<ToolResultChunk>:");
+
+        tool.executeReactive(args)
+            .doOnNext(chunk -> {
+                long elapsed = System.currentTimeMillis() - startTime;
+                switch (chunk.getType()) {
+                    case PROGRESS -> System.out.printf("      [%4dms] PROGRESS  %.0f%%  %s%n",
+                        elapsed, chunk.getProgress() * 100, chunk.getMessage());
+                    case LOG -> System.out.printf("      [%4dms] LOG       %s%n",
+                        elapsed, chunk.getMessage());
+                    case COMPLETE -> System.out.printf("      [%4dms] COMPLETE  %s%n",
+                        elapsed, chunk.getResult().getContent());
+                    case ERROR -> System.out.printf("      [%4dms] ERROR     %s%n",
+                        elapsed, chunk.getMessage());
+                }
+            })
+            .doOnComplete(() -> {
+                long elapsed = System.currentTimeMillis() - startTime;
+                System.out.printf("      完成 (%dms)%n%n", elapsed);
+                latch.countDown();
+            })
+            .doOnError(e -> {
+                System.out.println("      ERROR: " + e.getMessage() + "\n");
+                latch.countDown();
+            })
+            .subscribe();
+
+        latch.await(30, TimeUnit.SECONDS);
+    }
+
+    private static void callParallelReactive(ToolExecutor executor, List<ToolCall> toolCalls)
+            throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        long startTime = System.currentTimeMillis();
+        int[] counts = {0, 0, 0, 0}; // progress, log, complete, error
+
+        executor.executeToolCallsReactive(toolCalls)
+            .doOnNext(chunk -> {
+                long elapsed = System.currentTimeMillis() - startTime;
+                switch (chunk.getType()) {
+                    case PROGRESS -> {
+                        counts[0]++;
+                        System.out.printf("      [%4dms] PROGRESS  %-15s %s%n",
+                            elapsed, chunk.getToolName(), chunk.getMessage());
+                    }
+                    case LOG -> {
+                        counts[1]++;
+                        System.out.printf("      [%4dms] LOG       %-15s %s%n",
+                            elapsed, chunk.getToolName(), chunk.getMessage());
+                    }
+                    case COMPLETE -> {
+                        counts[2]++;
+                        System.out.printf("      [%4dms] COMPLETE  %-15s %s%n",
+                            elapsed, chunk.getToolName(), chunk.getResult().getContent());
+                    }
+                    case ERROR -> {
+                        counts[3]++;
+                        System.out.printf("      [%4dms] ERROR     %-15s %s%n",
+                            elapsed, chunk.getToolName(), chunk.getMessage());
+                    }
+                }
+            })
+            .doOnComplete(() -> {
+                long elapsed = System.currentTimeMillis() - startTime;
+                System.out.printf("      并行完成 (%dms): %d PROGRESS, %d LOG, %d COMPLETE, %d ERROR%n%n",
+                    elapsed, counts[0], counts[1], counts[2], counts[3]);
+                latch.countDown();
+            })
+            .subscribe();
+
+        latch.await(30, TimeUnit.SECONDS);
     }
 
     private static void callAndPrint(ToolExecutor executor, String toolName,

@@ -2,6 +2,8 @@ package com.lightweightai.kernel.gateway;
 
 import com.lightweightai.kernel.agent.AgentLoop;
 import com.lightweightai.kernel.agent.AgentResponse;
+import com.lightweightai.kernel.core.StreamEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.Collections;
 import java.util.Map;
@@ -120,6 +122,17 @@ public class Gateway {
             handler.onError(error);
             return null;
         });
+    }
+
+    // ==================== Reactive 流式调用 ====================
+
+    /**
+     * Reactive 流式处理请求，返回统一的 Flux&lt;StreamEvent&gt;
+     *
+     * 包含 LLM 文本片段、工具调用进度、工具结果等全链路事件。
+     */
+    public Flux<StreamEvent> handleStreamReactive(GatewayRequest request) {
+        return chatHandler.chatStreamReactive(request);
     }
 
     // ==================== 会话管理 ====================

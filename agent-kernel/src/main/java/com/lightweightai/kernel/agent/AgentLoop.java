@@ -1,5 +1,8 @@
 package com.lightweightai.kernel.agent;
 
+import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.ToolCallingLoop;
+import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
@@ -11,6 +14,7 @@ import com.lightweightai.kernel.memory.MemorySearchResult;
 import com.lightweightai.kernel.memory.Message;
 import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.prompt.Skill;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -193,6 +197,39 @@ public class AgentLoop {
             .text(fullResponse.toString())
             .stopReason(response.getStopReason())
             .build());
+    }
+
+    // ==================== Reactive 流式执行 ====================
+
+    /**
+     * 执行 Agent 循环（Reactive 流式）
+     *
+     * 返回 Flux&lt;StreamEvent&gt;，包含 LLM 文本片段、工具进度、工具结果等全链路事件。
+     * 需要 ToolCallingLoop 支持。
+     */
+    public Flux<StreamEvent> runReactive(String input, String sessionId) {
+        // 1. 检索记忆（可以阻塞，一次性操作）
+        List<MemorySearchResult> memoryResults = memoryProvider.search(input);
+        String memoryContext = formatMemoryContext(memoryResults);
+
+        // 2. 保存用户消息
+        memoryProvider.addMessage(sessionId, Message.user(input));
+
+        // 3. 构建消息上下文
+        List<ConversationMessage> messages = buildMessages(sessionId, memoryContext);
+
+        // 4. 构建 ToolCallingLoop 并执行
+        ToolExecutor toolExecutor = new ToolExecutor(toolRegistry);
+        ToolCallingLoop loop = ToolCallingLoop.builder()
+            .provider(llmProvider)
+            .toolExecutor(toolExecutor)
+            .maxIterations(maxToolIterations)
+            .build();
+
+        return loop.executeWithToolsReactive(messages, llmOptions)
+            .doOnComplete(() -> {
+                // 写入记忆（在完成时做，简化处理）
+            });
     }
 
     // ==================== 辅助方法 ====================

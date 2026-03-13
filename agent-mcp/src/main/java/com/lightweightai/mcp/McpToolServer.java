@@ -3,9 +3,9 @@ package com.lightweightai.mcp;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
+import io.modelcontextprotocol.server.McpAsyncServer;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures;
-import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpServerTransportProvider;
@@ -16,28 +16,9 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * 将 ToolRegistry 暴露为 MCP 服务端
+ * 将 ToolRegistry 暴露为 MCP 服务端（Async 版本）
  *
- * 使外部 MCP 客户端（Claude Desktop、Cursor、其他 AI Agent）
- * 能够发现并调用框架注册的所有工具。
- *
- * <p>使用方式：</p>
- * <pre>
- * // 使用 STDIO 传输（标准输入/输出）
- * McpToolServer server = McpToolServer.builder()
- *     .serverName("my-agent")
- *     .serverVersion("1.0.0")
- *     .toolRegistry(registry)
- *     .build();
- * server.start();
- *
- * // 使用自定义传输
- * McpToolServer server = McpToolServer.builder()
- *     .serverName("my-agent")
- *     .toolRegistry(registry)
- *     .transportProvider(myTransportProvider)
- *     .build();
- * </pre>
+ * 使用 McpAsyncServer 支持异步工具执行和进度/日志通知转发。
  */
 public class McpToolServer {
 
@@ -47,7 +28,7 @@ public class McpToolServer {
     private final String serverVersion;
     private final ToolRegistry toolRegistry;
     private final McpServerTransportProvider transportProvider;
-    private McpSyncServer syncServer;
+    private McpAsyncServer asyncServer;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
     private McpToolServer(Builder builder) {
@@ -60,41 +41,32 @@ public class McpToolServer {
     /**
      * 启动 MCP 服务端
      *
-     * 将 ToolRegistry 中所有启用的工具暴露为 MCP 工具。
+     * 将 ToolRegistry 中所有启用的工具暴露为 MCP 异步工具。
+     * 支持进度通知（ProgressNotification）和日志通知（LoggingNotification）。
      */
     public void start() {
-        List<McpServerFeatures.SyncToolSpecification> toolSpecs = McpToolAdapter.toMcpTools(toolRegistry);
+        List<McpServerFeatures.AsyncToolSpecification> toolSpecs =
+                McpToolAdapter.toAsyncMcpTools(toolRegistry);
 
-        syncServer = McpServer.sync(transportProvider)
+        asyncServer = McpServer.async(transportProvider)
             .serverInfo(serverName, serverVersion)
             .capabilities(McpSchema.ServerCapabilities.builder()
                 .tools(true)
+                .logging()
                 .build())
-            .tools(toolSpecs.toArray(new McpServerFeatures.SyncToolSpecification[0]))
+            .tools(toolSpecs)
             .build();
 
-        logger.info("MCP server '{}' v{} started with {} tools",
+        logger.info("MCP async server '{}' v{} started with {} tools",
             serverName, serverVersion, toolSpecs.size());
     }
 
     /**
-     * 启动 MCP 服务端并阻塞当前线程，直到 close() 被调用
-     *
-     * 适用于独立进程模式（如 Claude Desktop / Cursor 通过 STDIO 连接）。
-     * 进程会保持运行直到外部客户端断开或手动调用 close()。
-     *
-     * <pre>
-     * McpToolServer server = McpToolServer.builder()
-     *     .serverName("my-agent")
-     *     .toolRegistry(registry)
-     *     .build();
-     * server.startAndBlock();  // 进程保持运行
-     * </pre>
+     * 启动 MCP 服务端并阻塞当前线程
      */
     public void startAndBlock() {
         start();
 
-        // 注册 shutdown hook，确保 Ctrl+C 时优雅关闭
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Shutdown signal received, closing MCP server '{}'...", serverName);
             close();
@@ -112,12 +84,10 @@ public class McpToolServer {
 
     /**
      * 动态添加工具到运行中的 MCP 服务端
-     *
-     * @param tool 框架 Tool 实例
      */
     public void addTool(com.lightweightai.kernel.agent.Tool tool) {
-        if (syncServer != null) {
-            syncServer.addTool(McpToolAdapter.toMcpTool(tool));
+        if (asyncServer != null) {
+            asyncServer.addTool(McpToolAdapter.toAsyncMcpTool(tool)).block();
             logger.info("Added tool '{}' to MCP server '{}'", tool.getName(), serverName);
         }
     }
@@ -126,18 +96,18 @@ public class McpToolServer {
      * 关闭 MCP 服务端
      */
     public void close() {
-        if (syncServer != null) {
-            syncServer.close();
+        if (asyncServer != null) {
+            asyncServer.closeGracefully().block();
             logger.info("MCP server '{}' closed", serverName);
         }
         shutdownLatch.countDown();
     }
 
     /**
-     * 获取底层 MCP 同步服务端实例
+     * 获取底层 MCP 异步服务端实例
      */
-    public McpSyncServer getSyncServer() {
-        return syncServer;
+    public McpAsyncServer getAsyncServer() {
+        return asyncServer;
     }
 
     public static Builder builder() {
@@ -165,11 +135,6 @@ public class McpToolServer {
             return this;
         }
 
-        /**
-         * 设置自定义传输提供者
-         *
-         * 可选：STDIO、SSE（需要 mcp-spring-webflux 或 mcp-spring-webmvc）等
-         */
         public Builder transportProvider(McpServerTransportProvider transportProvider) {
             this.transportProvider = transportProvider;
             return this;

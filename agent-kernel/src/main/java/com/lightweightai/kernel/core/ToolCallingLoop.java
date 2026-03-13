@@ -7,6 +7,7 @@ import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -172,6 +173,94 @@ public class ToolCallingLoop {
                 // Handle any errors in the chain
                 throw new RuntimeException("Tool calling loop failed: " + error.getMessage(), error);
             });
+    }
+
+    // ==================== Reactive 流式执行 ====================
+
+    /**
+     * Reactive 流式执行，返回统一的 Flux&lt;StreamEvent&gt;
+     *
+     * 整个 LLM + 工具调用循环以 Flux 形式输出：
+     * - TEXT_DELTA: LLM 文本片段
+     * - TOOL_CALL_START: LLM 决定调用工具
+     * - TOOL_PROGRESS / TOOL_LOG: 工具执行进度（MCP ProgressNotification / LoggingNotification）
+     * - TOOL_RESULT: 工具执行完成
+     * - LLM_COMPLETE: LLM 最终响应（无更多工具调用）
+     */
+    public Flux<StreamEvent> executeWithToolsReactive(
+            List<ConversationMessage> messages, LLMOptions options) {
+        return executeReactiveLoop(new ArrayList<>(messages), options, 0);
+    }
+
+    private Flux<StreamEvent> executeReactiveLoop(
+            List<ConversationMessage> conversation,
+            LLMOptions options,
+            int iteration) {
+
+        if (iteration >= maxIterations) {
+            return Flux.error(new RuntimeException(
+                "Tool calling loop exceeded maximum iterations: " + maxIterations));
+        }
+
+        // Step 1: LLM 流式调用 — 收集所有事件
+        List<StreamEvent> accumulated = new ArrayList<>();
+
+        return provider.completeStreamReactive(conversation, options)
+            .doOnNext(accumulated::add)
+            .concatWith(Flux.defer(() -> {
+                // Step 2: 从收集的事件中找到 LLM_COMPLETE
+                StreamEvent completeEvent = accumulated.stream()
+                    .filter(e -> e.getType() == StreamEvent.EventType.LLM_COMPLETE)
+                    .findFirst()
+                    .orElse(null);
+
+                if (completeEvent == null || !completeEvent.getResponse().hasToolCalls()) {
+                    return Flux.empty();  // 无工具调用，结束
+                }
+
+                // Step 3: LLM 要调用工具
+                LLMResponse response = completeEvent.getResponse();
+                List<com.lightweightai.kernel.llm.ToolCall> toolCalls = response.getToolCalls();
+                conversation.add(response.getMessage());
+
+                // Step 3a: 发出 TOOL_CALL_START 事件
+                Flux<StreamEvent> toolStartEvents = Flux.fromIterable(toolCalls)
+                    .map(StreamEvent::toolCallStart);
+
+                // Step 3b: 并行执行工具，使用 share() 共享同一执行
+                Flux<ToolResultChunk> sharedToolExec = toolExecutor
+                    .executeToolCallsReactive(toolCalls)
+                    .share();
+
+                // 流式发出 TOOL_PROGRESS / TOOL_LOG / TOOL_RESULT 事件
+                Flux<StreamEvent> toolExecEvents = sharedToolExec
+                    .map(chunk -> switch (chunk.getType()) {
+                        case PROGRESS -> StreamEvent.toolProgress(chunk);
+                        case LOG -> StreamEvent.toolLog(chunk);
+                        case COMPLETE -> StreamEvent.toolResult(chunk);
+                        case ERROR -> StreamEvent.toolError(chunk);
+                    });
+
+                // Step 3c: 收集工具结果，加入对话，递归下一轮
+                Flux<StreamEvent> nextRound = sharedToolExec
+                    .filter(c -> c.getType() == ToolResultChunk.ChunkType.COMPLETE
+                              || c.getType() == ToolResultChunk.ChunkType.ERROR)
+                    .map(c -> {
+                        if (c.getType() == ToolResultChunk.ChunkType.COMPLETE) {
+                            return c.getResult().withToolUseId(c.getToolCallId());
+                        }
+                        return ToolResult.error(c.getToolCallId(), c.getMessage());
+                    })
+                    .collectList()
+                    .flatMapMany(results -> {
+                        for (ToolResult result : results) {
+                            conversation.add(createToolResultMessage(result));
+                        }
+                        return executeReactiveLoop(conversation, options, iteration + 1);
+                    });
+
+                return Flux.concat(toolStartEvents, toolExecEvents, nextRound);
+            }));
     }
 
     /**
