@@ -227,10 +227,13 @@ public class ToolCallingLoop {
                 Flux<StreamEvent> toolStartEvents = Flux.fromIterable(toolCalls)
                     .map(StreamEvent::toolCallStart);
 
-                // Step 3b: 并行执行工具，使用 share() 共享同一执行
+                // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
+                // 注意：不能用 share()，因为 concat() 是顺序订阅，
+                // nextRound 订阅时 share() 的上游已经完成，会丢失所有事件。
+                // cache() 会缓存所有事件并重播给后续订阅者（nextRound）。
                 Flux<ToolResultChunk> sharedToolExec = toolExecutor
                     .executeToolCallsReactive(toolCalls)
-                    .share();
+                    .cache();
 
                 // 流式发出 TOOL_PROGRESS / TOOL_LOG / TOOL_RESULT 事件
                 Flux<StreamEvent> toolExecEvents = sharedToolExec
