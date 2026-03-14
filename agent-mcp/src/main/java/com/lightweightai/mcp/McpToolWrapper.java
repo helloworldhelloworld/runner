@@ -5,16 +5,20 @@ import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.llm.ToolResult;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 
 /**
  * 将 MCP 远程工具包装为框架的 Tool 接口（Reactive 版本）
@@ -99,20 +103,30 @@ public class McpToolWrapper implements Tool, ToolMetadata {
                 ln.data() != null ? ln.data() : ""
             ));
 
-        // 3. 调用工具（Mono，完成时 emit COMPLETE 并关闭 router）
-        Mono<ToolResultChunk> resultMono = toolClient
+        // 3. 调用工具（Mono），并在 COMPLETE 前补充结构化中间日志（若有）
+        Flux<ToolResultChunk> resultFlux = toolClient
             .callToolReactive(mcpTool.name(), args, progressToken)
-            .map(mcpResult -> {
+            .flatMapMany(mcpResult -> {
                 String content = extractContent(mcpResult);
                 boolean isError = mcpResult.isError() != null && mcpResult.isError();
+                Map<String, Object> structuredContent = extractStructuredContent(mcpResult);
+
                 ToolResult toolResult = isError
                     ? ToolResult.error(content)
-                    : ToolResult.success(content);
-                return ToolResultChunk.complete(toolName, toolResult);
+                    : ToolResult.success(content, structuredContent);
+                ToolResultChunk completeChunk = ToolResultChunk.complete(toolName, toolResult);
+
+                // 如果上游把 streaming/content 片段汇总在结果中（如 params.directives[].payload.stepInfo），
+                // 在最终 COMPLETE 前转为 LOG 事件，便于 demo 观察“中间过程”。
+                List<ToolResultChunk> synthesizedLogs = extractStreamingStepLogs(toolName, mcpResult, structuredContent);
+                if (synthesizedLogs.isEmpty()) {
+                    return Flux.just(completeChunk);
+                }
+                return Flux.fromIterable(synthesizedLogs).concatWith(Mono.just(completeChunk));
             })
             .onErrorResume(e -> {
                 logger.error("MCP tool call failed: {} - {}", toolName, e.getMessage());
-                return Mono.just(ToolResultChunk.error(toolName, "MCP call failed: " + e.getMessage()));
+                return Flux.just(ToolResultChunk.error(toolName, "MCP call failed: " + e.getMessage()));
             })
             .doFinally(signal -> {
                 toolClient.getProgressRouter().complete(progressToken);
@@ -120,9 +134,9 @@ public class McpToolWrapper implements Tool, ToolMetadata {
             });
 
         // 4. 合并：progress + logging 与 result 并行
-        // resultMono 完成时 router 关闭，progress/logging flux 自然终止
+        // resultFlux 完成时 router 关闭，progress/logging flux 自然终止
         return Flux.merge(progressFlux, loggingFlux)
-            .mergeWith(resultMono);
+            .mergeWith(resultFlux);
     }
 
     @Override
@@ -177,21 +191,117 @@ public class McpToolWrapper implements Tool, ToolMetadata {
         return toolClient;
     }
 
-    private String extractContent(McpSchema.CallToolResult result) {
-        if (result.content() == null || result.content().isEmpty()) {
-            return "";
-        }
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-        StringBuilder sb = new StringBuilder();
-        for (McpSchema.Content content : result.content()) {
-            if (content instanceof McpSchema.TextContent textContent) {
-                if (sb.length() > 0) {
-                    sb.append("\n");
-                }
-                sb.append(textContent.text());
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractStructuredContent(McpSchema.CallToolResult result) {
+        Object structuredContent = result.structuredContent();
+        if (structuredContent instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return null;
+    }
+
+    private List<ToolResultChunk> extractStreamingStepLogs(
+            String toolName,
+            McpSchema.CallToolResult result,
+            Map<String, Object> structuredContent) {
+        List<ToolResultChunk> chunks = new ArrayList<>();
+        addStreamingStepLogs(chunks, toolName, structuredContent);
+
+        if (chunks.isEmpty() && result.content() != null) {
+            for (McpSchema.Content content : result.content()) {
+                Map<String, Object> contentMap = OBJECT_MAPPER.convertValue(content, Map.class);
+                addStreamingStepLogs(chunks, toolName, contentMap);
             }
         }
+
+        return chunks;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void addStreamingStepLogs(List<ToolResultChunk> chunks, String toolName, Map<String, Object> source) {
+        if (source == null) {
+            return;
+        }
+
+        Object params = source.get("params");
+        if (!(params instanceof Map<?, ?> paramsMap)) {
+            return;
+        }
+
+        Object directives = paramsMap.get("directives");
+        if (!(directives instanceof List<?> directiveList)) {
+            return;
+        }
+
+        for (Object directive : directiveList) {
+            if (!(directive instanceof Map<?, ?> directiveMap)) {
+                continue;
+            }
+            Object payload = directiveMap.get("payload");
+            if (!(payload instanceof Map<?, ?> payloadMap)) {
+                continue;
+            }
+            Object stepInfo = payloadMap.get("stepInfo");
+            if (stepInfo instanceof String step && !step.isBlank()) {
+                chunks.add(ToolResultChunk.log(toolName, "INFO", step.strip()));
+            }
+        }
+    }
+
+    private String extractContent(McpSchema.CallToolResult result) {
+        StringBuilder sb = new StringBuilder();
+
+        // 1) 优先提取 TextContent
+        if (result.content() != null) {
+            for (McpSchema.Content content : result.content()) {
+                if (content instanceof McpSchema.TextContent textContent
+                        && textContent.text() != null
+                        && !textContent.text().isBlank()) {
+                    appendLine(sb, textContent.text());
+                }
+            }
+        }
+
+        // 2) 对于非 TextContent（如结构化内容块），回退到 JSON 序列化
+        if (sb.isEmpty() && result.content() != null) {
+            for (McpSchema.Content content : result.content()) {
+                appendLine(sb, toJsonString(content));
+            }
+        }
+
+        // 3) 再回退到 structuredContent
+        if (sb.isEmpty() && result.structuredContent() != null) {
+            appendLine(sb, toJsonString(result.structuredContent()));
+        }
+
         return sb.toString();
+    }
+
+    private static void appendLine(StringBuilder sb, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        if (sb.length() > 0) {
+            sb.append("\n");
+        }
+        sb.append(value);
+    }
+
+    private static String toJsonString(Object value) {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof String str) {
+            return str;
+        }
+        try {
+            return OBJECT_MAPPER.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            return String.valueOf(value);
+        }
     }
 
     @Override
