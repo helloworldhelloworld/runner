@@ -77,13 +77,18 @@ public class McpToolAdapter {
             .collect(Collectors.toList());
     }
 
-    // ==================== 异步适配（支持进度转发）====================
+    // ==================== 异步适配（支持流式中间结果转发）====================
 
     /**
      * 将框架 Tool 转换为 MCP AsyncToolSpecification
      *
-     * 如果 Tool 是 McpToolWrapper（代理场景），会将上游进度通知转发给下游客户端。
-     * 普通本地工具则直接在 Mono 中执行。
+     * 使用 callHandler（而非 deprecated 的 call）获取完整 CallToolRequest，
+     * 从 _meta.progressToken 提取客户端的进度令牌。
+     *
+     * 所有工具统一使用 executeReactive()：
+     * - 本地工具：default executeReactive() 退化为单个 COMPLETE 事件
+     * - 自定义 Reactive 工具：PROGRESS/LOG/COMPLETE 中间事件通过 MCP 通知转发
+     * - McpToolWrapper（代理）：上游进度/日志通知实时转发给下游客户端
      */
     public static McpServerFeatures.AsyncToolSpecification toAsyncMcpTool(Tool tool) {
         McpSchema.JsonSchema inputSchema = toJsonSchema(tool);
@@ -100,20 +105,18 @@ public class McpToolAdapter {
 
         return new McpServerFeatures.AsyncToolSpecification(
             mcpTool,
-            (exchange, args) -> {
-                if (tool instanceof McpToolWrapper wrapper) {
-                    return executeWithProgressForwarding(exchange, wrapper, args);
+            null, // deprecated call handler
+            (exchange, request) -> {
+                Map<String, Object> args = request.arguments() != null
+                    ? request.arguments() : Map.of();
+
+                // 从 CallToolRequest._meta 提取客户端的 progressToken
+                Object progressToken = null;
+                if (request.meta() != null) {
+                    progressToken = request.meta().get("progressToken");
                 }
-                // 普通本地工具：直接执行
-                return Mono.fromCallable(() -> tool.execute(args))
-                    .map(McpToolAdapter::toCallToolResult)
-                    .onErrorResume(e -> {
-                        logger.error("Tool execution failed: {} - {}", tool.getName(), e.getMessage());
-                        return Mono.just(CallToolResult.builder()
-                            .content(List.of(new TextContent("Error: " + e.getMessage())))
-                            .isError(true)
-                            .build());
-                    });
+
+                return executeWithStreaming(exchange, tool, args, progressToken);
             }
         );
     }
@@ -130,18 +133,31 @@ public class McpToolAdapter {
     // ==================== 辅助方法 ====================
 
     /**
-     * MCP 代理场景：执行上游 MCP 工具调用，同时将进度/日志转发给下游客户端
+     * 通用流式工具执行：使用 executeReactive() 并将中间事件作为 MCP 通知转发
+     *
+     * 工作流程：
+     * 1. 调用 tool.executeReactive(args) 获取 Flux&lt;ToolResultChunk&gt;
+     * 2. PROGRESS 事件 → exchange.progressNotification()（携带客户端 progressToken）
+     * 3. LOG 事件 → exchange.loggingNotification()
+     * 4. COMPLETE/ERROR → 转换为 CallToolResult 返回
+     *
+     * @param exchange       MCP 服务端交换上下文
+     * @param tool           框架工具（任意类型）
+     * @param args           工具参数
+     * @param progressToken  客户端请求中的 progressToken（可能为 null）
      */
-    private static Mono<CallToolResult> executeWithProgressForwarding(
+    private static Mono<CallToolResult> executeWithStreaming(
             McpAsyncServerExchange exchange,
-            McpToolWrapper wrapper,
-            Map<String, Object> args) {
-        return wrapper.executeReactive(args)
+            Tool tool,
+            Map<String, Object> args,
+            Object progressToken) {
+        return tool.executeReactive(args)
             .flatMap(chunk -> {
-                if (chunk.getType() == ToolResultChunk.ChunkType.PROGRESS) {
+                if (chunk.getType() == ToolResultChunk.ChunkType.PROGRESS
+                        && progressToken != null) {
                     return exchange.progressNotification(
                         new McpSchema.ProgressNotification(
-                            null,
+                            progressToken,
                             chunk.getProgress(),
                             chunk.getTotal(),
                             chunk.getMessage()
@@ -152,7 +168,7 @@ public class McpToolAdapter {
                     return exchange.loggingNotification(
                         new McpSchema.LoggingMessageNotification(
                             McpSchema.LoggingLevel.INFO,
-                            wrapper.getName(),
+                            tool.getName(),
                             chunk.getMessage()
                         )
                     ).thenReturn(chunk);
@@ -171,6 +187,17 @@ public class McpToolAdapter {
                         c.getMessage() != null ? c.getMessage() : "Tool execution failed")))
                     .isError(true)
                     .build();
+            })
+            .switchIfEmpty(Mono.just(CallToolResult.builder()
+                .content(List.of(new TextContent("No result from tool")))
+                .isError(true)
+                .build()))
+            .onErrorResume(e -> {
+                logger.error("Tool execution failed: {} - {}", tool.getName(), e.getMessage());
+                return Mono.just(CallToolResult.builder()
+                    .content(List.of(new TextContent("Error: " + e.getMessage())))
+                    .isError(true)
+                    .build());
             });
     }
 
