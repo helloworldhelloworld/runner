@@ -444,6 +444,9 @@ public class VertxChatWebSocketHandler {
                 data.put("progress", chunk.getProgress());
                 data.put("total", chunk.getTotal());
                 data.put("message", chunk.getMessage() != null ? chunk.getMessage() : "");
+                if (chunk.getMeta() != null && !chunk.getMeta().isEmpty()) {
+                    data.set("meta", MAPPER.valueToTree(chunk.getMeta()));
+                }
             }
             msg.set("data", data);
             safeSend(ws, MAPPER.writeValueAsString(msg));
@@ -461,6 +464,9 @@ public class VertxChatWebSocketHandler {
             if (chunk != null) {
                 data.put("toolName", chunk.getToolName());
                 data.put("message", chunk.getMessage() != null ? chunk.getMessage() : "");
+                if (chunk.getMeta() != null && !chunk.getMeta().isEmpty()) {
+                    data.set("meta", MAPPER.valueToTree(chunk.getMeta()));
+                }
             }
             msg.set("data", data);
             safeSend(ws, MAPPER.writeValueAsString(msg));

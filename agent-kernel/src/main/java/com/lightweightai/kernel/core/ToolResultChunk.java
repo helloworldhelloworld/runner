@@ -2,6 +2,8 @@ package com.lightweightai.kernel.core;
 
 import com.lightweightai.kernel.llm.ToolResult;
 
+import java.util.Map;
+
 /**
  * 工具流式结果片段
  *
@@ -20,10 +22,12 @@ public class ToolResultChunk {
     private final double total;
     private final ToolResult result;
     private final Throwable error;
+    private final Map<String, Object> meta;
 
     private ToolResultChunk(ChunkType type, String toolName, String toolCallId,
                             String message, double progress, double total,
-                            ToolResult result, Throwable error) {
+                            ToolResult result, Throwable error,
+                            Map<String, Object> meta) {
         this.type = type;
         this.toolName = toolName;
         this.toolCallId = toolCallId;
@@ -32,28 +36,39 @@ public class ToolResultChunk {
         this.total = total;
         this.result = result;
         this.error = error;
+        this.meta = meta;
+    }
+
+    public static ToolResultChunk progress(String toolName, String message,
+            double progress, double total, Map<String, Object> meta) {
+        return new ToolResultChunk(ChunkType.PROGRESS, toolName, null, message, progress, total, null, null, meta);
     }
 
     public static ToolResultChunk progress(String toolName, String message, double progress, double total) {
-        return new ToolResultChunk(ChunkType.PROGRESS, toolName, null, message, progress, total, null, null);
+        return progress(toolName, message, progress, total, null);
+    }
+
+    public static ToolResultChunk log(String toolName, String level,
+            String logger, String message, Map<String, Object> meta) {
+        String formatted = "[" + level + "] " + (logger != null ? logger + ": " : "") + message;
+        return new ToolResultChunk(ChunkType.LOG, toolName, null, formatted, 0, 0, null, null, meta);
     }
 
     public static ToolResultChunk log(String toolName, String level, String message) {
-        String formatted = "[" + level + "] " + message;
-        return new ToolResultChunk(ChunkType.LOG, toolName, null, formatted, 0, 0, null, null);
+        return log(toolName, level, null, message, null);
     }
 
     public static ToolResultChunk complete(String toolName, ToolResult result) {
-        return new ToolResultChunk(ChunkType.COMPLETE, toolName, null, null, 0, 0, result, null);
+        return new ToolResultChunk(ChunkType.COMPLETE, toolName, null, null, 0, 0, result, null, null);
     }
 
     public static ToolResultChunk error(String toolName, String message) {
         return new ToolResultChunk(ChunkType.ERROR, toolName, null, message, 0, 0, null,
-                new RuntimeException(message));
+                new RuntimeException(message), null);
     }
 
     public ToolResultChunk withToolCallId(String id) {
-        return new ToolResultChunk(type, toolName, id, message, progress, total, result, error);
+        return new ToolResultChunk(type, toolName, id, message, progress, total, result, error, meta);
     }
 
     public ChunkType getType() {
@@ -86,6 +101,10 @@ public class ToolResultChunk {
 
     public Throwable getError() {
         return error;
+    }
+
+    public Map<String, Object> getMeta() {
+        return meta;
     }
 
     @Override

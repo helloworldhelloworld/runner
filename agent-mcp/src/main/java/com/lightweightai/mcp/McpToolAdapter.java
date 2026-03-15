@@ -160,7 +160,8 @@ public class McpToolAdapter {
                             progressToken,
                             chunk.getProgress(),
                             chunk.getTotal(),
-                            chunk.getMessage()
+                            chunk.getMessage(),
+                            chunk.getMeta()
                         )
                     ).thenReturn(chunk);
                 }
@@ -169,7 +170,8 @@ public class McpToolAdapter {
                         new McpSchema.LoggingMessageNotification(
                             McpSchema.LoggingLevel.INFO,
                             tool.getName(),
-                            chunk.getMessage()
+                            chunk.getMessage(),
+                            chunk.getMeta()
                         )
                     ).thenReturn(chunk);
                 }

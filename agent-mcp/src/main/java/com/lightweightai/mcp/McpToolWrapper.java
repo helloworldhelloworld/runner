@@ -91,7 +91,8 @@ public class McpToolWrapper implements Tool, ToolMetadata {
                 toolName,
                 pn.message() != null ? pn.message() : "",
                 pn.progress() != null ? pn.progress() : 0.0,
-                pn.total() != null ? pn.total() : 1.0
+                pn.total() != null ? pn.total() : 1.0,
+                pn.meta()
             ));
 
         // 2. 注册日志监听
@@ -100,7 +101,9 @@ public class McpToolWrapper implements Tool, ToolMetadata {
             .map(ln -> ToolResultChunk.log(
                 toolName,
                 ln.level() != null ? ln.level().name() : "INFO",
-                ln.data() != null ? ln.data() : ""
+                ln.logger(),
+                ln.data() != null ? ln.data() : "",
+                ln.meta()
             ));
 
         // 3. 调用工具（Mono），并在 COMPLETE 前补充结构化中间日志（若有）

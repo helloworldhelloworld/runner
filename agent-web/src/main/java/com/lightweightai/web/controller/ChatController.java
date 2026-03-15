@@ -276,6 +276,9 @@ public class ChatController {
                     map.put("progress", chunk.getProgress());
                     map.put("total", chunk.getTotal());
                     map.put("message", chunk.getMessage());
+                    if (chunk.getMeta() != null && !chunk.getMeta().isEmpty()) {
+                        map.put("meta", chunk.getMeta());
+                    }
                 }
             }
             case TOOL_LOG -> {
@@ -283,6 +286,9 @@ public class ChatController {
                 if (chunk != null) {
                     map.put("toolName", chunk.getToolName());
                     map.put("message", chunk.getMessage());
+                    if (chunk.getMeta() != null && !chunk.getMeta().isEmpty()) {
+                        map.put("meta", chunk.getMeta());
+                    }
                 }
             }
             case TOOL_RESULT, TOOL_ERROR -> {
