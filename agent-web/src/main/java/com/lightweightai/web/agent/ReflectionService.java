@@ -1,4 +1,4 @@
-package com.lightweightai.kernel.agent;
+package com.lightweightai.web.agent;
 
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMOptions;

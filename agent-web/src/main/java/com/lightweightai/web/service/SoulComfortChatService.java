@@ -1,6 +1,6 @@
 package com.lightweightai.web.service;
 
-import com.lightweightai.kernel.agent.SoulComfortAgent;
+import com.lightweightai.web.agent.SoulComfortAgent;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.llm.LLMProvider;

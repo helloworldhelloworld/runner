@@ -1,4 +1,9 @@
-# 🎉 Claude Skills 集成完成 - 最终报告
+> **Note:** This document is a historical snapshot. The file structure listed here
+> is outdated — AsyncTask, Kernel, TaskExecutor, StreamSource, ConversationContext,
+> ContextStrategy, KernelConfiguration, ValidationResult have been removed.
+> See `CLAUDE.md` for the current architecture.
+
+# Claude Skills 集成完成 - 最终报告（历史文档）
 
 ## ✅ 项目状态：完全集成并测试通过
 

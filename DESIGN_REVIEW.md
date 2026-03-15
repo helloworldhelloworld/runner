@@ -1,4 +1,9 @@
-# 框架设计Review
+> **Note:** This document is a historical design review from early development.
+> Many of the interfaces discussed (AsyncTask, StreamSource, TaskExecutor, ConversationContext,
+> PluginRegistry) have since been removed. The actual architecture uses AgentLoop + ToolCallingLoop
+> + Reactor Flux + Tool/ToolRegistry. See `CLAUDE.md` for the current architecture.
+
+# 框架设计Review（历史文档）
 
 ## 🔍 整体架构评审
 

@@ -31,26 +31,26 @@ SoulComfortAgent (心灵引导Agent)
 ### 文件结构
 
 ```
-agent-kernel/
-├── src/main/java/com/lightweightai/kernel/
-│   ├── agent/
-│   │   ├── SoulComfortAgent.java         # 核心Agent
-│   │   └── ReflectionService.java        # 反思服务
-│   └── memory/
-│       ├── ConversationMemory.java       # 会话记忆管理
-│       └── UserMemory.java               # 用户长期记忆
-
-example-skills/
-└── soul-comfort.skill                     # 心灵引导Skill定义
-
 agent-web/
 └── src/main/java/com/lightweightai/web/
+    ├── agent/
+    │   ├── SoulComfortAgent.java         # 核心Agent
+    │   └── ReflectionService.java        # 反思服务
     ├── service/
     │   └── SoulComfortChatService.java   # Web服务集成
     ├── controller/
     │   └── ChatController.java           # API端点
     └── model/
-        └── ChatRequest.java              # 请求模型（新增字段）
+        └── ChatRequest.java              # 请求模型
+
+agent-kernel/
+└── src/main/java/com/lightweightai/kernel/
+    └── memory/
+        ├── ConversationMemory.java       # 会话记忆管理
+        └── UserMemory.java               # 用户长期记忆
+
+agent-web/example-skills/
+└── soul-comfort/SKILL.md                 # 心灵引导Skill定义
 ```
 
 ## 功能详解

@@ -1,4 +1,10 @@
-# Lightweight AI Kernel - 最终架构总结
+> **Note:** This document is a historical snapshot from early development. The actual architecture
+> has evolved significantly. See `CLAUDE.md` for the current architecture documentation.
+> Key differences: AsyncTask/TaskExecutor/Kernel/StreamSource interfaces have been removed;
+> the project now uses AgentLoop + ToolCallingLoop + Reactor Flux; modules renamed from
+> kernel-* to agent-* + soul-* + kernel-memory.
+
+# Lightweight AI Kernel - 最终架构总结（历史文档）
 
 ## 🎯 项目完成状态
 

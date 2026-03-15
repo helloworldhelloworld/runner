@@ -1,4 +1,8 @@
-# Agent SDK 设计总结
+> **Note:** This document is a historical snapshot. The internal framework layer
+> (Kernel, AsyncTask, TaskExecutor, StreamSource) referenced here has been removed.
+> See `CLAUDE.md` for the current architecture.
+
+# Agent SDK 设计总结（历史文档）
 
 ## ✅ 已完成 (TDD方式)
 

@@ -1,5 +1,8 @@
-package com.lightweightai.kernel.agent;
+package com.lightweightai.web.agent;
 
+import com.lightweightai.kernel.agent.AgentObserver;
+import com.lightweightai.kernel.agent.AgentResponse;
+import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
