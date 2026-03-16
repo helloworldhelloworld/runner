@@ -99,10 +99,13 @@ public class AgentLoop {
         try {
             finalResponse = loop.executeWithTools(messages, llmOptions);
         } catch (RuntimeException e) {
-            return AgentResponse.builder()
-                .text("Reached maximum tool iterations")
-                .stopReason("max_iterations")
-                .build();
+            if (e.getMessage() != null && e.getMessage().contains("exceeded maximum iterations")) {
+                return AgentResponse.builder()
+                    .text("Reached maximum tool iterations")
+                    .stopReason("max_iterations")
+                    .build();
+            }
+            throw e;
         }
 
         // 5. 保存助手消息到记忆
