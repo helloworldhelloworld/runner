@@ -3,7 +3,6 @@ package com.lightweightai.tools;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolSource;
 import com.lightweightai.kernel.agent.annotation.AnnotatedToolScanner;
-import com.lightweightai.tools.ci.CiMonitorTool;
 import com.lightweightai.tools.math.MathTools;
 import com.lightweightai.tools.time.TimeTools;
 import com.lightweightai.tools.web.WebTools;
@@ -24,7 +23,6 @@ public class AgentToolsSource implements ToolSource {
         tools.addAll(AnnotatedToolScanner.scan(new MathTools()));
         tools.addAll(AnnotatedToolScanner.scan(new TimeTools()));
         tools.addAll(AnnotatedToolScanner.scan(new WebTools()));
-        tools.addAll(AnnotatedToolScanner.scan(new CiMonitorTool()));
         return tools;
     }
 }
