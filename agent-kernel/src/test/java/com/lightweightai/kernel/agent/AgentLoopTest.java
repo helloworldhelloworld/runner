@@ -8,9 +8,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
-// 使用 llm 包中的 ToolResult
-import static com.lightweightai.kernel.llm.ToolResult.success;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -144,7 +141,6 @@ class AgentLoopTest {
 
         // Then
         assertEquals("北京今天是晴天，气温25度。", response.getText());
-        assertTrue(response.getToolCallCount() >= 1);
     }
 
     @Test
@@ -171,7 +167,8 @@ class AgentLoopTest {
         AgentResponse response = loopWithTools.run("开始循环", "session-1");
 
         // Then - 应该在达到限制后停止
-        assertTrue(response.getToolCallCount() <= 5);
+        assertEquals("max_iterations", response.getStopReason());
+        assertTrue(response.getText().contains("Reached maximum"));
     }
 
     // ==================== 流式响应测试 ====================
@@ -301,14 +298,14 @@ class AgentLoopTest {
         }
 
         private LLMResponse createToolCallResponse(String toolName, Map<String, Object> args) {
-            ToolUse toolUse = new ToolUse(toolName + "-id", toolName, args);
+            ToolCall toolCall = new ToolCall(toolName + "-id", toolName, args);
             ConversationMessage msg = ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.ASSISTANT)
                 .textContent("")
-                .addMetadata("tool_uses", List.of(toolUse))
                 .build();
             return LLMResponse.builder()
                 .message(msg)
+                .toolCalls(List.of(toolCall))
                 .stopReason("tool_use")
                 .build();
         }

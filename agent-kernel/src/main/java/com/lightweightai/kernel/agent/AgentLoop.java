@@ -7,8 +7,6 @@ import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
-import com.lightweightai.kernel.llm.ToolResult;
-import com.lightweightai.kernel.llm.ToolUse;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.MemorySearchResult;
 import com.lightweightai.kernel.memory.Message;
@@ -17,7 +15,6 @@ import com.lightweightai.kernel.prompt.Skill;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -75,6 +72,9 @@ public class AgentLoop {
 
     /**
      * 执行 Agent 循环（同步）
+     *
+     * 委托给 ToolCallingLoop.executeWithTools() 处理 LLM ↔ Tool 循环，
+     * 本方法只负责前置（记忆检索、消息构建）和后置（记忆写入）。
      */
     public AgentResponse run(String input, String sessionId) {
         // 1. 检索相关记忆
@@ -87,68 +87,32 @@ public class AgentLoop {
         // 3. 构建消息上下文
         List<ConversationMessage> messages = buildMessages(sessionId, memoryContext);
 
-        // 4. Tool 循环
-        List<AgentResponse.ToolCallRecord> allToolCalls = new ArrayList<>();
-        int iterations = 0;
+        // 4. 委托给 ToolCallingLoop 执行工具循环
+        ToolExecutor toolExecutor = new ToolExecutor(toolRegistry);
+        ToolCallingLoop loop = ToolCallingLoop.builder()
+            .provider(llmProvider)
+            .toolExecutor(toolExecutor)
+            .maxIterations(maxToolIterations)
+            .build();
 
-        while (iterations < maxToolIterations) {
-            // 调用 LLM
-            LLMResponse llmResponse = llmProvider.complete(messages, llmOptions);
-            ConversationMessage assistantMsg = llmResponse.getMessage();
-
-            // 检查是否有 Tool 调用
-            if (!hasToolUse(assistantMsg)) {
-                // 无 Tool 调用，结束循环
-                String responseText = assistantMsg.getTextContent();
-
-                // 保存助手消息到记忆
-                memoryProvider.addMessage(sessionId, Message.assistant(responseText));
-
-                // 写入 Ephemeral 记忆（对话摘要）
-                writeConversationToMemory(input, responseText);
-
-                return AgentResponse.builder()
-                    .text(responseText)
-                    .toolCalls(allToolCalls)
-                    .stopReason(llmResponse.getStopReason())
-                    .build();
-            }
-
-            // 有 Tool 调用，执行工具
-            List<ToolUse> toolUses = extractToolUses(assistantMsg);
-            List<ToolResult> toolResults = new ArrayList<>();
-
-            for (ToolUse toolUse : toolUses) {
-                Tool tool = toolRegistry.get(toolUse.getName()).orElse(null);
-                if (tool == null || !toolRegistry.isEnabled(toolUse.getName())) {
-                    toolResults.add(ToolResult.error(toolUse.getId(),
-                        "Unknown tool: " + toolUse.getName()));
-                    continue;
-                }
-
-                try {
-                    ToolResult result = tool.execute(toolUse.getInput())
-                        .withToolUseId(toolUse.getId());
-                    toolResults.add(result);
-                    allToolCalls.add(new AgentResponse.ToolCallRecord(
-                        toolUse.getName(), toolUse.getInput().toString(), result.getContent()));
-                } catch (Exception e) {
-                    toolResults.add(ToolResult.error(toolUse.getId(), e));
-                }
-            }
-
-            // 添加助手消息和工具结果到上下文
-            messages.add(assistantMsg);
-            messages.add(createToolResultMessage(toolResults));
-
-            iterations++;
+        LLMResponse finalResponse;
+        try {
+            finalResponse = loop.executeWithTools(messages, llmOptions);
+        } catch (RuntimeException e) {
+            return AgentResponse.builder()
+                .text("Reached maximum tool iterations")
+                .stopReason("max_iterations")
+                .build();
         }
 
-        // 达到最大迭代次数
+        // 5. 保存助手消息到记忆
+        String responseText = finalResponse.getMessage().getTextContent();
+        memoryProvider.addMessage(sessionId, Message.assistant(responseText));
+        writeConversationToMemory(input, responseText);
+
         return AgentResponse.builder()
-            .text("Reached maximum tool iterations")
-            .toolCalls(allToolCalls)
-            .stopReason("max_iterations")
+            .text(responseText)
+            .stopReason(finalResponse.getStopReason())
             .build();
     }
 
@@ -268,35 +232,6 @@ public class AgentLoop {
             sb.append("- ").append(results.get(i).getSnippet(100)).append("\n");
         }
         return sb.toString();
-    }
-
-    private boolean hasToolUse(ConversationMessage msg) {
-        // 检查消息元数据中是否有 tool_uses
-        Object toolUses = msg.getMetadata().get("tool_uses");
-        return toolUses != null && toolUses instanceof List && !((List<?>) toolUses).isEmpty();
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<ToolUse> extractToolUses(ConversationMessage msg) {
-        Object toolUses = msg.getMetadata().get("tool_uses");
-        if (toolUses == null || !(toolUses instanceof List)) {
-            return Collections.emptyList();
-        }
-        return (List<ToolUse>) toolUses;
-    }
-
-    private ConversationMessage createToolResultMessage(List<ToolResult> results) {
-        // 将工具结果格式化为文本
-        StringBuilder sb = new StringBuilder();
-        for (ToolResult result : results) {
-            sb.append("Tool result for ").append(result.getToolUseId()).append(":\n");
-            sb.append(result.getContent()).append("\n\n");
-        }
-
-        return ConversationMessage.builder()
-            .role(ConversationMessage.MessageRole.USER)
-            .textContent(sb.toString().trim())
-            .build();
     }
 
     private void writeConversationToMemory(String userInput, String response) {
