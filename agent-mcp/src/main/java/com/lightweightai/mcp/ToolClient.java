@@ -250,7 +250,7 @@ public class ToolClient implements AutoCloseable {
             return merged;
         }
 
-        static McpClientTransport createTransport(String name,
+        public static McpClientTransport createTransport(String name,
                                                     McpConfiguration.ServerConfig config,
                                                     McpHeaderProvider headerProvider) {
             String transport = config.getTransport();

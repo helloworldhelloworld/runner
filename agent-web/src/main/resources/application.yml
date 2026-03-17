@@ -51,27 +51,35 @@ app:
   # MCP 远程工具配置
   # 启用后，Spring 启动时自动连接 MCP Server，远程工具注册到 ToolRegistry
   # LLM 通过 ToolCallingLoop 可以透明调用这些远程工具
+  #
+  # 动态 Header 支持：声明一个 McpHeaderProvider Bean 即可，与 server 注册解耦
+  # 框架启动时自动合并 静态 headers（下方配置）+ 动态 headers（Provider Bean）
   mcp:
     enabled: ${MCP_ENABLED:false}  # 设置 MCP_ENABLED=true 启用
     servers:
-      # 示例：本项目 Demo MCP Server
+      # 示例：STDIO 本地 MCP Server
       # demo-agent:
       #   command: java
-      #   args: -cp,classpath,com.lightweightai.demo.McpServerRunner
+      #   args:
+      #     - -cp
+      #     - classpath
+      #     - com.lightweightai.demo.McpServerRunner
       #   timeout: 60
       #
-      # 示例：NPM MCP Server
-      # weather:
-      #   command: npx
-      #   args: -y,@weather/mcp-server
-      #   env: API_KEY=${WEATHER_API_KEY}
-      #   timeout: 30
-      #
-      # 示例：SSE 远程 MCP Server
+      # 示例：SSE 远程 MCP Server（带静态 header）
       # remote-api:
       #   transport: sse
       #   url: http://api-server:8080/sse
       #   timeout: 45
+      #   headers:
+      #     X-API-Key: "${REMOTE_API_KEY:}"
+      #     X-Client-Version: "1.0"
+      #
+      # 示例：Streamable HTTP（动态 header 由 McpHeaderProvider Bean 注入）
+      # auth-service:
+      #   transport: streamable_http
+      #   url: http://auth-server:8080/mcp
+      #   timeout: 30
 
   speech:
     # 语音服务配置
