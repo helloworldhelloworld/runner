@@ -106,9 +106,14 @@ public class McpToolWrapper implements Tool, ToolMetadata {
                 ln.meta()
             ));
 
-        // 3. 调用工具（Mono），并在 COMPLETE 前补充结构化中间日志（若有）
-        Flux<ToolResultChunk> resultFlux = toolClient
-            .callToolReactive(mcpTool.name(), args, progressToken)
+        // 3. 调用工具（Mono）— 桥接 Reactor Context 中的 per-request headers 到 ThreadLocal
+        //    McpHeaderContext.bind() 将 contextWrite() 写入的 header 注入 ThreadLocal，
+        //    transport 的 customizeRequest 回调通过 McpHeaderContext.current() 读取。
+        Flux<ToolResultChunk> resultFlux = Mono
+            .deferContextual(ctx -> {
+                McpHeaderContext.bind(ctx);
+                return toolClient.callToolReactive(mcpTool.name(), args, progressToken);
+            })
             .flatMapMany(mcpResult -> {
                 String content = extractContent(mcpResult);
                 boolean isError = mcpResult.isError() != null && mcpResult.isError();
@@ -132,6 +137,7 @@ public class McpToolWrapper implements Tool, ToolMetadata {
                 return Flux.just(ToolResultChunk.error(toolName, "MCP call failed: " + e.getMessage()));
             })
             .doFinally(signal -> {
+                McpHeaderContext.unbind();
                 toolClient.getProgressRouter().complete(progressToken);
                 toolClient.getLoggingRouter().complete(progressToken);
             });

@@ -250,11 +250,10 @@ public class ToolClient implements AutoCloseable {
             return merged;
         }
 
-        static McpClientTransport createTransport(String name,
+        public static McpClientTransport createTransport(String name,
                                                     McpConfiguration.ServerConfig config,
                                                     McpHeaderProvider headerProvider) {
             String transport = config.getTransport();
-            Map<String, String> headers = resolveHeaders(config, headerProvider);
 
             if ("streamable_http".equalsIgnoreCase(transport)
                     || "streamable-http".equalsIgnoreCase(transport)
@@ -269,13 +268,24 @@ public class ToolClient implements AutoCloseable {
                 if (endpoint == null || endpoint.isEmpty()) {
                     endpoint = "/mcp";
                 }
+                // 静态 headers 快照（启动时确定，不变）
+                Map<String, String> staticHeaders = config.getHeaders() != null
+                    ? Map.copyOf(config.getHeaders()) : Map.of();
+
                 var builder = HttpClientStreamableHttpTransport.builder(baseUrl)
                     .endpoint(endpoint);
-                if (!headers.isEmpty()) {
-                    builder.customizeRequest(reqBuilder -> {
-                        headers.forEach(reqBuilder::header);
-                    });
-                }
+
+                // customizeRequest 每次 HTTP 请求回调 — 三层 header 合并
+                builder.customizeRequest(reqBuilder -> {
+                    // 1. 静态 YAML 配置 headers
+                    staticHeaders.forEach(reqBuilder::header);
+                    // 2. per-request headers（McpToolWrapper 通过 McpHeaderContext 桥接）
+                    McpHeaderContext.current().forEach(reqBuilder::header);
+                    // 3. 全局 McpHeaderProvider（可选兜底）
+                    if (headerProvider != null) {
+                        headerProvider.getHeaders().forEach(reqBuilder::header);
+                    }
+                });
                 return builder.build();
             }
 
@@ -284,6 +294,9 @@ public class ToolClient implements AutoCloseable {
                     throw new IllegalStateException(
                         "MCP server '" + name + "': SSE transport requires 'url'");
                 }
+                // SSE: requestBuilder() 是一次性模板，不支持 per-request 动态 header
+                // 只合并静态 config headers + 全局 provider（启动时确定）
+                Map<String, String> headers = resolveHeaders(config, headerProvider);
                 var sseBuilder = HttpClientSseClientTransport.builder(config.getUrl())
                     .sseEndpoint("/sse");
                 if (!headers.isEmpty()) {

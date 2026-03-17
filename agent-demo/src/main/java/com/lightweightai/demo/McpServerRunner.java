@@ -13,11 +13,6 @@ import com.lightweightai.mcp.McpToolServer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
-import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
-import io.modelcontextprotocol.client.transport.ServerParameters;
-import io.modelcontextprotocol.client.transport.StdioClientTransport;
-import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpClientTransport;
 
 import java.io.InputStream;
@@ -234,94 +229,10 @@ public class McpServerRunner {
     }
 
     /**
-     * 根据配置创建传输层
-     *
-     * SSE：HttpClientSseClientTransport（旧版 SSE 协议）
-     * Streamable HTTP：HttpClientStreamableHttpTransport（新版 HTTP 协议，推荐）
-     * STDIO：StdioClientTransport（本地子进程，开发/测试用）
+     * 根据配置创建传输层 — 委托 ToolClient.Builder.createTransport() 统一实现
      */
     private static McpClientTransport createTransport(String name, ServerConfig config) {
-        String transport = config.getTransport();
-
-        // Streamable HTTP — 新版 MCP 传输协议（2025-03-26+）
-        if ("streamable_http".equalsIgnoreCase(transport)
-                || "streamable-http".equalsIgnoreCase(transport)
-                || "http".equalsIgnoreCase(transport)) {
-            if (config.getUrl() == null || config.getUrl().isBlank()) {
-                throw new IllegalStateException("Upstream '" + name + "': Streamable HTTP requires 'url'");
-            }
-            java.net.URI uri = java.net.URI.create(config.getUrl());
-            String baseUrl = uri.getScheme() + "://" + uri.getAuthority();
-            String endpoint = uri.getRawPath();
-            if (endpoint == null || endpoint.isEmpty()) {
-                endpoint = "/mcp";
-            }
-            var httpBuilder = HttpClientStreamableHttpTransport.builder(baseUrl)
-                .endpoint(endpoint);
-            Map<String, String> headers = config.getHeaders();
-            if (headers != null && !headers.isEmpty()) {
-                httpBuilder.customizeRequest(reqBuilder -> {
-                    headers.forEach(reqBuilder::header);
-                });
-            }
-            return httpBuilder.build();
-        }
-
-        // SSE — 旧版传输协议
-        if ("sse".equalsIgnoreCase(transport)) {
-            if (config.getUrl() == null || config.getUrl().isBlank()) {
-                throw new IllegalStateException("Upstream '" + name + "': SSE requires 'url'");
-            }
-            var sseBuilder = HttpClientSseClientTransport.builder(config.getUrl())
-                .sseEndpoint("/sse");
-            Map<String, String> headers = config.getHeaders();
-            if (headers != null && !headers.isEmpty()) {
-                java.net.http.HttpRequest.Builder reqBuilder = java.net.http.HttpRequest.newBuilder();
-                headers.forEach(reqBuilder::header);
-                sseBuilder.requestBuilder(reqBuilder);
-            }
-            return sseBuilder.build();
-        }
-
-        // STDIO — 启动本地子进程
-        if (config.getCommand() == null || config.getCommand().isBlank()) {
-            throw new IllegalStateException("Upstream '" + name + "': STDIO requires 'command'");
-        }
-
-        List<String> resolvedArgs = resolveArgs(config.getArgs());
-        ServerParameters.Builder paramsBuilder = ServerParameters.builder(config.getCommand());
-        if (!resolvedArgs.isEmpty()) {
-            paramsBuilder.args(resolvedArgs.toArray(new String[0]));
-        }
-        if (config.getEnv() != null && !config.getEnv().isEmpty()) {
-            paramsBuilder.env(config.getEnv());
-        }
-        return new StdioClientTransport(paramsBuilder.build(),
-            new JacksonMcpJsonMapper(new ObjectMapper()));
-    }
-
-    private static List<String> resolveArgs(List<String> args) {
-        if (args == null) return List.of();
-        return args.stream()
-            .map(McpServerRunner::resolvePlaceholders)
-            .toList();
-    }
-
-    private static String resolvePlaceholders(String value) {
-        if (value == null || !value.contains("${")) return value;
-        value = value.replace("${CLASSPATH}", System.getProperty("java.class.path", ""));
-        // ${XXX} → System.getProperty or System.getenv
-        while (value.contains("${")) {
-            int start = value.indexOf("${");
-            int end = value.indexOf("}", start);
-            if (end < 0) break;
-            String key = value.substring(start + 2, end);
-            String resolved = System.getProperty(key);
-            if (resolved == null) resolved = System.getenv(key);
-            if (resolved == null) resolved = "";
-            value = value.substring(0, start) + resolved + value.substring(end + 1);
-        }
-        return value;
+        return com.lightweightai.mcp.ToolClient.Builder.createTransport(name, config, null);
     }
 
     // ==================== 本地工具 ====================

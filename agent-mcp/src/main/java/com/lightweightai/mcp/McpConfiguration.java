@@ -243,6 +243,13 @@ public class McpConfiguration {
             this.timeoutSeconds = timeoutSeconds;
         }
 
+        /**
+         * setTimeout 别名 — 兼容 YAML 中 `timeout: 60` 的写法
+         */
+        public void setTimeout(long timeout) {
+            this.timeoutSeconds = timeout;
+        }
+
         public Map<String, String> getHeaders() {
             return headers;
         }
