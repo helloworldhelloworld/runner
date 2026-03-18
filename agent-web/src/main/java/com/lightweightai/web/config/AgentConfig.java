@@ -63,6 +63,9 @@ public class AgentConfig {
     @Value("${app.openrouter.base-url:}")
     private String openRouterBaseUrl;
 
+    @Value("${app.tools-enabled:true}")
+    private boolean toolsEnabled;
+
     @Value("${app.web-search.api-key:}")
     private String webSearchApiKey;
 
@@ -265,6 +268,13 @@ public class AgentConfig {
     @Bean
     public ToolRegistry toolRegistry() {
         ToolRegistry registry = new ToolRegistry();
+
+        if (!toolsEnabled) {
+            logger.warn("Tools disabled (app.tools-enabled=false). " +
+                "LLM requests will not include function calling definitions. " +
+                "Set TOOLS_ENABLED=true or remove the setting to enable tools.");
+            return registry;
+        }
 
         // Auto-scan and register all Tool implementations via Java SPI
         // Includes Tool SPI (interface) and ToolSource SPI (annotation-based)
