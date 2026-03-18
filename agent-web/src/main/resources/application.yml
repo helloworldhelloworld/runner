@@ -37,9 +37,10 @@ app:
     session-key: ${CLAUDE_SESSION_KEY:}  # 从浏览器Cookie获取的sessionKey
     organization-id: ${CLAUDE_ORG_ID:}  # 可选，会自动获取
   openrouter:
-    # OpenRouter配置（支持多种模型）
-    api-key: ${OPENROUTER_API_KEY:}  # OpenRouter API Key
+    # OpenRouter / OpenAI兼容API配置（支持多种模型）
+    api-key: ${OPENROUTER_API_KEY:}  # API Key（部分自建服务可留空）
     model: ${OPENROUTER_MODEL:anthropic/claude-3.5-sonnet}  # 模型选择
+    base-url: ${OPENROUTER_BASE_URL:}  # 自定义API地址，留空则默认OpenRouter。示例: http://10.32.101.24:8086/llm/openai
   soul:
     db-path: ${SOUL_DB_PATH:./data/soul_data.db}
     crisis-detection: true

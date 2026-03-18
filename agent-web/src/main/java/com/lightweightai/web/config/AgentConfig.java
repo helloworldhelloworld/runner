@@ -59,6 +59,9 @@ public class AgentConfig {
     @Value("${app.openrouter.model:anthropic/claude-3.5-sonnet}")
     private String openRouterModel;
 
+    @Value("${app.openrouter.base-url:}")
+    private String openRouterBaseUrl;
+
     @Value("${app.web-search.api-key:}")
     private String webSearchApiKey;
 
@@ -112,12 +115,10 @@ public class AgentConfig {
                 return new ClaudeProvider(claudeApiKey, claudeModel);
 
             case "openrouter":
-                if (openRouterApiKey == null || openRouterApiKey.isEmpty()) {
-                    logger.warn("OpenRouter mode selected but no API key provided, falling back to Mock");
-                    return new MockLLMProvider();
-                }
-                logger.info("Using OpenRouter Provider with model: {}", openRouterModel);
-                return new OpenRouterProvider(openRouterApiKey, openRouterModel);
+                logger.info("Using OpenRouter Provider with model: {}, baseUrl: {}",
+                    openRouterModel,
+                    (openRouterBaseUrl != null && !openRouterBaseUrl.isEmpty()) ? openRouterBaseUrl : "(default)");
+                return new OpenRouterProvider(openRouterApiKey, openRouterModel, openRouterBaseUrl);
 
             case "mock":
             default:
