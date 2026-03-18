@@ -2,7 +2,6 @@ package com.lightweightai.web.gateway;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.gateway.Gateway;
 import com.lightweightai.kernel.gateway.GatewayRequest;
@@ -28,6 +27,15 @@ import java.util.concurrent.Executors;
  *
  * 仅负责 HTTP/SSE 协议适配，所有业务逻辑委托 Gateway（kernel）。
  * 支持所有客户端：Web / iOS / Android / HarmonyOS
+ *
+ * <p>工具调用事件通过 {@link GatewayStreamHandler} 的扩展回调传递：
+ * <ul>
+ *   <li>{@code onToolCallStart} — LLM 决定调用工具</li>
+ *   <li>{@code onToolProgress} — 工具执行进度（MCP ProgressNotification）</li>
+ *   <li>{@code onToolLog} — 工具执行日志（MCP LoggingNotification）</li>
+ *   <li>{@code onToolResult} — 工具执行完成</li>
+ *   <li>{@code onToolError} — 工具执行错误</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/gateway")
@@ -69,7 +77,21 @@ public class GatewayController {
     }
 
     /**
-     * 统一聊天接口（流式 SSE）
+     * 统一聊天接口（流式 SSE — 支持 MCP 工具调用事件）
+     *
+     * 通过 Gateway.handleStream() → GatewayStreamHandler 回调接收全链路事件，
+     * 包括文本片段、工具调用开始/进度/日志/结果/错误。
+     *
+     * SSE event name 对应关系：
+     * <ul>
+     *   <li>{@code message} — 文本片段 (TEXT_DELTA) 和完成 (COMPLETE)</li>
+     *   <li>{@code tool_call_start} — 工具调用开始</li>
+     *   <li>{@code tool_progress} — 工具执行进度</li>
+     *   <li>{@code tool_log} — 工具执行日志</li>
+     *   <li>{@code tool_result} — 工具执行结果</li>
+     *   <li>{@code tool_error} — 工具执行错误</li>
+     *   <li>{@code error} — 错误</li>
+     * </ul>
      */
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(@RequestBody UnifiedChatRequest request) {
@@ -79,7 +101,7 @@ public class GatewayController {
         logger.info("Gateway stream - requestId: {}, client: {}, session: {}",
             requestId, request.getClientType(), sessionId);
 
-        SseEmitter emitter = new SseEmitter(60000L);
+        SseEmitter emitter = new SseEmitter(120000L);
 
         executor.submit(() -> {
             try {
@@ -116,7 +138,6 @@ public class GatewayController {
                             );
                             completeResponse.setLatencyMs(response.getLatencyMs());
 
-                            // 从 metadata 提取 skillsApplied
                             Map<String, Object> meta = response.getMetadata();
                             if (meta != null) {
                                 Object skills = meta.get("skillsApplied");
@@ -153,6 +174,87 @@ public class GatewayController {
                         }
                         emitter.completeWithError(error);
                     }
+
+                    // ==================== 工具事件回调 ====================
+
+                    @Override
+                    public void onToolCallStart(ToolCall toolCall) {
+                        try {
+                            UnifiedChatResponse response = UnifiedChatResponse.toolCallStart(
+                                requestId,
+                                toolCall.getName(),
+                                toolCall.getId());
+                            emitter.send(SseEmitter.event()
+                                .name("tool_call_start")
+                                .data(compactMapper.writeValueAsString(response)));
+                        } catch (IOException e) {
+                            logger.error("Failed to send SSE tool_call_start", e);
+                        }
+                    }
+
+                    @Override
+                    public void onToolProgress(ToolResultChunk chunk) {
+                        try {
+                            UnifiedChatResponse response = UnifiedChatResponse.toolProgress(
+                                requestId,
+                                chunk.getToolName(),
+                                chunk.getProgress(),
+                                chunk.getTotal(),
+                                chunk.getMessage() != null ? chunk.getMessage() : "");
+                            emitter.send(SseEmitter.event()
+                                .name("tool_progress")
+                                .data(compactMapper.writeValueAsString(response)));
+                        } catch (IOException e) {
+                            logger.error("Failed to send SSE tool_progress", e);
+                        }
+                    }
+
+                    @Override
+                    public void onToolLog(ToolResultChunk chunk) {
+                        try {
+                            UnifiedChatResponse response = UnifiedChatResponse.toolLog(
+                                requestId,
+                                chunk.getToolName(),
+                                chunk.getMessage() != null ? chunk.getMessage() : "");
+                            emitter.send(SseEmitter.event()
+                                .name("tool_log")
+                                .data(compactMapper.writeValueAsString(response)));
+                        } catch (IOException e) {
+                            logger.error("Failed to send SSE tool_log", e);
+                        }
+                    }
+
+                    @Override
+                    public void onToolResult(ToolResultChunk chunk) {
+                        if (chunk.getResult() == null) return;
+                        try {
+                            UnifiedChatResponse response = UnifiedChatResponse.toolResult(
+                                requestId,
+                                chunk.getToolName(),
+                                chunk.getResult().getContent(),
+                                chunk.getResult().isError());
+                            emitter.send(SseEmitter.event()
+                                .name("tool_result")
+                                .data(compactMapper.writeValueAsString(response)));
+                        } catch (IOException e) {
+                            logger.error("Failed to send SSE tool_result", e);
+                        }
+                    }
+
+                    @Override
+                    public void onToolError(ToolResultChunk chunk) {
+                        try {
+                            String msg = chunk.getMessage() != null
+                                ? chunk.getMessage() : "Tool execution failed";
+                            UnifiedChatResponse response = UnifiedChatResponse.toolError(
+                                requestId, chunk.getToolName(), msg);
+                            emitter.send(SseEmitter.event()
+                                .name("tool_error")
+                                .data(compactMapper.writeValueAsString(response)));
+                        } catch (IOException e) {
+                            logger.error("Failed to send SSE tool_error", e);
+                        }
+                    }
                 });
 
             } catch (Exception e) {
@@ -166,184 +268,6 @@ public class GatewayController {
         emitter.onError(e -> logger.error("SSE error - {}", requestId, e));
 
         return emitter;
-    }
-
-    /**
-     * 统一聊天接口（Reactive 流式 SSE — 支持 MCP 工具调用事件）
-     *
-     * 相比 /chat/stream，此端点额外推送工具调用全链路事件：
-     * - tool_call_start: LLM 决定调用工具
-     * - tool_progress:   工具执行进度（MCP ProgressNotification）
-     * - tool_log:        工具执行日志（MCP LoggingNotification）
-     * - tool_result:     工具执行完成
-     * - tool_error:      工具执行错误
-     *
-     * SSE event name 与 data 的 type 字段一致，便于前端分事件监听。
-     */
-    @PostMapping(value = "/chat/stream/reactive", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chatStreamReactive(@RequestBody UnifiedChatRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
-
-        logger.info("Gateway reactive stream - requestId: {}, client: {}, session: {}",
-            requestId, request.getClientType(), sessionId);
-
-        SseEmitter emitter = new SseEmitter(120000L);
-        StringBuilder fullText = new StringBuilder();
-
-        executor.submit(() -> {
-            try {
-                GatewayRequest gatewayRequest = toGatewayRequest(request, requestId);
-
-                gateway.handleStreamReactive(gatewayRequest)
-                    .subscribe(
-                        event -> {
-                            try {
-                                sendSseEvent(emitter, requestId, sessionId, event, fullText);
-                            } catch (IOException e) {
-                                logger.error("Failed to send SSE event: {}", event.getType(), e);
-                            }
-                        },
-                        error -> {
-                            logger.error("Reactive stream error", error);
-                            try {
-                                UnifiedChatResponse errorResponse = UnifiedChatResponse.error(
-                                    requestId, error.getMessage());
-                                emitter.send(SseEmitter.event()
-                                    .name("error")
-                                    .data(compactMapper.writeValueAsString(errorResponse)));
-                            } catch (IOException e) {
-                                logger.error("Failed to send SSE error", e);
-                            }
-                            emitter.completeWithError(error);
-                        },
-                        () -> {
-                            try {
-                                UnifiedChatResponse completeResponse = UnifiedChatResponse.complete(
-                                    requestId, sessionId, fullText.toString());
-                                emitter.send(SseEmitter.event()
-                                    .name("complete")
-                                    .data(compactMapper.writeValueAsString(completeResponse)));
-                                emitter.complete();
-                            } catch (IOException e) {
-                                logger.error("Failed to send SSE complete", e);
-                                emitter.completeWithError(e);
-                            }
-                        }
-                    );
-            } catch (Exception e) {
-                logger.error("Gateway reactive stream failed", e);
-                emitter.completeWithError(e);
-            }
-        });
-
-        emitter.onCompletion(() -> logger.debug("Reactive SSE completed - {}", requestId));
-        emitter.onTimeout(() -> logger.warn("Reactive SSE timeout - {}", requestId));
-        emitter.onError(e -> logger.error("Reactive SSE error - {}", requestId, e));
-
-        return emitter;
-    }
-
-    /**
-     * 将 StreamEvent 转换为 SSE 事件发送
-     */
-    private void sendSseEvent(SseEmitter emitter, String requestId, String sessionId,
-                               StreamEvent event, StringBuilder fullText) throws IOException {
-        UnifiedChatResponse response;
-
-        switch (event.getType()) {
-            case TEXT_DELTA -> {
-                String delta = event.getTextDelta();
-                if (delta != null && !delta.isEmpty()) {
-                    fullText.append(delta);
-                    response = UnifiedChatResponse.delta(requestId, delta);
-                    emitter.send(SseEmitter.event()
-                        .name("message")
-                        .data(compactMapper.writeValueAsString(response)));
-                }
-            }
-            case TOOL_CALL_START -> {
-                ToolCall toolCall = event.getToolCall();
-                String toolName = toolCall != null ? toolCall.getName() : "";
-                String toolCallId = toolCall != null ? toolCall.getId() : "";
-                response = UnifiedChatResponse.toolCallStart(requestId, toolName, toolCallId);
-                emitter.send(SseEmitter.event()
-                    .name("tool_call_start")
-                    .data(compactMapper.writeValueAsString(response)));
-            }
-            case TOOL_PROGRESS -> {
-                ToolResultChunk chunk = event.getChunk();
-                if (chunk != null) {
-                    response = UnifiedChatResponse.toolProgress(requestId,
-                        chunk.getToolName(),
-                        chunk.getProgress(),
-                        chunk.getTotal(),
-                        chunk.getMessage() != null ? chunk.getMessage() : "");
-                    emitter.send(SseEmitter.event()
-                        .name("tool_progress")
-                        .data(compactMapper.writeValueAsString(response)));
-                }
-            }
-            case TOOL_LOG -> {
-                ToolResultChunk chunk = event.getChunk();
-                if (chunk != null) {
-                    response = UnifiedChatResponse.toolLog(requestId,
-                        chunk.getToolName(),
-                        chunk.getMessage() != null ? chunk.getMessage() : "");
-                    emitter.send(SseEmitter.event()
-                        .name("tool_log")
-                        .data(compactMapper.writeValueAsString(response)));
-                }
-            }
-            case TOOL_RESULT -> {
-                ToolResultChunk chunk = event.getChunk();
-                if (chunk != null && chunk.getResult() != null) {
-                    response = UnifiedChatResponse.toolResult(requestId,
-                        chunk.getToolName(),
-                        chunk.getResult().getContent(),
-                        chunk.getResult().isError());
-                    emitter.send(SseEmitter.event()
-                        .name("tool_result")
-                        .data(compactMapper.writeValueAsString(response)));
-                }
-            }
-            case TOOL_ERROR -> {
-                ToolResultChunk chunk = event.getChunk();
-                String toolName = chunk != null ? chunk.getToolName() : "";
-                String msg = chunk != null && chunk.getMessage() != null
-                    ? chunk.getMessage() : "Tool execution failed";
-                response = UnifiedChatResponse.toolError(requestId, toolName, msg);
-                emitter.send(SseEmitter.event()
-                    .name("tool_error")
-                    .data(compactMapper.writeValueAsString(response)));
-            }
-            case LLM_COMPLETE -> {
-                // LLM 完成但可能还有后续工具调用轮次，不在这里结束
-                // 流的结束由 Flux.onComplete 处理
-            }
-            case POST_PROCESS_DATA -> {
-                // 后处理器数据原样转发
-                if (event.getData() != null) {
-                    response = UnifiedChatResponse.delta(requestId, "");
-                    response.setMetadata(Map.of(
-                        "post_process_category", event.getCategory() != null ? event.getCategory() : "",
-                        "post_process_data", event.getData()
-                    ));
-                    response.setType(UnifiedChatResponse.ResponseType.DELTA);
-                    emitter.send(SseEmitter.event()
-                        .name("post_process")
-                        .data(compactMapper.writeValueAsString(response)));
-                }
-            }
-            case ERROR -> {
-                String errorMsg = event.getError() != null
-                    ? event.getError().getMessage() : "Unknown error";
-                response = UnifiedChatResponse.error(requestId, errorMsg);
-                emitter.send(SseEmitter.event()
-                    .name("error")
-                    .data(compactMapper.writeValueAsString(response)));
-            }
-        }
     }
 
     /**
