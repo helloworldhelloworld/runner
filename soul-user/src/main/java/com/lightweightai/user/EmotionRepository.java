@@ -1,7 +1,6 @@
 package com.lightweightai.user;
 
 import com.lightweightai.user.model.EmotionRecord;
-import org.slf4j.Logger;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -10,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**

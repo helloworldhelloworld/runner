@@ -7,10 +7,10 @@ import com.lightweightai.assessment.model.ScaleType;
 import com.lightweightai.assessment.scale.Gad7Scale;
 import com.lightweightai.assessment.scale.Phq9Scale;
 import com.lightweightai.assessment.scale.Pss10Scale;
-import org.slf4j.Logger;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**

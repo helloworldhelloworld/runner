@@ -6,8 +6,8 @@ import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
-import org.slf4j.Logger;
 import java.util.List;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
