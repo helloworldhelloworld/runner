@@ -1,5 +1,8 @@
 package com.lightweightai.demo;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
@@ -8,9 +11,6 @@ import com.lightweightai.kernel.agent.annotation.ToolParam;
 import com.lightweightai.mcp.McpConfiguration;
 import com.lightweightai.mcp.McpConfiguration.McpServerConfig;
 import com.lightweightai.mcp.McpConfiguration.ServerConfig;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolServer;
 import io.modelcontextprotocol.spec.McpClientTransport;

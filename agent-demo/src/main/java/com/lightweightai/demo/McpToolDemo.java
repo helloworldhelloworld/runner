@@ -1,5 +1,6 @@
 package com.lightweightai.demo;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
@@ -8,7 +9,6 @@ import com.lightweightai.kernel.agent.annotation.ToolFunction;
 import com.lightweightai.kernel.agent.annotation.ToolParam;
 import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.core.ToolExecutor;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
 import com.lightweightai.kernel.llm.LLMOptions;

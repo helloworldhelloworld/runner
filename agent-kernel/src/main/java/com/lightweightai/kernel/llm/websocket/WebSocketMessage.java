@@ -427,7 +427,9 @@ public class WebSocketMessage {
         public void setName(String name) {
             this.name = name;
         }
-        public Map<String, Object> getPayload() { return payload; }
+        public Map<String, Object> getPayload() {
+            return payload;
+        }
         public void setPayload(Map<String, Object> payload) {
             this.payload = payload;
         }
@@ -484,7 +486,9 @@ public class WebSocketMessage {
         public void setContent(String content) {
             this.content = content;
         }
-        public Map<String, Object> getMetadata() { return metadata; }
+        public Map<String, Object> getMetadata() {
+            return metadata;
+        }
         public void setMetadata(Map<String, Object> metadata) {
             this.metadata = metadata;
         }
@@ -566,7 +570,9 @@ public class WebSocketMessage {
         public void setDescription(String description) {
             this.description = description;
         }
-        public Map<String, Object> getInputSchema() { return inputSchema; }
+        public Map<String, Object> getInputSchema() {
+            return inputSchema;
+        }
         public void setInputSchema(Map<String, Object> inputSchema) {
             this.inputSchema = inputSchema;
         }
@@ -617,7 +623,9 @@ public class WebSocketMessage {
         public void setToolName(String toolName) {
             this.toolName = toolName;
         }
-        public Map<String, Object> getArguments() { return arguments; }
+        public Map<String, Object> getArguments() {
+            return arguments;
+        }
         public void setArguments(Map<String, Object> arguments) {
             this.arguments = arguments;
         }

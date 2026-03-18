@@ -50,7 +50,9 @@ public class PromptRequest {
     public int getMaxMemoryResults() {
         return maxMemoryResults;
     }
-    public Map<String, Object> getContext() { return new HashMap<>(context); }
+    public Map<String, Object> getContext() {
+        return new HashMap<>(context);
+    }
 
     // ==================== Builder ====================
 

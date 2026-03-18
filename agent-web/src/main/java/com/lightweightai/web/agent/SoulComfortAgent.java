@@ -198,10 +198,14 @@ public class SoulComfortAgent {
     public CompletableFuture<String> chatStream(String sessionId, String userMessage,
                                                  String externalMemoryContext,
                                                  LLMProvider.StreamEventHandler handler) {
-        if (observer != null) observer.onAgentStart(userMessage, sessionId);
+        if (observer != null) {
+            observer.onAgentStart(userMessage, sessionId);
+        }
 
         List<ConversationMessage> messages = buildMessages(sessionId, userMessage, externalMemoryContext);
-        if (observer != null) observer.onLLMRequest(messages);
+        if (observer != null) {
+            observer.onLLMRequest(messages);
+        }
 
         LLMOptions optionsFinal = LLMOptions.builder().maxTokens(500).temperature(0.8).build();
 

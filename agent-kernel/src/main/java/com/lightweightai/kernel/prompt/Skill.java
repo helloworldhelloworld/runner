@@ -62,7 +62,9 @@ public class Skill {
     public int getPriority() {
         return priority;
     }
-    public Map<String, Object> getMetadata() { return new HashMap<>(metadata); }
+    public Map<String, Object> getMetadata() {
+        return new HashMap<>(metadata);
+    }
 
     /**
      * 检查消息是否触发此 Skill
@@ -213,7 +215,9 @@ public class Skill {
         public String getDescription() {
             return description;
         }
-        public Map<String, Object> getParameters() { return new HashMap<>(parameters); }
+        public Map<String, Object> getParameters() {
+            return new HashMap<>(parameters);
+        }
 
         /**
          * 转换为 JSON Schema 格式

@@ -9,10 +9,10 @@ import com.lightweightai.kernel.llm.websocket.WebSocketMessage;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage.ClientToolCallData;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage.DirectiveData;
 import io.vertx.core.http.ServerWebSocket;
-import org.slf4j.Logger;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**

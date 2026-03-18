@@ -62,7 +62,9 @@ public class PromptContext {
     public Instant getBuildTime() {
         return buildTime;
     }
-    public Map<String, Object> getMetadata() { return new HashMap<>(metadata); }
+    public Map<String, Object> getMetadata() {
+        return new HashMap<>(metadata);
+    }
 
     public boolean hasTools() {
         return !tools.isEmpty();

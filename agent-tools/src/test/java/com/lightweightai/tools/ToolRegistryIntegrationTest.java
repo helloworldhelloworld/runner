@@ -1,5 +1,10 @@
 package com.lightweightai.tools;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.ToolScanner;
@@ -8,11 +13,6 @@ import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.tools.math.MathTools;
 import com.lightweightai.tools.time.TimeTools;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import com.lightweightai.tools.web.WebTools;
 import java.util.List;
 import java.util.Map;

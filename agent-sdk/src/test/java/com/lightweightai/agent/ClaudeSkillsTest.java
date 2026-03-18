@@ -1,16 +1,16 @@
 package com.lightweightai.agent;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.lightweightai.agent.plugin.Plugin;
-import com.lightweightai.kernel.core.ToolExecutor;
-import com.lightweightai.kernel.llm.ToolCall;
-import com.lightweightai.kernel.llm.ToolResult;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.lightweightai.agent.plugin.Plugin;
+import com.lightweightai.kernel.core.ToolExecutor;
+import com.lightweightai.kernel.llm.ToolCall;
+import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.plugin.JsonSchemaGenerator;
 import java.util.Map;
 import org.junit.jupiter.api.Test;

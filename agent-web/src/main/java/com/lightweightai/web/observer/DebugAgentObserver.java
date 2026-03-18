@@ -6,9 +6,9 @@ import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.prompt.PromptContext;
-import org.slf4j.Logger;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**

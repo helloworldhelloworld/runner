@@ -7,17 +7,17 @@ import com.lightweightai.mcp.McpToolClient;
 import com.lightweightai.mcp.McpToolWrapper;
 import com.lightweightai.mcp.ToolClient;
 import io.modelcontextprotocol.spec.McpClientTransport;
+import jakarta.annotation.PreDestroy;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import jakarta.annotation.PreDestroy;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import org.springframework.context.annotation.Configuration;
 
 /**

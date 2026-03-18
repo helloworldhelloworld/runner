@@ -10,7 +10,6 @@ import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ModelCapability;
-import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.llm.ToolUse;
 import com.lightweightai.kernel.memory.InMemoryProvider;
 import com.lightweightai.kernel.memory.MemoryProvider;
