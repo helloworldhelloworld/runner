@@ -2,11 +2,6 @@ package com.lightweightai.kernel.speech;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import okhttp3.MediaType;
-import okhttp3.MultipartBody;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
@@ -136,7 +131,9 @@ public class OpenAISpeechProvider implements SpeechProvider {
      * Select voice based on emotion
      */
     private String selectVoiceByEmotion(String emotion) {
-        if (emotion == null) return ttsVoice;
+        if (emotion == null) {
+            return ttsVoice;
+        }
 
         switch (emotion) {
             case "开心":

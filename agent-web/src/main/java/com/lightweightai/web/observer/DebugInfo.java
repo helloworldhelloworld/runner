@@ -46,12 +46,20 @@ public class DebugInfo {
             this.content = truncate(content, 500);
         }
 
-        public String getRole() { return role; }
-        public String getContent() { return content; }
-        public int getIndex() { return index; }
+        public String getRole() {
+            return role;
+        }
+        public String getContent() {
+            return content;
+        }
+        public int getIndex() {
+            return index;
+        }
 
         private static String truncate(String text, int maxLen) {
-            if (text == null) return "(null)";
+            if (text == null) {
+                return "(null)";
+            }
             return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...[truncated]";
         }
     }
@@ -69,59 +77,123 @@ public class DebugInfo {
             this.duration = duration;
         }
 
-        public String getToolName() { return toolName; }
-        public Map<String, Object> getArguments() { return arguments; }
-        public String getResult() { return result; }
-        public long getDuration() { return duration; }
+        public String getToolName() {
+            return toolName;
+        }
+        public Map<String, Object> getArguments() {
+            return arguments;
+        }
+        public String getResult() {
+            return result;
+        }
+        public long getDuration() {
+            return duration;
+        }
 
         private static String truncate(String text, int maxLen) {
-            if (text == null) return "(null)";
+            if (text == null) {
+                return "(null)";
+            }
             return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...[truncated]";
         }
     }
 
     // ==================== Getters & Setters ====================
 
-    public long getStartTime() { return startTime; }
-    public void setStartTime(long startTime) { this.startTime = startTime; }
+    public long getStartTime() {
+        return startTime;
+    }
+    public void setStartTime(long startTime) {
+        this.startTime = startTime;
+    }
 
-    public long getEndTime() { return endTime; }
-    public void setEndTime(long endTime) { this.endTime = endTime; }
+    public long getEndTime() {
+        return endTime;
+    }
+    public void setEndTime(long endTime) {
+        this.endTime = endTime;
+    }
 
-    public long getDuration() { return endTime - startTime; }
+    public long getDuration() {
+        return endTime - startTime;
+    }
 
-    public String getSessionId() { return sessionId; }
-    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+    public String getSessionId() {
+        return sessionId;
+    }
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
 
-    public String getUserInput() { return userInput; }
-    public void setUserInput(String userInput) { this.userInput = userInput; }
+    public String getUserInput() {
+        return userInput;
+    }
+    public void setUserInput(String userInput) {
+        this.userInput = userInput;
+    }
 
-    public List<MessageInfo> getRequestMessages() { return requestMessages; }
-    public void setRequestMessages(List<MessageInfo> requestMessages) { this.requestMessages = requestMessages; }
+    public List<MessageInfo> getRequestMessages() {
+        return requestMessages;
+    }
+    public void setRequestMessages(List<MessageInfo> requestMessages) {
+        this.requestMessages = requestMessages;
+    }
 
-    public int getTotalRequestTokens() { return totalRequestTokens; }
-    public void setTotalRequestTokens(int totalRequestTokens) { this.totalRequestTokens = totalRequestTokens; }
+    public int getTotalRequestTokens() {
+        return totalRequestTokens;
+    }
+    public void setTotalRequestTokens(int totalRequestTokens) {
+        this.totalRequestTokens = totalRequestTokens;
+    }
 
-    public String getResponseText() { return responseText; }
-    public void setResponseText(String responseText) { this.responseText = responseText; }
+    public String getResponseText() {
+        return responseText;
+    }
+    public void setResponseText(String responseText) {
+        this.responseText = responseText;
+    }
 
-    public String getStopReason() { return stopReason; }
-    public void setStopReason(String stopReason) { this.stopReason = stopReason; }
+    public String getStopReason() {
+        return stopReason;
+    }
+    public void setStopReason(String stopReason) {
+        this.stopReason = stopReason;
+    }
 
-    public int getResponseTokens() { return responseTokens; }
-    public void setResponseTokens(int responseTokens) { this.responseTokens = responseTokens; }
+    public int getResponseTokens() {
+        return responseTokens;
+    }
+    public void setResponseTokens(int responseTokens) {
+        this.responseTokens = responseTokens;
+    }
 
-    public List<ToolCallInfo> getToolCalls() { return toolCalls; }
-    public void setToolCalls(List<ToolCallInfo> toolCalls) { this.toolCalls = toolCalls; }
+    public List<ToolCallInfo> getToolCalls() {
+        return toolCalls;
+    }
+    public void setToolCalls(List<ToolCallInfo> toolCalls) {
+        this.toolCalls = toolCalls;
+    }
 
-    public List<String> getActiveSkills() { return activeSkills; }
-    public void setActiveSkills(List<String> activeSkills) { this.activeSkills = activeSkills; }
+    public List<String> getActiveSkills() {
+        return activeSkills;
+    }
+    public void setActiveSkills(List<String> activeSkills) {
+        this.activeSkills = activeSkills;
+    }
 
-    public String getSystemPromptPreview() { return systemPromptPreview; }
-    public void setSystemPromptPreview(String systemPromptPreview) { this.systemPromptPreview = systemPromptPreview; }
+    public String getSystemPromptPreview() {
+        return systemPromptPreview;
+    }
+    public void setSystemPromptPreview(String systemPromptPreview) {
+        this.systemPromptPreview = systemPromptPreview;
+    }
 
-    public String getError() { return error; }
-    public void setError(String error) { this.error = error; }
+    public String getError() {
+        return error;
+    }
+    public void setError(String error) {
+        this.error = error;
+    }
 
     // ==================== Builder Methods ====================
 

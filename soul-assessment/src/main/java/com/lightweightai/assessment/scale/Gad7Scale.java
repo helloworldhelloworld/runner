@@ -2,7 +2,6 @@ package com.lightweightai.assessment.scale;
 
 import com.lightweightai.assessment.model.ScaleDefinition;
 import com.lightweightai.assessment.model.ScaleType;
-
 import java.util.List;
 
 /**
@@ -34,9 +33,15 @@ public class Gad7Scale {
      * Interpret score into severity label.
      */
     public static String severity(int score) {
-        if (score <= 4) return "无焦虑";
-        if (score <= 9) return "轻度焦虑";
-        if (score <= 14) return "中度焦虑";
+        if (score <= 4) {
+            return "无焦虑";
+        }
+        if (score <= 9) {
+            return "轻度焦虑";
+        }
+        if (score <= 14) {
+            return "中度焦虑";
+        }
         return "重度焦虑";
     }
 }

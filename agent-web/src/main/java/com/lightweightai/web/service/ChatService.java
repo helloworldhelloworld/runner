@@ -11,13 +11,12 @@ import com.lightweightai.web.model.ChatRequest;
 import com.lightweightai.web.model.ChatResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.stereotype.Service;
 
 /**
  * Chat service handling LLM interactions

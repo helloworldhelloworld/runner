@@ -14,6 +14,10 @@ public enum ScaleType {
         this.questionCount = questionCount;
     }
 
-    public String getDisplayName() { return displayName; }
-    public int getQuestionCount() { return questionCount; }
+    public String getDisplayName() {
+        return displayName;
+    }
+    public int getQuestionCount() {
+        return questionCount;
+    }
 }

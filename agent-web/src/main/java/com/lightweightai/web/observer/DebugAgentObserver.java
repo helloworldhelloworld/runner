@@ -7,10 +7,9 @@ import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.prompt.PromptContext;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.List;
 import java.util.Map;
+import org.slf4j.LoggerFactory;
 
 /**
  * 调试观察器 - 收集 LLM 调用信息用于前端展示
@@ -119,7 +118,9 @@ public class DebugAgentObserver implements AgentObserver {
     }
 
     private String truncate(String text, int maxLen) {
-        if (text == null) return "(null)";
+        if (text == null) {
+            return "(null)";
+        }
         text = text.replace("\n", " ").trim();
         return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
     }

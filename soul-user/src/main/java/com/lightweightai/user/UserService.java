@@ -3,15 +3,13 @@ package com.lightweightai.user;
 import com.lightweightai.user.model.EmotionRecord;
 import com.lightweightai.user.model.SoulUser;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.LoggerFactory;
 
 /**
  * Business facade for user and emotion operations.
@@ -105,7 +103,9 @@ public class UserService {
     }
 
     private int calculateStreak(List<EmotionRecord> records) {
-        if (records.isEmpty()) return 0;
+        if (records.isEmpty()) {
+            return 0;
+        }
 
         java.util.TimeZone tz = java.util.TimeZone.getTimeZone("Asia/Shanghai");
         java.util.Calendar cal = java.util.Calendar.getInstance(tz);
@@ -125,7 +125,9 @@ public class UserService {
             String day = cal.get(java.util.Calendar.YEAR) + "-"
                 + cal.get(java.util.Calendar.MONTH) + "-"
                 + cal.get(java.util.Calendar.DAY_OF_MONTH);
-            if (!checkinDays.contains(day)) break;
+            if (!checkinDays.contains(day)) {
+                break;
+            }
             streak++;
             cal.add(java.util.Calendar.DAY_OF_MONTH, -1);
         }

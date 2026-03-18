@@ -2,7 +2,6 @@ package com.lightweightai.assessment.scale;
 
 import com.lightweightai.assessment.model.ScaleDefinition;
 import com.lightweightai.assessment.model.ScaleType;
-
 import java.util.List;
 
 /**
@@ -41,8 +40,12 @@ public class Pss10Scale {
      * Interpret score into severity label.
      */
     public static String severity(int score) {
-        if (score <= 13) return "低压力";
-        if (score <= 26) return "中等压力";
+        if (score <= 13) {
+            return "低压力";
+        }
+        if (score <= 26) {
+            return "中等压力";
+        }
         return "高压力";
     }
 }

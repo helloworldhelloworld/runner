@@ -1,12 +1,10 @@
 package com.lightweightai.web.service;
 
-import com.lightweightai.web.agent.SoulComfortAgent;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.openrouter.OpenRouterProvider;
 import com.lightweightai.kernel.memory.Message;
-import com.lightweightai.kernel.memory.UserMemory;
 import com.lightweightai.kernel.memory.file.FileMemoryManager;
 import com.lightweightai.kernel.memory.file.SessionTranscript;
 import com.lightweightai.kernel.memory.model.SearchResult;
@@ -17,22 +15,21 @@ import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.safety.ContentFilter;
 import com.lightweightai.safety.CrisisDetector;
 import com.lightweightai.safety.SafetyResult;
-import com.lightweightai.web.config.FileMemoryAdapter;
+import com.lightweightai.web.agent.SoulComfortAgent;
 import com.lightweightai.web.model.ChatRequest;
 import com.lightweightai.web.model.ChatResponse;
 import com.lightweightai.web.observer.DebugAgentObserver;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 /**
  * 心灵引导聊天服务 — OpenClaw 架构
@@ -111,8 +108,12 @@ public class SoulComfortChatService {
             this.emotion = emotion;
         }
 
-        public String getDelta() { return delta; }
-        public String getEmotion() { return emotion; }
+        public String getDelta() {
+            return delta;
+        }
+        public String getEmotion() {
+            return emotion;
+        }
     }
 
     /**
@@ -451,7 +452,9 @@ public class SoulComfortChatService {
     }
 
     private String truncate(String text, int maxLen) {
-        if (text == null) return "";
+        if (text == null) {
+            return "";
+        }
         text = text.replace("\n", " ").trim();
         return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
     }

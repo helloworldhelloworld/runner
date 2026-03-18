@@ -317,7 +317,9 @@ public class SoulComfortAgent {
      * Build tool definitions in OpenAI function-calling format (used by OpenRouter).
      */
     private List<Map<String, Object>> buildToolDefinitions() {
-        if (tools.isEmpty()) return List.of();
+        if (tools.isEmpty()) {
+            return List.of();
+        }
         return tools.stream().map(t -> {
             Map<String, Object> function = new LinkedHashMap<>();
             function.put("name", t.getName());
@@ -481,12 +483,16 @@ public class SoulComfortAgent {
     private String buildLegacyUserMemoryContext(UserMemory userMemory) {
         StringBuilder sb = new StringBuilder();
         String userName = userMemory.get("userName");
-        if (userName != null) sb.append("- 称呼：").append(userName).append("\n");
+        if (userName != null) {
+            sb.append("- 称呼：").append(userName).append("\n");
+        }
 
         List<UserMemory.EmotionRecord> emotions = userMemory.getRecentEmotions(3);
         if (!emotions.isEmpty()) {
             sb.append("- 最近情绪：");
-            for (var e : emotions) sb.append(e.getEmotion()).append("、");
+            for (var e : emotions) {
+                sb.append(e.getEmotion()).append("、");
+            }
             sb.setLength(sb.length() - 1);
             sb.append("\n");
         }
@@ -524,7 +530,9 @@ public class SoulComfortAgent {
 
     /** 兼容旧调用 */
     public UserMemory getUserMemory(String sessionId) {
-        if (memory != null) return memory.getUserMemory(sessionId);
+        if (memory != null) {
+            return memory.getUserMemory(sessionId);
+        }
         return new UserMemory(); // 空对象，OpenClaw 模式下情绪/话题由 durable memory 管理
     }
 

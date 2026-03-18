@@ -25,18 +25,46 @@ public class AssessmentResult {
         this.createdAt = createdAt;
     }
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-    public String getUserId() { return userId; }
-    public void setUserId(String userId) { this.userId = userId; }
-    public ScaleType getScaleType() { return scaleType; }
-    public void setScaleType(ScaleType scaleType) { this.scaleType = scaleType; }
-    public int getTotalScore() { return totalScore; }
-    public void setTotalScore(int totalScore) { this.totalScore = totalScore; }
-    public String getSeverity() { return severity; }
-    public void setSeverity(String severity) { this.severity = severity; }
-    public String getAiReport() { return aiReport; }
-    public void setAiReport(String aiReport) { this.aiReport = aiReport; }
-    public long getCreatedAt() { return createdAt; }
-    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
+    public String getId() {
+        return id;
+    }
+    public void setId(String id) {
+        this.id = id;
+    }
+    public String getUserId() {
+        return userId;
+    }
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+    public ScaleType getScaleType() {
+        return scaleType;
+    }
+    public void setScaleType(ScaleType scaleType) {
+        this.scaleType = scaleType;
+    }
+    public int getTotalScore() {
+        return totalScore;
+    }
+    public void setTotalScore(int totalScore) {
+        this.totalScore = totalScore;
+    }
+    public String getSeverity() {
+        return severity;
+    }
+    public void setSeverity(String severity) {
+        this.severity = severity;
+    }
+    public String getAiReport() {
+        return aiReport;
+    }
+    public void setAiReport(String aiReport) {
+        this.aiReport = aiReport;
+    }
+    public long getCreatedAt() {
+        return createdAt;
+    }
+    public void setCreatedAt(long createdAt) {
+        this.createdAt = createdAt;
+    }
 }

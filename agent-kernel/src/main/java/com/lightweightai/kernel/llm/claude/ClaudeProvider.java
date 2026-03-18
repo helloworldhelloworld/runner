@@ -184,7 +184,9 @@ public class ClaudeProvider implements LLMProvider {
                             }
                             case "content_block_delta": {
                                 JsonNode delta = event.get("delta");
-                                if (delta == null) break;
+                                if (delta == null) {
+                                    break;
+                                }
                                 String deltaType = delta.get("type").asText();
                                 if ("text_delta".equals(deltaType)) {
                                     String text = delta.get("text").asText();

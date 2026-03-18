@@ -2,7 +2,6 @@ package com.lightweightai.assessment.scale;
 
 import com.lightweightai.assessment.model.ScaleDefinition;
 import com.lightweightai.assessment.model.ScaleType;
-
 import java.util.List;
 
 /**
@@ -36,10 +35,18 @@ public class Phq9Scale {
      * Interpret score into severity label.
      */
     public static String severity(int score) {
-        if (score <= 4) return "无抑郁";
-        if (score <= 9) return "轻度抑郁";
-        if (score <= 14) return "中度抑郁";
-        if (score <= 19) return "中重度抑郁";
+        if (score <= 4) {
+            return "无抑郁";
+        }
+        if (score <= 9) {
+            return "轻度抑郁";
+        }
+        if (score <= 14) {
+            return "中度抑郁";
+        }
+        if (score <= 19) {
+            return "中重度抑郁";
+        }
         return "重度抑郁";
     }
 }
