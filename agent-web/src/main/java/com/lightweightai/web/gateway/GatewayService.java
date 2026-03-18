@@ -1,5 +1,6 @@
 package com.lightweightai.web.gateway;
 
+import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.gateway.ChatHandler;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
@@ -8,6 +9,7 @@ import com.lightweightai.web.service.SoulComfortChatService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.util.HashMap;
 import java.util.List;
@@ -92,6 +94,20 @@ public class GatewayService implements ChatHandler, SessionManager {
         });
 
         return result;
+    }
+
+    /**
+     * Reactive 流式聊天 — 走 ToolCallingLoop，包含完整工具事件
+     *
+     * 覆盖 ChatHandler 的默认桥接实现，直接返回原生 Flux&lt;StreamEvent&gt;。
+     * Gateway.handleStream() 会订阅此 Flux 并分发事件到 GatewayStreamHandler 回调。
+     */
+    @Override
+    public Flux<StreamEvent> chatStreamReactive(GatewayRequest request) {
+        String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
+        logger.info("ChatHandler.chatStreamReactive - session: {}", sessionId);
+
+        return soulComfortService.chatStreamReactive(request.getMessage(), sessionId);
     }
 
     // ==================== SessionManager ====================
