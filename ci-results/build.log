@@ -32,7 +32,7 @@
 [INFO] ------------------------------------------------------------------------
 [INFO] Reactor Summary for Lightweight AI Kernel Parent 0.1.0-SNAPSHOT:
 [INFO] 
-[INFO] Lightweight AI Kernel Parent ....................... FAILURE [  1.013 s]
+[INFO] Lightweight AI Kernel Parent ....................... FAILURE [  0.993 s]
 [INFO] Agent Kernel ....................................... SKIPPED
 [INFO] Agent Tools ........................................ SKIPPED
 [INFO] Agent MCP .......................................... SKIPPED
@@ -46,8 +46,8 @@
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  1.343 s
-[INFO] Finished at: 2026-03-18T10:26:54Z
+[INFO] Total time:  1.328 s
+[INFO] Finished at: 2026-03-18T10:28:00Z
 [INFO] ------------------------------------------------------------------------
 [ERROR] Failed to execute goal org.apache.maven.plugins:maven-checkstyle-plugin:3.3.1:check (validate) on project lightweight-ai-kernel-parent: Failed during checkstyle execution: Failed during checkstyle configuration: unable to parse configuration stream: com.puppycrawl.tools.checkstyle.api.CheckstyleException: Property ${config_loc} has not been set -> [Help 1]
 [ERROR] 
