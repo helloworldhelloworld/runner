@@ -388,13 +388,15 @@ public class AgentConfig {
             com.lightweightai.kernel.llm.LLMOptions options,
             com.lightweightai.kernel.llm.LLMProvider.StreamEventHandler handler
         ) {
+            com.lightweightai.kernel.llm.LLMResponse response = complete(messages, options);
             if (handler != null) {
                 handler.onStart();
                 handler.onTextDelta("Mock");
                 handler.onTextDelta(" streaming");
                 handler.onTextDelta(" response");
+                handler.onComplete(response);
             }
-            return java.util.concurrent.CompletableFuture.completedFuture(complete(messages, options));
+            return java.util.concurrent.CompletableFuture.completedFuture(response);
         }
 
         @Override
