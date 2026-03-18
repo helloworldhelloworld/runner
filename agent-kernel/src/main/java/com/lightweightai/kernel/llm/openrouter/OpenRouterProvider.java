@@ -39,7 +39,7 @@ public class OpenRouterProvider implements LLMProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(OpenRouterProvider.class);
     private static final String DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
-    private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
+    private static final MediaType JSON = MediaType.get("application/json");
 
     private final String apiKey;
     private final String model;
@@ -94,18 +94,19 @@ public class OpenRouterProvider implements LLMProvider {
             logger.debug("Calling API with {} messages", messages.size());
 
             // Make HTTP request
+            String requestUrl = baseUrl + "/chat/completions";
             Request.Builder reqBuilder = new Request.Builder()
-                .url(baseUrl + "/chat/completions")
-                .header("Content-Type", "application/json")
-                .header("HTTP-Referer", "https://github.com/lightweightai/kernel")
-                .header("X-Title", "Lightweight AI Kernel")
+                .url(requestUrl)
                 .post(RequestBody.create(requestBody, JSON));
+            if (!isCustomBaseUrl()) {
+                // 标准 OpenRouter 需要的额外 header
+                reqBuilder.header("HTTP-Referer", "https://github.com/lightweightai/kernel");
+                reqBuilder.header("X-Title", "Lightweight AI Kernel");
+            }
             if (!apiKey.isEmpty()) {
                 reqBuilder.header("Authorization", "Bearer " + apiKey);
             }
             Request request = reqBuilder.build();
-
-            String requestUrl = baseUrl + "/chat/completions";
             logger.info("OpenRouter API request: POST {} (model: {})", requestUrl, model);
             logger.debug("OpenRouter request body: {}", requestBody);
             try (Response response = httpClient.newCall(request).execute()) {
@@ -144,18 +145,18 @@ public class OpenRouterProvider implements LLMProvider {
                 String requestBody = buildRequestBody(messages, options, true);
 
                 // Make HTTP request
+                String requestUrl = baseUrl + "/chat/completions";
                 Request.Builder reqBuilder = new Request.Builder()
-                    .url(baseUrl + "/chat/completions")
-                    .header("Content-Type", "application/json")
-                    .header("HTTP-Referer", "https://github.com/lightweightai/kernel")
-                    .header("X-Title", "Lightweight AI Kernel")
+                    .url(requestUrl)
                     .post(RequestBody.create(requestBody, JSON));
+                if (!isCustomBaseUrl()) {
+                    reqBuilder.header("HTTP-Referer", "https://github.com/lightweightai/kernel");
+                    reqBuilder.header("X-Title", "Lightweight AI Kernel");
+                }
                 if (!apiKey.isEmpty()) {
                     reqBuilder.header("Authorization", "Bearer " + apiKey);
                 }
                 Request request = reqBuilder.build();
-
-                String requestUrl = baseUrl + "/chat/completions";
                 logger.info("OpenRouter streaming request: POST {} (model: {})", requestUrl, model);
                 logger.debug("OpenRouter streaming request body: {}", requestBody);
                 handler.onStart();
