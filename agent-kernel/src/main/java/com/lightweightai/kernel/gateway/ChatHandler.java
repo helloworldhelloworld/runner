@@ -35,7 +35,7 @@ public interface ChatHandler {
             chatStream(request, new StreamCallback() {
                 @Override
                 public void onDelta(String delta, Map<String, Object> metadata) {
-                    sink.next(StreamEvent.textDelta(delta));
+                    sink.next(StreamEvent.textDelta(delta, metadata));
                 }
 
                 @Override
