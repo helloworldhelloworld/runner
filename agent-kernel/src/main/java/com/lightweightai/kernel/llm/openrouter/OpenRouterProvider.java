@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
 import com.lightweightai.kernel.llm.LLMOptions;
@@ -19,6 +20,8 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,6 +142,25 @@ public class OpenRouterProvider implements LLMProvider {
         LLMOptions options,
         StreamEventHandler handler
     ) {
+        // Custom gateway may not support SSE — fall back to non-streaming
+        if (isCustomBaseUrl()) {
+            return CompletableFuture.supplyAsync(() -> {
+                handler.onStart();
+                try {
+                    LLMResponse response = complete(messages, options);
+                    String text = response.getMessage().getTextContent();
+                    if (text != null && !text.isEmpty()) {
+                        handler.onTextDelta(text);
+                    }
+                    handler.onComplete(response);
+                    return response;
+                } catch (Exception e) {
+                    handler.onError(e);
+                    throw new RuntimeException("Failed to call API", e);
+                }
+            });
+        }
+
         return CompletableFuture.supplyAsync(() -> {
             try {
                 // Build request with streaming enabled
@@ -181,6 +203,33 @@ public class OpenRouterProvider implements LLMProvider {
                 throw new RuntimeException("Failed to stream from OpenRouter API", e);
             }
         });
+    }
+
+    /**
+     * Reactive streaming — for custom gateways that don't support SSE,
+     * fall back to non-streaming complete() and emit the result as StreamEvents.
+     */
+    @Override
+    public Flux<StreamEvent> completeStreamReactive(
+            List<ConversationMessage> messages, LLMOptions options) {
+        if (isCustomBaseUrl()) {
+            // Custom gateway may not support SSE — use sync call and simulate streaming
+            return Flux.defer(() -> {
+                try {
+                    LLMResponse response = complete(messages, options);
+                    String text = response.getMessage().getTextContent();
+                    Flux<StreamEvent> events = Flux.empty();
+                    if (text != null && !text.isEmpty()) {
+                        events = Flux.just(StreamEvent.textDelta(text));
+                    }
+                    return events.concatWith(Flux.just(StreamEvent.llmComplete(response)));
+                } catch (Exception e) {
+                    return Flux.error(e);
+                }
+            });
+        }
+        // Default OpenRouter supports SSE — use parent implementation
+        return LLMProvider.super.completeStreamReactive(messages, options);
     }
 
     @Override
