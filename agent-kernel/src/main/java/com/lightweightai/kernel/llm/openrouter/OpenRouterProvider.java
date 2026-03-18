@@ -226,9 +226,23 @@ public class OpenRouterProvider implements LLMProvider {
         ArrayNode messagesArray = buildMessagesArray(messages);
         root.set("messages", messagesArray);
 
-        // Tools (if provided)
+        // Tools (if provided) — convert from Claude format to OpenAI format
         if (options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
-            ArrayNode toolsArray = objectMapper.valueToTree(options.getToolDefinitions());
+            ArrayNode toolsArray = objectMapper.createArrayNode();
+            for (Map<String, Object> toolDef : options.getToolDefinitions()) {
+                ObjectNode toolNode = objectMapper.createObjectNode();
+                toolNode.put("type", "function");
+                ObjectNode functionNode = objectMapper.createObjectNode();
+                functionNode.put("name", (String) toolDef.get("name"));
+                functionNode.put("description", (String) toolDef.get("description"));
+                // "input_schema" (Claude format) → "parameters" (OpenAI format)
+                Object schema = toolDef.getOrDefault("input_schema", toolDef.get("parameters"));
+                if (schema != null) {
+                    functionNode.set("parameters", objectMapper.valueToTree(schema));
+                }
+                toolNode.set("function", functionNode);
+                toolsArray.add(toolNode);
+            }
             root.set("tools", toolsArray);
         }
 
@@ -236,15 +250,56 @@ public class OpenRouterProvider implements LLMProvider {
     }
 
     /**
-     * Build messages array in OpenAI format
+     * Build messages array in OpenAI format.
+     *
+     * Handles three message types:
+     *   1. Normal messages (system/user/assistant) — {"role": "...", "content": "..."}
+     *   2. Assistant messages with tool calls — includes "tool_calls" array
+     *   3. Tool result messages — includes "tool_call_id"
      */
-    private ArrayNode buildMessagesArray(List<ConversationMessage> messages) {
+    @SuppressWarnings("unchecked")
+    private ArrayNode buildMessagesArray(List<ConversationMessage> messages) throws IOException {
         ArrayNode array = objectMapper.createArrayNode();
 
         for (ConversationMessage msg : messages) {
             ObjectNode messageNode = objectMapper.createObjectNode();
             messageNode.put("role", convertRole(msg.getRole()));
-            messageNode.put("content", msg.getTextContent());
+
+            Map<String, Object> metadata = msg.getMetadata();
+
+            if (msg.getRole() == MessageRole.ASSISTANT && metadata.containsKey("tool_calls")) {
+                // Assistant message with tool calls
+                String text = msg.getTextContent();
+                if (text != null && !text.isEmpty()) {
+                    messageNode.put("content", text);
+                } else {
+                    messageNode.putNull("content");
+                }
+                // Serialize tool_calls in OpenAI format
+                List<ToolCall> toolCalls = (List<ToolCall>) metadata.get("tool_calls");
+                ArrayNode toolCallsArray = objectMapper.createArrayNode();
+                for (ToolCall tc : toolCalls) {
+                    ObjectNode tcNode = objectMapper.createObjectNode();
+                    tcNode.put("id", tc.getId());
+                    tcNode.put("type", "function");
+                    ObjectNode fnNode = objectMapper.createObjectNode();
+                    fnNode.put("name", tc.getName());
+                    fnNode.put("arguments", objectMapper.writeValueAsString(tc.getArguments()));
+                    tcNode.set("function", fnNode);
+                    toolCallsArray.add(tcNode);
+                }
+                messageNode.set("tool_calls", toolCallsArray);
+            } else if (msg.getRole() == MessageRole.TOOL) {
+                // Tool result message — must include tool_call_id
+                messageNode.put("content", msg.getTextContent());
+                if (metadata.containsKey("tool_use_id")) {
+                    messageNode.put("tool_call_id", (String) metadata.get("tool_use_id"));
+                }
+            } else {
+                // Normal message
+                messageNode.put("content", msg.getTextContent());
+            }
+
             array.add(messageNode);
         }
 

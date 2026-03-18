@@ -85,7 +85,7 @@ public class ToolCallingLoop {
                 : toolExecutor.executeToolCalls(toolCalls);
 
             // Add assistant's response (with tool calls) to conversation
-            conversation.add(response.getMessage());
+            conversation.add(enrichWithToolCalls(response));
 
             // Add tool results as user messages to conversation
             for (ToolResult toolResult : toolResults) {
@@ -155,7 +155,7 @@ public class ToolCallingLoop {
                 return toolFuture
                     .thenCompose(toolResults -> {
                         // Step 4: Add assistant's response and tool results to conversation
-                        conversation.add(response.getMessage());
+                        conversation.add(enrichWithToolCalls(response));
 
                         for (ToolResult toolResult : toolResults) {
                             ConversationMessage toolResultMessage =
@@ -221,7 +221,7 @@ public class ToolCallingLoop {
                 // Step 3: LLM 要调用工具
                 LLMResponse response = completeEvent.getResponse();
                 List<com.lightweightai.kernel.llm.ToolCall> toolCalls = response.getToolCalls();
-                conversation.add(response.getMessage());
+                conversation.add(enrichWithToolCalls(response));
 
                 // Step 3a: 发出 TOOL_CALL_START 事件
                 Flux<StreamEvent> toolStartEvents = Flux.fromIterable(toolCalls)
@@ -264,6 +264,23 @@ public class ToolCallingLoop {
 
                 return Flux.concat(toolStartEvents, toolExecEvents, nextRound);
             }));
+    }
+
+    /**
+     * Enrich assistant message with tool call metadata so that providers
+     * can serialize tool_calls in the conversation history.
+     */
+    private ConversationMessage enrichWithToolCalls(LLMResponse response) {
+        ConversationMessage original = response.getMessage();
+        if (!response.hasToolCalls()) {
+            return original;
+        }
+        return ConversationMessage.builder()
+            .role(original.getRole())
+            .content(original.getContent())
+            .metadata(original.getMetadata())
+            .addMetadata("tool_calls", response.getToolCalls())
+            .build();
     }
 
     /**
