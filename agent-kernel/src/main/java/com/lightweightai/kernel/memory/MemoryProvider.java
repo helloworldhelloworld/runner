@@ -147,9 +147,20 @@ public interface MemoryProvider {
             return this;
         }
 
-        public int getTopK() { return topK; }
-        public double getVectorWeight() { return vectorWeight; }
-        public boolean isIncludeEphemeral() { return includeEphemeral; }
-        public boolean isIncludeDurable() { return includeDurable; }
+        public int getTopK() {
+            return topK;
+        }
+
+        public double getVectorWeight() {
+            return vectorWeight;
+        }
+
+        public boolean isIncludeEphemeral() {
+            return includeEphemeral;
+        }
+
+        public boolean isIncludeDurable() {
+            return includeDurable;
+        }
     }
 }

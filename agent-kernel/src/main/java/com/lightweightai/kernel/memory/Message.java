@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.memory;
 
 import com.lightweightai.kernel.llm.ConversationMessage;
-
 import java.time.Instant;
 import java.util.Objects;
 
@@ -94,8 +93,12 @@ public class Message {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Message message = (Message) o;
         return role.equals(message.role) && content.equals(message.content);
     }

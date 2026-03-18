@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.gateway;
 
 import com.lightweightai.kernel.agent.AgentResponse;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,14 +31,37 @@ public class GatewayResponse {
         this.metadata = new HashMap<>(builder.metadata);
     }
 
-    public String getRequestId() { return requestId; }
-    public String getSessionId() { return sessionId; }
-    public String getText() { return text; }
-    public boolean isError() { return error; }
-    public String getErrorMessage() { return errorMessage; }
-    public long getTimestamp() { return timestamp; }
-    public long getLatencyMs() { return latencyMs; }
-    public Map<String, Object> getMetadata() { return new HashMap<>(metadata); }
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public boolean isError() {
+        return error;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public long getLatencyMs() {
+        return latencyMs;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return new HashMap<>(metadata);
+    }
 
     /**
      * 从 AgentResponse 创建

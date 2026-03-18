@@ -2,7 +2,6 @@ package com.lightweightai.kernel.llm.websocket;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -410,16 +409,34 @@ public class WebSocketMessage {
             this.timeoutMs = timeoutMs;
         }
 
-        public String getDirectiveId() { return directiveId; }
-        public void setDirectiveId(String directiveId) { this.directiveId = directiveId; }
-        public String getNamespace() { return namespace; }
-        public void setNamespace(String namespace) { this.namespace = namespace; }
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
+        public String getDirectiveId() {
+            return directiveId;
+        }
+        public void setDirectiveId(String directiveId) {
+            this.directiveId = directiveId;
+        }
+        public String getNamespace() {
+            return namespace;
+        }
+        public void setNamespace(String namespace) {
+            this.namespace = namespace;
+        }
+        public String getName() {
+            return name;
+        }
+        public void setName(String name) {
+            this.name = name;
+        }
         public Map<String, Object> getPayload() { return payload; }
-        public void setPayload(Map<String, Object> payload) { this.payload = payload; }
-        public Long getTimeoutMs() { return timeoutMs; }
-        public void setTimeoutMs(Long timeoutMs) { this.timeoutMs = timeoutMs; }
+        public void setPayload(Map<String, Object> payload) {
+            this.payload = payload;
+        }
+        public Long getTimeoutMs() {
+            return timeoutMs;
+        }
+        public void setTimeoutMs(Long timeoutMs) {
+            this.timeoutMs = timeoutMs;
+        }
     }
 
     /**
@@ -449,14 +466,28 @@ public class WebSocketMessage {
             this.metadata = metadata;
         }
 
-        public String getDirectiveId() { return directiveId; }
-        public void setDirectiveId(String directiveId) { this.directiveId = directiveId; }
-        public Boolean getSuccess() { return success; }
-        public void setSuccess(Boolean success) { this.success = success; }
-        public String getContent() { return content; }
-        public void setContent(String content) { this.content = content; }
+        public String getDirectiveId() {
+            return directiveId;
+        }
+        public void setDirectiveId(String directiveId) {
+            this.directiveId = directiveId;
+        }
+        public Boolean getSuccess() {
+            return success;
+        }
+        public void setSuccess(Boolean success) {
+            this.success = success;
+        }
+        public String getContent() {
+            return content;
+        }
+        public void setContent(String content) {
+            this.content = content;
+        }
         public Map<String, Object> getMetadata() { return metadata; }
-        public void setMetadata(Map<String, Object> metadata) { this.metadata = metadata; }
+        public void setMetadata(Map<String, Object> metadata) {
+            this.metadata = metadata;
+        }
     }
 
     /**
@@ -475,12 +506,24 @@ public class WebSocketMessage {
         public ClientManifestData() {
         }
 
-        public String getClientType() { return clientType; }
-        public void setClientType(String clientType) { this.clientType = clientType; }
-        public String getClientVersion() { return clientVersion; }
-        public void setClientVersion(String clientVersion) { this.clientVersion = clientVersion; }
-        public List<CapabilityData> getCapabilities() { return capabilities; }
-        public void setCapabilities(List<CapabilityData> capabilities) { this.capabilities = capabilities; }
+        public String getClientType() {
+            return clientType;
+        }
+        public void setClientType(String clientType) {
+            this.clientType = clientType;
+        }
+        public String getClientVersion() {
+            return clientVersion;
+        }
+        public void setClientVersion(String clientVersion) {
+            this.clientVersion = clientVersion;
+        }
+        public List<CapabilityData> getCapabilities() {
+            return capabilities;
+        }
+        public void setCapabilities(List<CapabilityData> capabilities) {
+            this.capabilities = capabilities;
+        }
     }
 
     /**
@@ -505,16 +548,34 @@ public class WebSocketMessage {
         public CapabilityData() {
         }
 
-        public String getNamespace() { return namespace; }
-        public void setNamespace(String namespace) { this.namespace = namespace; }
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
+        public String getNamespace() {
+            return namespace;
+        }
+        public void setNamespace(String namespace) {
+            this.namespace = namespace;
+        }
+        public String getName() {
+            return name;
+        }
+        public void setName(String name) {
+            this.name = name;
+        }
+        public String getDescription() {
+            return description;
+        }
+        public void setDescription(String description) {
+            this.description = description;
+        }
         public Map<String, Object> getInputSchema() { return inputSchema; }
-        public void setInputSchema(Map<String, Object> inputSchema) { this.inputSchema = inputSchema; }
-        public Long getDefaultTimeoutMs() { return defaultTimeoutMs; }
-        public void setDefaultTimeoutMs(Long defaultTimeoutMs) { this.defaultTimeoutMs = defaultTimeoutMs; }
+        public void setInputSchema(Map<String, Object> inputSchema) {
+            this.inputSchema = inputSchema;
+        }
+        public Long getDefaultTimeoutMs() {
+            return defaultTimeoutMs;
+        }
+        public void setDefaultTimeoutMs(Long defaultTimeoutMs) {
+            this.defaultTimeoutMs = defaultTimeoutMs;
+        }
     }
 
     /**
@@ -544,14 +605,28 @@ public class WebSocketMessage {
             this.timeoutMs = timeoutMs;
         }
 
-        public String getCallId() { return callId; }
-        public void setCallId(String callId) { this.callId = callId; }
-        public String getToolName() { return toolName; }
-        public void setToolName(String toolName) { this.toolName = toolName; }
+        public String getCallId() {
+            return callId;
+        }
+        public void setCallId(String callId) {
+            this.callId = callId;
+        }
+        public String getToolName() {
+            return toolName;
+        }
+        public void setToolName(String toolName) {
+            this.toolName = toolName;
+        }
         public Map<String, Object> getArguments() { return arguments; }
-        public void setArguments(Map<String, Object> arguments) { this.arguments = arguments; }
-        public Long getTimeoutMs() { return timeoutMs; }
-        public void setTimeoutMs(Long timeoutMs) { this.timeoutMs = timeoutMs; }
+        public void setArguments(Map<String, Object> arguments) {
+            this.arguments = arguments;
+        }
+        public Long getTimeoutMs() {
+            return timeoutMs;
+        }
+        public void setTimeoutMs(Long timeoutMs) {
+            this.timeoutMs = timeoutMs;
+        }
     }
 
     /**
@@ -576,12 +651,24 @@ public class WebSocketMessage {
             this.isError = isError;
         }
 
-        public String getCallId() { return callId; }
-        public void setCallId(String callId) { this.callId = callId; }
-        public String getContent() { return content; }
-        public void setContent(String content) { this.content = content; }
-        public Boolean getIsError() { return isError; }
-        public void setIsError(Boolean isError) { this.isError = isError; }
+        public String getCallId() {
+            return callId;
+        }
+        public void setCallId(String callId) {
+            this.callId = callId;
+        }
+        public String getContent() {
+            return content;
+        }
+        public void setContent(String content) {
+            this.content = content;
+        }
+        public Boolean getIsError() {
+            return isError;
+        }
+        public void setIsError(Boolean isError) {
+            this.isError = isError;
+        }
     }
 
     @Override

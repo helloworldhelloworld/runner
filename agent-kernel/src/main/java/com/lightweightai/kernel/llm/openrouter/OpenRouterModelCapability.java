@@ -3,7 +3,6 @@ package com.lightweightai.kernel.llm.openrouter;
 import com.lightweightai.kernel.llm.MessageFormatter;
 import com.lightweightai.kernel.llm.ModelCapability;
 import com.lightweightai.kernel.llm.TokenCounter;
-
 import java.util.HashSet;
 import java.util.Set;
 

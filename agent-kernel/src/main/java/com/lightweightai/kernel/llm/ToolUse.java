@@ -79,8 +79,12 @@ public class ToolUse {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         ToolUse toolUse = (ToolUse) o;
         return id.equals(toolUse.id);

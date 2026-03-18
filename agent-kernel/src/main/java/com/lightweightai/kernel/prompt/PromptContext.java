@@ -39,14 +39,30 @@ public class PromptContext {
 
     // ==================== Getters ====================
 
-    public String getSystemPrompt() { return systemPrompt; }
-    public String getUserMessage() { return userMessage; }
-    public List<Message> getHistoryMessages() { return new ArrayList<>(historyMessages); }
-    public String getMemoryContext() { return memoryContext; }
-    public List<Skill.ToolDefinition> getTools() { return new ArrayList<>(tools); }
-    public List<String> getActiveSkillNames() { return new ArrayList<>(activeSkillNames); }
-    public List<String> getBuildLog() { return new ArrayList<>(buildLog); }
-    public Instant getBuildTime() { return buildTime; }
+    public String getSystemPrompt() {
+        return systemPrompt;
+    }
+    public String getUserMessage() {
+        return userMessage;
+    }
+    public List<Message> getHistoryMessages() {
+        return new ArrayList<>(historyMessages);
+    }
+    public String getMemoryContext() {
+        return memoryContext;
+    }
+    public List<Skill.ToolDefinition> getTools() {
+        return new ArrayList<>(tools);
+    }
+    public List<String> getActiveSkillNames() {
+        return new ArrayList<>(activeSkillNames);
+    }
+    public List<String> getBuildLog() {
+        return new ArrayList<>(buildLog);
+    }
+    public Instant getBuildTime() {
+        return buildTime;
+    }
     public Map<String, Object> getMetadata() { return new HashMap<>(metadata); }
 
     public boolean hasTools() {

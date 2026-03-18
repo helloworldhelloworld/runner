@@ -1,11 +1,9 @@
 package com.lightweightai.kernel.llm;
 
 import com.lightweightai.kernel.core.StreamEvent;
-import reactor.core.publisher.Flux;
-
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
+import reactor.core.publisher.Flux;
 
 /**
  * Abstract interface for LLM providers (Claude, OpenAI, etc.)

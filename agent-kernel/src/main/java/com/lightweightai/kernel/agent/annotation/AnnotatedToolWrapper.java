@@ -4,7 +4,6 @@ import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.llm.ToolResult;
-
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -180,27 +179,51 @@ public class AnnotatedToolWrapper implements Tool, ToolMetadata {
         // Number 类型转换
         if (value instanceof Number) {
             Number num = (Number) value;
-            if (targetType == int.class || targetType == Integer.class) return num.intValue();
-            if (targetType == long.class || targetType == Long.class) return num.longValue();
-            if (targetType == double.class || targetType == Double.class) return num.doubleValue();
-            if (targetType == float.class || targetType == Float.class) return num.floatValue();
-            if (targetType == String.class) return num.toString();
+            if (targetType == int.class || targetType == Integer.class) {
+                return num.intValue();
+            }
+            if (targetType == long.class || targetType == Long.class) {
+                return num.longValue();
+            }
+            if (targetType == double.class || targetType == Double.class) {
+                return num.doubleValue();
+            }
+            if (targetType == float.class || targetType == Float.class) {
+                return num.floatValue();
+            }
+            if (targetType == String.class) {
+                return num.toString();
+            }
         }
 
         // String 转换
         if (value instanceof String) {
             String str = (String) value;
-            if (targetType == int.class || targetType == Integer.class) return Integer.parseInt(str);
-            if (targetType == long.class || targetType == Long.class) return Long.parseLong(str);
-            if (targetType == double.class || targetType == Double.class) return Double.parseDouble(str);
-            if (targetType == float.class || targetType == Float.class) return Float.parseFloat(str);
-            if (targetType == boolean.class || targetType == Boolean.class) return Boolean.parseBoolean(str);
+            if (targetType == int.class || targetType == Integer.class) {
+                return Integer.parseInt(str);
+            }
+            if (targetType == long.class || targetType == Long.class) {
+                return Long.parseLong(str);
+            }
+            if (targetType == double.class || targetType == Double.class) {
+                return Double.parseDouble(str);
+            }
+            if (targetType == float.class || targetType == Float.class) {
+                return Float.parseFloat(str);
+            }
+            if (targetType == boolean.class || targetType == Boolean.class) {
+                return Boolean.parseBoolean(str);
+            }
         }
 
         // Boolean 转换
         if (value instanceof Boolean) {
-            if (targetType == boolean.class || targetType == Boolean.class) return value;
-            if (targetType == String.class) return value.toString();
+            if (targetType == boolean.class || targetType == Boolean.class) {
+                return value;
+            }
+            if (targetType == String.class) {
+                return value.toString();
+            }
         }
 
         // 其他情况：Map、List 等直接返回
@@ -211,11 +234,21 @@ public class AnnotatedToolWrapper implements Tool, ToolMetadata {
      * 获取基本类型的默认值
      */
     private Object getDefaultValue(Class<?> type) {
-        if (type == int.class) return 0;
-        if (type == long.class) return 0L;
-        if (type == double.class) return 0.0;
-        if (type == float.class) return 0.0f;
-        if (type == boolean.class) return false;
+        if (type == int.class) {
+            return 0;
+        }
+        if (type == long.class) {
+            return 0L;
+        }
+        if (type == double.class) {
+            return 0.0;
+        }
+        if (type == float.class) {
+            return 0.0f;
+        }
+        if (type == boolean.class) {
+            return false;
+        }
         return null;
     }
 
@@ -290,14 +323,30 @@ public class AnnotatedToolWrapper implements Tool, ToolMetadata {
      * Java 类型映射到 JSON Schema 类型
      */
     static String javaTypeToJsonType(Class<?> type) {
-        if (type == String.class) return "string";
-        if (type == int.class || type == Integer.class) return "integer";
-        if (type == long.class || type == Long.class) return "integer";
-        if (type == double.class || type == Double.class) return "number";
-        if (type == float.class || type == Float.class) return "number";
-        if (type == boolean.class || type == Boolean.class) return "boolean";
-        if (type == List.class) return "array";
-        if (type == Map.class) return "object";
+        if (type == String.class) {
+            return "string";
+        }
+        if (type == int.class || type == Integer.class) {
+            return "integer";
+        }
+        if (type == long.class || type == Long.class) {
+            return "integer";
+        }
+        if (type == double.class || type == Double.class) {
+            return "number";
+        }
+        if (type == float.class || type == Float.class) {
+            return "number";
+        }
+        if (type == boolean.class || type == Boolean.class) {
+            return "boolean";
+        }
+        if (type == List.class) {
+            return "array";
+        }
+        if (type == Map.class) {
+            return "object";
+        }
         return "string"; // 默认 string
     }
 

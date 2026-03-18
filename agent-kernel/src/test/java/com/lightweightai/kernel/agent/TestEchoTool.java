@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.agent;
 
 import com.lightweightai.kernel.llm.ToolResult;
-
 import java.util.List;
 import java.util.Map;
 

@@ -51,10 +51,24 @@ public class AgentResponse {
         private List<ToolCallRecord> toolCalls = new ArrayList<>();
         private String stopReason = "end_turn";
 
-        public Builder text(String text) { this.text = text; return this; }
-        public Builder toolCalls(List<ToolCallRecord> toolCalls) { this.toolCalls = toolCalls; return this; }
-        public Builder stopReason(String stopReason) { this.stopReason = stopReason; return this; }
-        public AgentResponse build() { return new AgentResponse(text, toolCalls, stopReason); }
+        public Builder text(String text) {
+            this.text = text;
+            return this;
+        }
+
+        public Builder toolCalls(List<ToolCallRecord> toolCalls) {
+            this.toolCalls = toolCalls;
+            return this;
+        }
+
+        public Builder stopReason(String stopReason) {
+            this.stopReason = stopReason;
+            return this;
+        }
+
+        public AgentResponse build() {
+            return new AgentResponse(text, toolCalls, stopReason);
+        }
     }
 
     /**
@@ -71,8 +85,16 @@ public class AgentResponse {
             this.result = result;
         }
 
-        public String getToolName() { return toolName; }
-        public String getArguments() { return arguments; }
-        public String getResult() { return result; }
+        public String getToolName() {
+            return toolName;
+        }
+
+        public String getArguments() {
+            return arguments;
+        }
+
+        public String getResult() {
+            return result;
+        }
     }
 }

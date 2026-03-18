@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.agent;
 
 import com.lightweightai.kernel.llm.ToolResult;
-
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 

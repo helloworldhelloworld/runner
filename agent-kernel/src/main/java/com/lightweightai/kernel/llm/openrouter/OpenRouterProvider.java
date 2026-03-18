@@ -11,15 +11,6 @@ import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ModelCapability;
 import com.lightweightai.kernel.llm.ToolCall;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,6 +19,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * OpenRouter Provider - Unified API for multiple LLM models
@@ -361,11 +360,17 @@ public class OpenRouterProvider implements LLMProvider {
                                         int idx = tc.has("index") ? tc.get("index").asInt() : 0;
                                         ToolCallAccumulator acc = toolCallMap.computeIfAbsent(
                                             idx, i -> new ToolCallAccumulator());
-                                        if (tc.has("id")) acc.id = tc.get("id").asText();
+                                        if (tc.has("id")) {
+                                            acc.id = tc.get("id").asText();
+                                        }
                                         JsonNode fn = tc.get("function");
                                         if (fn != null) {
-                                            if (fn.has("name")) acc.name = fn.get("name").asText();
-                                            if (fn.has("arguments")) acc.argsJson.append(fn.get("arguments").asText());
+                                            if (fn.has("name")) {
+                                                acc.name = fn.get("name").asText();
+                                            }
+                                            if (fn.has("arguments")) {
+                                                acc.argsJson.append(fn.get("arguments").asText());
+                                            }
                                         }
                                     }
                                 }

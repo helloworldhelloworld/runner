@@ -4,7 +4,6 @@ import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.prompt.PromptContext;
-
 import java.util.List;
 import java.util.Map;
 

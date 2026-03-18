@@ -3,7 +3,6 @@ package com.lightweightai.kernel.prompt;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.MemorySearchResult;
 import com.lightweightai.kernel.memory.Message;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -232,7 +231,9 @@ public class PromptEngine {
     }
 
     private static String truncate(String text, int maxLen) {
-        if (text == null) return "";
+        if (text == null) {
+            return "";
+        }
         text = text.strip();
         return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
     }

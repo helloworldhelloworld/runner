@@ -1,8 +1,8 @@
 package com.lightweightai.kernel.agent;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Collections;
 
 /**
  * 工具元数据接口

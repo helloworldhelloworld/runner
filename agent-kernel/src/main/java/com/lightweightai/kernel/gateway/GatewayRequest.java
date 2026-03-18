@@ -26,11 +26,25 @@ public class GatewayRequest {
         this.timestamp = System.currentTimeMillis();
     }
 
-    public String getRequestId() { return requestId; }
-    public String getSessionId() { return sessionId; }
-    public String getMessage() { return message; }
-    public Map<String, Object> getMetadata() { return new HashMap<>(metadata); }
-    public long getTimestamp() { return timestamp; }
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return new HashMap<>(metadata);
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
 
     public static Builder builder() {
         return new Builder();

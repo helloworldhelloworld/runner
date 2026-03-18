@@ -1,10 +1,8 @@
 package com.lightweightai.kernel.instruction;
 
-import com.lightweightai.kernel.instruction.claude.ClaudeProviderAdapter;
 import com.lightweightai.kernel.instruction.claude.ClaudeSkillAdapter;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.skill.Skill;
-
 import java.util.List;
 
 /**
@@ -148,7 +146,9 @@ public class InstructionAbstractionExample {
                 List<ConversationMessage> messages,
                 List<InstructionPackage> packages
             ) {
-                if (packages.isEmpty()) return messages;
+                if (packages.isEmpty()) {
+                    return messages;
+                }
 
                 ConversationMessage systemMsg = formatAsSystemMessage(packages.get(0));
                 List<ConversationMessage> result = new java.util.ArrayList<>();

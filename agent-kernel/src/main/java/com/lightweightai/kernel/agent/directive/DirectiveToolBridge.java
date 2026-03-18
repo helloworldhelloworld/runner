@@ -5,14 +5,13 @@ import com.lightweightai.kernel.agent.ClientToolWrapper;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.llm.ToolResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Directive ↔ Tool 桥接器

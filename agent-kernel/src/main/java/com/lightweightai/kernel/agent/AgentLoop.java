@@ -14,14 +14,13 @@ import com.lightweightai.kernel.memory.MemorySearchResult;
 import com.lightweightai.kernel.memory.Message;
 import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.prompt.Skill;
-import reactor.core.publisher.Flux;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import reactor.core.publisher.Flux;
 
 /**
  * Agent 执行循环 (OpenClaw 风格)
@@ -307,7 +306,9 @@ public class AgentLoop {
     }
 
     private String truncate(String text, int maxLen) {
-        if (text == null) return "";
+        if (text == null) {
+            return "";
+        }
         text = text.replace("\n", " ").trim();
         return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
     }

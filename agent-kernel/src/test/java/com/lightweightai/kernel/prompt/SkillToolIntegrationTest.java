@@ -1,15 +1,16 @@
 package com.lightweightai.kernel.prompt;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.llm.ToolResult;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.DisplayName;
-
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * TDD: Skill 与 Tool 集成测试
@@ -166,10 +167,14 @@ class SkillToolIntegrationTest {
     private Tool createWeatherTool() {
         return new Tool() {
             @Override
-            public String getName() { return "get_weather"; }
+            public String getName() {
+                return "get_weather";
+            }
 
             @Override
-            public String getDescription() { return "获取指定城市天气"; }
+            public String getDescription() {
+                return "获取指定城市天气";
+            }
 
             @Override
             public ToolSchema getSchema() {
@@ -190,10 +195,14 @@ class SkillToolIntegrationTest {
     private Tool createForecastTool() {
         return new Tool() {
             @Override
-            public String getName() { return "get_forecast"; }
+            public String getName() {
+                return "get_forecast";
+            }
 
             @Override
-            public String getDescription() { return "获取未来天气预报"; }
+            public String getDescription() {
+                return "获取未来天气预报";
+            }
 
             @Override
             public ToolSchema getSchema() {

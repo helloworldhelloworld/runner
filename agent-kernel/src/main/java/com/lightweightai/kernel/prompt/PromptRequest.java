@@ -32,12 +32,24 @@ public class PromptRequest {
 
     // ==================== Getters ====================
 
-    public String getUserMessage() { return userMessage; }
-    public String getSessionId() { return sessionId; }
-    public List<String> getActiveSkills() { return new ArrayList<>(activeSkills); }
-    public boolean isAutoDetectSkills() { return autoDetectSkills; }
-    public int getMaxHistoryMessages() { return maxHistoryMessages; }
-    public int getMaxMemoryResults() { return maxMemoryResults; }
+    public String getUserMessage() {
+        return userMessage;
+    }
+    public String getSessionId() {
+        return sessionId;
+    }
+    public List<String> getActiveSkills() {
+        return new ArrayList<>(activeSkills);
+    }
+    public boolean isAutoDetectSkills() {
+        return autoDetectSkills;
+    }
+    public int getMaxHistoryMessages() {
+        return maxHistoryMessages;
+    }
+    public int getMaxMemoryResults() {
+        return maxMemoryResults;
+    }
     public Map<String, Object> getContext() { return new HashMap<>(context); }
 
     // ==================== Builder ====================

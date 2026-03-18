@@ -2,7 +2,6 @@ package com.lightweightai.kernel.agent.directive;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.lightweightai.kernel.llm.ToolResult;
-
 import java.util.Map;
 
 /**

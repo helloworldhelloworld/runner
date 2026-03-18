@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.core;
 
 import com.lightweightai.kernel.llm.ToolResult;
-
 import java.util.Map;
 
 /**

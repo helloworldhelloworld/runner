@@ -1,14 +1,16 @@
 package com.lightweightai.kernel.agent;
 
-import com.lightweightai.kernel.llm.ToolResult;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.DisplayName;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.lightweightai.kernel.llm.ToolResult;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * TDD: ToolRegistry 测试
@@ -204,13 +206,19 @@ class ToolRegistryTest {
     private Tool createSimpleTool(String name, String description) {
         return new Tool() {
             @Override
-            public String getName() { return name; }
+            public String getName() {
+                return name;
+            }
 
             @Override
-            public String getDescription() { return description; }
+            public String getDescription() {
+                return description;
+            }
 
             @Override
-            public ToolSchema getSchema() { return ToolSchema.empty(); }
+            public ToolSchema getSchema() {
+                return ToolSchema.empty();
+            }
 
             @Override
             public ToolResult execute(Map<String, Object> args) {
@@ -230,10 +238,14 @@ class ToolRegistryTest {
     private Tool createToolWithSchema(String name, String description, Map<String, Object> properties) {
         return new Tool() {
             @Override
-            public String getName() { return name; }
+            public String getName() {
+                return name;
+            }
 
             @Override
-            public String getDescription() { return description; }
+            public String getDescription() {
+                return description;
+            }
 
             @Override
             public ToolSchema getSchema() {
@@ -264,13 +276,19 @@ class ToolRegistryTest {
         }
 
         @Override
-        public String getName() { return name; }
+        public String getName() {
+            return name;
+        }
 
         @Override
-        public String getDescription() { return description; }
+        public String getDescription() {
+            return description;
+        }
 
         @Override
-        public ToolSchema getSchema() { return ToolSchema.empty(); }
+        public ToolSchema getSchema() {
+            return ToolSchema.empty();
+        }
 
         @Override
         public ToolResult execute(Map<String, Object> args) {
@@ -278,9 +296,13 @@ class ToolRegistryTest {
         }
 
         @Override
-        public String getCategory() { return category; }
+        public String getCategory() {
+            return category;
+        }
 
         @Override
-        public List<String> getTags() { return tags; }
+        public List<String> getTags() {
+            return tags;
+        }
     }
 }

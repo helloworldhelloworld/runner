@@ -11,17 +11,16 @@ import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ModelCapability;
 import com.lightweightai.kernel.llm.ToolCall;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 /**
  * Claude API Provider Implementation
@@ -137,13 +136,17 @@ public class ClaudeProvider implements LLMProvider {
                     .post(RequestBody.create(requestBody, JSON))
                     .build();
 
-                if (handler != null) handler.onStart();
+                if (handler != null) {
+                    handler.onStart();
+                }
 
                 try (Response response = httpClient.newCall(request).execute()) {
                     if (!response.isSuccessful()) {
                         RuntimeException ex = new RuntimeException(
                             "API call failed: " + response.code() + " " + response.message());
-                        if (handler != null) handler.onError(ex);
+                        if (handler != null) {
+                            handler.onError(ex);
+                        }
                         throw ex;
                     }
 
@@ -158,9 +161,13 @@ public class ClaudeProvider implements LLMProvider {
                     String body = response.body().string();
                     for (String line : body.split("\n")) {
                         line = line.trim();
-                        if (!line.startsWith("data: ")) continue;
+                        if (!line.startsWith("data: ")) {
+                            continue;
+                        }
                         String data = line.substring(6).trim();
-                        if (data.isEmpty() || "[DONE]".equals(data)) continue;
+                        if (data.isEmpty() || "[DONE]".equals(data)) {
+                            continue;
+                        }
 
                         JsonNode event = objectMapper.readTree(data);
                         String type = event.has("type") ? event.get("type").asText() : "";
@@ -182,7 +189,9 @@ public class ClaudeProvider implements LLMProvider {
                                 if ("text_delta".equals(deltaType)) {
                                     String text = delta.get("text").asText();
                                     fullText.append(text);
-                                    if (handler != null) handler.onTextDelta(text);
+                                    if (handler != null) {
+                                        handler.onTextDelta(text);
+                                    }
                                 } else if ("input_json_delta".equals(deltaType)) {
                                     currentToolJson.append(delta.get("partial_json").asText());
                                 }
@@ -194,7 +203,9 @@ public class ClaudeProvider implements LLMProvider {
                                         currentToolJson.toString(), Map.class);
                                     ToolCall tc = new ToolCall(currentToolId, currentToolName, args);
                                     toolCalls.add(tc);
-                                    if (handler != null) handler.onToolCallDelta(tc);
+                                    if (handler != null) {
+                                        handler.onToolCallDelta(tc);
+                                    }
                                     currentToolId = null;
                                     currentToolName = null;
                                     currentToolJson = new StringBuilder();
@@ -216,11 +227,15 @@ public class ClaudeProvider implements LLMProvider {
                         .toolCalls(toolCalls)
                         .build();
 
-                    if (handler != null) handler.onComplete(result);
+                    if (handler != null) {
+                        handler.onComplete(result);
+                    }
                     return result;
                 }
             } catch (Exception e) {
-                if (handler != null) handler.onError(e);
+                if (handler != null) {
+                    handler.onError(e);
+                }
                 throw new RuntimeException("Streaming failed", e);
             }
         });

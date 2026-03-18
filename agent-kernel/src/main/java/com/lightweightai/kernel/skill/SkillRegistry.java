@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.skill;
 
 import com.lightweightai.kernel.llm.ConversationMessage;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -257,7 +256,9 @@ public class SkillRegistry {
 
             // Check if any significant query word appears in skill name or description
             for (String queryWord : queryWords) {
-                if (queryWord.length() < 3) continue; // Skip short words
+                if (queryWord.length() < 3) {
+                    continue; // Skip short words
+                }
 
                 for (String nameWord : nameWords) {
                     if (nameWord.contains(queryWord) || queryWord.contains(nameWord)) {
@@ -275,7 +276,9 @@ public class SkillRegistry {
                     }
                 }
 
-                if (matches) break;
+                if (matches) {
+                    break;
+                }
             }
 
             if (matches) {

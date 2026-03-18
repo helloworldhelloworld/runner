@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.prompt;
 
 import com.lightweightai.kernel.agent.Tool;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -42,13 +41,27 @@ public class Skill {
 
     // ==================== Getters ====================
 
-    public String getName() { return name; }
-    public String getDescription() { return description; }
-    public String getSystemPrompt() { return systemPrompt; }
-    public List<ToolDefinition> getTools() { return new ArrayList<>(tools); }
-    public List<Tool> getToolInstances() { return new ArrayList<>(toolInstances); }
-    public List<String> getTriggers() { return new ArrayList<>(triggers); }
-    public int getPriority() { return priority; }
+    public String getName() {
+        return name;
+    }
+    public String getDescription() {
+        return description;
+    }
+    public String getSystemPrompt() {
+        return systemPrompt;
+    }
+    public List<ToolDefinition> getTools() {
+        return new ArrayList<>(tools);
+    }
+    public List<Tool> getToolInstances() {
+        return new ArrayList<>(toolInstances);
+    }
+    public List<String> getTriggers() {
+        return new ArrayList<>(triggers);
+    }
+    public int getPriority() {
+        return priority;
+    }
     public Map<String, Object> getMetadata() { return new HashMap<>(metadata); }
 
     /**
@@ -194,8 +207,12 @@ public class Skill {
             this.parameters = parameters != null ? new HashMap<>(parameters) : new HashMap<>();
         }
 
-        public String getName() { return name; }
-        public String getDescription() { return description; }
+        public String getName() {
+            return name;
+        }
+        public String getDescription() {
+            return description;
+        }
         public Map<String, Object> getParameters() { return new HashMap<>(parameters); }
 
         /**

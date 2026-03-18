@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.agent;
 
 import com.lightweightai.kernel.agent.annotation.AnnotatedToolScanner;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;

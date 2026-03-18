@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.llm;
 
 import com.lightweightai.kernel.plugin.JsonSchema;
-
 import java.util.HashMap;
 import java.util.Map;
 

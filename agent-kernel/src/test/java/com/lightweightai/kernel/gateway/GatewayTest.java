@@ -1,18 +1,21 @@
 package com.lightweightai.kernel.gateway;
 
-import com.lightweightai.kernel.agent.AgentLoop;
-import com.lightweightai.kernel.agent.AgentResponse;
-import com.lightweightai.kernel.agent.Tool;
-import com.lightweightai.kernel.agent.ToolSchema;
-import com.lightweightai.kernel.llm.*;
-import com.lightweightai.kernel.memory.InMemoryProvider;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
+import com.lightweightai.kernel.agent.AgentLoop;
+import com.lightweightai.kernel.llm.ConversationMessage;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.memory.InMemoryProvider;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,9 +23,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 
 /**
  * TDD: Gateway 抽象测试
@@ -456,11 +460,21 @@ class GatewayTest {
         @Override
         public ModelCapability getModelCapability() {
             return new ModelCapability() {
-                @Override public String getModelId() { return "mock-model"; }
-                @Override public int getMaxContextTokens() { return 4096; }
-                @Override public int getMaxOutputTokens() { return 4096; }
-                @Override public MessageFormatter getMessageFormatter() { return null; }
-                @Override public TokenCounter getTokenCounter() { return null; }
+                @Override public String getModelId() {
+                    return "mock-model";
+                }
+                @Override public int getMaxContextTokens() {
+                    return 4096;
+                }
+                @Override public int getMaxOutputTokens() {
+                    return 4096;
+                }
+                @Override public MessageFormatter getMessageFormatter() {
+                    return null;
+                }
+                @Override public TokenCounter getTokenCounter() {
+                    return null;
+                }
                 @Override public java.util.Set<ModelFeature> getSupportedFeatures() {
                     return java.util.Set.of(ModelFeature.TOOL_CALLING, ModelFeature.STREAMING);
                 }
@@ -468,6 +482,8 @@ class GatewayTest {
         }
 
         @Override
-        public String getProviderName() { return "mock"; }
+        public String getProviderName() {
+            return "mock";
+        }
     }
 }
