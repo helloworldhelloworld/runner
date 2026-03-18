@@ -6,7 +6,6 @@ import com.lightweightai.kernel.agent.ToolScanner;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
-
 import java.util.List;
 import java.util.Map;
 

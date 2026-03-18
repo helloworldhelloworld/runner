@@ -1,7 +1,6 @@
 package com.lightweightai.web.gateway;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.Map;
 
 /**
@@ -57,23 +56,47 @@ public class UnifiedChatRequest {
 
     // ==================== Getters/Setters ====================
 
-    public String getSessionId() { return sessionId; }
-    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+    public String getSessionId() {
+        return sessionId;
+    }
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
 
-    public String getMessage() { return message; }
-    public void setMessage(String message) { this.message = message; }
+    public String getMessage() {
+        return message;
+    }
+    public void setMessage(String message) {
+        this.message = message;
+    }
 
-    public boolean isStream() { return stream; }
-    public void setStream(boolean stream) { this.stream = stream; }
+    public boolean isStream() {
+        return stream;
+    }
+    public void setStream(boolean stream) {
+        this.stream = stream;
+    }
 
-    public ClientType getClientType() { return clientType != null ? clientType : ClientType.UNKNOWN; }
-    public void setClientType(ClientType clientType) { this.clientType = clientType; }
+    public ClientType getClientType() {
+        return clientType != null ? clientType : ClientType.UNKNOWN;
+    }
+    public void setClientType(ClientType clientType) {
+        this.clientType = clientType;
+    }
 
-    public String getModel() { return model; }
-    public void setModel(String model) { this.model = model; }
+    public String getModel() {
+        return model;
+    }
+    public void setModel(String model) {
+        this.model = model;
+    }
 
-    public Map<String, Object> getExtra() { return extra; }
-    public void setExtra(Map<String, Object> extra) { this.extra = extra; }
+    public Map<String, Object> getExtra() {
+        return extra;
+    }
+    public void setExtra(Map<String, Object> extra) {
+        this.extra = extra;
+    }
 
     /**
      * 获取扩展参数值

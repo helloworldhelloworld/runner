@@ -1,18 +1,16 @@
 package com.lightweightai.web.config;
 
-import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.memory.ConversationMemory;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.MemorySearchResult;
 import com.lightweightai.kernel.memory.Message;
 import com.lightweightai.kernel.memory.file.FileMemoryManager;
 import com.lightweightai.kernel.memory.model.SearchResult;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 桥接层：将 FileMemoryManager（持久化搜索）和 ConversationMemory（会话历史）

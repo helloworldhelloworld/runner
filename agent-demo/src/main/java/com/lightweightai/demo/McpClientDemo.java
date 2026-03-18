@@ -2,7 +2,6 @@ package com.lightweightai.demo;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
-import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.llm.ToolCall;
@@ -12,7 +11,6 @@ import com.lightweightai.mcp.ToolClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

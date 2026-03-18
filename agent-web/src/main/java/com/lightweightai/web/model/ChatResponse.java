@@ -1,7 +1,6 @@
 package com.lightweightai.web.model;
 
 import com.lightweightai.web.observer.DebugInfo;
-
 import java.util.List;
 import java.util.Map;
 

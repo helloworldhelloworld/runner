@@ -1,11 +1,10 @@
 package com.lightweightai.agent;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 import com.lightweightai.agent.plugin.Plugin;
 import org.junit.jupiter.api.Test;
-
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * TDD: Test for Agent with plugins

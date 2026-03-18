@@ -7,25 +7,24 @@ import com.lightweightai.kernel.instruction.InstructionRegistry;
 import com.lightweightai.kernel.instruction.ProviderAdapterFactory;
 import com.lightweightai.kernel.instruction.claude.ClaudeSkillAdapter;
 import com.lightweightai.kernel.llm.LLMProvider;
-import com.lightweightai.kernel.llm.claude.ClaudeProvider;
 import com.lightweightai.kernel.llm.claude.ClaudeProProvider;
+import com.lightweightai.kernel.llm.claude.ClaudeProvider;
 import com.lightweightai.kernel.llm.openrouter.OpenRouterProvider;
 import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.skill.Skill;
 import com.lightweightai.kernel.skill.SkillLoader;
-import com.lightweightai.kernel.speech.SpeechProvider;
 import com.lightweightai.kernel.speech.AzureSpeechProvider;
 import com.lightweightai.kernel.speech.OpenAISpeechProvider;
+import com.lightweightai.kernel.speech.SpeechProvider;
 import com.lightweightai.tools.web.WebTools;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Agent configuration

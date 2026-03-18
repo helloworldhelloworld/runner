@@ -1,7 +1,6 @@
 package com.lightweightai.agent;
 
 import com.lightweightai.agent.exception.AgentException;
-import com.lightweightai.agent.exception.LLMException;
 import com.lightweightai.agent.memory.ConversationMemory;
 import com.lightweightai.agent.memory.SimpleConversationMemory;
 import com.lightweightai.agent.plugin.Plugin;
@@ -14,14 +13,9 @@ import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMProviderFactory;
 import com.lightweightai.kernel.llm.LLMResponse;
-import com.lightweightai.kernel.llm.ToolCall;
-import com.lightweightai.kernel.plugin.PluginFunction;
-
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Agent的默认实现

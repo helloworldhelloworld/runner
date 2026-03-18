@@ -3,7 +3,6 @@ package com.lightweightai.agent;
 import com.lightweightai.agent.plugin.Plugin;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

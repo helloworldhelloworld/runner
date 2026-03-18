@@ -1,7 +1,7 @@
 package com.lightweightai.web.config;
 
-import com.lightweightai.assessment.AssessmentRepository;
 import com.lightweightai.assessment.AssessmentReportGenerator;
+import com.lightweightai.assessment.AssessmentRepository;
 import com.lightweightai.assessment.AssessmentScorer;
 import com.lightweightai.assessment.AssessmentService;
 import com.lightweightai.kernel.llm.LLMProvider;
@@ -10,13 +10,12 @@ import com.lightweightai.safety.CrisisDetector;
 import com.lightweightai.user.EmotionRepository;
 import com.lightweightai.user.UserRepository;
 import com.lightweightai.user.UserService;
+import java.io.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.io.File;
 
 /**
  * Spring beans for the soul-* modules.

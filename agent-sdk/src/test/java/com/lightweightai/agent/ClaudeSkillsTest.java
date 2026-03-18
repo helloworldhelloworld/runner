@@ -5,12 +5,15 @@ import com.lightweightai.agent.plugin.Plugin;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.lightweightai.kernel.plugin.JsonSchemaGenerator;
-import org.junit.jupiter.api.Test;
-
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests for Claude Skills integration - Plugin system with typed functions and JSON schema generation
@@ -31,11 +34,19 @@ public class ClaudeSkillsTest {
 
         public AddRequest() {}
 
-        public int getA() { return a; }
-        public void setA(int a) { this.a = a; }
+        public int getA() {
+            return a;
+        }
+        public void setA(int a) {
+            this.a = a;
+        }
 
-        public int getB() { return b; }
-        public void setB(int b) { this.b = b; }
+        public int getB() {
+            return b;
+        }
+        public void setB(int b) {
+            this.b = b;
+        }
     }
 
     /**

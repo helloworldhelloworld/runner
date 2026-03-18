@@ -8,24 +8,27 @@ import com.lightweightai.kernel.agent.annotation.ToolFunction;
 import com.lightweightai.kernel.agent.annotation.ToolParam;
 import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.core.ToolExecutor;
-import com.lightweightai.kernel.llm.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.llm.StreamEventHandler;
+import com.lightweightai.kernel.llm.ToolCall;
+import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.mcp.McpConfiguration;
 import com.lightweightai.mcp.McpHeaderProvider;
 import com.lightweightai.mcp.McpToolAdapter;
 import com.lightweightai.mcp.McpToolClient;
-import com.lightweightai.mcp.ToolClient;
-import com.lightweightai.mcp.McpToolServer;
 import com.lightweightai.mcp.McpToolWrapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.lightweightai.mcp.ToolClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
-
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -677,9 +680,15 @@ public class McpToolDemo {
             @ToolParam(name = "to", description = "Target currency code (e.g., CNY)", required = true) String to
         ) {
             double rate = 1.0;
-            if ("USD".equalsIgnoreCase(from) && "CNY".equalsIgnoreCase(to)) rate = 7.25;
-            if ("CNY".equalsIgnoreCase(from) && "USD".equalsIgnoreCase(to)) rate = 0.138;
-            if ("USD".equalsIgnoreCase(from) && "JPY".equalsIgnoreCase(to)) rate = 149.5;
+            if ("USD".equalsIgnoreCase(from) && "CNY".equalsIgnoreCase(to)) {
+                rate = 7.25;
+            }
+            if ("CNY".equalsIgnoreCase(from) && "USD".equalsIgnoreCase(to)) {
+                rate = 0.138;
+            }
+            if ("USD".equalsIgnoreCase(from) && "JPY".equalsIgnoreCase(to)) {
+                rate = 149.5;
+            }
 
             double result = amount * rate;
             return String.format("%.2f %s = %.2f %s", amount, from.toUpperCase(), result, to.toUpperCase());
@@ -743,9 +752,13 @@ public class McpToolDemo {
         }
 
         @Override
-        public ModelCapability getModelCapability() { return null; }
+        public ModelCapability getModelCapability() {
+            return null;
+        }
 
         @Override
-        public String getProviderName() { return "mock"; }
+        public String getProviderName() {
+            return "mock";
+        }
     }
 }

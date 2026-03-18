@@ -1,7 +1,6 @@
 package com.lightweightai.web.gateway;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.List;
 import java.util.Map;
 
@@ -122,32 +121,68 @@ public class UnifiedChatResponse {
 
     // ==================== Getters/Setters ====================
 
-    public String getRequestId() { return requestId; }
-    public void setRequestId(String requestId) { this.requestId = requestId; }
+    public String getRequestId() {
+        return requestId;
+    }
+    public void setRequestId(String requestId) {
+        this.requestId = requestId;
+    }
 
-    public String getSessionId() { return sessionId; }
-    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+    public String getSessionId() {
+        return sessionId;
+    }
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
 
-    public ResponseType getType() { return type; }
-    public void setType(ResponseType type) { this.type = type; }
+    public ResponseType getType() {
+        return type;
+    }
+    public void setType(ResponseType type) {
+        this.type = type;
+    }
 
-    public String getContent() { return content; }
-    public void setContent(String content) { this.content = content; }
+    public String getContent() {
+        return content;
+    }
+    public void setContent(String content) {
+        this.content = content;
+    }
 
-    public boolean isError() { return error; }
-    public void setError(boolean error) { this.error = error; }
+    public boolean isError() {
+        return error;
+    }
+    public void setError(boolean error) {
+        this.error = error;
+    }
 
-    public String getErrorMessage() { return errorMessage; }
-    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
+    }
 
-    public long getLatencyMs() { return latencyMs; }
-    public void setLatencyMs(long latencyMs) { this.latencyMs = latencyMs; }
+    public long getLatencyMs() {
+        return latencyMs;
+    }
+    public void setLatencyMs(long latencyMs) {
+        this.latencyMs = latencyMs;
+    }
 
-    public List<String> getSkillsApplied() { return skillsApplied; }
-    public void setSkillsApplied(List<String> skillsApplied) { this.skillsApplied = skillsApplied; }
+    public List<String> getSkillsApplied() {
+        return skillsApplied;
+    }
+    public void setSkillsApplied(List<String> skillsApplied) {
+        this.skillsApplied = skillsApplied;
+    }
 
-    public Map<String, Object> getMetadata() { return metadata; }
-    public void setMetadata(Map<String, Object> metadata) { this.metadata = metadata; }
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
 
     @Override
     public String toString() {

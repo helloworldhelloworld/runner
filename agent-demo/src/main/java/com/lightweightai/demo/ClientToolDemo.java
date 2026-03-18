@@ -11,13 +11,21 @@ import com.lightweightai.kernel.agent.annotation.ToolParam;
 import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.core.ToolExecutionContext;
 import com.lightweightai.kernel.core.ToolExecutor;
-import com.lightweightai.kernel.llm.*;
+import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.llm.StreamEventHandler;
+import com.lightweightai.kernel.llm.ToolCall;
+import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage.ClientToolCallData;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage.ClientToolResultData;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -637,9 +645,13 @@ public class ClientToolDemo {
         }
 
         @Override
-        public ModelCapability getModelCapability() { return null; }
+        public ModelCapability getModelCapability() {
+            return null;
+        }
 
         @Override
-        public String getProviderName() { return "mock-client-tool"; }
+        public String getProviderName() {
+            return "mock-client-tool";
+        }
     }
 }

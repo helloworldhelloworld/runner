@@ -1,10 +1,9 @@
 package com.lightweightai.web.config;
 
 import com.lightweightai.mcp.McpConfiguration;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * MCP 配置属性 — Spring Boot 类型化绑定

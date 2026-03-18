@@ -2,7 +2,6 @@ package com.lightweightai.agent.plugin;
 
 import com.lightweightai.kernel.plugin.PluginFunction;
 import com.lightweightai.kernel.plugin.TypedPluginFunction;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;

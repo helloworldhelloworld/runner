@@ -1,17 +1,22 @@
 package com.lightweightai.web.agent;
 
-import com.lightweightai.kernel.llm.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.lightweightai.kernel.llm.ConversationMessage;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.llm.StreamEventHandler;
 import com.lightweightai.kernel.memory.UserMemory;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * ReflectionService 测试
@@ -197,7 +202,9 @@ class ReflectionServiceTest {
         public LLMResponse complete(List<ConversationMessage> messages, LLMOptions options) {
             this.lastMessages = new ArrayList<>(messages);
 
-            if (throwOnComplete != null) throw throwOnComplete;
+            if (throwOnComplete != null) {
+                throw throwOnComplete;
+            }
 
             ConversationMessage msg = ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.ASSISTANT)
@@ -221,7 +228,13 @@ class ReflectionServiceTest {
             return CompletableFuture.completedFuture(complete(messages, options));
         }
 
-        @Override public String getProviderName() { return "mock"; }
-        @Override public ModelCapability getModelCapability() { return null; }
+        @Override
+        public String getProviderName() {
+            return "mock";
+        }
+        @Override
+        public ModelCapability getModelCapability() {
+            return null;
+        }
     }
 }

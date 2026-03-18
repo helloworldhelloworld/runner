@@ -11,9 +11,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
 import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Configuration;
 
 /**
  * MCP Server HTTP 传输配置 — 以 SSE 或 Streamable HTTP 方式对外暴露工具

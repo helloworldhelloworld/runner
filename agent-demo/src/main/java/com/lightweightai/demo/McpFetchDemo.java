@@ -11,7 +11,6 @@ import com.lightweightai.mcp.ToolClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
-
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -222,8 +221,12 @@ public class McpFetchDemo {
     }
 
     private static String truncate(String text, int maxLen) {
-        if (text == null) return "null";
-        if (text.length() <= maxLen) return text;
+        if (text == null) {
+            return "null";
+        }
+        if (text.length() <= maxLen) {
+            return text;
+        }
         return text.substring(0, maxLen) + "... [truncated]";
     }
 }

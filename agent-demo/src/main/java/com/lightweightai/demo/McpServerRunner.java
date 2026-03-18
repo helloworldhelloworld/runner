@@ -8,13 +8,12 @@ import com.lightweightai.kernel.agent.annotation.ToolParam;
 import com.lightweightai.mcp.McpConfiguration;
 import com.lightweightai.mcp.McpConfiguration.McpServerConfig;
 import com.lightweightai.mcp.McpConfiguration.ServerConfig;
-import com.lightweightai.mcp.McpToolClient;
-import com.lightweightai.mcp.McpToolServer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.lightweightai.mcp.McpToolClient;
+import com.lightweightai.mcp.McpToolServer;
 import io.modelcontextprotocol.spec.McpClientTransport;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -305,7 +304,9 @@ public class McpServerRunner {
         }
 
         private double getRate(String from, String to) {
-            if (from.equals(to)) return 1.0;
+            if (from.equals(to)) {
+                return 1.0;
+            }
             Map<String, Double> toUsd = Map.of(
                 "USD", 1.0, "CNY", 0.138, "JPY", 0.0067, "EUR", 1.08, "GBP", 1.27);
             double fromRate = toUsd.getOrDefault(from, 1.0);

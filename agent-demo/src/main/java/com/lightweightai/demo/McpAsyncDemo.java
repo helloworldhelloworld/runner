@@ -8,13 +8,11 @@ import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
-import reactor.core.publisher.Flux;
-
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import reactor.core.publisher.Flux;
 
 /**
  * MCP Async Demo — 演示 Reactive 全链路流式工具调用
@@ -437,26 +435,40 @@ public class McpAsyncDemo {
         }
 
         @Override
-        public String getCategory() { return "mcp:deepwiki"; }
+        public String getCategory() {
+            return "mcp:deepwiki";
+        }
 
         @Override
-        public List<String> getTags() { return List.of("mcp", "reactive", "deepwiki"); }
+        public List<String> getTags() {
+            return List.of("mcp", "reactive", "deepwiki");
+        }
 
         @Override
-        public String getAuthor() { return "mcp-server:deepwiki"; }
+        public String getAuthor() {
+            return "mcp-server:deepwiki";
+        }
 
         @Override
-        public boolean isReadOnly() { return true; }
+        public boolean isReadOnly() {
+            return true;
+        }
 
         private static String truncateStatic(String text, int maxLen) {
-            if (text == null) return "";
+            if (text == null) {
+                return "";
+            }
             return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
         }
     }
 
     private static String truncate(String text, int maxLen) {
-        if (text == null) return "null";
-        if (text.length() <= maxLen) return text;
+        if (text == null) {
+            return "null";
+        }
+        if (text.length() <= maxLen) {
+            return text;
+        }
         return text.substring(0, maxLen) + "...";
     }
 }

@@ -12,7 +12,9 @@ public record SafetyResult(
 ) {
     public enum Level { SAFE, CRISIS }
 
-    public boolean isCrisis() { return level == Level.CRISIS; }
+    public boolean isCrisis() {
+        return level == Level.CRISIS;
+    }
 
     public static SafetyResult safe() {
         return new SafetyResult(Level.SAFE, List.of(), List.of());

@@ -1,27 +1,39 @@
 package com.lightweightai.web.agent;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+
 import com.lightweightai.kernel.agent.AgentObserver;
 import com.lightweightai.kernel.agent.AgentResponse;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolSchema;
-import com.lightweightai.kernel.llm.*;
+import com.lightweightai.kernel.llm.ConversationMessage;
+import com.lightweightai.kernel.llm.LLMOptions;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.llm.StreamEventHandler;
+import com.lightweightai.kernel.llm.ToolCall;
+import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.memory.ConversationMemory;
 import com.lightweightai.kernel.memory.InMemoryProvider;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.UserMemory;
 import com.lightweightai.kernel.prompt.PromptEngine;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 
 /**
  * SoulComfortAgent 测试
@@ -478,7 +490,9 @@ class SoulComfortAgentTest {
         public LLMResponse complete(List<ConversationMessage> messages, LLMOptions options) {
             this.lastMessages = new ArrayList<>(messages);
 
-            if (throwOnComplete != null) throw throwOnComplete;
+            if (throwOnComplete != null) {
+                throw throwOnComplete;
+            }
 
             if (responseIndex >= responseQueue.size()) {
                 return createTextResponse("Mock response");
@@ -517,10 +531,14 @@ class SoulComfortAgentTest {
         }
 
         @Override
-        public String getProviderName() { return "mock"; }
+        public String getProviderName() {
+            return "mock";
+        }
 
         @Override
-        public ModelCapability getModelCapability() { return null; }
+        public ModelCapability getModelCapability() {
+            return null;
+        }
 
         private LLMResponse createTextResponse(String text) {
             ConversationMessage msg = ConversationMessage.builder()
@@ -567,9 +585,18 @@ class SoulComfortAgentTest {
             this.executor = executor;
         }
 
-        @Override public String getName() { return name; }
-        @Override public String getDescription() { return description; }
-        @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
+        @Override
+        public String getName() {
+            return name;
+        }
+        @Override
+        public String getDescription() {
+            return description;
+        }
+        @Override
+        public ToolSchema getSchema() {
+            return ToolSchema.empty();
+        }
 
         @Override
         public ToolResult execute(Map<String, Object> args) {
@@ -586,14 +613,24 @@ class SoulComfortAgentTest {
         boolean errorCalled = false;
 
         @Override
-        public void onAgentStart(String userMessage, String sessionId) { startCalled = true; }
+        public void onAgentStart(String userMessage, String sessionId) {
+            startCalled = true;
+        }
         @Override
-        public void onLLMRequest(List<ConversationMessage> messages) { llmRequestCalled = true; }
+        public void onLLMRequest(List<ConversationMessage> messages) {
+            llmRequestCalled = true;
+        }
         @Override
-        public void onLLMResponse(LLMResponse response) { llmResponseCalled = true; }
+        public void onLLMResponse(LLMResponse response) {
+            llmResponseCalled = true;
+        }
         @Override
-        public void onAgentComplete(AgentResponse response) { completeCalled = true; }
+        public void onAgentComplete(AgentResponse response) {
+            completeCalled = true;
+        }
         @Override
-        public void onError(Throwable error) { errorCalled = true; }
+        public void onError(Throwable error) {
+            errorCalled = true;
+        }
     }
 }

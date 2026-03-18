@@ -2,7 +2,6 @@ package com.lightweightai.agent;
 
 import com.lightweightai.agent.memory.ConversationMemory;
 import com.lightweightai.agent.plugin.Plugin;
-
 import java.util.List;
 
 /**
