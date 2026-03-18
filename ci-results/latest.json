@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "4cecfbb7c8c3f72d902158185f138d06ac1188df",
+  "trigger_sha": "0b08bba855b17933e91141dc9a4696775b53e224",
   "exit_code": 1,
-  "timestamp": "2026-03-18T10:35:58Z",
+  "timestamp": "2026-03-18T10:37:01Z",
   "branch": "claude/fix-mcp-header-registration-cg72o",
-  "run_id": "23240518524",
+  "run_id": "23240559258",
   "test_summary": ""
 }
