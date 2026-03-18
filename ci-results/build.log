@@ -58,69 +58,69 @@
 [INFO]  T E S T S
 [INFO] -------------------------------------------------------
 [INFO] Running com.lightweightai.kernel.instruction.InstructionRegistryTest
-[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.109 s - in com.lightweightai.kernel.instruction.InstructionRegistryTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.113 s - in com.lightweightai.kernel.instruction.InstructionRegistryTest
 [INFO] Running com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest
-[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.026 s - in com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.021 s - in com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest
 [INFO] Running com.lightweightai.kernel.agent.directive.DirectiveToolBridgeTest
-12:25:57.640 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: Camera.TakePhoto (from android 2.1.0)
-12:25:57.644 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: GPS.GetLocation (from android 2.1.0)
-12:25:57.644 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 2 directive tools from manifest (client=android, version=2.1.0)
-12:25:57.646 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: Camera.TakePhoto (from android 2.0)
-12:25:57.646 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 1 directive tools from manifest (client=android, version=2.0)
-12:25:57.646 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Unregistered directive tool: Camera.TakePhoto
-12:25:57.653 [main] WARN com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Empty manifest from client: browser
-12:25:57.654 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: NFC.ReadTag (from ios 1.0)
-12:25:57.654 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 1 directive tools from manifest (client=ios, version=1.0)
-[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.117 s - in com.lightweightai.kernel.agent.directive.DirectiveToolBridgeTest
+12:43:20.094 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: Camera.TakePhoto (from android 2.1.0)
+12:43:20.103 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: GPS.GetLocation (from android 2.1.0)
+12:43:20.103 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 2 directive tools from manifest (client=android, version=2.1.0)
+12:43:20.106 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: Camera.TakePhoto (from android 2.0)
+12:43:20.106 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 1 directive tools from manifest (client=android, version=2.0)
+12:43:20.106 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Unregistered directive tool: Camera.TakePhoto
+12:43:20.111 [main] WARN com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Empty manifest from client: browser
+12:43:20.113 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: NFC.ReadTag (from ios 1.0)
+12:43:20.113 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 1 directive tools from manifest (client=ios, version=1.0)
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.15 s - in com.lightweightai.kernel.agent.directive.DirectiveToolBridgeTest
 [INFO] Running com.lightweightai.kernel.agent.directive.DirectiveTest
-[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.kernel.agent.directive.DirectiveTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.kernel.agent.directive.DirectiveTest
 [INFO] Running com.lightweightai.kernel.agent.directive.ClientCapabilityTest
-[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.agent.directive.ClientCapabilityTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.agent.directive.ClientCapabilityTest
 [INFO] Running com.lightweightai.kernel.agent.directive.DirectiveResultTest
-[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.kernel.agent.directive.DirectiveResultTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s - in com.lightweightai.kernel.agent.directive.DirectiveResultTest
 [INFO] Running com.lightweightai.kernel.agent.ToolScannerTest
-12:25:57.687 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.687 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.688 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
-12:25:57.690 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.690 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.692 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.692 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.692 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
-12:25:57.694 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.694 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.696 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 0 tools
-12:25:57.698 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.698 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.698 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
-12:25:57.699 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.700 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.700 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
-12:25:57.702 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.703 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.704 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.704 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.706 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.706 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.708 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.708 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.710 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.710 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-12:25:57.710 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
-12:25:57.714 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
-12:25:57.714 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
-[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.031 s - in com.lightweightai.kernel.agent.ToolScannerTest
+12:43:20.166 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.167 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.168 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+12:43:20.173 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.173 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.176 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.176 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.176 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+12:43:20.178 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.178 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.181 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 0 tools
+12:43:20.183 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.183 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.183 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+12:43:20.185 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.185 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.185 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+12:43:20.188 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.189 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.190 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.190 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.192 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.192 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.194 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.194 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.197 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.197 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+12:43:20.197 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+12:43:20.200 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+12:43:20.200 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.041 s - in com.lightweightai.kernel.agent.ToolScannerTest
 [INFO] Running com.lightweightai.kernel.agent.AgentLoopTest
 [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.024 s - in com.lightweightai.kernel.agent.AgentLoopTest
 [INFO] Running com.lightweightai.kernel.agent.ToolRegistryTest
-[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.03 s - in com.lightweightai.kernel.agent.ToolRegistryTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s - in com.lightweightai.kernel.agent.ToolRegistryTest
 [INFO] Running com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest
-[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.073 s - in com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.072 s - in com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest
 [INFO] Running com.lightweightai.kernel.gateway.GatewayTest
 [INFO] Running com.lightweightai.kernel.gateway.GatewayTest$ChatHandlerTests
-12:25:57.913 [main] DEBUG reactor.util.Loggers -- Using Slf4j logging framework
-[ERROR] Tests run: 5, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.084 s <<< FAILURE! - in com.lightweightai.kernel.gateway.GatewayTest$ChatHandlerTests
-[ERROR] com.lightweightai.kernel.gateway.GatewayTest$ChatHandlerTests.shouldStreamWithMetadata  Time elapsed: 0.071 s  <<< FAILURE!
+12:43:20.383 [main] DEBUG reactor.util.Loggers -- Using Slf4j logging framework
+[ERROR] Tests run: 5, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.077 s <<< FAILURE! - in com.lightweightai.kernel.gateway.GatewayTest$ChatHandlerTests
+[ERROR] com.lightweightai.kernel.gateway.GatewayTest$ChatHandlerTests.shouldStreamWithMetadata  Time elapsed: 0.061 s  <<< FAILURE!
 org.opentest4j.AssertionFailedError: expected: <温柔> but was: <null>
 	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
 	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
@@ -135,41 +135,41 @@ org.opentest4j.AssertionFailedError: expected: <温柔> but was: <null>
 	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
 
 [INFO] Running com.lightweightai.kernel.gateway.GatewayTest$AgentLoopBackwardCompatibility
-[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.025 s - in com.lightweightai.kernel.gateway.GatewayTest$AgentLoopBackwardCompatibility
-[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.115 s - in com.lightweightai.kernel.gateway.GatewayTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.019 s - in com.lightweightai.kernel.gateway.GatewayTest$AgentLoopBackwardCompatibility
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.1 s - in com.lightweightai.kernel.gateway.GatewayTest
 [INFO] Running com.lightweightai.kernel.prompt.PromptEngineTest
-[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s - in com.lightweightai.kernel.prompt.PromptEngineTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.029 s - in com.lightweightai.kernel.prompt.PromptEngineTest
 [INFO] Running com.lightweightai.kernel.prompt.SkillToolIntegrationTest
-[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.kernel.prompt.SkillToolIntegrationTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.prompt.SkillToolIntegrationTest
 [INFO] Running com.lightweightai.kernel.skill.SkillLoaderTest
-12:25:58.035 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit16494101204255259160/my-sample-skill
-12:25:58.041 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-2
-12:25:58.042 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-1
-[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.035 s - in com.lightweightai.kernel.skill.SkillLoaderTest
+12:43:20.506 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit12091930608119296279/my-sample-skill
+12:43:20.514 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-2
+12:43:20.514 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-1
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.048 s - in com.lightweightai.kernel.skill.SkillLoaderTest
 [INFO] Running com.lightweightai.kernel.skill.SkillRegistryTest
-12:25:58.057 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit15166633182011289544/skill-a
-12:25:58.057 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit15166633182011289544/skill-b
-12:25:58.058 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-a
-12:25:58.058 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-b
-[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.019 s - in com.lightweightai.kernel.skill.SkillRegistryTest
+12:43:20.530 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit8536994793601387414/skill-a
+12:43:20.531 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit8536994793601387414/skill-b
+12:43:20.533 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-a
+12:43:20.534 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-b
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.025 s - in com.lightweightai.kernel.skill.SkillRegistryTest
 [INFO] Running com.lightweightai.kernel.memory.MemoryProviderTest
-[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.kernel.memory.MemoryProviderTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.memory.MemoryProviderTest
 [INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
-[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.419 s - in com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.944 s - in com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
 [INFO] Running com.lightweightai.kernel.llm.ToolResultTest
-[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s - in com.lightweightai.kernel.llm.ToolResultTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.llm.ToolResultTest
 [INFO] Running com.lightweightai.kernel.core.ToolCallingLoopAsyncTest
 Main thread: main
 Async thread: main
-[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.216 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.227 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest
 [INFO] Running com.lightweightai.kernel.core.postprocess.CardAppendProcessorTest
-[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.042 s - in com.lightweightai.kernel.core.postprocess.CardAppendProcessorTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.035 s - in com.lightweightai.kernel.core.postprocess.CardAppendProcessorTest
 [INFO] Running com.lightweightai.kernel.core.postprocess.DeeplinkProcessorTest
-[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s - in com.lightweightai.kernel.core.postprocess.DeeplinkProcessorTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.kernel.core.postprocess.DeeplinkProcessorTest
 [INFO] Running com.lightweightai.kernel.core.postprocess.RiskControlProcessorTest
-[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.core.postprocess.RiskControlProcessorTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.kernel.core.postprocess.RiskControlProcessorTest
 [INFO] Running com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipelineTest
-[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipelineTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipelineTest
 [INFO] 
 [INFO] Results:
 [INFO] 
@@ -181,8 +181,8 @@ Async thread: main
 [INFO] ------------------------------------------------------------------------
 [INFO] Reactor Summary for Lightweight AI Kernel Parent 0.1.0-SNAPSHOT:
 [INFO] 
-[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.002 s]
-[INFO] Agent Kernel ....................................... FAILURE [  5.985 s]
+[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.003 s]
+[INFO] Agent Kernel ....................................... FAILURE [  7.671 s]
 [INFO] Agent Tools ........................................ SKIPPED
 [INFO] Agent MCP .......................................... SKIPPED
 [INFO] Kernel Memory ...................................... SKIPPED
@@ -195,8 +195,8 @@ Async thread: main
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  6.321 s
-[INFO] Finished at: 2026-03-18T12:25:58Z
+[INFO] Total time:  8.062 s
+[INFO] Finished at: 2026-03-18T12:43:21Z
 [INFO] ------------------------------------------------------------------------
 [ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.0.0:test (default-test) on project agent-kernel: There are test failures.
 [ERROR] 
