@@ -1,0 +1,169 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+    Google Java Style Guide - Checkstyle configuration
+    Customized for gradual adoption:
+    - Error level: critical rules (wildcard imports, missing braces, import order)
+    - Warning level: line length
+    - Suppressed: Javadoc, indentation (to be enabled later)
+-->
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="warning"/>
+
+    <!-- Suppressions -->
+    <module name="SuppressionFilter">
+        <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
+        <property name="optional" value="true"/>
+    </module>
+
+    <!-- File-level checks -->
+    <module name="FileTabCharacter">
+        <property name="eachLine" value="true"/>
+    </module>
+
+    <module name="LineLength">
+        <property name="fileExtensions" value="java"/>
+        <property name="max" value="120"/>
+        <property name="severity" value="warning"/>
+        <property name="ignorePattern" value="^package.*|^import.*|a]href|href|http://|https://|ftp://"/>
+    </module>
+
+    <module name="NewlineAtEndOfFile"/>
+
+    <module name="TreeWalker">
+        <!-- ==================== ERROR LEVEL (must fix) ==================== -->
+
+        <!-- No wildcard imports -->
+        <module name="AvoidStarImport">
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- Import ordering: Google style -->
+        <module name="CustomImportOrder">
+            <property name="sortImportsInGroupAlphabetically" value="true"/>
+            <property name="separateLineBetweenGroups" value="true"/>
+            <property name="customImportOrderRules"
+                       value="STATIC###THIRD_PARTY_PACKAGE"/>
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- Redundant imports -->
+        <module name="RedundantImport">
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- Unused imports -->
+        <module name="UnusedImports">
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- Braces required for all blocks -->
+        <module name="NeedBraces">
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- Left curly on same line -->
+        <module name="LeftCurly">
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- Right curly placement -->
+        <module name="RightCurly">
+            <property name="id" value="RightCurlySame"/>
+            <property name="tokens"
+                       value="LITERAL_TRY, LITERAL_CATCH, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_DO"/>
+            <property name="option" value="same"/>
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- One top-level class per file -->
+        <module name="OneTopLevelClass">
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- Modifier order: public static final, not final static public -->
+        <module name="ModifierOrder">
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- No multiple statements on same line -->
+        <module name="OneStatementPerLine">
+            <property name="severity" value="error"/>
+        </module>
+
+        <!-- ==================== WARNING LEVEL (gradual fix) ==================== -->
+
+        <!-- Naming conventions -->
+        <module name="ConstantName">
+            <property name="severity" value="warning"/>
+        </module>
+        <module name="LocalVariableName">
+            <property name="format" value="^[a-z]([a-z0-9][a-zA-Z0-9]*)?$"/>
+            <property name="severity" value="warning"/>
+        </module>
+        <module name="MemberName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+            <property name="severity" value="warning"/>
+        </module>
+        <module name="MethodName">
+            <property name="format" value="^[a-z][a-zA-Z0-9_]*$"/>
+            <property name="severity" value="warning"/>
+        </module>
+        <module name="PackageName">
+            <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
+            <property name="severity" value="warning"/>
+        </module>
+        <module name="TypeName">
+            <property name="severity" value="warning"/>
+        </module>
+        <module name="ParameterName">
+            <property name="format" value="^[a-z]([a-z0-9][a-zA-Z0-9]*)?$"/>
+            <property name="severity" value="warning"/>
+        </module>
+
+        <!-- Empty blocks must have comment -->
+        <module name="EmptyBlock">
+            <property name="option" value="TEXT"/>
+            <property name="tokens" value="LITERAL_TRY, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_SWITCH"/>
+            <property name="severity" value="warning"/>
+        </module>
+
+        <!-- Whitespace -->
+        <module name="WhitespaceAround">
+            <property name="allowEmptyConstructors" value="true"/>
+            <property name="allowEmptyLambdas" value="true"/>
+            <property name="allowEmptyMethods" value="true"/>
+            <property name="allowEmptyTypes" value="true"/>
+            <property name="severity" value="warning"/>
+        </module>
+
+        <!-- Fall-through in switch must be commented -->
+        <module name="FallThrough">
+            <property name="severity" value="warning"/>
+        </module>
+
+        <!-- Overload methods should be grouped together -->
+        <module name="OverloadMethodsDeclarationOrder">
+            <property name="severity" value="warning"/>
+        </module>
+
+        <!-- Multiple variable declarations -->
+        <module name="MultipleVariableDeclarations">
+            <property name="severity" value="warning"/>
+        </module>
+
+        <!-- Array style: String[] args, not String args[] -->
+        <module name="ArrayTypeStyle">
+            <property name="severity" value="warning"/>
+        </module>
+
+        <!-- Upper case 'L' in long literals -->
+        <module name="UpperEll">
+            <property name="severity" value="warning"/>
+        </module>
+    </module>
+</module>
