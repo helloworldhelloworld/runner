@@ -3,6 +3,10 @@ package com.lightweightai.web.agent;
 import com.lightweightai.kernel.agent.AgentObserver;
 import com.lightweightai.kernel.agent.AgentResponse;
 import com.lightweightai.kernel.agent.Tool;
+import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.ToolCallingLoop;
+import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
@@ -15,6 +19,7 @@ import com.lightweightai.kernel.memory.UserMemory;
 import com.lightweightai.kernel.prompt.PromptContext;
 import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.prompt.PromptRequest;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -45,6 +50,7 @@ public class SoulComfortAgent {
     private final ConversationMemory memory;   // 兼容模式回退
     private final ReflectionService reflectionService;
     private final List<Tool> tools;
+    private final ToolCallingLoop toolCallingLoop; // nullable, set when ToolRegistry is provided
     private AgentObserver observer;
 
     // 兼容模式的系统提示（PromptEngine 缺席时使用）
@@ -72,10 +78,22 @@ public class SoulComfortAgent {
      * OpenClaw 模式（推荐）：PromptEngine 负责 prompt 组装和记忆检索，带工具列表
      */
     public SoulComfortAgent(LLMProvider llmProvider, PromptEngine promptEngine, List<Tool> tools) {
+        this(llmProvider, promptEngine, tools, null);
+    }
+
+    /**
+     * OpenClaw 模式 + ToolCallingLoop（完整 Reactive 支持）
+     *
+     * 当提供 ToolCallingLoop 时，chatStreamReactive() 走 Reactive 管道，
+     * 前端可收到完整的工具调用事件（TOOL_CALL_START / TOOL_PROGRESS / TOOL_RESULT 等）。
+     */
+    public SoulComfortAgent(LLMProvider llmProvider, PromptEngine promptEngine,
+                            List<Tool> tools, ToolCallingLoop toolCallingLoop) {
         this.llmProvider = llmProvider;
         this.promptEngine = promptEngine;
         this.memory = null;
         this.tools = tools != null ? new ArrayList<>(tools) : new ArrayList<>();
+        this.toolCallingLoop = toolCallingLoop;
         this.reflectionService = new ReflectionService(llmProvider);
     }
 
@@ -83,7 +101,7 @@ public class SoulComfortAgent {
      * OpenClaw 模式（无工具）
      */
     public SoulComfortAgent(LLMProvider llmProvider, PromptEngine promptEngine) {
-        this(llmProvider, promptEngine, List.of());
+        this(llmProvider, promptEngine, List.of(), null);
     }
 
     /**
@@ -94,6 +112,7 @@ public class SoulComfortAgent {
         this.promptEngine = null;
         this.memory = new ConversationMemory();
         this.tools = new ArrayList<>();
+        this.toolCallingLoop = null;
         this.reflectionService = new ReflectionService(llmProvider);
     }
 
@@ -105,6 +124,7 @@ public class SoulComfortAgent {
         this.promptEngine = null;
         this.memory = memory;
         this.tools = new ArrayList<>();
+        this.toolCallingLoop = null;
         this.reflectionService = new ReflectionService(llmProvider);
     }
 
@@ -298,6 +318,71 @@ public class SoulComfortAgent {
         });
 
         return result;
+    }
+
+    // ==================== Reactive Streaming ====================
+
+    /**
+     * Reactive 流式对话 — 通过 ToolCallingLoop 实现完整的工具事件流
+     *
+     * 返回 Flux&lt;StreamEvent&gt; 包含：
+     * - TEXT_DELTA: LLM 文本片段
+     * - TOOL_CALL_START: LLM 决定调用工具
+     * - TOOL_PROGRESS / TOOL_LOG: MCP 工具执行进度和日志
+     * - TOOL_RESULT: 工具执行完成
+     * - LLM_COMPLETE: 最终 LLM 响应
+     *
+     * 需要在构造时传入 ToolCallingLoop，否则回退到 callback-based 路径（仅 TEXT_DELTA）。
+     */
+    public Flux<StreamEvent> chatStreamReactive(String sessionId, String userMessage) {
+        if (toolCallingLoop == null) {
+            // 没有 ToolCallingLoop，回退到 callback 桥接（仅 TEXT_DELTA）
+            return Flux.create(sink -> {
+                chatStream(sessionId, userMessage, new LLMProvider.StreamEventHandler() {
+                    @Override
+                    public void onTextDelta(String delta) {
+                        sink.next(StreamEvent.textDelta(delta));
+                    }
+
+                    @Override
+                    public void onComplete(LLMResponse response) {
+                        sink.next(StreamEvent.llmComplete(response));
+                        sink.complete();
+                    }
+
+                    @Override
+                    public void onError(Throwable error) {
+                        sink.error(error);
+                    }
+                });
+            });
+        }
+
+        // 有 ToolCallingLoop — 走 Reactive 管道，包含完整工具事件
+        List<ConversationMessage> messages = buildMessages(sessionId, userMessage, null);
+
+        LLMOptions.Builder optBuilder = LLMOptions.builder()
+            .maxTokens(500)
+            .temperature(0.8);
+
+        if (!tools.isEmpty()) {
+            optBuilder.toolDefinitions(buildToolDefinitions());
+        }
+
+        StringBuilder fullText = new StringBuilder();
+
+        return toolCallingLoop.executeWithToolsReactive(messages, optBuilder.build())
+            .doOnNext(event -> {
+                if (event.getType() == StreamEvent.EventType.TEXT_DELTA && event.getTextDelta() != null) {
+                    fullText.append(event.getTextDelta());
+                }
+            })
+            .doOnComplete(() -> {
+                String text = fullText.toString();
+                if (!text.isEmpty()) {
+                    saveAssistantMessage(sessionId, text);
+                }
+            });
     }
 
     // ==================== Tool Helpers ====================

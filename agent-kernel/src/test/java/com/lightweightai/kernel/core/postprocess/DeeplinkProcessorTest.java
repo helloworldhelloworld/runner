@@ -4,8 +4,6 @@ import com.lightweightai.kernel.core.StreamEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
-import reactor.test.StepVerifier;
-
 import java.util.List;
 import java.util.stream.Collectors;
 

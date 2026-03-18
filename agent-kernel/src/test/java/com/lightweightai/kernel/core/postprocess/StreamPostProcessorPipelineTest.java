@@ -4,8 +4,6 @@ import com.lightweightai.kernel.core.StreamEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
-import reactor.test.StepVerifier;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,10 +22,11 @@ class StreamPostProcessorPipelineTest {
                 StreamEvent.textDelta(" world")
         );
 
-        StepVerifier.create(input.transform(pipeline))
-                .expectNextMatches(e -> "hello".equals(e.getTextDelta()))
-                .expectNextMatches(e -> " world".equals(e.getTextDelta()))
-                .verifyComplete();
+        List<StreamEvent> result = input.transform(pipeline).collectList().block();
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals("hello", result.get(0).getTextDelta());
+        assertEquals(" world", result.get(1).getTextDelta());
     }
 
     @Test
@@ -48,9 +47,9 @@ class StreamPostProcessorPipelineTest {
 
         Flux<StreamEvent> input = Flux.just(StreamEvent.textDelta("test"));
 
-        StepVerifier.create(input.transform(pipeline))
-                .expectNextCount(1)
-                .verifyComplete();
+        List<StreamEvent> result = input.transform(pipeline).collectList().block();
+        assertNotNull(result);
+        assertEquals(1, result.size());
 
         assertEquals(List.of("first", "second", "third"), executionOrder);
     }
@@ -122,9 +121,10 @@ class StreamPostProcessorPipelineTest {
 
         Flux<StreamEvent> input = Flux.just(StreamEvent.textDelta("hello"));
 
-        StepVerifier.create(input.transform(pipeline))
-                .expectNextMatches(e -> "HELLO".equals(e.getTextDelta()))
-                .verifyComplete();
+        List<StreamEvent> result = input.transform(pipeline).collectList().block();
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals("HELLO", result.get(0).getTextDelta());
     }
 
     // 辅助：记录执行顺序的处理器

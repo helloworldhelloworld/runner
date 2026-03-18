@@ -99,41 +99,86 @@ public class Gateway {
 
     /**
      * 流式处理请求
+     *
+     * 内部统一走 Reactive 路径（handleStreamReactive），将 Flux&lt;StreamEvent&gt;
+     * 分发到 GatewayStreamHandler 的各回调方法。
+     *
+     * 这样无论哪种协议适配器（REST/SSE/WebSocket），都能收到完整的工具调用事件。
+     * 旧适配器未覆盖工具回调 → 默认空实现 → 行为不变。
      */
     public void handleStream(GatewayRequest request, GatewayStreamHandler handler) {
         long startTime = System.currentTimeMillis();
+        StringBuilder fullText = new StringBuilder();
 
-        chatHandler.chatStream(request, new ChatHandler.StreamCallback() {
-            @Override
-            public void onDelta(String delta, Map<String, Object> metadata) {
-                handler.onDelta(delta, metadata);
-            }
-
-            @Override
-            public void onComplete(GatewayResponse response) {
-                if (response.getLatencyMs() == 0) {
+        handleStreamReactive(request)
+            .subscribe(
+                event -> dispatchEvent(event, handler, fullText),
+                handler::onError,
+                () -> {
                     long latencyMs = System.currentTimeMillis() - startTime;
-                    GatewayResponse enriched = GatewayResponse.builder()
-                        .requestId(response.getRequestId() != null ? response.getRequestId() : request.getRequestId())
-                        .sessionId(response.getSessionId() != null ? response.getSessionId() : request.getSessionId())
-                        .text(response.getText())
+                    GatewayResponse response = GatewayResponse.builder()
+                        .requestId(request.getRequestId())
+                        .sessionId(request.getSessionId())
+                        .text(fullText.toString())
                         .latencyMs(latencyMs)
-                        .metadata(response.getMetadata())
                         .build();
-                    handler.onComplete(enriched);
-                } else {
                     handler.onComplete(response);
                 }
-            }
+            );
+    }
 
-            @Override
-            public void onError(Throwable error) {
-                handler.onError(error);
+    /**
+     * 将 StreamEvent 分发到 GatewayStreamHandler 对应的回调
+     */
+    private void dispatchEvent(StreamEvent event, GatewayStreamHandler handler, StringBuilder fullText) {
+        switch (event.getType()) {
+            case TEXT_DELTA -> {
+                String delta = event.getTextDelta();
+                if (delta != null && !delta.isEmpty()) {
+                    fullText.append(delta);
+                    handler.onDelta(delta, Collections.emptyMap());
+                }
             }
-        }).exceptionally(error -> {
-            handler.onError(error);
-            return null;
-        });
+            case TOOL_CALL_START -> {
+                if (event.getToolCall() != null) {
+                    handler.onToolCallStart(event.getToolCall());
+                }
+            }
+            case TOOL_PROGRESS -> {
+                if (event.getChunk() != null) {
+                    handler.onToolProgress(event.getChunk());
+                }
+            }
+            case TOOL_LOG -> {
+                if (event.getChunk() != null) {
+                    handler.onToolLog(event.getChunk());
+                }
+            }
+            case TOOL_RESULT -> {
+                if (event.getChunk() != null) {
+                    handler.onToolResult(event.getChunk());
+                }
+            }
+            case TOOL_ERROR -> {
+                if (event.getChunk() != null) {
+                    handler.onToolError(event.getChunk());
+                }
+            }
+            case POST_PROCESS_DATA -> {
+                if (event.getData() != null) {
+                    handler.onPostProcessData(event.getCategory(), event.getData());
+                }
+            }
+            case LLM_COMPLETE -> {
+                // LLM 完成但可能还有后续工具调用轮次
+                // 最终 onComplete 由 Flux.onComplete 触发
+            }
+            case ERROR -> {
+                if (event.getError() != null) {
+                    handler.onError(event.getError());
+                }
+            }
+        }
     }
 
     // ==================== Reactive 流式调用 ====================

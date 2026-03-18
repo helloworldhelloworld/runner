@@ -3,6 +3,8 @@ package com.lightweightai.web.service;
 import com.lightweightai.web.agent.SoulComfortAgent;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.openrouter.OpenRouterProvider;
 import com.lightweightai.kernel.memory.Message;
@@ -26,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.util.HashMap;
 import java.util.List;
@@ -81,18 +84,20 @@ public class SoulComfortChatService {
             FileMemoryManager memoryManager,
             LaneQueueManager laneManager,
             MemoryToolkit memoryToolkit,
-            ToolRegistry toolRegistry
+            ToolRegistry toolRegistry,
+            ToolCallingLoop toolCallingLoop
     ) {
         this.promptEngine = promptEngine;
         this.agentTools = toolRegistry != null ? toolRegistry.getEnabled() : List.of();
-        this.defaultAgent = new SoulComfortAgent(llmProvider, promptEngine, this.agentTools);
+        this.defaultAgent = new SoulComfortAgent(llmProvider, promptEngine, this.agentTools, toolCallingLoop);
         this.modelAgents = new ConcurrentHashMap<>();
         this.memoryManager = memoryManager;
         this.laneManager = laneManager;
         this.memoryToolkit = memoryToolkit;
 
-        logger.info("SoulComfortChatService initialized with OpenClaw PromptEngine, tools={}",
-            agentTools.stream().map(Tool::getName).collect(java.util.stream.Collectors.joining(", ")));
+        logger.info("SoulComfortChatService initialized with OpenClaw PromptEngine, tools={}, reactive={}",
+            agentTools.stream().map(Tool::getName).collect(java.util.stream.Collectors.joining(", ")),
+            toolCallingLoop != null);
     }
 
     /**
@@ -268,6 +273,58 @@ public class SoulComfortChatService {
                 logger.error("Streaming chat error - Session: " + sessionId, error);
             }
         });
+    }
+
+    /**
+     * Reactive 流式对话 — 通过 ToolCallingLoop 实现完整工具事件流
+     *
+     * 包含安全前置检查、记忆索引等业务逻辑，返回的 Flux&lt;StreamEvent&gt; 包含
+     * TEXT_DELTA / TOOL_CALL_START / TOOL_PROGRESS / TOOL_LOG / TOOL_RESULT / LLM_COMPLETE 等事件。
+     */
+    public Flux<StreamEvent> chatStreamReactive(String message, String sessionId) {
+        String actualSessionId = sessionId != null ? sessionId : "default";
+        logger.info("Processing reactive streaming chat for session: {}", actualSessionId);
+
+        // 安全检查
+        if (crisisDetectionEnabled && crisisDetector != null) {
+            SafetyResult safetyResult = crisisDetector.check(message);
+            if (safetyResult.isCrisis()) {
+                logger.warn("Crisis detected in session: {}", actualSessionId);
+                String resourcesText = safetyResult.resources().stream()
+                    .map(r -> r.name() + ": " + r.phone())
+                    .collect(Collectors.joining("\n"));
+                String crisisResponse =
+                    "我注意到你可能正在经历一些非常困难的情绪。你的生命很宝贵，有专业的人可以帮助你。\n\n" +
+                    "请联系以下危机热线：\n" + resourcesText;
+                return Flux.just(StreamEvent.textDelta(crisisResponse));
+            }
+        }
+
+        // 会话初始化
+        SessionTranscript transcript = getOrCreateSession(actualSessionId);
+        transcript.append(TranscriptEntry.userMessage(message));
+
+        StringBuilder fullText = new StringBuilder();
+
+        return defaultAgent.chatStreamReactive(actualSessionId, message)
+            .doOnNext(event -> {
+                if (event.getType() == StreamEvent.EventType.TEXT_DELTA && event.getTextDelta() != null) {
+                    fullText.append(event.getTextDelta());
+                }
+            })
+            .doOnComplete(() -> {
+                String responseText = fullText.toString();
+                if (!responseText.isEmpty()) {
+                    // 内容过滤
+                    String filtered = contentFilter != null ? contentFilter.filter(responseText) : responseText;
+                    transcript.append(TranscriptEntry.assistantMessage(filtered));
+                    indexConversationToMemory(actualSessionId, message, filtered);
+                }
+                logger.info("Reactive streaming chat completed - Session: {}", actualSessionId);
+            })
+            .doOnError(error ->
+                logger.error("Reactive streaming chat error - Session: {}", actualSessionId, error)
+            );
     }
 
     /**
