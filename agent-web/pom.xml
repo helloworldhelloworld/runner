@@ -76,6 +76,12 @@
             <artifactId>vertx-core</artifactId>
         </dependency>
 
+        <!-- Netty handler required by Vert.x (not transitively included via Spring Boot Tomcat starter) -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-handler</artifactId>
+        </dependency>
+
         <!-- MCP Server Servlet transport (SSE + Streamable HTTP) -->
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
