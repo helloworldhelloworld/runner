@@ -9,6 +9,8 @@ import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
 import com.lightweightai.kernel.gateway.GatewayStreamHandler;
 import com.lightweightai.kernel.gateway.SessionManager;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.ResilientLLMProvider;
 import com.lightweightai.web.model.ChatRequest;
 import com.lightweightai.web.model.ChatResponse;
 import com.lightweightai.web.service.ChatService;
@@ -39,14 +41,17 @@ public class ChatController {
 
     private final ChatService chatService;
     private final Gateway gateway;
+    private final LLMProvider llmProvider;
     private final ObjectMapper compactMapper;
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     public ChatController(ChatService chatService,
                          Gateway gateway,
+                         LLMProvider llmProvider,
                          ObjectMapper objectMapper) {
         this.chatService = chatService;
         this.gateway = gateway;
+        this.llmProvider = llmProvider;
         this.compactMapper = objectMapper.copy()
             .disable(SerializationFeature.INDENT_OUTPUT);
     }
@@ -325,16 +330,39 @@ public class ChatController {
     }
 
     /**
-     * Health check
+     * Health check — 包含 LLM Provider 健康状态
      */
     @GetMapping("/health")
     public Map<String, Object> health() {
-        return Map.of(
-            "status", "UP",
-            "skills", chatService.getAvailableSkills().size(),
-            "tools", chatService.getAvailableTools().size(),
-            "soulComfortMode", "enabled"
-        );
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("status", "UP");
+        result.put("skills", chatService.getAvailableSkills().size());
+        result.put("tools", chatService.getAvailableTools().size());
+        result.put("soulComfortMode", "enabled");
+
+        // LLM Provider 健康信息
+        Map<String, Object> llmHealth = new java.util.LinkedHashMap<>();
+        if (llmProvider instanceof ResilientLLMProvider resilient) {
+            ResilientLLMProvider.HealthInfo info = resilient.getHealthInfo();
+            llmHealth.put("status", info.status().name());
+            llmHealth.put("provider", info.providerName());
+            llmHealth.put("totalRequests", info.totalRequests());
+            llmHealth.put("totalFailures", info.totalFailures());
+            llmHealth.put("consecutiveFailures", info.consecutiveFailures());
+            if (info.lastSuccessTime() > 0) {
+                llmHealth.put("lastSuccess", new java.util.Date(info.lastSuccessTime()).toString());
+            }
+            if (info.lastFailureTime() > 0) {
+                llmHealth.put("lastFailure", new java.util.Date(info.lastFailureTime()).toString());
+                llmHealth.put("lastError", info.lastError());
+            }
+        } else {
+            llmHealth.put("provider", llmProvider.getProviderName());
+            llmHealth.put("status", "NOT_MONITORED");
+        }
+        result.put("llm", llmHealth);
+
+        return result;
     }
 
     /**

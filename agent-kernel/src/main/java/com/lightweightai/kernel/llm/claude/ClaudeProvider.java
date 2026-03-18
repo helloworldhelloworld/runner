@@ -17,6 +17,9 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public class ClaudeProvider implements LLMProvider {
 
+    private static final Logger logger = LoggerFactory.getLogger(ClaudeProvider.class);
     private static final String API_BASE_URL = "https://api.anthropic.com/v1";
     private static final String API_VERSION = "2023-06-01";
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
@@ -95,9 +99,16 @@ public class ClaudeProvider implements LLMProvider {
                 .post(RequestBody.create(requestBody, JSON))
                 .build();
 
+            String requestUrl = API_BASE_URL + "/messages";
+            logger.info("Claude API request: POST {} (model: {})", requestUrl, model);
+            logger.debug("Claude request body: {}", requestBody);
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    throw new RuntimeException("API call failed: " + response.code() + " " + response.message());
+                    String errorBody = response.body() != null ? response.body().string() : "No error details";
+                    logger.error("Claude API failed: POST {} → HTTP {} {}\nError: {}", requestUrl, response.code(), response.message(), errorBody);
+                    throw new RuntimeException("API call failed: " + response.code() + " " + response.message() +
+                                             " (url: " + requestUrl + ")" +
+                                             "\nError details: " + errorBody);
                 }
 
                 String responseBody = response.body().string();
@@ -137,12 +148,18 @@ public class ClaudeProvider implements LLMProvider {
                     .post(RequestBody.create(requestBody, JSON))
                     .build();
 
+                String requestUrl = API_BASE_URL + "/messages";
+                logger.info("Claude streaming request: POST {} (model: {})", requestUrl, model);
+                logger.debug("Claude streaming request body: {}", requestBody);
                 if (handler != null) handler.onStart();
 
                 try (Response response = httpClient.newCall(request).execute()) {
                     if (!response.isSuccessful()) {
+                        String errorBody = response.body() != null ? response.body().string() : "No error details";
+                        logger.error("Claude streaming failed: POST {} → HTTP {} {}\nError: {}", requestUrl, response.code(), response.message(), errorBody);
                         RuntimeException ex = new RuntimeException(
-                            "API call failed: " + response.code() + " " + response.message());
+                            "API call failed: " + response.code() + " " + response.message() +
+                            " (url: " + requestUrl + ")\nError details: " + errorBody);
                         if (handler != null) handler.onError(ex);
                         throw ex;
                     }
