@@ -110,8 +110,8 @@ public class OpenRouterProvider implements LLMProvider {
                 reqBuilder.header("Authorization", "Bearer " + apiKey);
             }
             Request request = reqBuilder.build();
-            logger.info("OpenRouter API request: POST {} (model: {})", requestUrl, model);
-            logger.debug("OpenRouter request body: {}", requestBody);
+            logger.info("OpenRouter API request: POST {} (model: {}, customGateway: {})", requestUrl, model, isCustomBaseUrl());
+            logger.info("OpenRouter request body: {}", requestBody);
             try (Response response = httpClient.newCall(request).execute()) {
                 logger.debug("Got response: {}", response.code());
                 if (!response.isSuccessful()) {
@@ -276,8 +276,8 @@ public class OpenRouterProvider implements LLMProvider {
         ArrayNode messagesArray = buildMessagesArray(messages);
         root.set("messages", messagesArray);
 
-        // Tools (if provided) — convert from Claude format to OpenAI format
-        if (options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
+        // Tools — only for standard OpenRouter, custom gateways typically don't support function calling
+        if (!isCustomBaseUrl() && options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
             ArrayNode toolsArray = objectMapper.createArrayNode();
             for (Map<String, Object> toolDef : options.getToolDefinitions()) {
                 ObjectNode toolNode = objectMapper.createObjectNode();
