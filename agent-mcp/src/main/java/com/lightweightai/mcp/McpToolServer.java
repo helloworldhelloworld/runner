@@ -1,7 +1,7 @@
 package com.lightweightai.mcp;
 
-import com.lightweightai.kernel.agent.ToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lightweightai.kernel.agent.ToolRegistry;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpAsyncServer;
 import io.modelcontextprotocol.server.McpServer;
@@ -9,11 +9,10 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpServerTransportProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 将 ToolRegistry 暴露为 MCP 服务端（Async 版本）

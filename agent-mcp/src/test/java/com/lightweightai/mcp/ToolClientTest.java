@@ -1,5 +1,10 @@
 package com.lightweightai.mcp;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
@@ -7,13 +12,10 @@ import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * ToolClient 测试
@@ -231,10 +233,20 @@ class ToolClientTest {
             this.description = description;
         }
 
-        @Override public String getName() { return name; }
-        @Override public String getDescription() { return description; }
-        @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
-        @Override public ToolResult execute(Map<String, Object> args) {
+        @Override
+        public String getName() {
+            return name;
+        }
+        @Override
+        public String getDescription() {
+            return description;
+        }
+        @Override
+        public ToolSchema getSchema() {
+            return ToolSchema.empty();
+        }
+        @Override
+        public ToolResult execute(Map<String, Object> args) {
             return ToolResult.success("local:" + name + ":executed");
         }
     }
@@ -252,16 +264,35 @@ class ToolClientTest {
             this.description = description;
         }
 
-        @Override public String getName() { return name; }
-        @Override public String getDescription() { return description; }
-        @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
-        @Override public ToolResult execute(Map<String, Object> args) {
+        @Override
+        public String getName() {
+            return name;
+        }
+        @Override
+        public String getDescription() {
+            return description;
+        }
+        @Override
+        public ToolSchema getSchema() {
+            return ToolSchema.empty();
+        }
+        @Override
+        public ToolResult execute(Map<String, Object> args) {
             // Real McpToolWrapper: mcpClient.callTool(new CallToolRequest(name, args))
             return ToolResult.success("mcp:" + name + ":executed");
         }
 
-        @Override public String getCategory() { return "mcp:test-server"; }
-        @Override public List<String> getTags() { return List.of("mcp", "remote"); }
-        @Override public String getAuthor() { return "mcp-server:test-server"; }
+        @Override
+        public String getCategory() {
+            return "mcp:test-server";
+        }
+        @Override
+        public List<String> getTags() {
+            return List.of("mcp", "remote");
+        }
+        @Override
+        public String getAuthor() {
+            return "mcp-server:test-server";
+        }
     }
 }

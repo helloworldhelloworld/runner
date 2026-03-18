@@ -1,16 +1,16 @@
 package com.lightweightai.mcp;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.llm.ToolResult;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.DisplayName;
-
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * McpToolServer 测试
@@ -26,10 +26,20 @@ class McpToolServerTest {
     void setUp() {
         registry = new ToolRegistry();
         registry.register(new Tool() {
-            @Override public String getName() { return "test_tool"; }
-            @Override public String getDescription() { return "Test tool"; }
-            @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
-            @Override public ToolResult execute(Map<String, Object> args) {
+            @Override
+            public String getName() {
+                return "test_tool";
+            }
+            @Override
+            public String getDescription() {
+                return "Test tool";
+            }
+            @Override
+            public ToolSchema getSchema() {
+                return ToolSchema.empty();
+            }
+            @Override
+            public ToolResult execute(Map<String, Object> args) {
                 return ToolResult.success("ok");
             }
         });

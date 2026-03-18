@@ -1,20 +1,22 @@
 package com.lightweightai.mcp;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.lightweightai.kernel.agent.Tool;
-import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.llm.ToolResult;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.DisplayName;
-
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * McpToolAdapter 测试
@@ -114,7 +116,9 @@ class McpToolAdapterTest {
     void shouldCatchExceptionInHandler() {
         Tool tool = new SimpleTool("boom", "Throws exception",
             ToolSchema.empty(),
-            args -> { throw new RuntimeException("Boom!"); }
+            args -> {
+                throw new RuntimeException("Boom!");
+            }
         );
 
         McpServerFeatures.SyncToolSpecification spec = McpToolAdapter.toMcpTool(tool);
@@ -218,9 +222,21 @@ class McpToolAdapterTest {
             this.executor = executor;
         }
 
-        @Override public String getName() { return name; }
-        @Override public String getDescription() { return description; }
-        @Override public ToolSchema getSchema() { return schema; }
-        @Override public ToolResult execute(Map<String, Object> args) { return executor.execute(args); }
+        @Override
+        public String getName() {
+            return name;
+        }
+        @Override
+        public String getDescription() {
+            return description;
+        }
+        @Override
+        public ToolSchema getSchema() {
+            return schema;
+        }
+        @Override
+        public ToolResult execute(Map<String, Object> args) {
+            return executor.execute(args);
+        }
     }
 }

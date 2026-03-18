@@ -1,11 +1,10 @@
 package com.lightweightai.mcp;
 
-import reactor.util.context.ContextView;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import reactor.util.context.ContextView;
 
 /**
  * MCP 请求级 Header 上下文 — 解决「transport 启动时创建，header 请求时才知道」
