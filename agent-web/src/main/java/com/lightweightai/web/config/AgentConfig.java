@@ -7,6 +7,7 @@ import com.lightweightai.kernel.instruction.InstructionRegistry;
 import com.lightweightai.kernel.instruction.ProviderAdapterFactory;
 import com.lightweightai.kernel.instruction.claude.ClaudeSkillAdapter;
 import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.ResilientLLMProvider;
 import com.lightweightai.kernel.llm.claude.ClaudeProvider;
 import com.lightweightai.kernel.llm.claude.ClaudeProProvider;
 import com.lightweightai.kernel.llm.openrouter.OpenRouterProvider;
@@ -96,44 +97,61 @@ public class AgentConfig {
             logger.info("Auto-detected provider type: {}", type);
         }
 
-        switch (type) {
-            case "api":
-                if (isBlank(claudeApiKey)) {
-                    logger.error("API mode requires ANTHROPIC_API_KEY environment variable");
-                    throw new IllegalStateException(
-                        "ANTHROPIC_API_KEY not configured. Set the environment variable or use PROVIDER_TYPE=mock for testing.");
-                }
-                logger.info("Using Claude API Provider with model: {}", claudeModel);
-                return new ClaudeProvider(claudeApiKey, claudeModel);
+        // mock 模式不需要包裹 ResilientLLMProvider
+        if ("mock".equals(type)) {
+            logger.warn("Using Mock LLM Provider — frontend will receive fake responses. " +
+                "Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY for real LLM responses.");
+            return new MockLLMProvider();
+        }
 
-            case "openrouter":
-                if (isBlank(openRouterApiKey) && isBlank(openRouterBaseUrl)) {
-                    logger.error("OpenRouter mode requires OPENROUTER_API_KEY or OPENROUTER_BASE_URL");
-                    throw new IllegalStateException(
-                        "OPENROUTER_API_KEY not configured. Set the environment variable or use PROVIDER_TYPE=mock for testing.");
-                }
-                logger.info("Using OpenRouter Provider with model: {}, baseUrl: {}",
-                    openRouterModel,
-                    !isBlank(openRouterBaseUrl) ? openRouterBaseUrl : "(default)");
-                return new OpenRouterProvider(openRouterApiKey, openRouterModel, openRouterBaseUrl);
+        LLMProvider rawProvider = createProvider(type);
+        // 包裹弹性层：自动重试 + 健康状态跟踪
+        return new ResilientLLMProvider(rawProvider, 2, 1000);
+    }
 
-            case "pro":
-                if (isBlank(claudeSessionKey)) {
-                    logger.error("Pro mode requires CLAUDE_SESSION_KEY environment variable");
-                    throw new IllegalStateException(
-                        "CLAUDE_SESSION_KEY not configured. Set the environment variable or use PROVIDER_TYPE=mock for testing.");
-                }
-                logger.info("Using Claude Pro Provider with session key");
-                return new ClaudeProProvider(claudeSessionKey, claudeOrgId);
+    /**
+     * 创建原始 LLM Provider。
+     * 配置有误时记录 ERROR 日志并 fallback 到 mock，而不是抛异常阻止启动。
+     */
+    private LLMProvider createProvider(String type) {
+        try {
+            switch (type) {
+                case "api":
+                    if (isBlank(claudeApiKey)) {
+                        logger.error("API mode requires ANTHROPIC_API_KEY — falling back to mock. " +
+                            "Set the environment variable or use PROVIDER_TYPE=mock.");
+                        return new MockLLMProvider();
+                    }
+                    logger.info("Using Claude API Provider with model: {}", claudeModel);
+                    return new ClaudeProvider(claudeApiKey, claudeModel);
 
-            case "mock":
-                logger.warn("Using Mock LLM Provider — frontend will receive fake responses. " +
-                    "Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY for real LLM responses.");
-                return new MockLLMProvider();
+                case "openrouter":
+                    if (isBlank(openRouterApiKey) && isBlank(openRouterBaseUrl)) {
+                        logger.error("OpenRouter mode requires OPENROUTER_API_KEY or OPENROUTER_BASE_URL — falling back to mock.");
+                        return new MockLLMProvider();
+                    }
+                    logger.info("Using OpenRouter Provider with model: {}, baseUrl: {}",
+                        openRouterModel,
+                        !isBlank(openRouterBaseUrl) ? openRouterBaseUrl : "(default)");
+                    return new OpenRouterProvider(openRouterApiKey, openRouterModel, openRouterBaseUrl);
 
-            default:
-                throw new IllegalStateException("Unknown provider type: " + type +
-                    ". Valid values: auto, api, openrouter, pro, mock");
+                case "pro":
+                    if (isBlank(claudeSessionKey)) {
+                        logger.error("Pro mode requires CLAUDE_SESSION_KEY — falling back to mock.");
+                        return new MockLLMProvider();
+                    }
+                    logger.info("Using Claude Pro Provider with session key");
+                    return new ClaudeProProvider(claudeSessionKey, claudeOrgId);
+
+                default:
+                    logger.error("Unknown provider type: '{}' — falling back to mock. " +
+                        "Valid values: auto, api, openrouter, pro, mock", type);
+                    return new MockLLMProvider();
+            }
+        } catch (Exception e) {
+            logger.error("Failed to create LLM provider [{}]: {} — falling back to mock.",
+                type, e.getMessage(), e);
+            return new MockLLMProvider();
         }
     }
 

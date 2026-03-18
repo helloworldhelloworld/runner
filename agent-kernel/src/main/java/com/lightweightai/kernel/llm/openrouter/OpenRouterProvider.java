@@ -105,12 +105,16 @@ public class OpenRouterProvider implements LLMProvider {
             }
             Request request = reqBuilder.build();
 
-            logger.debug("Making HTTP request...");
+            String requestUrl = baseUrl + "/chat/completions";
+            logger.info("OpenRouter API request: POST {} (model: {})", requestUrl, model);
+            logger.debug("OpenRouter request body: {}", requestBody);
             try (Response response = httpClient.newCall(request).execute()) {
                 logger.debug("Got response: {}", response.code());
                 if (!response.isSuccessful()) {
                     String errorBody = response.body() != null ? response.body().string() : "No error details";
+                    logger.error("OpenRouter API failed: POST {} → HTTP {} \nError: {}", requestUrl, response.code(), errorBody);
                     throw new RuntimeException("OpenRouter API call failed: " + response.code() +
+                                             " (url: " + requestUrl + ")" +
                                              "\nError details: " + errorBody);
                 }
 
@@ -151,11 +155,18 @@ public class OpenRouterProvider implements LLMProvider {
                 }
                 Request request = reqBuilder.build();
 
+                String requestUrl = baseUrl + "/chat/completions";
+                logger.info("OpenRouter streaming request: POST {} (model: {})", requestUrl, model);
+                logger.debug("OpenRouter streaming request body: {}", requestBody);
                 handler.onStart();
 
                 try (Response response = httpClient.newCall(request).execute()) {
                     if (!response.isSuccessful()) {
-                        throw new RuntimeException("OpenRouter API call failed: " + response.code());
+                        String errorBody = response.body() != null ? response.body().string() : "No error details";
+                        logger.error("OpenRouter streaming failed: POST {} → HTTP {} \nError: {}", requestUrl, response.code(), errorBody);
+                        throw new RuntimeException("OpenRouter API call failed: " + response.code() +
+                                                 " (url: " + requestUrl + ")" +
+                                                 "\nError details: " + errorBody);
                     }
 
                     // Parse SSE stream
