@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.prompt;
 
 import com.lightweightai.kernel.memory.Message;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
