@@ -38,31 +38,41 @@ import java.util.concurrent.TimeUnit;
 public class OpenRouterProvider implements LLMProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(OpenRouterProvider.class);
-    private static final String API_BASE_URL = "https://openrouter.ai/api/v1";
+    private static final String DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     private final String apiKey;
     private final String model;
+    private final String baseUrl;
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final ModelCapability modelCapability;
 
     /**
-     * Create a new OpenRouterProvider
+     * Create a new OpenRouterProvider with default base URL
      *
      * @param apiKey OpenRouter API key
      * @param model Model name (e.g., "anthropic/claude-3.5-sonnet")
      */
     public OpenRouterProvider(String apiKey, String model) {
-        if (apiKey == null || apiKey.trim().isEmpty()) {
-            throw new IllegalArgumentException("API key cannot be null or empty");
-        }
+        this(apiKey, model, null);
+    }
+
+    /**
+     * Create a new OpenRouterProvider with custom base URL
+     *
+     * @param apiKey API key (can be empty for services that don't require auth)
+     * @param model Model name (e.g., "ZhipuAI/GLM-5")
+     * @param baseUrl Custom API base URL (e.g., "http://10.32.101.24:8086/llm/openai"), null for default
+     */
+    public OpenRouterProvider(String apiKey, String model, String baseUrl) {
         if (model == null || model.trim().isEmpty()) {
             throw new IllegalArgumentException("Model name cannot be null or empty");
         }
 
-        this.apiKey = apiKey;
+        this.apiKey = apiKey != null ? apiKey : "";
         this.model = model;
+        this.baseUrl = (baseUrl != null && !baseUrl.trim().isEmpty()) ? baseUrl.replaceAll("/+$", "") : DEFAULT_BASE_URL;
         // 使用系统默认设置，添加超时
         // 注意：使用系统代理以避免地区限制
         this.httpClient = new OkHttpClient.Builder()
@@ -73,7 +83,7 @@ public class OpenRouterProvider implements LLMProvider {
         this.objectMapper = new ObjectMapper();
         this.modelCapability = new OpenRouterModelCapability(model);
 
-        logger.info("Initialized with model: {}", model);
+        logger.info("Initialized with model: {}, baseUrl: {}", model, this.baseUrl);
     }
 
     @Override
@@ -85,7 +95,7 @@ public class OpenRouterProvider implements LLMProvider {
 
             // Make HTTP request
             Request request = new Request.Builder()
-                .url(API_BASE_URL + "/chat/completions")
+                .url(baseUrl + "/chat/completions")
                 .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
                 .header("HTTP-Referer", "https://github.com/lightweightai/kernel")
@@ -129,7 +139,7 @@ public class OpenRouterProvider implements LLMProvider {
 
                 // Make HTTP request
                 Request request = new Request.Builder()
-                    .url(API_BASE_URL + "/chat/completions")
+                    .url(baseUrl + "/chat/completions")
                     .header("Authorization", "Bearer " + apiKey)
                     .header("Content-Type", "application/json")
                     .header("HTTP-Referer", "https://github.com/lightweightai/kernel")

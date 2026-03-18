@@ -136,7 +136,7 @@ public class Gateway {
                 String delta = event.getTextDelta();
                 if (delta != null && !delta.isEmpty()) {
                     fullText.append(delta);
-                    handler.onDelta(delta, Collections.emptyMap());
+                    handler.onDelta(delta, event.getMetadata());
                 }
             }
             case TOOL_CALL_START -> {

@@ -33,15 +33,22 @@ public class StreamEvent {
     private final Throwable error;
     private final String category;
     private final Map<String, Object> data;
+    private final Map<String, Object> metadata;
 
     private StreamEvent(EventType type, String textDelta, ToolCall toolCall,
                         ToolResultChunk chunk, LLMResponse response, Throwable error) {
-        this(type, textDelta, toolCall, chunk, response, error, null, null);
+        this(type, textDelta, toolCall, chunk, response, error, null, null, null);
     }
 
     private StreamEvent(EventType type, String textDelta, ToolCall toolCall,
                         ToolResultChunk chunk, LLMResponse response, Throwable error,
                         String category, Map<String, Object> data) {
+        this(type, textDelta, toolCall, chunk, response, error, category, data, null);
+    }
+
+    private StreamEvent(EventType type, String textDelta, ToolCall toolCall,
+                        ToolResultChunk chunk, LLMResponse response, Throwable error,
+                        String category, Map<String, Object> data, Map<String, Object> metadata) {
         this.type = type;
         this.textDelta = textDelta;
         this.toolCall = toolCall;
@@ -50,10 +57,16 @@ public class StreamEvent {
         this.error = error;
         this.category = category;
         this.data = data;
+        this.metadata = metadata;
     }
 
     public static StreamEvent textDelta(String delta) {
         return new StreamEvent(EventType.TEXT_DELTA, delta, null, null, null, null);
+    }
+
+    public static StreamEvent textDelta(String delta, Map<String, Object> metadata) {
+        return new StreamEvent(EventType.TEXT_DELTA, delta, null, null, null, null,
+                null, null, metadata != null ? Collections.unmodifiableMap(metadata) : null);
     }
 
     public static StreamEvent toolCallStart(ToolCall call) {
@@ -119,6 +132,10 @@ public class StreamEvent {
 
     public Map<String, Object> getData() {
         return data;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata != null ? metadata : Collections.emptyMap();
     }
 
     @Override
