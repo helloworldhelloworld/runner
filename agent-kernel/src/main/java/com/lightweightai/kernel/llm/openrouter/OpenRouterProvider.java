@@ -94,14 +94,16 @@ public class OpenRouterProvider implements LLMProvider {
             logger.debug("Calling API with {} messages", messages.size());
 
             // Make HTTP request
-            Request request = new Request.Builder()
+            Request.Builder reqBuilder = new Request.Builder()
                 .url(baseUrl + "/chat/completions")
-                .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
                 .header("HTTP-Referer", "https://github.com/lightweightai/kernel")
                 .header("X-Title", "Lightweight AI Kernel")
-                .post(RequestBody.create(requestBody, JSON))
-                .build();
+                .post(RequestBody.create(requestBody, JSON));
+            if (!apiKey.isEmpty()) {
+                reqBuilder.header("Authorization", "Bearer " + apiKey);
+            }
+            Request request = reqBuilder.build();
 
             logger.debug("Making HTTP request...");
             try (Response response = httpClient.newCall(request).execute()) {
@@ -138,14 +140,16 @@ public class OpenRouterProvider implements LLMProvider {
                 String requestBody = buildRequestBody(messages, options, true);
 
                 // Make HTTP request
-                Request request = new Request.Builder()
+                Request.Builder reqBuilder = new Request.Builder()
                     .url(baseUrl + "/chat/completions")
-                    .header("Authorization", "Bearer " + apiKey)
                     .header("Content-Type", "application/json")
                     .header("HTTP-Referer", "https://github.com/lightweightai/kernel")
                     .header("X-Title", "Lightweight AI Kernel")
-                    .post(RequestBody.create(requestBody, JSON))
-                    .build();
+                    .post(RequestBody.create(requestBody, JSON));
+                if (!apiKey.isEmpty()) {
+                    reqBuilder.header("Authorization", "Bearer " + apiKey);
+                }
+                Request request = reqBuilder.build();
 
                 handler.onStart();
 

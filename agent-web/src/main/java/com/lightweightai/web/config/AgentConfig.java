@@ -88,43 +88,79 @@ public class AgentConfig {
 
     @Bean
     public LLMProvider llmProvider() {
-        // 优先使用provider-type配置
         String type = providerType.toLowerCase();
 
-        // 如果是旧配置（mock-mode），兼容处理
-        if (mockMode && type.equals("mock")) {
-            logger.info("Using Mock LLM Provider (no API key configured)");
-            return new MockLLMProvider();
+        // auto模式：按优先级自动检测可用的API Key
+        if ("auto".equals(type)) {
+            type = detectProviderType();
+            logger.info("Auto-detected provider type: {}", type);
         }
 
         switch (type) {
-            case "pro":
-                if (claudeSessionKey == null || claudeSessionKey.isEmpty()) {
-                    logger.warn("Pro mode selected but no session key provided, falling back to Mock");
-                    return new MockLLMProvider();
-                }
-                logger.info("Using Claude Pro Provider with session key");
-                return new ClaudeProProvider(claudeSessionKey, claudeOrgId);
-
             case "api":
-                if (claudeApiKey == null || claudeApiKey.isEmpty()) {
-                    logger.warn("API mode selected but no API key provided, falling back to Mock");
-                    return new MockLLMProvider();
+                if (isBlank(claudeApiKey)) {
+                    logger.error("API mode requires ANTHROPIC_API_KEY environment variable");
+                    throw new IllegalStateException(
+                        "ANTHROPIC_API_KEY not configured. Set the environment variable or use PROVIDER_TYPE=mock for testing.");
                 }
                 logger.info("Using Claude API Provider with model: {}", claudeModel);
                 return new ClaudeProvider(claudeApiKey, claudeModel);
 
             case "openrouter":
+                if (isBlank(openRouterApiKey) && isBlank(openRouterBaseUrl)) {
+                    logger.error("OpenRouter mode requires OPENROUTER_API_KEY or OPENROUTER_BASE_URL");
+                    throw new IllegalStateException(
+                        "OPENROUTER_API_KEY not configured. Set the environment variable or use PROVIDER_TYPE=mock for testing.");
+                }
                 logger.info("Using OpenRouter Provider with model: {}, baseUrl: {}",
                     openRouterModel,
-                    (openRouterBaseUrl != null && !openRouterBaseUrl.isEmpty()) ? openRouterBaseUrl : "(default)");
+                    !isBlank(openRouterBaseUrl) ? openRouterBaseUrl : "(default)");
                 return new OpenRouterProvider(openRouterApiKey, openRouterModel, openRouterBaseUrl);
 
+            case "pro":
+                if (isBlank(claudeSessionKey)) {
+                    logger.error("Pro mode requires CLAUDE_SESSION_KEY environment variable");
+                    throw new IllegalStateException(
+                        "CLAUDE_SESSION_KEY not configured. Set the environment variable or use PROVIDER_TYPE=mock for testing.");
+                }
+                logger.info("Using Claude Pro Provider with session key");
+                return new ClaudeProProvider(claudeSessionKey, claudeOrgId);
+
             case "mock":
-            default:
-                logger.info("Using Mock LLM Provider");
+                logger.warn("Using Mock LLM Provider — frontend will receive fake responses. " +
+                    "Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY for real LLM responses.");
                 return new MockLLMProvider();
+
+            default:
+                throw new IllegalStateException("Unknown provider type: " + type +
+                    ". Valid values: auto, api, openrouter, pro, mock");
         }
+    }
+
+    /**
+     * 按优先级自动检测可用的LLM Provider：
+     * 1. ANTHROPIC_API_KEY → api
+     * 2. OPENROUTER_API_KEY 或 OPENROUTER_BASE_URL → openrouter
+     * 3. CLAUDE_SESSION_KEY → pro
+     * 4. 全部为空 → mock（并警告）
+     */
+    private String detectProviderType() {
+        if (!isBlank(claudeApiKey)) {
+            return "api";
+        }
+        if (!isBlank(openRouterApiKey) || !isBlank(openRouterBaseUrl)) {
+            return "openrouter";
+        }
+        if (!isBlank(claudeSessionKey)) {
+            return "pro";
+        }
+        logger.warn("No API keys detected — falling back to mock mode. " +
+            "Set ANTHROPIC_API_KEY, OPENROUTER_API_KEY, or CLAUDE_SESSION_KEY for real LLM responses.");
+        return "mock";
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 
     // ─── 心灵港湾 SoulHarbor — 系统提示（OpenClaw 基础提示，Skills 可在此之上叠加）────
@@ -352,13 +388,15 @@ public class AgentConfig {
             com.lightweightai.kernel.llm.LLMOptions options,
             com.lightweightai.kernel.llm.LLMProvider.StreamEventHandler handler
         ) {
+            com.lightweightai.kernel.llm.LLMResponse response = complete(messages, options);
             if (handler != null) {
                 handler.onStart();
                 handler.onTextDelta("Mock");
                 handler.onTextDelta(" streaming");
                 handler.onTextDelta(" response");
+                handler.onComplete(response);
             }
-            return java.util.concurrent.CompletableFuture.completedFuture(complete(messages, options));
+            return java.util.concurrent.CompletableFuture.completedFuture(response);
         }
 
         @Override
