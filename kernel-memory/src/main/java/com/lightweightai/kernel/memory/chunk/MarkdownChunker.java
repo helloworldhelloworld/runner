@@ -2,7 +2,6 @@ package com.lightweightai.kernel.memory.chunk;
 
 import com.lightweightai.kernel.memory.model.MemoryChunk;
 import com.lightweightai.kernel.memory.model.MemoryType;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -162,7 +161,9 @@ public class MarkdownChunker {
      * Estimate token count (rough approximation: 1 token ≈ 4 chars).
      */
     public static int estimateTokens(String text) {
-        if (text == null) return 0;
+        if (text == null) {
+            return 0;
+        }
         return text.length() / 4;
     }
 }

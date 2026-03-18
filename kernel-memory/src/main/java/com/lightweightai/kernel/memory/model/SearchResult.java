@@ -18,11 +18,25 @@ public class SearchResult {
         this.snippet = snippet;
     }
 
-    public MemoryChunk getChunk() { return chunk; }
-    public float getScore() { return score; }
-    public float getBm25Score() { return bm25Score; }
-    public float getVectorScore() { return vectorScore; }
-    public String getSnippet() { return snippet; }
+    public MemoryChunk getChunk() {
+        return chunk;
+    }
+
+    public float getScore() {
+        return score;
+    }
+
+    public float getBm25Score() {
+        return bm25Score;
+    }
+
+    public float getVectorScore() {
+        return vectorScore;
+    }
+
+    public String getSnippet() {
+        return snippet;
+    }
 
     public static Builder builder() {
         return new Builder();
@@ -35,11 +49,30 @@ public class SearchResult {
         private float vectorScore;
         private String snippet;
 
-        public Builder chunk(MemoryChunk chunk) { this.chunk = chunk; return this; }
-        public Builder score(float score) { this.score = score; return this; }
-        public Builder bm25Score(float bm25Score) { this.bm25Score = bm25Score; return this; }
-        public Builder vectorScore(float vectorScore) { this.vectorScore = vectorScore; return this; }
-        public Builder snippet(String snippet) { this.snippet = snippet; return this; }
+        public Builder chunk(MemoryChunk chunk) {
+            this.chunk = chunk;
+            return this;
+        }
+
+        public Builder score(float score) {
+            this.score = score;
+            return this;
+        }
+
+        public Builder bm25Score(float bm25Score) {
+            this.bm25Score = bm25Score;
+            return this;
+        }
+
+        public Builder vectorScore(float vectorScore) {
+            this.vectorScore = vectorScore;
+            return this;
+        }
+
+        public Builder snippet(String snippet) {
+            this.snippet = snippet;
+            return this;
+        }
 
         public SearchResult build() {
             return new SearchResult(chunk, score, bm25Score, vectorScore, snippet);

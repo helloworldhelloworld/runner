@@ -1,16 +1,12 @@
 package com.lightweightai.kernel.memory.index;
 
-import com.lightweightai.kernel.memory.embedding.EmbeddingProvider;
 import com.lightweightai.kernel.memory.model.MemoryChunk;
 import com.lightweightai.kernel.memory.model.SearchResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Hybrid search combining BM25 (keyword) and Vector (semantic) search.
@@ -191,7 +187,9 @@ public class HybridSearch {
     public record IndexStats(int bm25ChunkCount, int vectorChunkCount, int embeddingDimensions) {}
 
     private String truncate(String s, int maxLen) {
-        if (s == null) return "";
+        if (s == null) {
+            return "";
+        }
         return s.length() <= maxLen ? s : s.substring(0, maxLen) + "...";
     }
 }

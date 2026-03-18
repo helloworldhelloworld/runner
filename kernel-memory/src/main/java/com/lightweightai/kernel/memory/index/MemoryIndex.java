@@ -3,9 +3,6 @@ package com.lightweightai.kernel.memory.index;
 import com.lightweightai.kernel.memory.model.MemoryChunk;
 import com.lightweightai.kernel.memory.model.MemoryType;
 import com.lightweightai.kernel.memory.model.SearchResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -17,6 +14,8 @@ import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * SQLite-based memory index with FTS5 full-text search.
@@ -164,7 +163,9 @@ public class MemoryIndex implements AutoCloseable {
      * Batch insert chunks for better performance.
      */
     public void insertChunks(List<MemoryChunk> chunks) {
-        if (chunks.isEmpty()) return;
+        if (chunks.isEmpty()) {
+            return;
+        }
 
         String sql = """
             INSERT OR REPLACE INTO chunks
@@ -455,8 +456,12 @@ public class MemoryIndex implements AutoCloseable {
         int end = Math.min(content.length(), start + maxLength);
 
         String snippet = content.substring(start, end);
-        if (start > 0) snippet = "..." + snippet;
-        if (end < content.length()) snippet = snippet + "...";
+        if (start > 0) {
+            snippet = "..." + snippet;
+        }
+        if (end < content.length()) {
+            snippet = snippet + "...";
+        }
 
         return snippet;
     }

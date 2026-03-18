@@ -1,17 +1,20 @@
 package com.lightweightai.kernel.memory.index;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.lightweightai.kernel.memory.embedding.MockEmbeddingProvider;
 import com.lightweightai.kernel.memory.model.MemoryChunk;
 import com.lightweightai.kernel.memory.model.MemoryType;
 import com.lightweightai.kernel.memory.model.SearchResult;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 class VectorIndexTest {
 

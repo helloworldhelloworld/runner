@@ -7,7 +7,6 @@ import com.lightweightai.kernel.memory.model.SearchResult;
 import com.lightweightai.kernel.memory.model.TranscriptEntry;
 import com.lightweightai.kernel.memory.queue.LaneQueueManager;
 import com.lightweightai.kernel.memory.tools.MemoryToolkit;
-
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -40,10 +39,14 @@ public class MemoryDemo {
                 System.out.print("\n> ");
                 String input = scanner.nextLine().trim();
 
-                if (input.isEmpty()) continue;
+                if (input.isEmpty()) {
+                    continue;
+                }
 
                 if (input.startsWith("/")) {
-                    if (!handleCommand(input)) break;
+                    if (!handleCommand(input)) {
+                        break;
+                    }
                 } else {
                     handleMessage(input);
                 }
@@ -219,7 +222,9 @@ public class MemoryDemo {
     }
 
     private String truncate(String s, int max) {
-        if (s == null) return "";
+        if (s == null) {
+            return "";
+        }
         s = s.replace("\n", " ");
         return s.length() <= max ? s : s.substring(0, max) + "...";
     }

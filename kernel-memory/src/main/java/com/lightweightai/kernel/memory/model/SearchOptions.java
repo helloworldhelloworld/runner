@@ -20,11 +20,25 @@ public class SearchOptions {
         this.snippetLength = builder.snippetLength;
     }
 
-    public int getTopK() { return topK; }
-    public float getVectorWeight() { return vectorWeight; }
-    public Set<MemoryType> getMemoryTypes() { return memoryTypes; }
-    public String getSessionId() { return sessionId; }
-    public int getSnippetLength() { return snippetLength; }
+    public int getTopK() {
+        return topK;
+    }
+
+    public float getVectorWeight() {
+        return vectorWeight;
+    }
+
+    public Set<MemoryType> getMemoryTypes() {
+        return memoryTypes;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public int getSnippetLength() {
+        return snippetLength;
+    }
 
     public static Builder builder() {
         return new Builder();

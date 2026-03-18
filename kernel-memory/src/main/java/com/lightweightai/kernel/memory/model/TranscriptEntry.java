@@ -2,7 +2,6 @@ package com.lightweightai.kernel.memory.model;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -38,13 +37,33 @@ public class TranscriptEntry {
         this.metadata = metadata;
     }
 
-    public String getType() { return type; }
-    public Instant getTimestamp() { return timestamp; }
-    public String getRole() { return role; }
-    public String getContent() { return content; }
-    public List<ToolCallEntry> getToolCalls() { return toolCalls; }
-    public ToolResultEntry getToolResult() { return toolResult; }
-    public Map<String, Object> getMetadata() { return metadata; }
+    public String getType() {
+        return type;
+    }
+
+    public Instant getTimestamp() {
+        return timestamp;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public List<ToolCallEntry> getToolCalls() {
+        return toolCalls;
+    }
+
+    public ToolResultEntry getToolResult() {
+        return toolResult;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
 
     // Factory methods for common entry types
     public static TranscriptEntry userMessage(String content) {
@@ -82,9 +101,17 @@ public class TranscriptEntry {
             this.arguments = arguments;
         }
 
-        public String getId() { return id; }
-        public String getName() { return name; }
-        public Map<String, Object> getArguments() { return arguments; }
+        public String getId() {
+            return id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public Map<String, Object> getArguments() {
+            return arguments;
+        }
     }
 
     public static class ToolResultEntry {
@@ -105,11 +132,21 @@ public class TranscriptEntry {
             this.isError = isError;
         }
 
-        public String getToolCallId() { return toolCallId; }
-        public String getName() { return name; }
-        public Object getResult() { return result; }
+        public String getToolCallId() {
+            return toolCallId;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public Object getResult() {
+            return result;
+        }
 
         @JsonProperty("isError")
-        public boolean isError() { return isError; }
+        public boolean isError() {
+            return isError;
+        }
     }
 }

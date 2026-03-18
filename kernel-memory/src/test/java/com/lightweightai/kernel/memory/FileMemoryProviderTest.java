@@ -1,16 +1,22 @@
 package com.lightweightai.kernel.memory;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.lightweightai.kernel.memory.embedding.MockEmbeddingProvider;
 import com.lightweightai.kernel.memory.file.FileMemoryManager;
-import org.junit.jupiter.api.*;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * TDD: FileMemoryProvider 测试
@@ -36,7 +42,10 @@ class FileMemoryProviderTest {
             Files.walk(tempDir)
                 .sorted(Comparator.reverseOrder())
                 .forEach(path -> {
-                    try { Files.delete(path); } catch (IOException ignored) {}
+                    try {
+                        Files.delete(path);
+                    } catch (IOException ignored) {
+                    }
                 });
         }
     }

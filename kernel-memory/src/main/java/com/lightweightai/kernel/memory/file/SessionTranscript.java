@@ -5,11 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.lightweightai.kernel.memory.model.TranscriptEntry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,11 +13,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * JSONL-based session transcript for audit logging.
@@ -89,7 +86,9 @@ public class SessionTranscript {
             int lineNum = 0;
             while ((line = reader.readLine()) != null) {
                 lineNum++;
-                if (line.isBlank()) continue;
+                if (line.isBlank()) {
+                    continue;
+                }
 
                 try {
                     TranscriptEntry entry = mapper.readValue(line, TranscriptEntry.class);
@@ -223,8 +222,13 @@ public class SessionTranscript {
         return new SessionTranscript(sessionsDir, timestamp);
     }
 
-    public Path getSessionFile() { return sessionFile; }
-    public String getSessionId() { return sessionId; }
+    public Path getSessionFile() {
+        return sessionFile;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
 
     public boolean exists() {
         return Files.exists(sessionFile);

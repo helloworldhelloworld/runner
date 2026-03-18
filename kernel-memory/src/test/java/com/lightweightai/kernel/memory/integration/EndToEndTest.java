@@ -1,5 +1,8 @@
 package com.lightweightai.kernel.memory.integration;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.lightweightai.kernel.memory.embedding.MockEmbeddingProvider;
 import com.lightweightai.kernel.memory.file.FileMemoryManager;
 import com.lightweightai.kernel.memory.file.SessionTranscript;
@@ -7,18 +10,20 @@ import com.lightweightai.kernel.memory.model.SearchResult;
 import com.lightweightai.kernel.memory.model.TranscriptEntry;
 import com.lightweightai.kernel.memory.queue.LaneQueueManager;
 import com.lightweightai.kernel.memory.tools.MemoryToolkit;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.io.TempDir;
-
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * End-to-end integration test demonstrating the complete OpenClaw-style
@@ -305,7 +310,9 @@ class EndToEndTest {
     }
 
     private String truncate(String s, int maxLen) {
-        if (s == null) return "";
+        if (s == null) {
+            return "";
+        }
         s = s.replace("\n", " ");
         return s.length() <= maxLen ? s : s.substring(0, maxLen) + "...";
     }

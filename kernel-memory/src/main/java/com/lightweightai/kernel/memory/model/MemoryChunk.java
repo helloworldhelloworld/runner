@@ -32,19 +32,49 @@ public class MemoryChunk {
         this.type = type != null ? type : MemoryType.DURABLE;
     }
 
-    public String getId() { return id; }
-    public String getContent() { return content; }
-    public String getSourceFile() { return sourceFile; }
-    public int getStartLine() { return startLine; }
-    public int getEndLine() { return endLine; }
-    public String getHash() { return hash; }
-    public Instant getCreatedAt() { return createdAt; }
-    public MemoryType getType() { return type; }
+    public String getId() {
+        return id;
+    }
 
-    public float[] getEmbedding() { return embedding; }
-    public void setEmbedding(float[] embedding) { this.embedding = embedding; }
+    public String getContent() {
+        return content;
+    }
 
-    public boolean hasEmbedding() { return embedding != null && embedding.length > 0; }
+    public String getSourceFile() {
+        return sourceFile;
+    }
+
+    public int getStartLine() {
+        return startLine;
+    }
+
+    public int getEndLine() {
+        return endLine;
+    }
+
+    public String getHash() {
+        return hash;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public MemoryType getType() {
+        return type;
+    }
+
+    public float[] getEmbedding() {
+        return embedding;
+    }
+
+    public void setEmbedding(float[] embedding) {
+        this.embedding = embedding;
+    }
+
+    public boolean hasEmbedding() {
+        return embedding != null && embedding.length > 0;
+    }
 
     public static Builder builder() {
         return new Builder();
@@ -60,14 +90,45 @@ public class MemoryChunk {
         private Instant createdAt;
         private MemoryType type;
 
-        public Builder id(String id) { this.id = id; return this; }
-        public Builder content(String content) { this.content = content; return this; }
-        public Builder sourceFile(String sourceFile) { this.sourceFile = sourceFile; return this; }
-        public Builder startLine(int startLine) { this.startLine = startLine; return this; }
-        public Builder endLine(int endLine) { this.endLine = endLine; return this; }
-        public Builder hash(String hash) { this.hash = hash; return this; }
-        public Builder createdAt(Instant createdAt) { this.createdAt = createdAt; return this; }
-        public Builder type(MemoryType type) { this.type = type; return this; }
+        public Builder id(String id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder content(String content) {
+            this.content = content;
+            return this;
+        }
+
+        public Builder sourceFile(String sourceFile) {
+            this.sourceFile = sourceFile;
+            return this;
+        }
+
+        public Builder startLine(int startLine) {
+            this.startLine = startLine;
+            return this;
+        }
+
+        public Builder endLine(int endLine) {
+            this.endLine = endLine;
+            return this;
+        }
+
+        public Builder hash(String hash) {
+            this.hash = hash;
+            return this;
+        }
+
+        public Builder createdAt(Instant createdAt) {
+            this.createdAt = createdAt;
+            return this;
+        }
+
+        public Builder type(MemoryType type) {
+            this.type = type;
+            return this;
+        }
 
         public MemoryChunk build() {
             return new MemoryChunk(id, content, sourceFile, startLine, endLine, hash, createdAt, type);

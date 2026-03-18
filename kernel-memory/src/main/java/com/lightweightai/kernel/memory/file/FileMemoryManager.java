@@ -9,9 +9,6 @@ import com.lightweightai.kernel.memory.model.MemoryChunk;
 import com.lightweightai.kernel.memory.model.MemoryType;
 import com.lightweightai.kernel.memory.model.SearchOptions;
 import com.lightweightai.kernel.memory.model.SearchResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -21,6 +18,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * File-based memory manager implementing OpenClaw's three-tier memory architecture:
@@ -361,9 +360,23 @@ public class FileMemoryManager implements AutoCloseable {
 
     // ==================== Getters ====================
 
-    public Path getAgentRoot() { return agentRoot; }
-    public String getAgentId() { return agentId; }
-    public Path getMemoryDir() { return memoryDir; }
-    public Path getSessionsDir() { return sessionsDir; }
-    public HybridSearch.IndexStats getIndexStats() { return hybridSearch.getStats(); }
+    public Path getAgentRoot() {
+        return agentRoot;
+    }
+
+    public String getAgentId() {
+        return agentId;
+    }
+
+    public Path getMemoryDir() {
+        return memoryDir;
+    }
+
+    public Path getSessionsDir() {
+        return sessionsDir;
+    }
+
+    public HybridSearch.IndexStats getIndexStats() {
+        return hybridSearch.getStats();
+    }
 }
