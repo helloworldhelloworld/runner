@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.instruction;
 
 import com.lightweightai.kernel.llm.ConversationMessage;
-
 import java.util.List;
 
 /**

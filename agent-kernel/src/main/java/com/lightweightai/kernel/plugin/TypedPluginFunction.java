@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.plugin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;

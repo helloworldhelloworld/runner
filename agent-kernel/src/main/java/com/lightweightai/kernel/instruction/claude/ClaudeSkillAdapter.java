@@ -2,7 +2,6 @@ package com.lightweightai.kernel.instruction.claude;
 
 import com.lightweightai.kernel.instruction.InstructionPackage;
 import com.lightweightai.kernel.skill.Skill;
-
 import java.nio.file.Path;
 import java.util.Map;
 

@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.instruction;
 
 import com.lightweightai.kernel.llm.ConversationMessage;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -220,7 +219,9 @@ public class InstructionRegistry {
             boolean matches = false;
 
             for (String queryWord : queryWords) {
-                if (queryWord.length() < 3) continue;
+                if (queryWord.length() < 3) {
+                    continue;
+                }
 
                 for (String nameWord : nameWords) {
                     if (nameWord.contains(queryWord) || queryWord.contains(nameWord)) {
@@ -238,7 +239,9 @@ public class InstructionRegistry {
                     }
                 }
 
-                if (matches) break;
+                if (matches) {
+                    break;
+                }
             }
 
             if (matches) {

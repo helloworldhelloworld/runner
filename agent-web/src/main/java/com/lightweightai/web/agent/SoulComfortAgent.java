@@ -109,8 +109,12 @@ public class SoulComfortAgent {
 
     // ==================== 可观测性 ====================
 
-    public void setObserver(AgentObserver observer) { this.observer = observer; }
-    public AgentObserver getObserver() { return observer; }
+    public void setObserver(AgentObserver observer) {
+        this.observer = observer;
+    }
+    public AgentObserver getObserver() {
+        return observer;
+    }
 
     // ==================== Chat ====================
 
@@ -124,12 +128,16 @@ public class SoulComfortAgent {
      * @param externalMemoryContext 兼容旧调用，OpenClaw 模式下忽略（PromptEngine 自行搜索）
      */
     public String chat(String sessionId, String userMessage, String externalMemoryContext) {
-        if (observer != null) observer.onAgentStart(userMessage, sessionId);
+        if (observer != null) {
+            observer.onAgentStart(userMessage, sessionId);
+        }
 
         try {
             List<ConversationMessage> messages = buildMessages(sessionId, userMessage, externalMemoryContext);
 
-            if (observer != null) observer.onLLMRequest(messages);
+            if (observer != null) {
+                observer.onLLMRequest(messages);
+            }
 
             List<Map<String, Object>> toolDefs = buildToolDefinitions();
             LLMOptions.Builder optBuilder = LLMOptions.builder()
@@ -143,7 +151,9 @@ public class SoulComfortAgent {
             while (iterations < MAX_TOOL_ITERATIONS) {
                 LLMResponse response = llmProvider.complete(messages, optBuilder.build());
 
-                if (observer != null) observer.onLLMResponse(response);
+                if (observer != null) {
+                    observer.onLLMResponse(response);
+                }
 
                 if (!response.hasToolCalls()) {
                     String text = response.getMessage().getTextContent();
@@ -163,7 +173,9 @@ public class SoulComfortAgent {
             throw new RuntimeException("Max tool iterations (" + MAX_TOOL_ITERATIONS + ") exceeded");
 
         } catch (Exception e) {
-            if (observer != null) observer.onError(e);
+            if (observer != null) {
+                observer.onError(e);
+            }
             throw e;
         }
     }

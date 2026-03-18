@@ -4,7 +4,6 @@ import com.lightweightai.kernel.instruction.InstructionPackage;
 import com.lightweightai.kernel.instruction.ProviderAdapter;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
-
 import java.util.ArrayList;
 import java.util.List;
 
