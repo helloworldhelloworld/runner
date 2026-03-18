@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "f1dcc9c60f4d9d2ec6cd0f4c74f8c8a7a7ce4e57",
-  "exit_code": 1,
-  "timestamp": "2026-03-18T12:43:21Z",
-  "branch": "claude/streaming-post-processing-framework-fWaIV",
-  "run_id": "23245226120",
-  "test_summary": "[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.025 s - in com.lightweightai.kernel.skill.SkillRegistryTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.memory.MemoryProviderTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.944 s - in com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.llm.ToolResultTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.227 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.035 s - in com.lightweightai.kernel.core.postprocess.CardAppendProcessorTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.kernel.core.postprocess.DeeplinkProcessorTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.kernel.core.postprocess.RiskControlProcessorTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipelineTest|[ERROR] Tests run: 197, Failures: 1, Errors: 0, Skipped: 0|"
+  "trigger_sha": "6b804a747ca5eb3b2dd9607f6ead4775d2c85e14",
+  "exit_code": 0,
+  "timestamp": "2026-03-18T11:54:05Z",
+  "branch": "main",
+  "run_id": "23243392862",
+  "test_summary": "[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.agent.AgentPluginTest|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.161 s - in com.lightweightai.web.agent.ReflectionServiceTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.019 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.087 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 29, Failures: 0, Errors: 0, Skipped: 0|"
 }
