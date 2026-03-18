@@ -4,8 +4,6 @@ import com.lightweightai.kernel.core.StreamEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
-import reactor.test.StepVerifier;
-
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -26,12 +24,13 @@ class RiskControlProcessorTest {
                 StreamEvent.textDelta("safe world")
         );
 
-        StepVerifier.create(input.transform(processor))
-                .expectNextMatches(e -> e.getType() == StreamEvent.EventType.TEXT_DELTA
-                        && "Hello ".equals(e.getTextDelta()))
-                .expectNextMatches(e -> e.getType() == StreamEvent.EventType.TEXT_DELTA
-                        && "safe world".equals(e.getTextDelta()))
-                .verifyComplete();
+        List<StreamEvent> result = input.transform(processor).collectList().block();
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals(StreamEvent.EventType.TEXT_DELTA, result.get(0).getType());
+        assertEquals("Hello ", result.get(0).getTextDelta());
+        assertEquals(StreamEvent.EventType.TEXT_DELTA, result.get(1).getType());
+        assertEquals("safe world", result.get(1).getTextDelta());
     }
 
     @Test
@@ -101,10 +100,11 @@ class RiskControlProcessorTest {
                 StreamEvent.textDelta("safe")
         );
 
-        StepVerifier.create(input.transform(processor))
-                .expectNextMatches(e -> e.getType() == StreamEvent.EventType.TOOL_CALL_START)
-                .expectNextMatches(e -> e.getType() == StreamEvent.EventType.TEXT_DELTA)
-                .verifyComplete();
+        List<StreamEvent> result = input.transform(processor).collectList().block();
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals(StreamEvent.EventType.TOOL_CALL_START, result.get(0).getType());
+        assertEquals(StreamEvent.EventType.TEXT_DELTA, result.get(1).getType());
     }
 
     @Test

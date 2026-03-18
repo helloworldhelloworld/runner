@@ -4,8 +4,6 @@ import com.lightweightai.kernel.core.StreamEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
-import reactor.test.StepVerifier;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -63,9 +61,10 @@ class CardAppendProcessorTest {
                 StreamEvent.textDelta("no cards here")
         );
 
-        StepVerifier.create(input.transform(processor))
-                .expectNextMatches(e -> e.getType() == StreamEvent.EventType.TEXT_DELTA)
-                .verifyComplete();
+        List<StreamEvent> result = input.transform(processor).collectList().block();
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals(StreamEvent.EventType.TEXT_DELTA, result.get(0).getType());
     }
 
     @Test
@@ -75,9 +74,9 @@ class CardAppendProcessorTest {
 
         Flux<StreamEvent> input = Flux.just(StreamEvent.textDelta("test"));
 
-        StepVerifier.create(input.transform(processor))
-                .expectNextCount(1)
-                .verifyComplete();
+        List<StreamEvent> result = input.transform(processor).collectList().block();
+        assertNotNull(result);
+        assertEquals(1, result.size());
     }
 
     @Test
