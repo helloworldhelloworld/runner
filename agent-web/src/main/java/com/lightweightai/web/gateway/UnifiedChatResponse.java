@@ -62,13 +62,58 @@ public class UnifiedChatResponse {
      */
     private Map<String, Object> metadata;
 
+    /**
+     * 工具调用信息（仅 TOOL_* 类型有值）
+     */
+    @JsonProperty("tool_event")
+    private ToolEvent toolEvent;
+
     // ==================== 响应类型 ====================
 
     public enum ResponseType {
-        FULL,       // 完整响应
-        DELTA,      // 流式增量
-        COMPLETE,   // 流式完成
-        ERROR       // 错误
+        FULL,             // 完整响应
+        DELTA,            // 流式增量
+        COMPLETE,         // 流式完成
+        TOOL_CALL_START,  // 工具调用开始
+        TOOL_PROGRESS,    // 工具执行进度
+        TOOL_LOG,         // 工具执行日志
+        TOOL_RESULT,      // 工具执行结果
+        TOOL_ERROR,       // 工具执行错误
+        ERROR             // 错误
+    }
+
+    /**
+     * 工具事件详情
+     */
+    public static class ToolEvent {
+        @JsonProperty("tool_name")
+        private String toolName;
+
+        @JsonProperty("tool_call_id")
+        private String toolCallId;
+
+        private Double progress;
+        private Double total;
+        private String message;
+        private String content;
+
+        @JsonProperty("is_error")
+        private Boolean isError;
+
+        public String getToolName() { return toolName; }
+        public void setToolName(String toolName) { this.toolName = toolName; }
+        public String getToolCallId() { return toolCallId; }
+        public void setToolCallId(String toolCallId) { this.toolCallId = toolCallId; }
+        public Double getProgress() { return progress; }
+        public void setProgress(Double progress) { this.progress = progress; }
+        public Double getTotal() { return total; }
+        public void setTotal(Double total) { this.total = total; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+        public String getContent() { return content; }
+        public void setContent(String content) { this.content = content; }
+        public Boolean getIsError() { return isError; }
+        public void setIsError(Boolean isError) { this.isError = isError; }
     }
 
     // ==================== 工厂方法 ====================
@@ -120,6 +165,81 @@ public class UnifiedChatResponse {
         return response;
     }
 
+    /**
+     * 创建工具调用开始事件
+     */
+    public static UnifiedChatResponse toolCallStart(String requestId, String toolName, String toolCallId) {
+        UnifiedChatResponse response = new UnifiedChatResponse();
+        response.requestId = requestId;
+        response.type = ResponseType.TOOL_CALL_START;
+        ToolEvent te = new ToolEvent();
+        te.setToolName(toolName);
+        te.setToolCallId(toolCallId);
+        response.toolEvent = te;
+        return response;
+    }
+
+    /**
+     * 创建工具进度事件
+     */
+    public static UnifiedChatResponse toolProgress(String requestId, String toolName,
+                                                     double progress, double total, String message) {
+        UnifiedChatResponse response = new UnifiedChatResponse();
+        response.requestId = requestId;
+        response.type = ResponseType.TOOL_PROGRESS;
+        ToolEvent te = new ToolEvent();
+        te.setToolName(toolName);
+        te.setProgress(progress);
+        te.setTotal(total);
+        te.setMessage(message);
+        response.toolEvent = te;
+        return response;
+    }
+
+    /**
+     * 创建工具日志事件
+     */
+    public static UnifiedChatResponse toolLog(String requestId, String toolName, String message) {
+        UnifiedChatResponse response = new UnifiedChatResponse();
+        response.requestId = requestId;
+        response.type = ResponseType.TOOL_LOG;
+        ToolEvent te = new ToolEvent();
+        te.setToolName(toolName);
+        te.setMessage(message);
+        response.toolEvent = te;
+        return response;
+    }
+
+    /**
+     * 创建工具结果事件
+     */
+    public static UnifiedChatResponse toolResult(String requestId, String toolName,
+                                                  String content, boolean isError) {
+        UnifiedChatResponse response = new UnifiedChatResponse();
+        response.requestId = requestId;
+        response.type = ResponseType.TOOL_RESULT;
+        ToolEvent te = new ToolEvent();
+        te.setToolName(toolName);
+        te.setContent(content);
+        te.setIsError(isError);
+        response.toolEvent = te;
+        return response;
+    }
+
+    /**
+     * 创建工具错误事件
+     */
+    public static UnifiedChatResponse toolError(String requestId, String toolName, String message) {
+        UnifiedChatResponse response = new UnifiedChatResponse();
+        response.requestId = requestId;
+        response.type = ResponseType.TOOL_ERROR;
+        ToolEvent te = new ToolEvent();
+        te.setToolName(toolName);
+        te.setMessage(message);
+        response.toolEvent = te;
+        return response;
+    }
+
     // ==================== Getters/Setters ====================
 
     public String getRequestId() { return requestId; }
@@ -148,6 +268,9 @@ public class UnifiedChatResponse {
 
     public Map<String, Object> getMetadata() { return metadata; }
     public void setMetadata(Map<String, Object> metadata) { this.metadata = metadata; }
+
+    public ToolEvent getToolEvent() { return toolEvent; }
+    public void setToolEvent(ToolEvent toolEvent) { this.toolEvent = toolEvent; }
 
     @Override
     public String toString() {
