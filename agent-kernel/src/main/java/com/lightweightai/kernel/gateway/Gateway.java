@@ -3,9 +3,13 @@ package com.lightweightai.kernel.gateway;
 import com.lightweightai.kernel.agent.AgentLoop;
 import com.lightweightai.kernel.agent.AgentResponse;
 import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.postprocess.StreamPostProcessor;
+import com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipeline;
 import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -28,6 +32,7 @@ public class Gateway {
 
     private final ChatHandler chatHandler;
     private final SessionManager sessionManager;
+    private final StreamPostProcessorPipeline postProcessorPipeline;
 
     private Gateway(Builder builder) {
         if (builder.chatHandler != null) {
@@ -38,6 +43,13 @@ public class Gateway {
             throw new IllegalArgumentException("Either chatHandler or agentLoop is required");
         }
         this.sessionManager = builder.sessionManager;
+        if (!builder.postProcessors.isEmpty()) {
+            this.postProcessorPipeline = StreamPostProcessorPipeline.builder()
+                    .addAll(builder.postProcessors)
+                    .build();
+        } else {
+            this.postProcessorPipeline = builder.postProcessorPipeline;
+        }
     }
 
     // ==================== 同步调用 ====================
@@ -132,7 +144,18 @@ public class Gateway {
      * 包含 LLM 文本片段、工具调用进度、工具结果等全链路事件。
      */
     public Flux<StreamEvent> handleStreamReactive(GatewayRequest request) {
-        return chatHandler.chatStreamReactive(request);
+        Flux<StreamEvent> stream = chatHandler.chatStreamReactive(request);
+        if (postProcessorPipeline != null) {
+            stream = stream.transform(postProcessorPipeline);
+        }
+        return stream;
+    }
+
+    /**
+     * 获取后处理器管道（可能为 null）
+     */
+    public StreamPostProcessorPipeline getPostProcessorPipeline() {
+        return postProcessorPipeline;
     }
 
     // ==================== 会话管理 ====================
@@ -161,6 +184,8 @@ public class Gateway {
         private ChatHandler chatHandler;
         private AgentLoop agentLoop;
         private SessionManager sessionManager;
+        private StreamPostProcessorPipeline postProcessorPipeline;
+        private final List<StreamPostProcessor> postProcessors = new ArrayList<>();
 
         public Builder chatHandler(ChatHandler chatHandler) {
             this.chatHandler = chatHandler;
@@ -174,6 +199,22 @@ public class Gateway {
 
         public Builder sessionManager(SessionManager sessionManager) {
             this.sessionManager = sessionManager;
+            return this;
+        }
+
+        /**
+         * 添加单个后处理器（与其他处理器按 order 排序）
+         */
+        public Builder addPostProcessor(StreamPostProcessor processor) {
+            this.postProcessors.add(processor);
+            return this;
+        }
+
+        /**
+         * 设置完整的后处理器管道（与 addPostProcessor 互斥，后者优先）
+         */
+        public Builder postProcessors(StreamPostProcessorPipeline pipeline) {
+            this.postProcessorPipeline = pipeline;
             return this;
         }
 

@@ -3,6 +3,9 @@ package com.lightweightai.kernel.core;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolCall;
 
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * 全链路统一流式事件
  *
@@ -18,7 +21,8 @@ public class StreamEvent {
         TOOL_RESULT,       // 工具执行完成
         TOOL_ERROR,        // 工具执行错误
         LLM_COMPLETE,      // LLM 最终响应(无更多工具调用)
-        ERROR              // 管道错误
+        ERROR,             // 管道错误
+        POST_PROCESS_DATA  // 后处理器注入数据 (卡片、标注、风控信号等)
     }
 
     private final EventType type;
@@ -27,15 +31,25 @@ public class StreamEvent {
     private final ToolResultChunk chunk;
     private final LLMResponse response;
     private final Throwable error;
+    private final String category;
+    private final Map<String, Object> data;
 
     private StreamEvent(EventType type, String textDelta, ToolCall toolCall,
                         ToolResultChunk chunk, LLMResponse response, Throwable error) {
+        this(type, textDelta, toolCall, chunk, response, error, null, null);
+    }
+
+    private StreamEvent(EventType type, String textDelta, ToolCall toolCall,
+                        ToolResultChunk chunk, LLMResponse response, Throwable error,
+                        String category, Map<String, Object> data) {
         this.type = type;
         this.textDelta = textDelta;
         this.toolCall = toolCall;
         this.chunk = chunk;
         this.response = response;
         this.error = error;
+        this.category = category;
+        this.data = data;
     }
 
     public static StreamEvent textDelta(String delta) {
@@ -70,6 +84,11 @@ public class StreamEvent {
         return new StreamEvent(EventType.ERROR, null, null, null, null, error);
     }
 
+    public static StreamEvent postProcessData(String category, Map<String, Object> data) {
+        return new StreamEvent(EventType.POST_PROCESS_DATA, null, null, null, null, null,
+                category, data != null ? Collections.unmodifiableMap(data) : Collections.emptyMap());
+    }
+
     public EventType getType() {
         return type;
     }
@@ -94,12 +113,22 @@ public class StreamEvent {
         return error;
     }
 
+    public String getCategory() {
+        return category;
+    }
+
+    public Map<String, Object> getData() {
+        return data;
+    }
+
     @Override
     public String toString() {
         return "StreamEvent{type=" + type +
                 (textDelta != null ? ", textDelta='" + textDelta + "'" : "") +
                 (toolCall != null ? ", toolCall=" + toolCall : "") +
                 (chunk != null ? ", chunk=" + chunk : "") +
+                (category != null ? ", category='" + category + "'" : "") +
+                (data != null ? ", data=" + data : "") +
                 "}";
     }
 }
