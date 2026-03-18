@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git CI-Results Conflict Resolution
+
+The `ci-results/` directory (`ci-results/build.log`, `ci-results/latest.json`) is auto-updated by GitHub Actions CI after each push. This frequently causes merge/rebase conflicts. **Always resolve these conflicts automatically:**
+
+- When rebasing or merging and `ci-results/` files conflict, always accept the **theirs** (remote/incoming) version:
+  ```bash
+  git checkout --theirs ci-results/build.log ci-results/latest.json
+  git add ci-results/
+  git rebase --continue
+  ```
+- Never manually edit `ci-results/` files to resolve conflicts.
+- When `git push` is rejected due to remote ci-results updates, fetch and rebase first, resolve ci-results conflicts as above, then push.
+
 ## Project Overview
 
 **Lightweight AI Kernel** is a Java-based AI agent framework with reactive streaming, tool calling, MCP integration, and persistent memory. The architecture centers on an Agent Loop pattern with Reactor Flux-based streaming throughout.

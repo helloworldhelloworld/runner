@@ -198,6 +198,11 @@ public class OpenRouterProvider implements LLMProvider {
     private String buildRequestBody(List<ConversationMessage> messages, LLMOptions options, boolean stream) throws IOException {
         ObjectNode root = objectMapper.createObjectNode();
 
+        // 自定义网关：api_key 放 body 里（部分自建网关要求 body 认证而非 Header）
+        if (isCustomBaseUrl() && !apiKey.isEmpty()) {
+            root.put("api_key", apiKey);
+        }
+
         // Model
         root.put("model", model);
 
@@ -436,6 +441,11 @@ public class OpenRouterProvider implements LLMProvider {
             .toolCalls(toolCalls)
             .stopReason(finishReason)
             .build();
+    }
+
+    /** 是否使用了自定义 base URL（非默认 OpenRouter） */
+    private boolean isCustomBaseUrl() {
+        return !DEFAULT_BASE_URL.equals(baseUrl);
     }
 
     /** Accumulates streamed tool call chunks by index */
