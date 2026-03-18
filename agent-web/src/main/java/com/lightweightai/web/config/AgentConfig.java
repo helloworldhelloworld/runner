@@ -160,16 +160,21 @@ public class AgentConfig {
 
     /**
      * 按优先级自动检测可用的LLM Provider：
-     * 1. ANTHROPIC_API_KEY → api
-     * 2. OPENROUTER_API_KEY 或 OPENROUTER_BASE_URL → openrouter
-     * 3. CLAUDE_SESSION_KEY → pro
-     * 4. 全部为空 → mock（并警告）
+     * 1. OPENROUTER_BASE_URL（自定义网关）→ openrouter（用户显式配了自建网关，最高优先）
+     * 2. ANTHROPIC_API_KEY → api
+     * 3. OPENROUTER_API_KEY → openrouter
+     * 4. CLAUDE_SESSION_KEY → pro
+     * 5. 全部为空 → mock（并警告）
      */
     private String detectProviderType() {
+        // 自定义 base-url 优先级最高：用户明确指定了自建 LLM 网关
+        if (!isBlank(openRouterBaseUrl)) {
+            return "openrouter";
+        }
         if (!isBlank(claudeApiKey)) {
             return "api";
         }
-        if (!isBlank(openRouterApiKey) || !isBlank(openRouterBaseUrl)) {
+        if (!isBlank(openRouterApiKey)) {
             return "openrouter";
         }
         if (!isBlank(claudeSessionKey)) {
