@@ -2,13 +2,13 @@ package com.lightweightai.user;
 
 import com.lightweightai.user.model.EmotionRecord;
 import com.lightweightai.user.model.SoulUser;
-import org.slf4j.Logger;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
