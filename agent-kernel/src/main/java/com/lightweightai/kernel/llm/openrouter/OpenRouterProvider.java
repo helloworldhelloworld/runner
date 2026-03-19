@@ -44,7 +44,7 @@ public class OpenRouterProvider implements LLMProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(OpenRouterProvider.class);
     private static final String DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
-    private static final MediaType TEXT_PLAIN = MediaType.parse("text/plain; charset=utf-8");
+    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     private final String apiKey;
     private final String model;
@@ -102,7 +102,7 @@ public class OpenRouterProvider implements LLMProvider {
             String requestUrl = baseUrl + "/chat/completions";
             Request.Builder reqBuilder = new Request.Builder()
                 .url(requestUrl)
-                .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), TEXT_PLAIN));
+                .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), JSON));
             if (isCustomBaseUrl()) {
                 // 自定义网关：仅用 api_key header + body 认证，不发 Authorization: Bearer
                 if (!apiKey.isEmpty()) {
@@ -178,7 +178,7 @@ public class OpenRouterProvider implements LLMProvider {
                 String requestUrl = baseUrl + "/chat/completions";
                 Request.Builder reqBuilder = new Request.Builder()
                     .url(requestUrl)
-                    .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), TEXT_PLAIN));
+                    .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), JSON));
                 if (isCustomBaseUrl()) {
                     if (!apiKey.isEmpty()) {
                         reqBuilder.header("api_key", apiKey);
@@ -425,6 +425,11 @@ public class OpenRouterProvider implements LLMProvider {
      */
     private LLMResponse parseResponse(String responseBody) throws IOException {
         JsonNode root = objectMapper.readTree(responseBody);
+        // Some gateways return double-encoded JSON (object wrapped in quotes as a string).
+        if (root.isTextual()) {
+            logger.warn("Response is double-encoded JSON string, unwrapping");
+            root = objectMapper.readTree(root.asText());
+        }
 
         // Extract message from choices
         JsonNode choices = root.get("choices");
