@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "143a655de4fb2eccce77f758b68b1906286b7e5a",
+  "trigger_sha": "0bc3d671374113240dc709d906b019b7cca9eee3",
   "exit_code": 0,
-  "timestamp": "2026-03-19T03:55:45Z",
-  "branch": "main",
-  "run_id": "23279060028",
-  "test_summary": "[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.agent.AgentPluginTest|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.16 s - in com.lightweightai.web.agent.ReflectionServiceTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.042 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.108 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 29, Failures: 0, Errors: 0, Skipped: 0|"
+  "timestamp": "2026-03-19T04:43:52Z",
+  "branch": "claude/fix-openrouter-parameter-error-5WTFX",
+  "run_id": "23280185799",
+  "test_summary": "[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.agent.AgentPluginTest|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.164 s - in com.lightweightai.web.agent.ReflectionServiceTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.027 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.084 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 29, Failures: 0, Errors: 0, Skipped: 0|"
 }
