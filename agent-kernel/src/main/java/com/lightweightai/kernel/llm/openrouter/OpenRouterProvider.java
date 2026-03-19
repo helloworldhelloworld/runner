@@ -45,6 +45,10 @@ public class OpenRouterProvider implements LLMProvider {
     private static final String DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
     private static final MediaType TEXT_PLAIN = MediaType.parse("text/plain; charset=utf-8");
 
+    private static final int DEFAULT_CONNECT_TIMEOUT = 30;
+    private static final int DEFAULT_READ_TIMEOUT = 120;
+    private static final int DEFAULT_WRITE_TIMEOUT = 30;
+
     private final String apiKey;
     private final String model;
     private final String baseUrl;
@@ -62,14 +66,20 @@ public class OpenRouterProvider implements LLMProvider {
         this(apiKey, model, null);
     }
 
+    public OpenRouterProvider(String apiKey, String model, String baseUrl) {
+        this(apiKey, model, baseUrl, DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT);
+    }
+
     /**
-     * Create a new OpenRouterProvider with custom base URL
-     *
      * @param apiKey API key (can be empty for services that don't require auth)
      * @param model Model name (e.g., "ZhipuAI/GLM-5")
-     * @param baseUrl Custom API base URL (e.g., "http://10.32.101.24:8086/llm/openai"), null for default
+     * @param baseUrl Custom API base URL, null for default
+     * @param connectTimeoutSeconds connect timeout in seconds
+     * @param readTimeoutSeconds read timeout in seconds
+     * @param writeTimeoutSeconds write timeout in seconds
      */
-    public OpenRouterProvider(String apiKey, String model, String baseUrl) {
+    public OpenRouterProvider(String apiKey, String model, String baseUrl,
+                              int connectTimeoutSeconds, int readTimeoutSeconds, int writeTimeoutSeconds) {
         if (model == null || model.trim().isEmpty()) {
             throw new IllegalArgumentException("Model name cannot be null or empty");
         }
@@ -77,17 +87,16 @@ public class OpenRouterProvider implements LLMProvider {
         this.apiKey = apiKey != null ? apiKey : "";
         this.model = model;
         this.baseUrl = (baseUrl != null && !baseUrl.trim().isEmpty()) ? baseUrl.replaceAll("/+$", "") : DEFAULT_BASE_URL;
-        // 使用系统默认设置，添加超时
-        // 注意：使用系统代理以避免地区限制
         this.httpClient = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(connectTimeoutSeconds, TimeUnit.SECONDS)
+            .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
+            .writeTimeout(writeTimeoutSeconds, TimeUnit.SECONDS)
             .build();
         this.objectMapper = new ObjectMapper();
         this.modelCapability = new OpenRouterModelCapability(model);
 
-        logger.info("Initialized with model: {}, baseUrl: {}", model, this.baseUrl);
+        logger.info("Initialized with model: {}, baseUrl: {}, timeout: {}/{}/{}s",
+            model, this.baseUrl, connectTimeoutSeconds, readTimeoutSeconds, writeTimeoutSeconds);
     }
 
     @Override
