@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.directive.ClientCapability;
 import com.lightweightai.kernel.agent.directive.ClientManifest;
-import com.lightweightai.kernel.agent.directive.DirectiveResult;
 import com.lightweightai.kernel.agent.directive.DirectiveToolBridge;
 import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.core.ToolResultChunk;
@@ -14,7 +13,6 @@ import com.lightweightai.kernel.gateway.Gateway;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
 import com.lightweightai.kernel.gateway.GatewayStreamHandler;
-import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.safety.CrisisDetector;
 import com.lightweightai.safety.CrisisResource;
 import com.lightweightai.safety.SafetyResult;
@@ -75,6 +73,8 @@ public class VertxChatWebSocketHandler {
     private final Gateway gateway;
     private final CrisisDetector crisisDetector;
     private final ToolRegistry toolRegistry;
+    private final ClientToolResultRouter clientToolResultRouter;
+    private final ClientToolSessionBinder clientToolSessionBinder;
 
     /** 活跃连接数计数器 */
     private final AtomicLong activeConnections = new AtomicLong(0);
@@ -89,6 +89,8 @@ public class VertxChatWebSocketHandler {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
         this.toolRegistry = toolRegistry;
+        this.clientToolResultRouter = new ClientToolResultRouter(MAPPER, toolRegistry);
+        this.clientToolSessionBinder = new ClientToolSessionBinder(toolRegistry);
     }
 
     /**
@@ -106,7 +108,9 @@ public class VertxChatWebSocketHandler {
 
         String socketId = ws.textHandlerID();
         sessions.put(socketId, ws);
-        dispatchers.put(socketId, new VertxWebSocketClientToolDispatcher(ws));
+        VertxWebSocketClientToolDispatcher dispatcher = new VertxWebSocketClientToolDispatcher(ws);
+        dispatchers.put(socketId, dispatcher);
+        clientToolSessionBinder.bind(socketId, dispatcher);
         rateLimiters.put(socketId, new RateLimiter(MAX_MESSAGES_PER_SECOND));
         activeConnections.incrementAndGet();
 
@@ -282,15 +286,6 @@ public class VertxChatWebSocketHandler {
     }
 
     private void handleClientToolResult(ServerWebSocket ws, JsonNode payload) {
-        String callId = payload.path("callId").asText("");
-        String content = payload.path("content").asText("");
-        boolean isError = payload.path("isError").asBoolean(false);
-
-        if (callId.isEmpty()) {
-            logger.warn("client_tool_result missing callId");
-            return;
-        }
-
         String socketId = ws.textHandlerID();
         VertxWebSocketClientToolDispatcher dispatcher = dispatchers.get(socketId);
         if (dispatcher == null) {
@@ -298,11 +293,9 @@ public class VertxChatWebSocketHandler {
             return;
         }
 
-        ToolResult result = isError ? ToolResult.error(content) : ToolResult.success(content);
-        boolean matched = dispatcher.completeCall(callId, result);
-
+        boolean matched = clientToolResultRouter.routeClientToolResult(dispatcher, payload);
         if (!matched) {
-            logger.warn("No pending client tool call for callId: {}", callId);
+            logger.warn("No pending client tool call matched for socket={}", socketId);
         }
     }
 
@@ -353,21 +346,6 @@ public class VertxChatWebSocketHandler {
     }
 
     private void handleDirectiveResult(ServerWebSocket ws, JsonNode payload) {
-        String directiveId = payload.path("directiveId").asText("");
-        boolean success = payload.path("success").asBoolean(false);
-        String content = payload.path("content").asText("");
-        Map<String, Object> metadata = null;
-        if (payload.has("metadata") && !payload.get("metadata").isNull()) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> m = MAPPER.convertValue(payload.get("metadata"), Map.class);
-            metadata = m;
-        }
-
-        if (directiveId.isEmpty()) {
-            logger.warn("directive_result missing directiveId");
-            return;
-        }
-
         String socketId = ws.textHandlerID();
         VertxWebSocketClientToolDispatcher dispatcher = dispatchers.get(socketId);
         if (dispatcher == null) {
@@ -375,12 +353,9 @@ public class VertxChatWebSocketHandler {
             return;
         }
 
-        DirectiveResult directiveResult = new DirectiveResult(directiveId, success, content, metadata);
-        ToolResult toolResult = directiveResult.toToolResult();
-        boolean matched = dispatcher.completeCall(directiveId, toolResult);
-
+        boolean matched = clientToolResultRouter.routeDirectiveResult(dispatcher, payload);
         if (!matched) {
-            logger.warn("No pending directive call for directiveId: {}", directiveId);
+            logger.warn("No pending directive call matched for socket={}", socketId);
         }
     }
 
@@ -560,6 +535,7 @@ public class VertxChatWebSocketHandler {
             dispatcher.cancelAll();
         }
         bridges.remove(socketId);
+        clientToolSessionBinder.unbind(socketId);
     }
 
     // ==================== 监控指标 ====================

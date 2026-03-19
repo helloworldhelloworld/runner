@@ -1,6 +1,9 @@
 package com.lightweightai.kernel.agent;
 
 import com.lightweightai.kernel.agent.annotation.AnnotatedToolScanner;
+import com.lightweightai.kernel.agent.annotation.ClientTool;
+import com.lightweightai.kernel.agent.directive.DirectiveDescriptor;
+import com.lightweightai.kernel.agent.directive.DirectiveRegistry;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,10 +30,12 @@ public class ToolRegistry {
 
     private final Map<String, Tool> tools;
     private final Set<String> disabledTools;
+    private final DirectiveRegistry directiveRegistry;
 
     public ToolRegistry() {
         this.tools = new ConcurrentHashMap<>();
         this.disabledTools = ConcurrentHashMap.newKeySet();
+        this.directiveRegistry = new DirectiveRegistry();
     }
 
     // ==================== 注册/注销 ====================
@@ -42,6 +47,7 @@ public class ToolRegistry {
         Objects.requireNonNull(tool, "Tool cannot be null");
         Objects.requireNonNull(tool.getName(), "Tool name cannot be null");
         tools.put(tool.getName(), tool);
+        registerDirectiveIfPresent(tool);
     }
 
     /**
@@ -57,6 +63,7 @@ public class ToolRegistry {
     public void unregister(String name) {
         tools.remove(name);
         disabledTools.remove(name);
+        directiveRegistry.unregister(name);
     }
 
     // ==================== 查询 ====================
@@ -142,6 +149,14 @@ public class ToolRegistry {
      */
     public boolean isEnabled(String name) {
         return tools.containsKey(name) && !disabledTools.contains(name);
+    }
+
+
+    /**
+     * 获取 Directive 注解注册表。
+     */
+    public DirectiveRegistry getDirectiveRegistry() {
+        return directiveRegistry;
     }
 
     // ==================== LLM 集成 ====================
@@ -249,6 +264,15 @@ public class ToolRegistry {
         return ToolScanner.scanAndRegister(this, classLoader);
     }
 
+
+    private void registerDirectiveIfPresent(Tool tool) {
+        ClientTool directive = tool.getClass().getAnnotation(ClientTool.class);
+        if (directive == null) {
+            return;
+        }
+        directiveRegistry.register(DirectiveDescriptor.from(directive));
+    }
+
     // ==================== 统计信息 ====================
 
     /**
@@ -271,6 +295,7 @@ public class ToolRegistry {
     public void clear() {
         tools.clear();
         disabledTools.clear();
+        directiveRegistry.clear();
     }
 
     @Override
