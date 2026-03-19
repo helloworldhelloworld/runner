@@ -303,6 +303,12 @@ public class ChatController {
                     map.put("message", chunk.getMessage());
                 }
             }
+            case POST_PROCESS_DATA -> {
+                map.put("category", event.getCategory());
+                if (event.getData() != null) {
+                    map.put("data", event.getData());
+                }
+            }
             case LLM_COMPLETE -> map.put("complete", true);
             case ERROR -> {
                 if (event.getError() != null) {

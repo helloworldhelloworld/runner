@@ -1,0 +1,37 @@
+package com.lightweightai.web.config;
+
+import com.lightweightai.kernel.core.postprocess.CardAppendProcessor;
+import com.lightweightai.kernel.core.postprocess.DeeplinkProcessor;
+import com.lightweightai.kernel.core.postprocess.RiskControlProcessor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 流式后处理器 Bean 注册
+ *
+ * 每个处理器仅在其依赖接口有 Bean 实现时才激活。
+ * 业务方只需注册对应的 RiskChecker / DeeplinkResolver / CardProvider Bean，
+ * 处理器即自动注入 Gateway 后处理管道。
+ */
+@Configuration
+public class PostProcessorConfig {
+
+    @Bean
+    @ConditionalOnBean(RiskControlProcessor.RiskChecker.class)
+    public RiskControlProcessor riskControlProcessor(RiskControlProcessor.RiskChecker checker) {
+        return new RiskControlProcessor(checker, 50);
+    }
+
+    @Bean
+    @ConditionalOnBean(DeeplinkProcessor.DeeplinkResolver.class)
+    public DeeplinkProcessor deeplinkProcessor(DeeplinkProcessor.DeeplinkResolver resolver) {
+        return new DeeplinkProcessor(resolver);
+    }
+
+    @Bean
+    @ConditionalOnBean(CardAppendProcessor.CardProvider.class)
+    public CardAppendProcessor cardAppendProcessor(CardAppendProcessor.CardProvider provider) {
+        return new CardAppendProcessor(provider);
+    }
+}

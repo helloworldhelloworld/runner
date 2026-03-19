@@ -43,7 +43,7 @@ public class OpenRouterProvider implements LLMProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(OpenRouterProvider.class);
     private static final String DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
-    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+    private static final MediaType TEXT_PLAIN = MediaType.parse("text/plain; charset=utf-8");
 
     private final String apiKey;
     private final String model;
@@ -101,7 +101,7 @@ public class OpenRouterProvider implements LLMProvider {
             String requestUrl = baseUrl + "/chat/completions";
             Request.Builder reqBuilder = new Request.Builder()
                 .url(requestUrl)
-                .post(RequestBody.create(requestBody, JSON));
+                .post(RequestBody.create(requestBody, TEXT_PLAIN));
             if (isCustomBaseUrl()) {
                 // 自定义网关：仅用 api_key header + body 认证，不发 Authorization: Bearer
                 if (!apiKey.isEmpty()) {
@@ -158,7 +158,7 @@ public class OpenRouterProvider implements LLMProvider {
                 String requestUrl = baseUrl + "/chat/completions";
                 Request.Builder reqBuilder = new Request.Builder()
                     .url(requestUrl)
-                    .post(RequestBody.create(requestBody, JSON));
+                    .post(RequestBody.create(requestBody, TEXT_PLAIN));
                 if (isCustomBaseUrl()) {
                     if (!apiKey.isEmpty()) {
                         reqBuilder.header("api_key", apiKey);
@@ -468,12 +468,25 @@ public class OpenRouterProvider implements LLMProvider {
         // Tool call chunks are keyed by their index
         Map<Integer, ToolCallAccumulator> toolCallMap = new LinkedHashMap<>();
 
-        // Parse SSE events line by line
+        // 读取全部原始行，便于日志和回退
+        StringBuilder rawBody = new StringBuilder();
+        List<String> lines = new ArrayList<>();
         try (java.io.BufferedReader reader = new java.io.BufferedReader(
                 new java.io.InputStreamReader(responseBody.byteStream()))) {
-
             String line;
             while ((line = reader.readLine()) != null) {
+                lines.add(line);
+                rawBody.append(line).append('\n');
+            }
+        }
+        logger.info("OpenRouter streaming raw response ({} lines):\n{}", lines.size(), rawBody);
+
+        // 检测是否为 SSE 格式（至少有一行以 "data: " 开头）
+        boolean isSse = lines.stream().anyMatch(l -> l.startsWith("data: "));
+
+        if (isSse) {
+            // SSE 格式 — 逐行解析
+            for (String line : lines) {
                 if (line.startsWith("data: ")) {
                     String data = line.substring(6).trim();
 
@@ -482,7 +495,6 @@ public class OpenRouterProvider implements LLMProvider {
                         break;
                     }
 
-                    logger.info("OpenRouter SSE raw chunk: {}", data);
                     try {
                         JsonNode eventData = objectMapper.readTree(data);
                         JsonNode choices = eventData.get("choices");
@@ -526,6 +538,20 @@ public class OpenRouterProvider implements LLMProvider {
                         // Ignore parsing errors for individual events
                     }
                 }
+            }
+        } else {
+            // 非 SSE 格式 — 网关返回了普通 JSON 响应，按 complete() 格式解析
+            logger.info("Response is not SSE format, parsing as regular JSON");
+            try {
+                LLMResponse fallbackResponse = parseResponse(rawBody.toString().trim());
+                String text = fallbackResponse.getMessage().getTextContent();
+                if (text != null && !text.isEmpty()) {
+                    textContent.append(text);
+                    handler.onTextDelta(text);
+                }
+                return fallbackResponse;
+            } catch (Exception e) {
+                logger.error("Failed to parse non-SSE response as JSON: {}", e.getMessage());
             }
         }
 
