@@ -292,27 +292,44 @@ public class OpenRouterProvider implements LLMProvider {
         ArrayNode messagesArray = buildMessagesArray(messages);
         root.set("messages", messagesArray);
 
-        // Tools — 跳过 name 为空的无效工具定义
+        // Tools — 支持两种输入格式：
+        //   1. Claude 扁平格式: {name, description, input_schema}
+        //   2. OpenAI 已包装格式: {type: "function", function: {name, description, parameters}}
         if (options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
             ArrayNode toolsArray = objectMapper.createArrayNode();
             for (Map<String, Object> toolDef : options.getToolDefinitions()) {
-                String name = (String) toolDef.get("name");
-                if (name == null || name.isEmpty()) {
-                    logger.warn("Skipping tool with null/empty name: {}", toolDef);
-                    continue;
-                }
                 ObjectNode toolNode = objectMapper.createObjectNode();
-                toolNode.put("type", "function");
-                ObjectNode functionNode = objectMapper.createObjectNode();
-                functionNode.put("name", name);
-                String description = (String) toolDef.get("description");
-                functionNode.put("description", description != null ? description : "");
-                // "input_schema" (Claude format) → "parameters" (OpenAI format)
-                Object schema = toolDef.getOrDefault("input_schema", toolDef.get("parameters"));
-                if (schema != null) {
-                    functionNode.set("parameters", objectMapper.valueToTree(schema));
+
+                if ("function".equals(toolDef.get("type")) && toolDef.containsKey("function")) {
+                    // Already in OpenAI format — use as-is
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> function = (Map<String, Object>) toolDef.get("function");
+                    String name = (String) function.get("name");
+                    if (name == null || name.isEmpty()) {
+                        logger.warn("Skipping tool with null/empty name (OpenAI format): {}", toolDef);
+                        continue;
+                    }
+                    toolNode.put("type", "function");
+                    toolNode.set("function", objectMapper.valueToTree(function));
+                } else {
+                    // Claude flat format — wrap into OpenAI format
+                    String name = (String) toolDef.get("name");
+                    if (name == null || name.isEmpty()) {
+                        logger.warn("Skipping tool with null/empty name (flat format): {}", toolDef);
+                        continue;
+                    }
+                    toolNode.put("type", "function");
+                    ObjectNode functionNode = objectMapper.createObjectNode();
+                    functionNode.put("name", name);
+                    String description = (String) toolDef.get("description");
+                    functionNode.put("description", description != null ? description : "");
+                    // "input_schema" (Claude format) → "parameters" (OpenAI format)
+                    Object schema = toolDef.getOrDefault("input_schema", toolDef.get("parameters"));
+                    if (schema != null) {
+                        functionNode.set("parameters", objectMapper.valueToTree(schema));
+                    }
+                    toolNode.set("function", functionNode);
                 }
-                toolNode.set("function", functionNode);
                 toolsArray.add(toolNode);
             }
             if (toolsArray.size() > 0) {
@@ -411,7 +428,8 @@ public class OpenRouterProvider implements LLMProvider {
         // Extract message from choices
         JsonNode choices = root.get("choices");
         if (choices == null || !choices.isArray() || choices.size() == 0) {
-            throw new RuntimeException("No choices in response");
+            logger.error("No choices in API response. Raw body: {}", responseBody);
+            throw new RuntimeException("No choices in response: " + responseBody);
         }
 
         JsonNode firstChoice = choices.get(0);
