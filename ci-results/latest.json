@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "e7d8510ee5843c30b676f3b4b25d01e2f3eb554b",
+  "trigger_sha": "b260c9fa41688d67064053c1d45c48b81d968bb0",
   "exit_code": 1,
-  "timestamp": "2026-03-19T17:06:38Z",
+  "timestamp": "2026-03-19T17:10:13Z",
   "branch": "claude/debug-websocket-streaming-qHPe7",
-  "run_id": "23307036307",
+  "run_id": "23307190072",
   "test_summary": ""
 }

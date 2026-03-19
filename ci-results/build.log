@@ -58,8 +58,8 @@
 [INFO] ------------------------------------------------------------------------
 [INFO] Reactor Summary for Lightweight AI Kernel Parent 0.1.0-SNAPSHOT:
 [INFO] 
-[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.003 s]
-[INFO] Agent Kernel ....................................... FAILURE [  3.077 s]
+[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.002 s]
+[INFO] Agent Kernel ....................................... FAILURE [  2.202 s]
 [INFO] Agent Tools ........................................ SKIPPED
 [INFO] Agent MCP .......................................... SKIPPED
 [INFO] Kernel Memory ...................................... SKIPPED
@@ -72,8 +72,8 @@
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  3.423 s
-[INFO] Finished at: 2026-03-19T17:06:38Z
+[INFO] Total time:  2.532 s
+[INFO] Finished at: 2026-03-19T17:10:13Z
 [INFO] ------------------------------------------------------------------------
 [ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project agent-kernel: Compilation failure: Compilation failure: 
 [ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/agent/GetPositionTool.java:[20,38] no interface expected here
