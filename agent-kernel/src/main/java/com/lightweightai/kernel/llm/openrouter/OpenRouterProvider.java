@@ -276,8 +276,8 @@ public class OpenRouterProvider implements LLMProvider {
         ArrayNode messagesArray = buildMessagesArray(messages);
         root.set("messages", messagesArray);
 
-        // Tools — only for standard OpenRouter, custom gateways typically don't support function calling
-        if (!isCustomBaseUrl() && options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
+        // Tools
+        if (options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
             ArrayNode toolsArray = objectMapper.createArrayNode();
             for (Map<String, Object> toolDef : options.getToolDefinitions()) {
                 ObjectNode toolNode = objectMapper.createObjectNode();

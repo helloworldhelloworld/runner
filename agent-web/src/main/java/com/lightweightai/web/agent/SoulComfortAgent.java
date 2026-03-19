@@ -154,7 +154,7 @@ public class SoulComfortAgent {
 
             List<Map<String, Object>> toolDefs = buildToolDefinitions();
             LLMOptions.Builder optBuilder = LLMOptions.builder()
-                .maxTokens(500)
+                .maxTokens(2048)
                 .temperature(0.8);
             if (!toolDefs.isEmpty()) {
                 optBuilder.toolDefinitions(toolDefs);
@@ -212,7 +212,7 @@ public class SoulComfortAgent {
         List<ConversationMessage> messages = buildMessages(sessionId, userMessage, externalMemoryContext);
         if (observer != null) observer.onLLMRequest(messages);
 
-        LLMOptions optionsFinal = LLMOptions.builder().maxTokens(500).temperature(0.8).build();
+        LLMOptions optionsFinal = LLMOptions.builder().maxTokens(2048).temperature(0.8).build();
 
         if (tools.isEmpty()) {
             // 无工具 — 直接流式
@@ -231,7 +231,7 @@ public class SoulComfortAgent {
 
         // 有工具 — 两阶段流式
         LLMOptions optionsWithTools = LLMOptions.builder()
-            .maxTokens(500).temperature(0.8)
+            .maxTokens(2048).temperature(0.8)
             .toolDefinitions(buildToolDefinitions())
             .build();
 
@@ -362,7 +362,7 @@ public class SoulComfortAgent {
         List<ConversationMessage> messages = buildMessages(sessionId, userMessage, null);
 
         LLMOptions.Builder optBuilder = LLMOptions.builder()
-            .maxTokens(500)
+            .maxTokens(2048)
             .temperature(0.8);
 
         if (!tools.isEmpty()) {
