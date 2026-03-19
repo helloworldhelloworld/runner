@@ -221,6 +221,7 @@ public class VertxChatWebSocketHandler {
                         case TOOL_LOG -> sendToolLog(ws, event);
                         case TOOL_RESULT -> { /* 工具结果已喂回 LLM，不需要额外通知 */ }
                         case TOOL_ERROR -> sendToolError(ws, event);
+                        case POST_PROCESS_DATA -> sendPostProcessData(ws, event);
                         case LLM_COMPLETE -> sendStreamEnd(ws, "");
                         case ERROR -> sendError(ws,
                                 event.getError() != null ? event.getError().getMessage() : "Unknown error");
@@ -503,6 +504,20 @@ public class VertxChatWebSocketHandler {
             safeSend(ws, MAPPER.writeValueAsString(msg));
         } catch (Exception e) {
             logger.error("Failed to serialize tool_error message", e);
+        }
+    }
+
+    private void sendPostProcessData(ServerWebSocket ws, StreamEvent event) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "post_process");
+            msg.put("category", event.getCategory() != null ? event.getCategory() : "");
+            if (event.getData() != null) {
+                msg.set("data", MAPPER.valueToTree(event.getData()));
+            }
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize post_process message", e);
         }
     }
 
