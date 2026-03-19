@@ -43,6 +43,8 @@ public abstract class ClientTool<T> implements Tool {
                 .get(descriptor.getTimeoutMs(), TimeUnit.MILLISECONDS);
             ToolResult normalized = normalizeForParser(result);
             return parseResult(normalized);
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Client tool invoke failed: " + getName(), e);
         }

@@ -1,6 +1,5 @@
 package com.lightweightai.kernel.agent;
 
-import com.lightweightai.kernel.agent.annotation.ClientTool;
 import com.lightweightai.kernel.llm.ToolResult;
 
 import java.util.LinkedHashMap;
@@ -9,7 +8,7 @@ import java.util.Map;
 /**
  * 端侧定位工具（GeoInformation.GetPosition → GeoInformation.PositionInfo）。
  */
-@ClientTool(
+@com.lightweightai.kernel.agent.annotation.ClientTool(
     toolName = "GetPosition",
     downAction = "GetPosition",
     upAction = "PositionInfo",
