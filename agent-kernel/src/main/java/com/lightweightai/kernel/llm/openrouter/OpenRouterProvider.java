@@ -130,6 +130,7 @@ public class OpenRouterProvider implements LLMProvider {
                 }
 
                 String responseBody = response.body().string();
+                logger.info("OpenRouter API raw response: {}", responseBody);
                 return parseResponse(responseBody);
             }
 
@@ -510,9 +511,11 @@ public class OpenRouterProvider implements LLMProvider {
                     String data = line.substring(6).trim();
 
                     if (data.equals("[DONE]")) {
+                        logger.debug("OpenRouter SSE stream: [DONE]");
                         break;
                     }
 
+                    logger.info("OpenRouter SSE raw chunk: {}", data);
                     try {
                         JsonNode eventData = objectMapper.readTree(data);
                         JsonNode choices = eventData.get("choices");
