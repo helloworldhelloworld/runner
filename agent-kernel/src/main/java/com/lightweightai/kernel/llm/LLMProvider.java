@@ -72,28 +72,36 @@ public interface LLMProvider {
     default Flux<StreamEvent> completeStreamReactive(
             List<ConversationMessage> messages, LLMOptions options) {
         return Flux.create(sink -> {
+            System.out.println("[FLUX-BRIDGE] Flux.create lambda executing, calling completeStream...");
             completeStream(messages, options, new StreamEventHandler() {
                 @Override
                 public void onTextDelta(String delta) {
+                    System.out.println("[FLUX-BRIDGE] onTextDelta len=" + (delta != null ? delta.length() : 0));
                     sink.next(StreamEvent.textDelta(delta));
                 }
 
                 @Override
                 public void onToolCallDelta(ToolCall toolCall) {
+                    System.out.println("[FLUX-BRIDGE] onToolCallDelta tool=" + toolCall.getName());
                     sink.next(StreamEvent.toolCallStart(toolCall));
                 }
 
                 @Override
                 public void onComplete(LLMResponse response) {
+                    System.out.println("[FLUX-BRIDGE] onComplete hasToolCalls=" +
+                        (response != null && response.hasToolCalls()));
                     sink.next(StreamEvent.llmComplete(response));
                     sink.complete();
+                    System.out.println("[FLUX-BRIDGE] sink.complete() called");
                 }
 
                 @Override
                 public void onError(Throwable error) {
+                    System.out.println("[FLUX-BRIDGE] onError: " + error.getMessage());
                     sink.error(error);
                 }
             });
+            System.out.println("[FLUX-BRIDGE] completeStream returned (async task started)");
         });
     }
 

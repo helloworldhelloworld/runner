@@ -186,7 +186,11 @@ public class OpenRouterProvider implements LLMProvider {
 
                     // Parse SSE stream
                     LLMResponse finalResponse = parseStreamingResponse(response.body(), handler);
+                    logger.info("[STREAM-DEBUG] completeStream: calling handler.onComplete, hasToolCalls={}, textLen={}",
+                        finalResponse.hasToolCalls(),
+                        finalResponse.getMessage().getTextContent() != null ? finalResponse.getMessage().getTextContent().length() : 0);
                     handler.onComplete(finalResponse);
+                    logger.info("[STREAM-DEBUG] completeStream: handler.onComplete returned");
                     return finalResponse;
                 }
 
@@ -541,13 +545,25 @@ public class OpenRouterProvider implements LLMProvider {
             try {
                 LLMResponse fallbackResponse = parseResponse(rawBody.toString().trim());
                 String text = fallbackResponse.getMessage().getTextContent();
+                boolean hasToolCalls = fallbackResponse.hasToolCalls();
+                logger.info("[STREAM-DEBUG] Non-SSE parsed: textLen={} hasToolCalls={} toolCallCount={}",
+                    text != null ? text.length() : 0,
+                    hasToolCalls,
+                    hasToolCalls ? fallbackResponse.getToolCalls().size() : 0);
                 if (text != null && !text.isEmpty()) {
+                    logger.info("[STREAM-DEBUG] Emitting onTextDelta, len={}, preview='{}'",
+                        text.length(), text.substring(0, Math.min(80, text.length())));
                     textContent.append(text);
                     handler.onTextDelta(text);
+                } else {
+                    logger.info("[STREAM-DEBUG] No text content in response (tool-call-only response)");
                 }
+                logger.info("[STREAM-DEBUG] Returning fallbackResponse to completeStream caller");
                 return fallbackResponse;
             } catch (Exception e) {
-                logger.error("Failed to parse non-SSE response as JSON: {}", e.getMessage());
+                logger.error("[STREAM-DEBUG] Failed to parse non-SSE response as JSON: {}", e.getMessage());
+                logger.error("[STREAM-DEBUG] Raw body preview: {}",
+                    rawBody.substring(0, Math.min(500, rawBody.length())));
             }
         }
 

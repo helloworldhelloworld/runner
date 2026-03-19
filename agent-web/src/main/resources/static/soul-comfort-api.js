@@ -438,20 +438,27 @@ class SoulComfortAPI {
      * 处理 WebSocket 服务端消息
      */
     _handleWebSocketMessage(raw) {
+        console.log('[WS] Raw message:', raw.substring(0, 200));
         try {
             const msg = JSON.parse(raw);
             const cb = this._wsCallbacks;
-            if (!cb) return;
+            if (!cb) {
+                console.warn('[WS] No callbacks registered, ignoring message type:', msg.type);
+                return;
+            }
 
             switch (msg.type) {
                 case 'token':
+                    console.log('[WS] token data len:', msg.data ? msg.data.length : 0);
                     if (cb.onDelta) cb.onDelta(msg.data);
                     break;
                 case 'stream_end':
+                    console.log('[WS] stream_end received');
                     if (cb.onComplete) cb.onComplete(msg.meta);
                     this._wsCallbacks = null;
                     break;
                 case 'error':
+                    console.error('[WS] error:', msg.message);
                     if (cb.onError) cb.onError(new Error(msg.message));
                     this._wsCallbacks = null;
                     break;
