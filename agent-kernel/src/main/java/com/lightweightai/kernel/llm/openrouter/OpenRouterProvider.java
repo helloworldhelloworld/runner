@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -100,17 +101,22 @@ public class OpenRouterProvider implements LLMProvider {
             String requestUrl = baseUrl + "/chat/completions";
             Request.Builder reqBuilder = new Request.Builder()
                 .url(requestUrl)
-                .post(RequestBody.create(requestBody, JSON));
-            if (!isCustomBaseUrl()) {
-                // 标准 OpenRouter 需要的额外 header
+                .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), JSON));
+            if (isCustomBaseUrl()) {
+                // 自定义网关：仅用 api_key header + body 认证，不发 Authorization: Bearer
+                if (!apiKey.isEmpty()) {
+                    reqBuilder.header("api_key", apiKey);
+                }
+            } else {
+                // 标准 OpenRouter：Bearer token + 额外 header
                 reqBuilder.header("HTTP-Referer", "https://github.com/lightweightai/kernel");
                 reqBuilder.header("X-Title", "Lightweight AI Kernel");
-            }
-            if (!apiKey.isEmpty()) {
-                reqBuilder.header("Authorization", "Bearer " + apiKey);
+                if (!apiKey.isEmpty()) {
+                    reqBuilder.header("Authorization", "Bearer " + apiKey);
+                }
             }
             Request request = reqBuilder.build();
-            logger.info("OpenRouter API request: POST {} (model: {}, customGateway: {})", requestUrl, model, isCustomBaseUrl());
+            logger.info("OpenRouter API request: POST {} (model: {}, customGateway: {}, headers: {})", requestUrl, model, isCustomBaseUrl(), request.headers());
             logger.info("OpenRouter request body: {}", requestBody);
             try (Response response = httpClient.newCall(request).execute()) {
                 logger.debug("Got response: {}", response.code());
@@ -170,16 +176,20 @@ public class OpenRouterProvider implements LLMProvider {
                 String requestUrl = baseUrl + "/chat/completions";
                 Request.Builder reqBuilder = new Request.Builder()
                     .url(requestUrl)
-                    .post(RequestBody.create(requestBody, JSON));
-                if (!isCustomBaseUrl()) {
+                    .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), JSON));
+                if (isCustomBaseUrl()) {
+                    if (!apiKey.isEmpty()) {
+                        reqBuilder.header("api_key", apiKey);
+                    }
+                } else {
                     reqBuilder.header("HTTP-Referer", "https://github.com/lightweightai/kernel");
                     reqBuilder.header("X-Title", "Lightweight AI Kernel");
-                }
-                if (!apiKey.isEmpty()) {
-                    reqBuilder.header("Authorization", "Bearer " + apiKey);
+                    if (!apiKey.isEmpty()) {
+                        reqBuilder.header("Authorization", "Bearer " + apiKey);
+                    }
                 }
                 Request request = reqBuilder.build();
-                logger.info("OpenRouter streaming request: POST {} (model: {})", requestUrl, model);
+                logger.info("OpenRouter streaming request: POST {} (model: {}, headers: {})", requestUrl, model, request.headers());
                 logger.debug("OpenRouter streaming request body: {}", requestBody);
                 handler.onStart();
 
@@ -276,15 +286,21 @@ public class OpenRouterProvider implements LLMProvider {
         ArrayNode messagesArray = buildMessagesArray(messages);
         root.set("messages", messagesArray);
 
-        // Tools
+        // Tools — 跳过 name 为空的无效工具定义
         if (options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
             ArrayNode toolsArray = objectMapper.createArrayNode();
             for (Map<String, Object> toolDef : options.getToolDefinitions()) {
+                String name = (String) toolDef.get("name");
+                if (name == null || name.isEmpty()) {
+                    logger.warn("Skipping tool with null/empty name: {}", toolDef);
+                    continue;
+                }
                 ObjectNode toolNode = objectMapper.createObjectNode();
                 toolNode.put("type", "function");
                 ObjectNode functionNode = objectMapper.createObjectNode();
-                functionNode.put("name", (String) toolDef.get("name"));
-                functionNode.put("description", (String) toolDef.get("description"));
+                functionNode.put("name", name);
+                String description = (String) toolDef.get("description");
+                functionNode.put("description", description != null ? description : "");
                 // "input_schema" (Claude format) → "parameters" (OpenAI format)
                 Object schema = toolDef.getOrDefault("input_schema", toolDef.get("parameters"));
                 if (schema != null) {
@@ -293,7 +309,9 @@ public class OpenRouterProvider implements LLMProvider {
                 toolNode.set("function", functionNode);
                 toolsArray.add(toolNode);
             }
-            root.set("tools", toolsArray);
+            if (toolsArray.size() > 0) {
+                root.set("tools", toolsArray);
+            }
         }
 
         return objectMapper.writeValueAsString(root);
