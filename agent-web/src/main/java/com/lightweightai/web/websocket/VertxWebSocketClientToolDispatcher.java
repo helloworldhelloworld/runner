@@ -43,6 +43,10 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
     private final ConcurrentHashMap<String, CompletableFuture<ToolResult>> pendingCalls =
             new ConcurrentHashMap<>();
 
+    /** 单飞控制：仅保留最近一个挂起调用（无 ID 回包时用于回退匹配） */
+    private volatile String latestPendingCallId;
+    private volatile String latestPendingToolName;
+
     /** 端侧上报的能力清单，非 null 表示支持 Directive 协议 */
     private volatile ClientManifest manifest;
 
@@ -74,6 +78,13 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
     @Override
     public CompletableFuture<ToolResult> dispatch(String callId, String toolName,
                                                    Map<String, Object> args) {
+        if (!tryAcquireSingleFlight(callId, toolName)) {
+            CompletableFuture<ToolResult> busy = new CompletableFuture<>();
+            busy.completeExceptionally(new IllegalStateException(
+                "Client dispatcher is busy: another client tool call is pending"));
+            return busy;
+        }
+
         CompletableFuture<ToolResult> future = new CompletableFuture<>();
         pendingCalls.put(callId, future);
 
@@ -102,6 +113,7 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
 
             if (ws.isClosed()) {
                 pendingCalls.remove(callId);
+                clearSingleFlight(callId);
                 future.completeExceptionally(
                     new RuntimeException("WebSocket connection is closed, cannot dispatch tool call"));
                 return future;
@@ -109,6 +121,7 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
 
             ws.writeTextMessage(json).onFailure(err -> {
                 pendingCalls.remove(callId);
+                clearSingleFlight(callId);
                 if (!future.isDone()) {
                     future.completeExceptionally(
                         new RuntimeException("Failed to send client tool call: " + err.getMessage(), err));
@@ -117,14 +130,34 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
 
         } catch (Exception e) {
             pendingCalls.remove(callId);
+            clearSingleFlight(callId);
             future.completeExceptionally(
                     new RuntimeException("Failed to serialize client tool call: " + e.getMessage(), e));
         }
 
         // Future 超时由 ClientToolWrapper 的 get(timeout) 控制
-        future.whenComplete((result, error) -> pendingCalls.remove(callId));
+        future.whenComplete((result, error) -> {
+            pendingCalls.remove(callId);
+            clearSingleFlight(callId);
+        });
 
         return future;
+    }
+
+    private synchronized boolean tryAcquireSingleFlight(String callId, String toolName) {
+        if (latestPendingCallId != null) {
+            return false;
+        }
+        latestPendingCallId = callId;
+        latestPendingToolName = toolName;
+        return true;
+    }
+
+    private synchronized void clearSingleFlight(String callId) {
+        if (callId != null && callId.equals(latestPendingCallId)) {
+            latestPendingCallId = null;
+            latestPendingToolName = null;
+        }
     }
 
     /**
@@ -137,11 +170,40 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
     public boolean completeCall(String callId, ToolResult result) {
         CompletableFuture<ToolResult> future = pendingCalls.remove(callId);
         if (future != null) {
+            clearSingleFlight(callId);
             future.complete(result);
             return true;
         }
         logger.warn("No pending call found for callId: {}", callId);
         return false;
+    }
+
+    /**
+     * 回退匹配：当端侧未携带 callId/directiveId 时，按单飞中的最近挂起调用完成。
+     *
+     * @param expectedToolName 期望匹配的下行 toolName（namespace.downAction）；为空则仅按单飞回退
+     */
+    public boolean completeLatestCall(ToolResult result, String expectedToolName) {
+        String latest = latestPendingCallId;
+        if (latest == null) {
+            logger.warn("No latest pending call for fallback completion");
+            return false;
+        }
+
+        if (expectedToolName != null && !expectedToolName.isBlank()) {
+            String pendingToolName = latestPendingToolName;
+            if (!expectedToolName.equals(pendingToolName)) {
+                logger.warn("Fallback completion tool mismatch: expected={}, pending={}",
+                    expectedToolName, pendingToolName);
+                return false;
+            }
+        }
+
+        return completeCall(latest, result);
+    }
+
+    public boolean completeLatestCall(ToolResult result) {
+        return completeLatestCall(result, null);
     }
 
     /**
@@ -153,6 +215,8 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
                     new RuntimeException("WebSocket connection closed, client tool call cancelled"));
         });
         pendingCalls.clear();
+        latestPendingCallId = null;
+        latestPendingToolName = null;
     }
 
     /**
