@@ -15,6 +15,7 @@ import com.lightweightai.kernel.memory.Message;
 import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.prompt.Skill;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -208,28 +209,33 @@ public class AgentLoop {
      * 需要 ToolCallingLoop 支持。
      */
     public Flux<StreamEvent> runReactive(String input, String sessionId) {
-        // 1. 检索记忆（可以阻塞，一次性操作）
-        List<MemorySearchResult> memoryResults = memoryProvider.search(input);
-        String memoryContext = formatMemoryContext(memoryResults);
+        // Wrap in Flux.defer + subscribeOn(boundedElastic) so that blocking operations
+        // (memory search, message building) don't run on the caller's thread.
+        // Without this, calling from Vert.x WebSocket handler blocks the event loop.
+        return Flux.<StreamEvent>defer(() -> {
+            // 1. 检索记忆（阻塞操作，现在在 boundedElastic 线程上执行）
+            List<MemorySearchResult> memoryResults = memoryProvider.search(input);
+            String memoryContext = formatMemoryContext(memoryResults);
 
-        // 2. 保存用户消息
-        memoryProvider.addMessage(sessionId, Message.user(input));
+            // 2. 保存用户消息
+            memoryProvider.addMessage(sessionId, Message.user(input));
 
-        // 3. 构建消息上下文
-        List<ConversationMessage> messages = buildMessages(sessionId, memoryContext);
+            // 3. 构建消息上下文
+            List<ConversationMessage> messages = buildMessages(sessionId, memoryContext);
 
-        // 4. 构建 ToolCallingLoop 并执行
-        ToolExecutor toolExecutor = new ToolExecutor(toolRegistry);
-        ToolCallingLoop loop = ToolCallingLoop.builder()
-            .provider(llmProvider)
-            .toolExecutor(toolExecutor)
-            .maxIterations(maxToolIterations)
-            .build();
+            // 4. 构建 ToolCallingLoop 并执行
+            ToolExecutor toolExecutor = new ToolExecutor(toolRegistry);
+            ToolCallingLoop loop = ToolCallingLoop.builder()
+                .provider(llmProvider)
+                .toolExecutor(toolExecutor)
+                .maxIterations(maxToolIterations)
+                .build();
 
-        return loop.executeWithToolsReactive(messages, llmOptions)
-            .doOnComplete(() -> {
-                // 写入记忆（在完成时做，简化处理）
-            });
+            return loop.executeWithToolsReactive(messages, llmOptions)
+                .doOnComplete(() -> {
+                    // 写入记忆（在完成时做，简化处理）
+                });
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
     // ==================== 辅助方法 ====================

@@ -21,6 +21,7 @@ import com.lightweightai.safety.SafetyResult;
 import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Disposable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -68,6 +69,8 @@ public class VertxChatWebSocketHandler {
     private final Map<String, VertxWebSocketClientToolDispatcher> dispatchers = new ConcurrentHashMap<>();
     private final Map<String, DirectiveToolBridge> bridges = new ConcurrentHashMap<>();
     private final Map<String, RateLimiter> rateLimiters = new ConcurrentHashMap<>();
+    /** 活跃的 reactive 流订阅，用于 WebSocket 断开时取消流 */
+    private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
 
     private final Gateway gateway;
     private final CrisisDetector crisisDetector;
@@ -200,7 +203,15 @@ public class VertxChatWebSocketHandler {
      * 支持工具进度（TOOL_PROGRESS）和日志（TOOL_LOG）事件推送。
      */
     private void handleChatMessageReactive(ServerWebSocket ws, GatewayRequest request, String sessionId) {
-        gateway.handleStreamReactive(request)
+        String socketId = ws.textHandlerID();
+
+        // 取消之前的流（如果有），防止并发流冲突
+        Disposable prev = activeStreams.remove(socketId);
+        if (prev != null && !prev.isDisposed()) {
+            prev.dispose();
+        }
+
+        Disposable subscription = gateway.handleStreamReactive(request)
             .subscribe(
                 event -> {
                     switch (event.getType()) {
@@ -218,8 +229,11 @@ public class VertxChatWebSocketHandler {
                 error -> {
                     logger.error("Reactive streaming failed for session {}", sessionId, error);
                     sendError(ws, "处理失败: " + error.getMessage());
-                }
+                    activeStreams.remove(socketId);
+                },
+                () -> activeStreams.remove(socketId)
             );
+        activeStreams.put(socketId, subscription);
     }
 
     /**
@@ -510,6 +524,12 @@ public class VertxChatWebSocketHandler {
         rateLimiters.remove(socketId);
         activeConnections.decrementAndGet();
 
+        // 取消正在进行的 reactive 流，防止 WebSocket 断开后继续消耗资源
+        Disposable stream = activeStreams.remove(socketId);
+        if (stream != null && !stream.isDisposed()) {
+            stream.dispose();
+        }
+
         VertxWebSocketClientToolDispatcher dispatcher = dispatchers.remove(socketId);
         if (dispatcher != null) {
             if (dispatcher.hasManifest()) {
@@ -568,6 +588,8 @@ public class VertxChatWebSocketHandler {
             }
         });
         sessions.clear();
+        activeStreams.values().forEach(d -> { if (!d.isDisposed()) d.dispose(); });
+        activeStreams.clear();
         dispatchers.values().forEach(VertxWebSocketClientToolDispatcher::cancelAll);
         dispatchers.clear();
         bridges.clear();

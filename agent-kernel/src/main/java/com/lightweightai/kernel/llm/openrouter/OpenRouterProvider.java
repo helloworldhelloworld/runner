@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -224,7 +225,9 @@ public class OpenRouterProvider implements LLMProvider {
             List<ConversationMessage> messages, LLMOptions options) {
         if (isCustomBaseUrl()) {
             // Custom gateway may not support SSE — use sync call and simulate streaming
-            return Flux.defer(() -> {
+            // subscribeOn(boundedElastic) ensures blocking HTTP call doesn't run on caller's
+            // thread (e.g. Vert.x event loop), which would freeze the WebSocket server.
+            return Flux.<StreamEvent>defer(() -> {
                 try {
                     LLMResponse response = complete(messages, options);
                     String text = response.getMessage().getTextContent();
@@ -236,10 +239,13 @@ public class OpenRouterProvider implements LLMProvider {
                 } catch (Exception e) {
                     return Flux.error(e);
                 }
-            });
+            }).subscribeOn(Schedulers.boundedElastic());
         }
-        // Default OpenRouter supports SSE — use parent implementation
-        return LLMProvider.super.completeStreamReactive(messages, options);
+        // Default OpenRouter supports SSE — use parent bridge (Flux.create → completeStream).
+        // subscribeOn(boundedElastic) moves the blocking SSE I/O off ForkJoinPool.commonPool()
+        // and prevents blocking the Vert.x event loop when called from WebSocket handler.
+        return LLMProvider.super.completeStreamReactive(messages, options)
+            .subscribeOn(Schedulers.boundedElastic());
     }
 
     @Override
