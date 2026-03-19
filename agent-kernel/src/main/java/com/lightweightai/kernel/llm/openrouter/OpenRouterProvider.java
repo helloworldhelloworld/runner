@@ -25,7 +25,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -102,7 +101,7 @@ public class OpenRouterProvider implements LLMProvider {
             String requestUrl = baseUrl + "/chat/completions";
             Request.Builder reqBuilder = new Request.Builder()
                 .url(requestUrl)
-                .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), JSON));
+                .post(RequestBody.create(requestBody, JSON));
             if (isCustomBaseUrl()) {
                 // 自定义网关：仅用 api_key header + body 认证，不发 Authorization: Bearer
                 if (!apiKey.isEmpty()) {
@@ -150,25 +149,6 @@ public class OpenRouterProvider implements LLMProvider {
         LLMOptions options,
         StreamEventHandler handler
     ) {
-        // Custom gateway may not support SSE — fall back to non-streaming
-        if (isCustomBaseUrl()) {
-            return CompletableFuture.supplyAsync(() -> {
-                handler.onStart();
-                try {
-                    LLMResponse response = complete(messages, options);
-                    String text = response.getMessage().getTextContent();
-                    if (text != null && !text.isEmpty()) {
-                        handler.onTextDelta(text);
-                    }
-                    handler.onComplete(response);
-                    return response;
-                } catch (Exception e) {
-                    handler.onError(e);
-                    throw new RuntimeException("Failed to call API", e);
-                }
-            });
-        }
-
         return CompletableFuture.supplyAsync(() -> {
             try {
                 // Build request with streaming enabled
@@ -178,7 +158,7 @@ public class OpenRouterProvider implements LLMProvider {
                 String requestUrl = baseUrl + "/chat/completions";
                 Request.Builder reqBuilder = new Request.Builder()
                     .url(requestUrl)
-                    .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), JSON));
+                    .post(RequestBody.create(requestBody, JSON));
                 if (isCustomBaseUrl()) {
                     if (!apiKey.isEmpty()) {
                         reqBuilder.header("api_key", apiKey);
@@ -224,25 +204,7 @@ public class OpenRouterProvider implements LLMProvider {
     @Override
     public Flux<StreamEvent> completeStreamReactive(
             List<ConversationMessage> messages, LLMOptions options) {
-        if (isCustomBaseUrl()) {
-            // Custom gateway may not support SSE — use sync call and simulate streaming
-            // subscribeOn(boundedElastic) ensures blocking HTTP call doesn't run on caller's
-            // thread (e.g. Vert.x event loop), which would freeze the WebSocket server.
-            return Flux.<StreamEvent>defer(() -> {
-                try {
-                    LLMResponse response = complete(messages, options);
-                    String text = response.getMessage().getTextContent();
-                    Flux<StreamEvent> events = Flux.empty();
-                    if (text != null && !text.isEmpty()) {
-                        events = Flux.just(StreamEvent.textDelta(text));
-                    }
-                    return events.concatWith(Flux.just(StreamEvent.llmComplete(response)));
-                } catch (Exception e) {
-                    return Flux.error(e);
-                }
-            }).subscribeOn(Schedulers.boundedElastic());
-        }
-        // Default OpenRouter supports SSE — use parent bridge (Flux.create → completeStream).
+        // Use parent bridge (Flux.create → completeStream) for true SSE streaming.
         // subscribeOn(boundedElastic) moves the blocking SSE I/O off ForkJoinPool.commonPool()
         // and prevents blocking the Vert.x event loop when called from WebSocket handler.
         return LLMProvider.super.completeStreamReactive(messages, options)
