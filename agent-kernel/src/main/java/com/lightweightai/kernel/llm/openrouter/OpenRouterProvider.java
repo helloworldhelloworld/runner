@@ -108,6 +108,7 @@ public class OpenRouterProvider implements LLMProvider {
             }
             if (!apiKey.isEmpty()) {
                 reqBuilder.header("Authorization", "Bearer " + apiKey);
+                reqBuilder.header("api_key", apiKey);
             }
             Request request = reqBuilder.build();
             logger.info("OpenRouter API request: POST {} (model: {}, customGateway: {})", requestUrl, model, isCustomBaseUrl());
@@ -177,6 +178,7 @@ public class OpenRouterProvider implements LLMProvider {
                 }
                 if (!apiKey.isEmpty()) {
                     reqBuilder.header("Authorization", "Bearer " + apiKey);
+                    reqBuilder.header("api_key", apiKey);
                 }
                 Request request = reqBuilder.build();
                 logger.info("OpenRouter streaming request: POST {} (model: {})", requestUrl, model);
