@@ -278,15 +278,21 @@ public class OpenRouterProvider implements LLMProvider {
         ArrayNode messagesArray = buildMessagesArray(messages);
         root.set("messages", messagesArray);
 
-        // Tools
+        // Tools — 跳过 name 为空的无效工具定义
         if (options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
             ArrayNode toolsArray = objectMapper.createArrayNode();
             for (Map<String, Object> toolDef : options.getToolDefinitions()) {
+                String name = (String) toolDef.get("name");
+                if (name == null || name.isEmpty()) {
+                    logger.warn("Skipping tool with null/empty name: {}", toolDef);
+                    continue;
+                }
                 ObjectNode toolNode = objectMapper.createObjectNode();
                 toolNode.put("type", "function");
                 ObjectNode functionNode = objectMapper.createObjectNode();
-                functionNode.put("name", (String) toolDef.get("name"));
-                functionNode.put("description", (String) toolDef.get("description"));
+                functionNode.put("name", name);
+                String description = (String) toolDef.get("description");
+                functionNode.put("description", description != null ? description : "");
                 // "input_schema" (Claude format) → "parameters" (OpenAI format)
                 Object schema = toolDef.getOrDefault("input_schema", toolDef.get("parameters"));
                 if (schema != null) {
@@ -295,7 +301,9 @@ public class OpenRouterProvider implements LLMProvider {
                 toolNode.set("function", functionNode);
                 toolsArray.add(toolNode);
             }
-            root.set("tools", toolsArray);
+            if (toolsArray.size() > 0) {
+                root.set("tools", toolsArray);
+            }
         }
 
         return objectMapper.writeValueAsString(root);
