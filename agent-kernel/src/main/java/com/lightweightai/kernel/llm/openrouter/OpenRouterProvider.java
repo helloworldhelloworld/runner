@@ -43,7 +43,7 @@ public class OpenRouterProvider implements LLMProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(OpenRouterProvider.class);
     private static final String DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
-    private static final MediaType TEXT_PLAIN = MediaType.parse("text/plain; charset=utf-8");
+    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     private final String apiKey;
     private final String model;
@@ -101,7 +101,7 @@ public class OpenRouterProvider implements LLMProvider {
             String requestUrl = baseUrl + "/chat/completions";
             Request.Builder reqBuilder = new Request.Builder()
                 .url(requestUrl)
-                .post(RequestBody.create(requestBody, TEXT_PLAIN));
+                .post(RequestBody.create(requestBody, JSON));
             if (isCustomBaseUrl()) {
                 // 自定义网关：仅用 api_key header + body 认证，不发 Authorization: Bearer
                 if (!apiKey.isEmpty()) {
@@ -158,7 +158,7 @@ public class OpenRouterProvider implements LLMProvider {
                 String requestUrl = baseUrl + "/chat/completions";
                 Request.Builder reqBuilder = new Request.Builder()
                     .url(requestUrl)
-                    .post(RequestBody.create(requestBody, TEXT_PLAIN));
+                    .post(RequestBody.create(requestBody, JSON));
                 if (isCustomBaseUrl()) {
                     if (!apiKey.isEmpty()) {
                         reqBuilder.header("api_key", apiKey);
@@ -551,10 +551,10 @@ public class OpenRouterProvider implements LLMProvider {
                     hasToolCalls,
                     hasToolCalls ? fallbackResponse.getToolCalls().size() : 0);
                 if (text != null && !text.isEmpty()) {
-                    logger.info("[STREAM-DEBUG] Emitting onTextDelta, len={}, preview='{}'",
-                        text.length(), text.substring(0, Math.min(80, text.length())));
+                    // 模拟流式输出：将完整文本按句子/标点分块，逐段通过 onTextDelta 发出
+                    // 这样前端即使收到非 SSE 响应，也能看到逐段打字机效果
+                    emitSimulatedChunks(text, handler);
                     textContent.append(text);
-                    handler.onTextDelta(text);
                 } else {
                     logger.info("[STREAM-DEBUG] No text content in response (tool-call-only response)");
                 }
@@ -596,6 +596,35 @@ public class OpenRouterProvider implements LLMProvider {
             .toolCalls(toolCalls)
             .stopReason(finishReason)
             .build();
+    }
+
+    /**
+     * 模拟流式输出：将完整文本按句子边界分块，逐段发出 onTextDelta。
+     * 每块之间加短延迟，让前端呈现打字机效果。
+     */
+    private void emitSimulatedChunks(String text, StreamEventHandler handler) {
+        // 按中文标点（。！？\n）和英文标点（. ! ? \n）分块
+        int chunkStart = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '。' || c == '！' || c == '？' || c == '\n'
+                    || c == '.' || c == '!' || c == '?') {
+                String chunk = text.substring(chunkStart, i + 1);
+                handler.onTextDelta(chunk);
+                chunkStart = i + 1;
+                try {
+                    Thread.sleep(30); // 30ms 间隔，模拟流式效果
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        // 剩余部分
+        if (chunkStart < text.length()) {
+            handler.onTextDelta(text.substring(chunkStart));
+        }
+        logger.info("[STREAM-DEBUG] Simulated chunked streaming: {} chars emitted in chunks", text.length());
     }
 
     /** 是否使用了自定义 base URL（非默认 OpenRouter） */
