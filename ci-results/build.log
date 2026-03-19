@@ -38,28 +38,156 @@
 [INFO] --- compiler:3.11.0:compile (default-compile) @ agent-kernel ---
 [INFO] Changes detected - recompiling the module! :source
 [INFO] Compiling 94 source files with javac [debug target 21] to target/classes
+[WARNING] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/skill/SkillRegistry.java:[43,8] deprecated item is not annotated with @Deprecated
 [INFO] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/llm/claude/ClaudeProvider.java: Some input files use unchecked or unsafe operations.
 [INFO] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/llm/claude/ClaudeProvider.java: Recompile with -Xlint:unchecked for details.
-[INFO] -------------------------------------------------------------
-[WARNING] COMPILATION WARNING : 
-[INFO] -------------------------------------------------------------
-[WARNING] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/skill/SkillRegistry.java:[43,8] deprecated item is not annotated with @Deprecated
-[INFO] 1 warning
-[INFO] -------------------------------------------------------------
-[INFO] -------------------------------------------------------------
-[ERROR] COMPILATION ERROR : 
-[INFO] -------------------------------------------------------------
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/agent/GetPositionTool.java:[20,38] no interface expected here
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/agent/GetPositionTool.java:[20,48] type com.lightweightai.kernel.agent.annotation.ClientTool does not take parameters
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/agent/GetPositionTool.java:[26,5] method does not override or implement a method from a supertype
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/agent/GetPositionTool.java:[34,5] method does not override or implement a method from a supertype
-[INFO] 4 errors 
-[INFO] -------------------------------------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ agent-kernel ---
+[INFO] Copying 1 resource from src/test/resources to target/test-classes
+[INFO] 
+[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ agent-kernel ---
+[INFO] Changes detected - recompiling the module! :dependency
+[INFO] Compiling 26 source files with javac [debug target 21] to target/test-classes
+[INFO] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/skill/SkillRegistryTest.java: Some input files use or override a deprecated API.
+[INFO] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/skill/SkillRegistryTest.java: Recompile with -Xlint:deprecation for details.
+[INFO] 
+[INFO] --- surefire:3.0.0:test (default-test) @ agent-kernel ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.lightweightai.kernel.instruction.InstructionRegistryTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.105 s - in com.lightweightai.kernel.instruction.InstructionRegistryTest
+[INFO] Running com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.019 s - in com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest
+[INFO] Running com.lightweightai.kernel.agent.directive.DirectiveToolBridgeTest
+16:58:35.142 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: Camera.TakePhoto (from android 2.1.0)
+16:58:35.150 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: GPS.GetLocation (from android 2.1.0)
+16:58:35.150 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 2 directive tools from manifest (client=android, version=2.1.0)
+16:58:35.152 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: Camera.TakePhoto (from android 2.0)
+16:58:35.152 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 1 directive tools from manifest (client=android, version=2.0)
+16:58:35.152 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Unregistered directive tool: Camera.TakePhoto
+16:58:35.157 [main] WARN com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Empty manifest from client: browser
+16:58:35.159 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: NFC.ReadTag (from ios 1.0)
+16:58:35.159 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 1 directive tools from manifest (client=ios, version=1.0)
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.136 s - in com.lightweightai.kernel.agent.directive.DirectiveToolBridgeTest
+[INFO] Running com.lightweightai.kernel.agent.directive.DirectiveTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s - in com.lightweightai.kernel.agent.directive.DirectiveTest
+[INFO] Running com.lightweightai.kernel.agent.directive.ClientCapabilityTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.kernel.agent.directive.ClientCapabilityTest
+[INFO] Running com.lightweightai.kernel.agent.directive.DirectiveResultTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.kernel.agent.directive.DirectiveResultTest
+[INFO] Running com.lightweightai.kernel.agent.ToolScannerTest
+16:58:35.210 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.211 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.215 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+16:58:35.217 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.217 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.219 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.219 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.219 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+16:58:35.220 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.220 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.222 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 0 tools
+16:58:35.224 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.224 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.224 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+16:58:35.226 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.226 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.226 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+16:58:35.230 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.231 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.232 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.232 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.234 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.234 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.236 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.236 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.237 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.237 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+16:58:35.237 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+16:58:35.240 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+16:58:35.240 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.034 s - in com.lightweightai.kernel.agent.ToolScannerTest
+[INFO] Running com.lightweightai.kernel.agent.ClientToolIntegrationTest
+[ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.034 s <<< FAILURE! - in com.lightweightai.kernel.agent.ClientToolIntegrationTest
+[ERROR] com.lightweightai.kernel.agent.ClientToolIntegrationTest.shouldFailWhenUplinkActionMismatch  Time elapsed: 0.021 s  <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)
+	at com.lightweightai.kernel.agent.ClientToolIntegrationTest.shouldFailWhenUplinkActionMismatch(ClientToolIntegrationTest.java:74)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[INFO] Running com.lightweightai.kernel.agent.AgentLoopTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s - in com.lightweightai.kernel.agent.AgentLoopTest
+[INFO] Running com.lightweightai.kernel.agent.ToolRegistryTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s - in com.lightweightai.kernel.agent.ToolRegistryTest
+[INFO] Running com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.061 s - in com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest
+[INFO] Running com.lightweightai.kernel.gateway.GatewayTest
+[INFO] Running com.lightweightai.kernel.gateway.GatewayTest$ChatHandlerTests
+16:58:35.458 [main] DEBUG reactor.util.Loggers -- Using Slf4j logging framework
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.082 s - in com.lightweightai.kernel.gateway.GatewayTest$ChatHandlerTests
+[INFO] Running com.lightweightai.kernel.gateway.GatewayTest$AgentLoopBackwardCompatibility
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.018 s - in com.lightweightai.kernel.gateway.GatewayTest$AgentLoopBackwardCompatibility
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.104 s - in com.lightweightai.kernel.gateway.GatewayTest
+[INFO] Running com.lightweightai.kernel.prompt.PromptEngineTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s - in com.lightweightai.kernel.prompt.PromptEngineTest
+[INFO] Running com.lightweightai.kernel.prompt.SkillToolIntegrationTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.prompt.SkillToolIntegrationTest
+[INFO] Running com.lightweightai.kernel.skill.SkillLoaderTest
+16:58:35.566 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit15907790001877184747/my-sample-skill
+16:58:35.571 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-2
+16:58:35.572 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-1
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.031 s - in com.lightweightai.kernel.skill.SkillLoaderTest
+[INFO] Running com.lightweightai.kernel.skill.SkillRegistryTest
+16:58:35.583 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit6340373531755441339/skill-a
+16:58:35.583 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit6340373531755441339/skill-b
+16:58:35.584 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-a
+16:58:35.584 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-b
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s - in com.lightweightai.kernel.skill.SkillRegistryTest
+[INFO] Running com.lightweightai.kernel.memory.MemoryProviderTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.memory.MemoryProviderTest
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
+16:58:36.384 [ForkJoinPool.commonPool-worker-1] INFO com.lightweightai.kernel.llm.claude.ClaudeProvider -- Claude streaming request: POST https://api.anthropic.com/v1/messages (model: claude-3-5-sonnet-20241022)
+16:58:36.385 [ForkJoinPool.commonPool-worker-1] DEBUG com.lightweightai.kernel.llm.claude.ClaudeProvider -- Claude streaming request body: {"model":"claude-3-5-sonnet-20241022","max_tokens":4096,"messages":[{"role":"user","content":"Test message"}],"stream":true}
+16:58:36.390 [ForkJoinPool.commonPool-worker-1] INFO com.lightweightai.kernel.llm.claude.ClaudeProvider -- Claude streaming request: POST https://api.anthropic.com/v1/messages (model: claude-3-5-sonnet-20241022)
+16:58:36.390 [ForkJoinPool.commonPool-worker-1] DEBUG com.lightweightai.kernel.llm.claude.ClaudeProvider -- Claude streaming request body: {"model":"claude-3-5-sonnet-20241022","max_tokens":4096,"messages":[{"role":"user","content":"Add 10 and 20"}],"stream":true}
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.8 s - in com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
+[INFO] Running com.lightweightai.kernel.llm.ToolResultTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.llm.ToolResultTest
+[INFO] Running com.lightweightai.kernel.core.ToolCallingLoopAsyncTest
+Main thread: main
+Async thread: ForkJoinPool.commonPool-worker-1
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.224 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest
+[INFO] Running com.lightweightai.kernel.core.postprocess.CardAppendProcessorTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s - in com.lightweightai.kernel.core.postprocess.CardAppendProcessorTest
+[INFO] Running com.lightweightai.kernel.core.postprocess.DeeplinkProcessorTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.core.postprocess.DeeplinkProcessorTest
+[INFO] Running com.lightweightai.kernel.core.postprocess.RiskControlProcessorTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.core.postprocess.RiskControlProcessorTest
+[INFO] Running com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipelineTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipelineTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   ClientToolIntegrationTest.shouldFailWhenUplinkActionMismatch:74 expected: <true> but was: <false>
+[INFO] 
+[ERROR] Tests run: 200, Failures: 1, Errors: 0, Skipped: 0
+[INFO] 
 [INFO] ------------------------------------------------------------------------
 [INFO] Reactor Summary for Lightweight AI Kernel Parent 0.1.0-SNAPSHOT:
 [INFO] 
-[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.002 s]
-[INFO] Agent Kernel ....................................... FAILURE [  2.782 s]
+[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.001 s]
+[INFO] Agent Kernel ....................................... FAILURE [  7.048 s]
 [INFO] Agent Tools ........................................ SKIPPED
 [INFO] Agent MCP .......................................... SKIPPED
 [INFO] Kernel Memory ...................................... SKIPPED
@@ -72,14 +200,13 @@
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  3.115 s
-[INFO] Finished at: 2026-03-19T16:48:58Z
+[INFO] Total time:  7.408 s
+[INFO] Finished at: 2026-03-19T16:58:36Z
 [INFO] ------------------------------------------------------------------------
-[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project agent-kernel: Compilation failure: Compilation failure: 
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/agent/GetPositionTool.java:[20,38] no interface expected here
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/agent/GetPositionTool.java:[20,48] type com.lightweightai.kernel.agent.annotation.ClientTool does not take parameters
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/agent/GetPositionTool.java:[26,5] method does not override or implement a method from a supertype
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/main/java/com/lightweightai/kernel/agent/GetPositionTool.java:[34,5] method does not override or implement a method from a supertype
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.0.0:test (default-test) on project agent-kernel: There are test failures.
+[ERROR] 
+[ERROR] Please refer to /home/runner/work/runner/runner/agent-kernel/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
 [ERROR] -> [Help 1]
 [ERROR] 
 [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
