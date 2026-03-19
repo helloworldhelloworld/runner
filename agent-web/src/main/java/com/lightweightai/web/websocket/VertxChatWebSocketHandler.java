@@ -222,7 +222,7 @@ public class VertxChatWebSocketHandler {
                         case TOOL_RESULT -> { /* 工具结果已喂回 LLM，不需要额外通知 */ }
                         case TOOL_ERROR -> sendToolError(ws, event);
                         case POST_PROCESS_DATA -> sendPostProcessData(ws, event);
-                        case LLM_COMPLETE -> sendStreamEnd(ws, "");
+                        case LLM_COMPLETE -> { /* 中间状态，可能还有后续工具调用轮次，不在此发 stream_end */ }
                         case ERROR -> sendError(ws,
                                 event.getError() != null ? event.getError().getMessage() : "Unknown error");
                     }
@@ -232,7 +232,11 @@ public class VertxChatWebSocketHandler {
                     sendError(ws, "处理失败: " + error.getMessage());
                     activeStreams.remove(socketId);
                 },
-                () -> activeStreams.remove(socketId)
+                () -> {
+                    // Flux 完成 — 所有 LLM 轮次（含工具调用循环）均已结束，此时才发 stream_end
+                    sendStreamEnd(ws, "");
+                    activeStreams.remove(socketId);
+                }
             );
         activeStreams.put(socketId, subscription);
     }
