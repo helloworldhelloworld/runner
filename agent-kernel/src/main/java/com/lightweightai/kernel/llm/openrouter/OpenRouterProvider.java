@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -100,7 +101,7 @@ public class OpenRouterProvider implements LLMProvider {
             String requestUrl = baseUrl + "/chat/completions";
             Request.Builder reqBuilder = new Request.Builder()
                 .url(requestUrl)
-                .post(RequestBody.create(requestBody, JSON));
+                .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), JSON));
             if (!isCustomBaseUrl()) {
                 // 标准 OpenRouter 需要的额外 header
                 reqBuilder.header("HTTP-Referer", "https://github.com/lightweightai/kernel");
@@ -171,7 +172,7 @@ public class OpenRouterProvider implements LLMProvider {
                 String requestUrl = baseUrl + "/chat/completions";
                 Request.Builder reqBuilder = new Request.Builder()
                     .url(requestUrl)
-                    .post(RequestBody.create(requestBody, JSON));
+                    .post(RequestBody.create(requestBody.getBytes(StandardCharsets.UTF_8), JSON));
                 if (!isCustomBaseUrl()) {
                     reqBuilder.header("HTTP-Referer", "https://github.com/lightweightai/kernel");
                     reqBuilder.header("X-Title", "Lightweight AI Kernel");
