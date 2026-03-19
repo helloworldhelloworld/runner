@@ -703,7 +703,7 @@
             }
         }
 
-        // 流式发送消息（debug 模式走 /api/chat/stream，普通模式走 Gateway）
+        // 流式发送消息（WebSocket 双向流式）
         async function sendMessageStream(message, selectedModel) {
             // 创建空的店长消息
             const msgId = addMessage('shopkeeper', '<span class="text-gray-400">店长正在输入...</span>');
@@ -712,62 +712,32 @@
 
             let fullResponse = '';
 
-            if (debugMode) {
-                // debug 模式：走 /api/chat/stream，complete 事件携带 debug info
-                try {
-                    await window.soulComfortAPI.sendTextMessageStream(message, {
-                        sessionId: currentSessionId,
-                        model: selectedModel,
-                        debug: true,
-                        onDelta: (delta) => {
-                            if (delta) {
-                                fullResponse += delta;
-                                contentDiv.innerHTML = fullResponse;
-                                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-                            }
-                        },
-                        onComplete: (response, data) => {
-                            if (response) contentDiv.innerHTML = response;
-                            else if (fullResponse) contentDiv.innerHTML = fullResponse;
-
-                            // 显示调试信息
-                            if (data && data.debug) {
-                                displayDebugInfo(data.debug);
-                            }
-
-                            if (window.appBridge.isApp) window.appBridge.vibrate(30);
-                        },
-                        onError: (error) => {
-                            contentDiv.innerHTML = `<span class="text-red-500">出错了：${error.message}</span>`;
+            try {
+                await window.soulComfortAPI.wsSendStream(message, {
+                    sessionId: currentSessionId,
+                    onDelta: (delta) => {
+                        if (delta) {
+                            fullResponse += delta;
+                            contentDiv.innerHTML = fullResponse;
+                            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
                         }
-                    });
-                } catch (error) {
-                    contentDiv.innerHTML = `<span class="text-red-500">连接出错：${error.message}</span>`;
-                }
-            } else {
-                // 普通流式：走 Gateway 统一入口
-                try {
-                    await window.soulComfortAPI.gatewaySendStream(message, {
-                        sessionId: currentSessionId,
-                        model: selectedModel,
-                        onDelta: (delta, emotion) => {
-                            if (delta) {
-                                fullResponse += delta;
-                                contentDiv.innerHTML = fullResponse;
-                                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-                            }
-                        },
-                        onComplete: (content, data) => {
-                            if (content) contentDiv.innerHTML = content;
-                            else if (fullResponse) contentDiv.innerHTML = fullResponse;
-
-                            if (window.appBridge.isApp) window.appBridge.vibrate(30);
-                        },
-                        onError: (error) => {
-                            contentDiv.innerHTML = `<span class="text-red-500">出错了：${error.message}</span>`;
-                        }
-                    });
-                } catch (error) {
+                    },
+                    onComplete: (meta) => {
+                        if (fullResponse) contentDiv.innerHTML = fullResponse;
+                        if (window.appBridge.isApp) window.appBridge.vibrate(30);
+                    },
+                    onError: (error) => {
+                        contentDiv.innerHTML = `<span class="text-red-500">出错了：${error.message}</span>`;
+                    },
+                    onToolCallStart: (data) => {
+                        console.log('[WS] Tool call start:', data.toolName);
+                    },
+                    onToolProgress: (data) => {
+                        console.log('[WS] Tool progress:', data.toolName, data.message);
+                    }
+                });
+            } catch (error) {
+                if (!fullResponse) {
                     contentDiv.innerHTML = `<span class="text-red-500">连接出错：${error.message}</span>`;
                 }
             }

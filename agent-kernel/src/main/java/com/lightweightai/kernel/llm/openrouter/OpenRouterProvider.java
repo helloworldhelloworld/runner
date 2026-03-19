@@ -468,26 +468,19 @@ public class OpenRouterProvider implements LLMProvider {
         // Tool call chunks are keyed by their index
         Map<Integer, ToolCallAccumulator> toolCallMap = new LinkedHashMap<>();
 
-        // 读取全部原始行，便于日志和回退
+        // 逐行读取并实时处理 SSE 事件，不再缓存全部行后再发射
+        // 这样 onTextDelta() 在每个 chunk 到达时立即触发，实现真正的流式输出
         StringBuilder rawBody = new StringBuilder();
-        List<String> lines = new ArrayList<>();
+        boolean isSse = false;
+
         try (java.io.BufferedReader reader = new java.io.BufferedReader(
                 new java.io.InputStreamReader(responseBody.byteStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                lines.add(line);
                 rawBody.append(line).append('\n');
-            }
-        }
-        logger.info("OpenRouter streaming raw response ({} lines):\n{}", lines.size(), rawBody);
 
-        // 检测是否为 SSE 格式（至少有一行以 "data: " 开头）
-        boolean isSse = lines.stream().anyMatch(l -> l.startsWith("data: "));
-
-        if (isSse) {
-            // SSE 格式 — 逐行解析
-            for (String line : lines) {
                 if (line.startsWith("data: ")) {
+                    isSse = true;
                     String data = line.substring(6).trim();
 
                     if (data.equals("[DONE]")) {
@@ -539,7 +532,10 @@ public class OpenRouterProvider implements LLMProvider {
                     }
                 }
             }
-        } else {
+        }
+        logger.debug("OpenRouter streaming response complete (SSE: {})", isSse);
+
+        if (!isSse) {
             // 非 SSE 格式 — 网关返回了普通 JSON 响应，按 complete() 格式解析
             logger.info("Response is not SSE format, parsing as regular JSON");
             try {

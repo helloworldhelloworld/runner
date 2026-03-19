@@ -370,6 +370,181 @@ class SoulComfortAPI {
     async gatewayHealth() {
         return this.request('/gateway/health');
     }
+
+    // ========== WebSocket 流式聊天 ==========
+
+    /**
+     * 获取 WebSocket URL（自动推断 ws:// 或 wss://）
+     */
+    getWebSocketURL() {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = location.hostname;
+        // Vert.x WebSocket 服务运行在 8081 端口
+        const port = 8081;
+        return `${protocol}//${host}:${port}/ws/chat`;
+    }
+
+    /**
+     * 确保 WebSocket 已连接，返回连接的 Promise
+     */
+    ensureWebSocket() {
+        if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+            return Promise.resolve(this._ws);
+        }
+        // 正在连接中，等待
+        if (this._wsConnecting) {
+            return this._wsConnecting;
+        }
+
+        const url = this.getWebSocketURL();
+        console.log(`[WS] Connecting to ${url}`);
+
+        this._wsConnecting = new Promise((resolve, reject) => {
+            const ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                console.log('[WS] Connected');
+                this._ws = ws;
+                this._wsConnecting = null;
+                resolve(ws);
+            };
+
+            ws.onerror = (err) => {
+                console.error('[WS] Connection error:', err);
+                this._wsConnecting = null;
+                reject(new Error('WebSocket 连接失败'));
+            };
+
+            ws.onclose = (event) => {
+                console.log(`[WS] Closed: code=${event.code} reason=${event.reason}`);
+                this._ws = null;
+                this._wsConnecting = null;
+                // 通知当前活跃的回调（如果有）
+                if (this._wsCallbacks && this._wsCallbacks.onError) {
+                    this._wsCallbacks.onError(new Error('WebSocket 连接断开'));
+                    this._wsCallbacks = null;
+                }
+            };
+
+            ws.onmessage = (event) => {
+                this._handleWebSocketMessage(event.data);
+            };
+        });
+
+        return this._wsConnecting;
+    }
+
+    /**
+     * 处理 WebSocket 服务端消息
+     */
+    _handleWebSocketMessage(raw) {
+        try {
+            const msg = JSON.parse(raw);
+            const cb = this._wsCallbacks;
+            if (!cb) return;
+
+            switch (msg.type) {
+                case 'token':
+                    if (cb.onDelta) cb.onDelta(msg.data);
+                    break;
+                case 'stream_end':
+                    if (cb.onComplete) cb.onComplete(msg.meta);
+                    this._wsCallbacks = null;
+                    break;
+                case 'error':
+                    if (cb.onError) cb.onError(new Error(msg.message));
+                    this._wsCallbacks = null;
+                    break;
+                case 'crisis_alert':
+                    if (cb.onCrisis) cb.onCrisis(msg.resources);
+                    this._wsCallbacks = null;
+                    break;
+                case 'tool_call_start':
+                    if (cb.onToolCallStart) cb.onToolCallStart(msg.data);
+                    break;
+                case 'tool_progress':
+                    if (cb.onToolProgress) cb.onToolProgress(msg.data);
+                    break;
+                case 'tool_log':
+                    if (cb.onToolLog) cb.onToolLog(msg.data);
+                    break;
+                case 'tool_error':
+                    if (cb.onToolError) cb.onToolError(msg.data);
+                    break;
+                case 'post_process':
+                    if (cb.onPostProcess) cb.onPostProcess(msg.category, msg.data);
+                    break;
+                default:
+                    console.log('[WS] Unknown message type:', msg.type);
+            }
+        } catch (e) {
+            console.error('[WS] Failed to parse message:', e);
+        }
+    }
+
+    /**
+     * 通过 WebSocket 发送流式聊天消息
+     *
+     * @param {string} message - 用户消息
+     * @param {Object} options
+     * @param {string} options.sessionId - 会话 ID
+     * @param {Function} options.onDelta - 文本片段回调 (delta)
+     * @param {Function} options.onComplete - 完成回调 (meta)
+     * @param {Function} options.onError - 错误回调 (error)
+     * @param {Function} [options.onToolCallStart] - 工具调用开始
+     * @param {Function} [options.onToolProgress] - 工具执行进度
+     * @returns {Promise<void>}
+     */
+    async wsSendStream(message, options = {}) {
+        try {
+            const ws = await this.ensureWebSocket();
+
+            return new Promise((resolve, reject) => {
+                // 注册回调
+                this._wsCallbacks = {
+                    onDelta: options.onDelta,
+                    onComplete: (meta) => {
+                        if (options.onComplete) options.onComplete(meta);
+                        resolve();
+                    },
+                    onError: (err) => {
+                        if (options.onError) options.onError(err);
+                        reject(err);
+                    },
+                    onCrisis: options.onCrisis,
+                    onToolCallStart: options.onToolCallStart,
+                    onToolProgress: options.onToolProgress,
+                    onToolLog: options.onToolLog,
+                    onToolError: options.onToolError,
+                    onPostProcess: options.onPostProcess,
+                };
+
+                // 发送 chat 消息
+                ws.send(JSON.stringify({
+                    type: 'chat',
+                    sessionId: options.sessionId || 'default',
+                    message: message,
+                    reactive: true
+                }));
+            });
+        } catch (error) {
+            console.error('[WS] Send failed:', error);
+            if (options.onError) options.onError(error);
+            throw error;
+        }
+    }
+
+    /**
+     * 断开 WebSocket 连接
+     */
+    wsDisconnect() {
+        if (this._ws) {
+            this._ws.close(1000, 'Client disconnect');
+            this._ws = null;
+        }
+        this._wsCallbacks = null;
+        this._wsConnecting = null;
+    }
 }
 
 // 创建全局实例

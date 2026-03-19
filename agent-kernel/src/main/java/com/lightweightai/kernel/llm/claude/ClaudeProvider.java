@@ -164,7 +164,8 @@ public class ClaudeProvider implements LLMProvider {
                         throw ex;
                     }
 
-                    // Parse SSE stream
+                    // Parse SSE stream incrementally — read line by line as data arrives
+                    // so that onTextDelta() fires in real-time instead of after full response
                     StringBuilder fullText = new StringBuilder();
                     List<ToolCall> toolCalls = new ArrayList<>();
                     // tool_use accumulation: id, name, partial JSON
@@ -172,54 +173,57 @@ public class ClaudeProvider implements LLMProvider {
                     String currentToolName = null;
                     StringBuilder currentToolJson = new StringBuilder();
 
-                    String body = response.body().string();
-                    for (String line : body.split("\n")) {
-                        line = line.trim();
-                        if (!line.startsWith("data: ")) continue;
-                        String data = line.substring(6).trim();
-                        if (data.isEmpty() || "[DONE]".equals(data)) continue;
+                    try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                            new java.io.InputStreamReader(response.body().byteStream()))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            line = line.trim();
+                            if (!line.startsWith("data: ")) continue;
+                            String data = line.substring(6).trim();
+                            if (data.isEmpty() || "[DONE]".equals(data)) continue;
 
-                        JsonNode event = objectMapper.readTree(data);
-                        String type = event.has("type") ? event.get("type").asText() : "";
+                            JsonNode event = objectMapper.readTree(data);
+                            String type = event.has("type") ? event.get("type").asText() : "";
 
-                        switch (type) {
-                            case "content_block_start": {
-                                JsonNode block = event.get("content_block");
-                                if (block != null && "tool_use".equals(block.get("type").asText())) {
-                                    currentToolId = block.get("id").asText();
-                                    currentToolName = block.get("name").asText();
-                                    currentToolJson = new StringBuilder();
+                            switch (type) {
+                                case "content_block_start": {
+                                    JsonNode block = event.get("content_block");
+                                    if (block != null && "tool_use".equals(block.get("type").asText())) {
+                                        currentToolId = block.get("id").asText();
+                                        currentToolName = block.get("name").asText();
+                                        currentToolJson = new StringBuilder();
+                                    }
+                                    break;
                                 }
-                                break;
-                            }
-                            case "content_block_delta": {
-                                JsonNode delta = event.get("delta");
-                                if (delta == null) break;
-                                String deltaType = delta.get("type").asText();
-                                if ("text_delta".equals(deltaType)) {
-                                    String text = delta.get("text").asText();
-                                    fullText.append(text);
-                                    if (handler != null) handler.onTextDelta(text);
-                                } else if ("input_json_delta".equals(deltaType)) {
-                                    currentToolJson.append(delta.get("partial_json").asText());
+                                case "content_block_delta": {
+                                    JsonNode delta = event.get("delta");
+                                    if (delta == null) break;
+                                    String deltaType = delta.get("type").asText();
+                                    if ("text_delta".equals(deltaType)) {
+                                        String text = delta.get("text").asText();
+                                        fullText.append(text);
+                                        if (handler != null) handler.onTextDelta(text);
+                                    } else if ("input_json_delta".equals(deltaType)) {
+                                        currentToolJson.append(delta.get("partial_json").asText());
+                                    }
+                                    break;
                                 }
-                                break;
-                            }
-                            case "content_block_stop": {
-                                if (currentToolId != null) {
-                                    Map<String, Object> args = objectMapper.readValue(
-                                        currentToolJson.toString(), Map.class);
-                                    ToolCall tc = new ToolCall(currentToolId, currentToolName, args);
-                                    toolCalls.add(tc);
-                                    if (handler != null) handler.onToolCallDelta(tc);
-                                    currentToolId = null;
-                                    currentToolName = null;
-                                    currentToolJson = new StringBuilder();
+                                case "content_block_stop": {
+                                    if (currentToolId != null) {
+                                        Map<String, Object> args = objectMapper.readValue(
+                                            currentToolJson.toString(), Map.class);
+                                        ToolCall tc = new ToolCall(currentToolId, currentToolName, args);
+                                        toolCalls.add(tc);
+                                        if (handler != null) handler.onToolCallDelta(tc);
+                                        currentToolId = null;
+                                        currentToolName = null;
+                                        currentToolJson = new StringBuilder();
+                                    }
+                                    break;
                                 }
-                                break;
+                                default:
+                                    break;
                             }
-                            default:
-                                break;
                         }
                     }
 
