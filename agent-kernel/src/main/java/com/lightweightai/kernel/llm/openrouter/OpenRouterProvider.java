@@ -278,8 +278,8 @@ public class OpenRouterProvider implements LLMProvider {
         ArrayNode messagesArray = buildMessagesArray(messages);
         root.set("messages", messagesArray);
 
-        // Tools — 自定义网关通常不支持 OpenAI 原生 tools 参数，工具已通过 PromptEngine 注入 system prompt
-        if (!isCustomBaseUrl() && options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
+        // Tools
+        if (options != null && options.getToolDefinitions() != null && !options.getToolDefinitions().isEmpty()) {
             ArrayNode toolsArray = objectMapper.createArrayNode();
             for (Map<String, Object> toolDef : options.getToolDefinitions()) {
                 ObjectNode toolNode = objectMapper.createObjectNode();
