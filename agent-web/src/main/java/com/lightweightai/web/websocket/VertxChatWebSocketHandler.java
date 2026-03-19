@@ -208,6 +208,8 @@ public class VertxChatWebSocketHandler {
      */
     private void handleChatMessageReactive(ServerWebSocket ws, GatewayRequest request, String sessionId) {
         String socketId = ws.textHandlerID();
+        logger.info("[WS-STREAM] handleChatMessageReactive START session={} socketId={} wsClosed={}",
+            sessionId, socketId, ws.isClosed());
 
         // 取消之前的流（如果有），防止并发流冲突
         Disposable prev = activeStreams.remove(socketId);
@@ -216,28 +218,40 @@ public class VertxChatWebSocketHandler {
         }
 
         Disposable subscription = gateway.handleStreamReactive(request)
+            .doOnSubscribe(s -> logger.info("[WS-STREAM] Flux subscribed for session={}", sessionId))
             .subscribe(
                 event -> {
+                    logger.info("[WS-STREAM] Event received: type={} session={} wsClosed={}",
+                        event.getType(), sessionId, ws.isClosed());
                     switch (event.getType()) {
-                        case TEXT_DELTA -> sendToken(ws, event.getTextDelta());
+                        case TEXT_DELTA -> {
+                            String delta = event.getTextDelta();
+                            logger.info("[WS-STREAM] TEXT_DELTA len={} preview='{}'",
+                                delta != null ? delta.length() : 0,
+                                delta != null ? delta.substring(0, Math.min(50, delta.length())) : "null");
+                            sendToken(ws, delta);
+                        }
                         case TOOL_CALL_START -> sendToolCallStart(ws, event);
                         case TOOL_PROGRESS -> sendToolProgress(ws, event);
                         case TOOL_LOG -> sendToolLog(ws, event);
                         case TOOL_RESULT -> { /* 工具结果已喂回 LLM，不需要额外通知 */ }
                         case TOOL_ERROR -> sendToolError(ws, event);
                         case POST_PROCESS_DATA -> sendPostProcessData(ws, event);
-                        case LLM_COMPLETE -> { /* 中间状态，可能还有后续工具调用轮次，不在此发 stream_end */ }
+                        case LLM_COMPLETE -> {
+                            logger.info("[WS-STREAM] LLM_COMPLETE hasToolCalls={} session={}",
+                                event.getResponse() != null && event.getResponse().hasToolCalls(), sessionId);
+                        }
                         case ERROR -> sendError(ws,
                                 event.getError() != null ? event.getError().getMessage() : "Unknown error");
                     }
                 },
                 error -> {
-                    logger.error("Reactive streaming failed for session {}", sessionId, error);
+                    logger.error("[WS-STREAM] Flux ERROR for session={}", sessionId, error);
                     sendError(ws, "处理失败: " + error.getMessage());
                     activeStreams.remove(socketId);
                 },
                 () -> {
-                    // Flux 完成 — 所有 LLM 轮次（含工具调用循环）均已结束，此时才发 stream_end
+                    logger.info("[WS-STREAM] Flux COMPLETE for session={} wsClosed={}", sessionId, ws.isClosed());
                     sendStreamEnd(ws, "");
                     activeStreams.remove(socketId);
                 }
@@ -368,9 +382,12 @@ public class VertxChatWebSocketHandler {
      */
     private void safeSend(ServerWebSocket ws, String json) {
         if (ws.isClosed()) {
+            logger.warn("[WS-STREAM] safeSend DROPPED (ws closed): {}",
+                json.substring(0, Math.min(120, json.length())));
             return;
         }
         totalMessagesSent.incrementAndGet();
+        logger.debug("[WS-STREAM] safeSend: {}", json.substring(0, Math.min(120, json.length())));
         ws.writeTextMessage(json).onFailure(err ->
             logger.error("Failed to send WebSocket message to {}", ws.textHandlerID(), err)
         );

@@ -7,6 +7,8 @@ import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
@@ -22,6 +24,8 @@ import java.util.concurrent.CompletableFuture;
  * 3. Repeats until the LLM provides a final response
  */
 public class ToolCallingLoop {
+
+    private static final Logger logger = LoggerFactory.getLogger(ToolCallingLoop.class);
 
     private final LLMProvider provider;
     private final ToolExecutor toolExecutor;
@@ -198,15 +202,23 @@ public class ToolCallingLoop {
             int iteration) {
 
         if (iteration >= maxIterations) {
+            logger.error("[TCL] Max iterations ({}) reached", maxIterations);
             return Flux.error(new RuntimeException(
                 "Tool calling loop exceeded maximum iterations: " + maxIterations));
         }
+
+        logger.info("[TCL] executeReactiveLoop iteration={} messagesCount={}", iteration, conversation.size());
 
         // Step 1: LLM 流式调用 — 收集所有事件
         List<StreamEvent> accumulated = new ArrayList<>();
 
         return provider.completeStreamReactive(conversation, options)
-            .doOnNext(accumulated::add)
+            .doOnNext(event -> {
+                accumulated.add(event);
+                logger.debug("[TCL] Accumulated event: type={}", event.getType());
+            })
+            .doOnComplete(() -> logger.info("[TCL] LLM stream complete, accumulated {} events", accumulated.size()))
+            .doOnError(e -> logger.error("[TCL] LLM stream error at iteration={}", iteration, e))
             .concatWith(Flux.defer(() -> {
                 // Step 2: 从收集的事件中找到 LLM_COMPLETE
                 StreamEvent completeEvent = accumulated.stream()
@@ -214,13 +226,22 @@ public class ToolCallingLoop {
                     .findFirst()
                     .orElse(null);
 
-                if (completeEvent == null || !completeEvent.getResponse().hasToolCalls()) {
+                boolean hasToolCalls = completeEvent != null
+                    && completeEvent.getResponse() != null
+                    && completeEvent.getResponse().hasToolCalls();
+                logger.info("[TCL] Post-LLM: completeEvent={} hasToolCalls={} iteration={}",
+                    completeEvent != null, hasToolCalls, iteration);
+
+                if (completeEvent == null || !hasToolCalls) {
+                    logger.info("[TCL] No tool calls, ending loop at iteration={}", iteration);
                     return Flux.empty();  // 无工具调用，结束
                 }
 
                 // Step 3: LLM 要调用工具
                 LLMResponse response = completeEvent.getResponse();
                 List<com.lightweightai.kernel.llm.ToolCall> toolCalls = response.getToolCalls();
+                logger.info("[TCL] Executing {} tool calls: {}", toolCalls.size(),
+                    toolCalls.stream().map(ToolCall::getName).toList());
                 conversation.add(enrichWithToolCalls(response));
 
                 // Step 3a: 发出 TOOL_CALL_START 事件
