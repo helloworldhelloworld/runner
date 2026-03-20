@@ -3,7 +3,9 @@ package com.lightweightai.web.config;
 import com.lightweightai.web.postprocess.CardAppendProcessor;
 import com.lightweightai.web.postprocess.DeeplinkProcessor;
 import com.lightweightai.web.postprocess.RiskControlProcessor;
+import com.lightweightai.web.postprocess.SimpleRiskChecker;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,6 +18,16 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class PostProcessorConfig {
+
+    /**
+     * 默认风控检查器 — 关键词 + 正则匹配
+     * 可通过 app.risk-control.enabled=false 关闭
+     */
+    @Bean
+    @ConditionalOnProperty(name = "app.risk-control.enabled", havingValue = "true", matchIfMissing = true)
+    public RiskControlProcessor.RiskChecker simpleRiskChecker() {
+        return new SimpleRiskChecker();
+    }
 
     @Bean
     @ConditionalOnBean(RiskControlProcessor.RiskChecker.class)

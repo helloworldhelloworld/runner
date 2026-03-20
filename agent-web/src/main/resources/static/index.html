@@ -7,14 +7,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>解忧杂货铺 - Soul Comfort Store</title>
 
-    <!-- App Bridge - 自动检测环境并桥接原生能力 -->
+    <!-- App Bridge -->
     <script src="/app-bridge.js"></script>
-
-    <!-- API Client - 统一的API调用 -->
+    <!-- API Client (WebSocket only) -->
     <script src="/soul-comfort-api.js"></script>
-
-    <!-- Voice Stream Client - WebSocket流式语音对话 -->
-    <script src="/voice-stream-client.js"></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -22,699 +18,478 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
         }
-        .message {
-            animation: fadeIn 0.5s ease-in-out;
-        }
+        .message { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
         .loading {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top: 3px solid white;
-            border-radius: 50%;
+            display: inline-block; width: 16px; height: 16px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid white; border-radius: 50%;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .gradient-text {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
         }
-        .chat-container {
-            backdrop-filter: blur(10px);
-            background: rgba(255, 255, 255, 0.95);
-        }
-        .settings-panel {
-            transition: all 0.3s ease;
-        }
-        .message-bubble {
-            max-width: 80%;
-            word-wrap: break-word;
-        }
-
-        /* App模式适配 */
-        body.app-mode {
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-
-        body.app-mode .container {
-            padding-top: 0;
-        }
+        .chat-container { backdrop-filter: blur(10px); background: rgba(255,255,255,0.95); }
+        .tab-btn { transition: all 0.2s; }
+        .tab-btn.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .modal-overlay { background: rgba(0,0,0,0.5); }
+        body.app-mode { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
 <body>
-    <div class="container mx-auto px-4 py-8 max-w-5xl">
+    <div class="container mx-auto px-4 py-4 max-w-5xl">
         <!-- Header -->
-        <div class="chat-container rounded-2xl shadow-2xl p-8 mb-6 text-center">
-            <h1 class="text-4xl font-bold mb-3">
-                <span class="gradient-text">🏮 解忧杂货铺 🏮</span>
-            </h1>
-            <p class="text-gray-600 text-lg mb-4">
-                欢迎光临，这里是一个温暖的心灵港湾
-            </p>
-            <p class="text-sm text-gray-500">
-                店长会用心倾听您的烦恼，陪您一起寻找内心的答案
-            </p>
+        <div class="chat-container rounded-2xl shadow-2xl p-6 mb-4 text-center">
+            <h1 class="text-3xl font-bold mb-2"><span class="gradient-text">解忧杂货铺</span></h1>
+            <p class="text-gray-500 text-sm">温暖的心灵港湾 | 全部通信通过 WebSocket</p>
 
-            <!-- Settings Toggle -->
-            <div class="mt-6">
-                <button
-                    onclick="toggleSettings()"
-                    class="text-sm text-purple-600 hover:text-purple-800 transition"
-                >
-                    ⚙️ <span id="settings-toggle-text">显示设置</span>
-                </button>
+            <!-- Navigation Tabs -->
+            <div class="flex justify-center gap-2 mt-4 flex-wrap">
+                <button onclick="switchTab('chat')" id="tab-chat" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium">💬 对话</button>
+                <button onclick="switchTab('assessment')" id="tab-assessment" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">📋 心理测评</button>
+                <button onclick="switchTab('emotion')" id="tab-emotion" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">💝 情绪记录</button>
+                <button onclick="switchTab('memory')" id="tab-memory" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">🧠 记忆</button>
+                <button onclick="switchTab('tools')" id="tab-tools" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">🔧 工具/技能</button>
+                <button onclick="switchTab('system')" id="tab-system" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">⚙️ 系统</button>
             </div>
         </div>
 
-        <!-- Settings Panel (Collapsible) -->
-        <div id="settings-panel" class="settings-panel hidden mb-6">
-            <div class="chat-container rounded-2xl shadow-lg p-6">
-                <h2 class="text-xl font-bold mb-4 gradient-text">🎯 选择店长风格</h2>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">不同的AI模型，带来不同的对话风格</label>
-                    <select id="model-selector" class="w-full px-4 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                        <option value="anthropic/claude-3.5-sonnet" selected>🏆 Claude 3.5 Sonnet - 温柔细腻（推荐）</option>
-                        <option value="openai/gpt-4-turbo">⚡ GPT-4 Turbo - 理性智慧</option>
-                        <option value="openai/gpt-4o">🚀 GPT-4o - 快速敏捷</option>
-                        <option value="anthropic/claude-3-opus">💎 Claude 3 Opus - 深度共情</option>
-                        <option value="google/gemini-pro-1.5">✨ Gemini Pro 1.5 - 创意灵动</option>
-                        <option value="openai/gpt-3.5-turbo">💰 GPT-3.5 Turbo - 轻快友好</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-2">💡 每个模型都有独特的性格特点</p>
+        <!-- ==================== Tab: Chat ==================== -->
+        <div id="panel-chat" class="tab-panel">
+            <div class="chat-container rounded-2xl shadow-2xl flex flex-col" style="height: calc(100vh - 280px); min-height: 400px;">
+                <!-- Chat Header -->
+                <div class="p-4 border-b border-purple-100 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">🧑‍💼</span>
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-800">店长</h2>
+                            <p class="text-xs text-gray-500" id="ws-status">未连接</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <label class="flex items-center gap-1 text-xs cursor-pointer px-2 py-1 rounded hover:bg-purple-50">
+                            <input type="checkbox" id="trace-mode" class="rounded">
+                            <span>🔗 调用链</span>
+                        </label>
+                        <select id="model-selector" onchange="updateModelStatus()"
+                            class="text-xs px-2 py-1 border border-purple-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500">
+                            <option value="" selected>默认模型</option>
+                            <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+                            <option value="openai/gpt-4-turbo">GPT-4 Turbo</option>
+                            <option value="openai/gpt-4o">GPT-4o</option>
+                            <option value="anthropic/claude-3-opus">Claude 3 Opus</option>
+                            <option value="google/gemini-pro-1.5">Gemini Pro 1.5</option>
+                        </select>
+                        <button onclick="showSessionSummary()" class="text-sm text-purple-600 hover:text-purple-800 px-2 py-1 rounded hover:bg-purple-50">📊 摘要</button>
+                        <button onclick="clearChat()" class="text-sm text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50">🗑️ 清空</button>
+                    </div>
+                </div>
+
+                <!-- Messages -->
+                <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-3" style="background: linear-gradient(to bottom, #f9fafb 0%, #ffffff 100%);">
+                    <div class="text-center">
+                        <div class="inline-block bg-purple-50 text-purple-700 px-4 py-2 rounded-2xl text-sm">
+                            ✨ 您好，欢迎来到解忧杂货铺，有什么心事想要倾诉吗？
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input -->
+                <div class="p-4 border-t border-purple-100 bg-white">
+                    <div class="flex gap-2">
+                        <input type="text" id="message-input"
+                            placeholder="在这里写下您的心事..."
+                            class="flex-1 px-4 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            onkeypress="if(event.key === 'Enter') sendMessage()">
+                        <button onclick="sendMessage()"
+                            class="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-purple-600 hover:to-purple-700 shadow-md">
+                            💌 发送
+                        </button>
+                    </div>
+                    <div class="mt-1 text-xs text-gray-400 flex justify-between">
+                        <span>会话: <span id="session-id" class="font-mono">-</span></span>
+                        <span id="connection-indicator" class="text-red-500">● 未连接</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+            <!-- Trace Panel (调用链追踪) -->
+            <div id="trace-panel" class="mt-4 chat-container rounded-2xl shadow-lg p-4 hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-bold text-indigo-700">🔗 调用链追踪</h3>
+                    <button onclick="document.getElementById('trace-entries').innerHTML=''" class="text-xs text-gray-400 hover:text-gray-600">清空</button>
+                </div>
+                <div id="trace-entries" class="space-y-1 max-h-48 overflow-y-auto font-mono text-xs"></div>
+            </div>
+        </div>
+
+        <!-- ==================== Tab: Assessment ==================== -->
+        <div id="panel-assessment" class="tab-panel hidden">
+            <div class="chat-container rounded-2xl shadow-2xl p-6">
+                <h2 class="text-xl font-bold gradient-text mb-4">📋 心理测评</h2>
+                <p class="text-gray-500 text-sm mb-4">专业的心理健康评估量表，帮助您了解自己的心理状态</p>
+
+                <!-- Scale Selection -->
+                <div id="scale-list" class="space-y-3 mb-6">
+                    <div class="text-gray-400 text-sm">加载中...</div>
+                </div>
+
+                <!-- Assessment Quiz (hidden by default) -->
+                <div id="quiz-panel" class="hidden">
+                    <div class="border-t border-gray-200 pt-4 mt-4">
+                        <h3 class="text-lg font-bold mb-2" id="quiz-title"></h3>
+                        <p class="text-sm text-gray-500 mb-4" id="quiz-description"></p>
+                        <div id="quiz-questions" class="space-y-4"></div>
+                        <div class="mt-6 flex gap-3">
+                            <button onclick="submitAssessment()"
+                                class="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2 rounded-xl shadow-md">
+                                📤 提交评估
+                            </button>
+                            <button onclick="cancelQuiz()"
+                                class="bg-gray-200 text-gray-700 px-6 py-2 rounded-xl">
+                                取消
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Assessment History -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <h3 class="text-lg font-bold mb-3">📊 评估历史</h3>
+                    <div id="assessment-history" class="space-y-2">
+                        <div class="text-gray-400 text-sm">暂无评估记录</div>
+                    </div>
+                    <button onclick="loadAssessmentHistory()"
+                        class="mt-3 text-sm text-purple-600 hover:text-purple-800">
+                        🔄 刷新历史
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== Tab: Emotion ==================== -->
+        <div id="panel-emotion" class="tab-panel hidden">
+            <div class="chat-container rounded-2xl shadow-2xl p-6">
+                <h2 class="text-xl font-bold gradient-text mb-4">💝 情绪签到</h2>
+
+                <!-- Check-in -->
+                <div class="mb-6">
+                    <p class="text-sm text-gray-600 mb-3">今天的心情如何？</p>
+                    <div class="flex flex-wrap gap-2 mb-3" id="emotion-buttons">
+                        <button onclick="selectEmotion('开心')" class="emotion-btn px-4 py-2 rounded-full border-2 border-yellow-300 hover:bg-yellow-50 text-sm">😊 开心</button>
+                        <button onclick="selectEmotion('平静')" class="emotion-btn px-4 py-2 rounded-full border-2 border-blue-300 hover:bg-blue-50 text-sm">😌 平静</button>
+                        <button onclick="selectEmotion('焦虑')" class="emotion-btn px-4 py-2 rounded-full border-2 border-orange-300 hover:bg-orange-50 text-sm">😰 焦虑</button>
+                        <button onclick="selectEmotion('难过')" class="emotion-btn px-4 py-2 rounded-full border-2 border-gray-300 hover:bg-gray-50 text-sm">😢 难过</button>
+                        <button onclick="selectEmotion('愤怒')" class="emotion-btn px-4 py-2 rounded-full border-2 border-red-300 hover:bg-red-50 text-sm">😠 愤怒</button>
+                        <button onclick="selectEmotion('疲惫')" class="emotion-btn px-4 py-2 rounded-full border-2 border-purple-300 hover:bg-purple-50 text-sm">😴 疲惫</button>
+                    </div>
+                    <input type="text" id="emotion-note" placeholder="备注（可选）..."
+                        class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm mb-3">
+                    <button onclick="doCheckin()" id="checkin-btn"
+                        class="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-6 py-2 rounded-xl shadow-md disabled:opacity-50"
+                        disabled>
+                        📝 签到
+                    </button>
+                    <span id="selected-emotion" class="ml-2 text-sm text-gray-500"></span>
+                </div>
+
+                <!-- Emotion History -->
+                <div class="border-t border-gray-200 pt-4">
+                    <h3 class="text-lg font-bold mb-3">📈 情绪记录</h3>
+                    <div id="emotion-history" class="space-y-2">
+                        <div class="text-gray-400 text-sm">暂无记录</div>
+                    </div>
+                    <button onclick="loadEmotions()"
+                        class="mt-3 text-sm text-purple-600 hover:text-purple-800">
+                        🔄 刷新记录
+                    </button>
+                </div>
+
+                <!-- Emotion Stats -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <h3 class="text-lg font-bold mb-3">📊 情绪统计</h3>
+                    <div id="emotion-stats">
+                        <div class="text-gray-400 text-sm">点击刷新查看统计</div>
+                    </div>
+                    <button onclick="loadStats()"
+                        class="mt-3 text-sm text-purple-600 hover:text-purple-800">
+                        🔄 刷新统计
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== Tab: Memory ==================== -->
+        <div id="panel-memory" class="tab-panel hidden">
+            <div class="chat-container rounded-2xl shadow-2xl p-6">
+                <h2 class="text-xl font-bold gradient-text mb-4">🧠 记忆系统</h2>
+                <p class="text-gray-500 text-sm mb-4">BM25 + 向量混合搜索，三层记忆架构</p>
+
+                <!-- Memory Search -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold mb-3">🔍 搜索记忆</h3>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="memory-query" placeholder="输入搜索关键词..."
+                            class="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+                            onkeypress="if(event.key === 'Enter') searchMemory()">
+                        <input type="number" id="memory-topk" value="10" min="1" max="50"
+                            class="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center">
+                        <button onclick="searchMemory()"
+                            class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-lg text-sm shadow-md">
+                            搜索
+                        </button>
+                    </div>
+                    <div id="memory-results" class="space-y-2">
+                        <div class="text-gray-400 text-sm">输入关键词搜索记忆</div>
+                    </div>
+                </div>
+
+                <!-- Durable Memory Write -->
+                <div class="border-t border-gray-200 pt-4">
+                    <h3 class="text-lg font-bold mb-3">💾 写入长期记忆</h3>
+                    <div class="space-y-2">
+                        <input type="text" id="memory-section" placeholder="分区名称（如：用户信息、重要话题）"
+                            class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm">
+                        <textarea id="memory-content" placeholder="记忆内容..."
+                            class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm h-24 resize-none"></textarea>
+                        <button onclick="rememberDurable()"
+                            class="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg text-sm shadow-md">
+                            💾 保存
+                        </button>
+                        <span id="memory-save-status" class="ml-2 text-sm text-gray-500"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== Tab: Tools ==================== -->
+        <div id="panel-tools" class="tab-panel hidden">
+            <div class="chat-container rounded-2xl shadow-2xl p-6">
+                <h2 class="text-xl font-bold gradient-text mb-4">🔧 工具 & 技能</h2>
+
+                <!-- Skills -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold mb-3">📚 可用技能</h3>
+                    <div id="skills-list" class="space-y-2">
+                        <div class="text-gray-400 text-sm">加载中...</div>
+                    </div>
+                    <button onclick="loadSkills()"
+                        class="mt-3 text-sm text-purple-600 hover:text-purple-800">
+                        🔄 刷新
+                    </button>
+                </div>
+
+                <!-- Tools (detailed) -->
+                <div class="border-t border-gray-200 pt-4">
+                    <h3 class="text-lg font-bold mb-3">🛠️ 可用工具（详细）</h3>
+                    <div id="tools-list" class="space-y-2">
+                        <div class="text-gray-400 text-sm">加载中...</div>
+                    </div>
+                    <button onclick="loadToolsDetail()"
+                        class="mt-3 text-sm text-purple-600 hover:text-purple-800">
+                        🔄 刷新
+                    </button>
+                </div>
+
+                <!-- MCP Servers -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <h3 class="text-lg font-bold mb-3">🌐 MCP 服务器</h3>
+                    <div id="mcp-servers" class="space-y-2">
+                        <div class="text-gray-400 text-sm">点击刷新查看</div>
+                    </div>
+                    <button onclick="loadMcpServers()"
+                        class="mt-3 text-sm text-purple-600 hover:text-purple-800">
+                        🔄 刷新
+                    </button>
+                </div>
+
+                <!-- Tool Definitions (LLM format) -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <h3 class="text-lg font-bold mb-3">📄 LLM 工具定义</h3>
+                    <div id="tool-definitions" class="space-y-2">
+                        <div class="text-gray-400 text-sm">点击刷新查看</div>
+                    </div>
+                    <button onclick="loadToolDefinitions()"
+                        class="mt-3 text-sm text-purple-600 hover:text-purple-800">
+                        🔄 刷新
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== Tab: System ==================== -->
+        <div id="panel-system" class="tab-panel hidden">
+            <div class="chat-container rounded-2xl shadow-2xl p-6">
+                <h2 class="text-xl font-bold gradient-text mb-4">⚙️ 系统状态</h2>
+
+                <!-- Health -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold mb-3">💚 健康检查</h3>
+                    <div id="health-info" class="bg-gray-50 rounded-lg p-4 text-sm font-mono">
+                        <div class="text-gray-400">点击刷新查看</div>
+                    </div>
+                    <button onclick="loadHealth()"
+                        class="mt-3 text-sm text-purple-600 hover:text-purple-800">
+                        🔄 刷新
+                    </button>
+                </div>
+
+                <!-- User Management -->
+                <div class="border-t border-gray-200 pt-4">
+                    <h3 class="text-lg font-bold mb-3">👤 用户</h3>
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="text-sm text-gray-600">当前用户ID:</span>
+                        <span id="user-id" class="font-mono text-sm text-purple-600">未创建</span>
+                    </div>
+                    <button onclick="createUser()"
+                        class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-xl text-sm shadow-md">
+                        ➕ 创建匿名用户
+                    </button>
                 </div>
 
                 <!-- Session Info -->
-                <div class="mt-4 text-sm text-gray-600">
-                    <p>🕐 会话ID: <span id="session-id" class="font-mono text-xs">未开始</span></p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Chat Container -->
-        <div class="chat-container rounded-2xl shadow-2xl flex flex-col" style="height: calc(100vh - 400px); min-height: 500px;">
-            <!-- Chat Header -->
-            <div class="p-6 border-b border-purple-100">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <span class="text-3xl">🧑‍💼</span>
-                        <div>
-                            <h2 class="text-xl font-bold text-gray-800">店长</h2>
-                            <p class="text-xs text-gray-500" id="model-status">Claude 3.5 Sonnet</p>
-                        </div>
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <h3 class="text-lg font-bold mb-3">🔗 会话信息</h3>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <p>会话ID: <span class="font-mono text-purple-600" id="sys-session-id">-</span></p>
+                        <p>WebSocket: <span id="sys-ws-status" class="font-mono">-</span></p>
                     </div>
-                    <div class="flex gap-2">
-                        <button
-                            onclick="showSessionSummary()"
-                            class="text-sm text-purple-600 hover:text-purple-800 transition px-3 py-1 rounded-lg hover:bg-purple-50"
-                            title="查看会话摘要"
-                        >
-                            📊 摘要
-                        </button>
-                        <button
-                            onclick="clearChat()"
-                            class="text-sm text-red-600 hover:text-red-800 transition px-3 py-1 rounded-lg hover:bg-red-50"
-                            title="清空对话"
-                        >
-                            🗑️ 清空
-                        </button>
-                        <label class="flex items-center gap-2 text-sm cursor-pointer px-3 py-1 rounded-lg hover:bg-purple-50" title="启用实时流式对话（边说边处理）">
-                            <input type="checkbox" id="streaming-mode" onchange="toggleStreamingMode()" class="rounded" checked>
-                            <span>🚀 流式模式</span>
-                        </label>
-                        <label class="flex items-center gap-2 text-sm cursor-pointer px-3 py-1 rounded-lg hover:bg-green-50" title="显示LLM请求/响应详情（调试用）">
-                            <input type="checkbox" id="debug-mode" onchange="toggleDebugMode()" class="rounded">
-                            <span>🔍 调试模式</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Messages -->
-            <div id="messages" class="flex-1 overflow-y-auto p-6 space-y-4" style="background: linear-gradient(to bottom, #f9fafb 0%, #ffffff 100%);">
-                <div class="text-center">
-                    <div class="inline-block bg-purple-50 text-purple-700 px-6 py-3 rounded-2xl text-sm shadow-sm">
-                        ✨ 您好，欢迎来到解忧杂货铺，有什么心事想要倾诉吗？
-                    </div>
-                </div>
-            </div>
-
-            <!-- Input -->
-            <div class="p-6 border-t border-purple-100 bg-white">
-                <div class="flex gap-3">
-                    <!-- Voice Record Button -->
-                    <button
-                        id="voice-btn"
-                        onclick="toggleVoiceRecording()"
-                        class="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-6 py-3 rounded-xl hover:from-pink-600 hover:to-pink-700 transition shadow-md hover:shadow-lg"
-                        title="点击开始语音输入"
-                    >
-                        🎤
-                    </button>
-
-                    <input
-                        type="text"
-                        id="message-input"
-                        placeholder="在这里写下您的心事..."
-                        class="flex-1 px-5 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        onkeypress="if(event.key === 'Enter') sendMessage()"
-                    >
-                    <button
-                        onclick="sendMessage()"
-                        class="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-8 py-3 rounded-xl hover:from-purple-600 hover:to-purple-700 transition shadow-md hover:shadow-lg"
-                    >
-                        💌 发送
-                    </button>
-                </div>
-                <div class="flex items-center justify-between mt-2">
-                    <p class="text-xs text-gray-400">店长会记住我们的对话，您可以放心倾诉</p>
-                    <label class="flex items-center gap-2 text-xs cursor-pointer">
-                        <input type="checkbox" id="auto-play-voice" class="rounded" checked>
-                        <span class="text-gray-500">🔊 自动播放店长的声音</span>
-                    </label>
-                </div>
-                <div id="recording-indicator" class="hidden mt-2 text-center">
-                    <span class="inline-block bg-red-100 text-red-600 px-4 py-2 rounded-full text-sm animate-pulse">
-                        🎙️ 正在录音... 再次点击停止
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Debug Panel (调试面板) -->
-        <div id="debug-panel" class="hidden mt-6">
-            <div class="chat-container rounded-2xl shadow-lg p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-xl font-bold text-green-700">🔍 LLM 调试信息</h2>
-                    <button onclick="clearDebugPanel()" class="text-sm text-gray-500 hover:text-gray-700">清空</button>
-                </div>
-                <div id="debug-content" class="space-y-4 max-h-96 overflow-y-auto">
-                    <p class="text-gray-400 text-sm">开启调试模式后，发送消息将显示 LLM 请求/响应详情</p>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // State - 从 localStorage 恢复 sessionId，保持对话连续性
+        // ==================== State ====================
         let currentSessionId = localStorage.getItem('soulComfort_sessionId');
         if (!currentSessionId) {
             currentSessionId = 'soul-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
             localStorage.setItem('soulComfort_sessionId', currentSessionId);
         }
-        let settingsVisible = false;
-        let debugMode = false;
 
-        // Voice recording state
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let isRecording = false;
-        let useStreamingMode = true;  // 流式模式默认开启
+        let currentUserId = localStorage.getItem('soulComfort_userId') || '';
+        let selectedEmotion = '';
+        let currentScaleType = '';
+        let currentScaleDefinition = null;
 
-        // Streaming audio playback
-        let audioContext = null;
-        let audioQueue = [];
-        let isPlayingStream = false;
+        // ==================== Init ====================
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('session-id').textContent = currentSessionId;
+            document.getElementById('sys-session-id').textContent = currentSessionId;
+            if (currentUserId) {
+                document.getElementById('user-id').textContent = currentUserId;
+            }
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            updateSessionId();
-            updateModelStatus();
-            detectEnvironment();
-
-            // 加载历史消息（刷新后恢复对话）
-            loadSessionHistory();
-
-            // Auto-hide settings after page load
-            setTimeout(() => {
-                console.log('解忧杂货铺初始化完成 - 支持语音输入输出');
-                console.log('运行环境:', window.appBridge.platform);
-                console.log('会话ID:', currentSessionId);
-            }, 500);
-
-            // Request microphone permission (Web环境)
-            if (!window.appBridge.isApp) {
-                navigator.mediaDevices.getUserMedia({ audio: true })
-                    .then(() => console.log('麦克风权限已获取'))
-                    .catch(err => console.warn('麦克风权限未授予:', err));
+            // 连接 WebSocket
+            try {
+                await window.soulComfortAPI.ensureWebSocket();
+                updateConnectionStatus(true);
+                // 加载历史消息
+                loadSessionHistory();
+            } catch (e) {
+                console.error('WebSocket 连接失败:', e);
+                updateConnectionStatus(false);
             }
         });
 
-        // 检测运行环境
-        function detectEnvironment() {
-            if (window.appBridge.isApp) {
-                document.body.classList.add('app-mode');
-                console.log('检测到App环境:', window.appBridge.platform);
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connection-indicator');
+            const wsStatus = document.getElementById('ws-status');
+            const sysWsStatus = document.getElementById('sys-ws-status');
 
-                // 设置标题
-                window.appBridge.setTitle('解忧杂货铺');
-
-                // 显示欢迎Toast（仅App）
-                window.appBridge.showToast('欢迎来到解忧杂货铺 ❤️', 2000);
-            }
-        }
-
-        // Toggle debug mode
-        function toggleDebugMode() {
-            debugMode = document.getElementById('debug-mode').checked;
-            const panel = document.getElementById('debug-panel');
-            if (debugMode) {
-                panel.classList.remove('hidden');
+            if (connected) {
+                indicator.textContent = '● 已连接';
+                indicator.className = 'text-green-500';
+                wsStatus.textContent = 'WebSocket 已连接';
+                if (sysWsStatus) sysWsStatus.textContent = '已连接 (ws://localhost:8081/ws/chat)';
             } else {
-                panel.classList.add('hidden');
-            }
-            console.log('调试模式:', debugMode ? '已启用' : '已禁用');
-        }
-
-        // Clear debug panel
-        function clearDebugPanel() {
-            document.getElementById('debug-content').innerHTML =
-                '<p class="text-gray-400 text-sm">调试信息已清空</p>';
-        }
-
-        // Display debug info
-        function displayDebugInfo(debug) {
-            if (!debug) return;
-
-            const container = document.getElementById('debug-content');
-            const debugHtml = `
-                <div class="border border-green-200 rounded-lg p-4 bg-green-50">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-sm font-bold text-green-800">请求 #${Date.now()}</span>
-                        <span class="text-xs text-gray-500">${debug.duration || 0}ms</span>
-                    </div>
-
-                    <!-- Request Messages -->
-                    <div class="mb-3">
-                        <div class="text-xs font-semibold text-green-700 mb-1">📤 LLM 请求消息 (${debug.requestMessages?.length || 0}条)</div>
-                        <div class="bg-white rounded p-2 text-xs max-h-48 overflow-y-auto">
-                            ${(debug.requestMessages || []).map(msg => `
-                                <div class="mb-2 pb-2 border-b border-gray-100 last:border-0">
-                                    <span class="inline-block px-1 py-0.5 rounded text-white text-xs mr-1 ${
-                                        msg.role === 'SYSTEM' ? 'bg-purple-500' :
-                                        msg.role === 'USER' ? 'bg-blue-500' : 'bg-green-500'
-                                    }">${msg.role}</span>
-                                    <span class="text-gray-600">${escapeHtml(msg.content || '').substring(0, 300)}${(msg.content || '').length > 300 ? '...' : ''}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <!-- Response -->
-                    <div class="mb-3">
-                        <div class="text-xs font-semibold text-green-700 mb-1">📥 LLM 响应</div>
-                        <div class="bg-white rounded p-2 text-xs">
-                            <div class="flex gap-2 mb-1">
-                                <span class="text-gray-500">Stop Reason:</span>
-                                <span class="font-mono text-green-600">${debug.stopReason || 'N/A'}</span>
-                                <span class="text-gray-500 ml-2">Tokens:</span>
-                                <span class="font-mono text-blue-600">${debug.totalRequestTokens || 0} → ${debug.responseTokens || 0}</span>
-                            </div>
-                            <div class="text-gray-700 whitespace-pre-wrap">${escapeHtml(debug.responseText || '').substring(0, 500)}${(debug.responseText || '').length > 500 ? '...' : ''}</div>
-                        </div>
-                    </div>
-
-                    <!-- Tool Calls -->
-                    ${debug.toolCalls && debug.toolCalls.length > 0 ? `
-                        <div class="mb-3">
-                            <div class="text-xs font-semibold text-green-700 mb-1">🔧 工具调用 (${debug.toolCalls.length}次)</div>
-                            <div class="bg-white rounded p-2 text-xs">
-                                ${debug.toolCalls.map(tc => `
-                                    <div class="mb-1">
-                                        <span class="font-bold text-orange-600">${tc.toolName}</span>
-                                        <span class="text-gray-400 ml-1">(${tc.duration}ms)</span>
-                                        <div class="text-gray-500 ml-2">Args: ${JSON.stringify(tc.arguments || {})}</div>
-                                        <div class="text-gray-700 ml-2">Result: ${escapeHtml(tc.result || '')}</div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
-
-                    <!-- Active Skills -->
-                    ${debug.activeSkills && debug.activeSkills.length > 0 ? `
-                        <div>
-                            <div class="text-xs font-semibold text-green-700 mb-1">📚 活跃 Skills</div>
-                            <div class="flex flex-wrap gap-1">
-                                ${debug.activeSkills.map(s => `<span class="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded">${s}</span>`).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-
-            // 插入到顶部
-            container.insertAdjacentHTML('afterbegin', debugHtml);
-        }
-
-        // Toggle settings panel
-        function toggleSettings() {
-            settingsVisible = !settingsVisible;
-            const panel = document.getElementById('settings-panel');
-            const toggleText = document.getElementById('settings-toggle-text');
-
-            if (settingsVisible) {
-                panel.classList.remove('hidden');
-                toggleText.textContent = '隐藏设置';
-            } else {
-                panel.classList.add('hidden');
-                toggleText.textContent = '显示设置';
+                indicator.textContent = '● 未连接';
+                indicator.className = 'text-red-500';
+                wsStatus.textContent = '未连接';
+                if (sysWsStatus) sysWsStatus.textContent = '未连接';
             }
         }
 
-        // Update session ID display
-        function updateSessionId() {
-            document.getElementById('session-id').textContent = currentSessionId;
+        // ==================== Tab Switching ====================
+        function switchTab(tabName) {
+            // Hide all panels
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+            // Deactivate all tabs
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active');
+                b.classList.add('bg-gray-100');
+            });
+            // Show selected panel
+            document.getElementById('panel-' + tabName).classList.remove('hidden');
+            // Activate tab
+            const tab = document.getElementById('tab-' + tabName);
+            tab.classList.add('active');
+            tab.classList.remove('bg-gray-100');
+
+            // Auto-load data for tabs
+            if (tabName === 'assessment') loadScales();
+            if (tabName === 'emotion' && currentUserId) { loadEmotions(); loadStats(); }
+            if (tabName === 'tools') { loadSkills(); loadToolsDetail(); }
+            if (tabName === 'system') loadHealth();
         }
 
-        // 加载并显示历史消息（刷新后恢复对话）
-        async function loadSessionHistory() {
-            try {
-                const response = await fetch(`/api/session/${currentSessionId}/history`);
-                if (!response.ok) return;
+        // Trace panel toggle
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('trace-mode').addEventListener('change', (e) => {
+                document.getElementById('trace-panel').classList.toggle('hidden', !e.target.checked);
+            });
+        });
 
-                const history = await response.json();
-                if (!history || history.length === 0) return;
+        const PHASE_COLORS = {
+            'gateway.enter': 'text-blue-600', 'gateway.postprocess': 'text-blue-500', 'gateway.complete': 'text-blue-700',
+            'agent.start': 'text-green-600', 'agent.prompt': 'text-green-500', 'agent.llm': 'text-yellow-600', 'agent.complete': 'text-green-700',
+        };
 
-                console.log(`恢复 ${history.length} 条历史消息`);
-
-                // 清除默认欢迎消息
-                const messagesDiv = document.getElementById('messages');
-                messagesDiv.innerHTML = '';
-
-                // 显示历史消息
-                history.forEach(msg => {
-                    if (msg.role === 'user') {
-                        addMessage('customer', msg.content);
-                    } else if (msg.role === 'assistant') {
-                        addMessage('shopkeeper', msg.content);
-                    }
-                });
-
-                // 滚动到底部
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            } catch (error) {
-                console.log('加载历史消息失败:', error);
-            }
+        function appendTraceEvent(trace) {
+            const container = document.getElementById('trace-entries');
+            const t = new Date(trace.timestamp);
+            const ts = t.toLocaleTimeString('zh-CN', {hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit', fractionalSecondDigits:3});
+            const color = PHASE_COLORS[trace.phase] || 'text-gray-600';
+            const div = document.createElement('div');
+            div.className = 'flex gap-2 py-0.5 border-b border-gray-100';
+            div.innerHTML = `<span class="text-gray-400 shrink-0">${ts}</span><span class="${color} font-semibold shrink-0">[${trace.phase}]</span><span class="text-gray-700">${escapeHtml(trace.message)}</span>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
         }
 
-        // Update model status
         function updateModelStatus() {
             const selector = document.getElementById('model-selector');
-            const selectedOption = selector.options[selector.selectedIndex].text;
-            document.getElementById('model-status').textContent = selectedOption.split(' - ')[0].replace(/[🏆⚡🚀💎✨💰]/g, '').trim();
+            const wsStatus = document.getElementById('ws-status');
+            const model = selector.value;
+            wsStatus.textContent = model ? model.split('/').pop() : 'WebSocket 已连接';
         }
 
-        // Listen to model changes
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('model-selector').addEventListener('change', updateModelStatus);
-        });
-
-        // Toggle voice recording
-        async function toggleVoiceRecording() {
-            if (useStreamingMode) {
-                // 使用流式模式
-                if (!isRecording) {
-                    await startStreamingRecording();
-                } else {
-                    await stopStreamingRecording();
-                }
-            } else {
-                // 使用标准模式
-                if (!isRecording) {
-                    await startRecording();
-                } else {
-                    await stopRecording();
-                }
-            }
-        }
-
-        // Start recording (支持App和Web)
-        async function startRecording() {
-            try {
-                // 检查是否使用原生录音
-                if (window.appBridge.isApp) {
-                    const result = await window.appBridge.startRecording();
-                    if (result.useWeb) {
-                        // 原生不支持，回退到Web
-                        await startWebRecording();
-                    } else {
-                        isRecording = true;
-                        updateRecordingUI(true);
-                        window.appBridge.vibrate(50);
-                    }
-                } else {
-                    await startWebRecording();
-                }
-            } catch (error) {
-                console.error('录音失败:', error);
-                if (window.appBridge.isApp) {
-                    window.appBridge.showToast('录音失败：' + error.message);
-                } else {
-                    alert('无法访问麦克风，请确认已授予权限');
-                }
-            }
-        }
-
-        // Web录音实现
-        async function startWebRecording() {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = (event) => {
-                audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                await sendVoiceMessage(audioBlob);
-
-                // Stop all tracks
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            mediaRecorder.start();
-            isRecording = true;
-            updateRecordingUI(true);
-        }
-
-        // 更新录音UI
-        function updateRecordingUI(recording) {
-            const voiceBtn = document.getElementById('voice-btn');
-            const indicator = document.getElementById('recording-indicator');
-
-            if (recording) {
-                voiceBtn.classList.add('bg-red-500', 'animate-pulse');
-                voiceBtn.classList.remove('bg-gradient-to-r', 'from-pink-500', 'to-pink-600');
-                indicator.classList.remove('hidden');
-            } else {
-                voiceBtn.classList.remove('bg-red-500', 'animate-pulse');
-                voiceBtn.classList.add('bg-gradient-to-r', 'from-pink-500', 'to-pink-600');
-                indicator.classList.add('hidden');
-            }
-        }
-
-        // Stop recording (支持App和Web)
-        async function stopRecording() {
-            if (window.appBridge.isApp && isRecording) {
-                const result = await window.appBridge.stopRecording();
-
-                if (result.useWeb) {
-                    // Web录音
-                    if (mediaRecorder) {
-                        mediaRecorder.stop();
-                    }
-                } else {
-                    // 原生录音，result包含音频文件路径
-                    await sendVoiceMessageFromApp(result);
-                }
-
-                isRecording = false;
-                updateRecordingUI(false);
-                window.appBridge.vibrate(30);
-
-            } else if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                isRecording = false;
-                updateRecordingUI(false);
-            }
-        }
-
-        // 从App原生录音发送
-        async function sendVoiceMessageFromApp(audioPath) {
-            const selectedModel = document.getElementById('model-selector').value;
-
-            // Show loading
-            const loadingId = addMessage('shopkeeper', '<div class="loading"></div> <span class="text-sm">店长正在听您倾诉...</span>');
-
-            try {
-                // TODO: 需要从原生读取音频文件并转换为Blob
-                // 这里简化处理，实际需要原生提供读取文件的方法
-                window.appBridge.showToast('正在处理语音...');
-
-                // 移除loading，显示提示
-                document.getElementById(loadingId).remove();
-                addMessage('system', '⚠️ 原生录音文件处理功能待完善，请使用Web模式或文字输入');
-
-            } catch (error) {
-                console.error('语音消息发送失败:', error);
-                document.getElementById(loadingId).remove();
-                addMessage('error', `语音处理失败：${error.message}`);
-            }
-        }
-
-        // Send voice message (使用统一API)
-        async function sendVoiceMessage(audioBlob) {
-            const selectedModel = document.getElementById('model-selector').value;
-
-            // Show loading
-            const loadingId = addMessage('shopkeeper', '<div class="loading"></div> <span class="text-sm">店长正在听您倾诉...</span>');
-
-            try {
-                // 使用统一API客户端
-                const result = await window.soulComfortAPI.sendVoiceMessage(audioBlob, {
-                    sessionId: currentSessionId,
-                    model: selectedModel
-                });
-
-                // Remove loading
-                document.getElementById(loadingId).remove();
-
-                // Add recognized text as user message
-                if (result.recognizedText) {
-                    addMessage('customer', result.recognizedText);
-                }
-
-                // Add assistant response
-                if (result.responseText) {
-                    addMessage('shopkeeper', result.responseText, {
-                        metadata: { emotion: result.emotion }
-                    });
-                }
-
-                // Play audio response
-                const autoPlay = document.getElementById('auto-play-voice').checked;
-                if (autoPlay && result.audio && result.audio.size > 0) {
-                    await playAudio(result.audio);
-                }
-
-                // App环境震动反馈
-                if (window.appBridge.isApp) {
-                    window.appBridge.vibrate(50);
-                }
-
-            } catch (error) {
-                console.error('语音消息发送失败:', error);
-                document.getElementById(loadingId).remove();
-                addMessage('error', `语音处理失败：${error.message}`);
-
-                if (window.appBridge.isApp) {
-                    window.appBridge.showToast('语音处理失败');
-                }
-            }
-        }
-
-        // Play audio (支持App和Web)
-        async function playAudio(audioBlob) {
-            // 检查是否使用原生播放器
-            if (window.appBridge.isApp) {
-                const result = await window.appBridge.playAudio(URL.createObjectURL(audioBlob));
-
-                if (result.useWeb) {
-                    // 原生不支持，使用Web播放
-                    playWebAudio(audioBlob);
-                }
-            } else {
-                playWebAudio(audioBlob);
-            }
-        }
-
-        // Web音频播放
-        function playWebAudio(audioBlob) {
-            const audioUrl = URL.createObjectURL(audioBlob);
-            const audio = new Audio(audioUrl);
-
-            audio.play().catch(err => {
-                console.error('音频播放失败:', err);
-                if (window.appBridge.isApp) {
-                    window.appBridge.showToast('音频播放失败');
-                }
-            });
-
-            audio.onended = () => {
-                URL.revokeObjectURL(audioUrl);
-            };
-        }
-
-        // Send message (使用统一API)
+        // ==================== Chat ====================
         async function sendMessage() {
             const input = document.getElementById('message-input');
             const message = input.value.trim();
-
             if (!message) return;
 
-            // Get selected model
             const selectedModel = document.getElementById('model-selector').value;
 
-            // Add user message to UI
             addMessage('customer', message);
             input.value = '';
 
-            // 流式模式（包括 debug 模式，均走流式路径）
-            if (useStreamingMode) {
-                await sendMessageStream(message, selectedModel);
-                return;
-            }
-
-            // 非流式模式（仅当流式开关关闭时使用）
-            const loadingId = addMessage('shopkeeper', `<div class="loading"></div> <span class="text-sm">店长正在思考...</span>`);
-
-            try {
-                const data = await window.soulComfortAPI.sendTextMessage(message, {
-                    sessionId: currentSessionId,
-                    model: selectedModel,
-                    debug: false
-                });
-
-                document.getElementById(loadingId).remove();
-
-                if (data.error) {
-                    addMessage('error', `抱歉，店长遇到了一些问题：${data.error}`);
-                } else {
-                    addMessage('shopkeeper', data.response, data);
-                    if (window.appBridge.isApp) {
-                        window.appBridge.vibrate(30);
-                    }
-                }
-            } catch (error) {
-                document.getElementById(loadingId).remove();
-                addMessage('error', `网络连接出现问题：${error.message}`);
-            }
-        }
-
-        // 流式发送消息（WebSocket 双向流式）
-        async function sendMessageStream(message, selectedModel) {
-            // 创建空的店长消息
             const msgId = addMessage('shopkeeper', '<span class="text-gray-400">店长正在输入...</span>');
             const msgElement = document.getElementById(msgId);
-            const contentDiv = msgElement.querySelector('.bg-white');
-
+            const contentDiv = msgElement.querySelector('.msg-content');
             let fullResponse = '';
 
             try {
                 await window.soulComfortAPI.wsSendStream(message, {
                     sessionId: currentSessionId,
+                    model: selectedModel || undefined,
                     onDelta: (delta) => {
                         if (delta) {
                             fullResponse += delta;
@@ -724,16 +499,64 @@
                     },
                     onComplete: (meta) => {
                         if (fullResponse) contentDiv.innerHTML = fullResponse;
-                        if (window.appBridge.isApp) window.appBridge.vibrate(30);
                     },
                     onError: (error) => {
                         contentDiv.innerHTML = `<span class="text-red-500">出错了：${error.message}</span>`;
                     },
+                    onCrisis: (resources) => {
+                        let html = '<div class="bg-red-50 border border-red-200 rounded-lg p-3 mt-2"><strong>⚠️ 安全提醒</strong><br>';
+                        if (resources) {
+                            resources.forEach(r => {
+                                html += `<p class="mt-1">📞 ${r.name || ''}: ${r.phone || r.url || ''}</p>`;
+                            });
+                        }
+                        html += '</div>';
+                        contentDiv.innerHTML = html;
+                    },
                     onToolCallStart: (data) => {
-                        console.log('[WS] Tool call start:', data.toolName);
+                        console.log('[Tool] Start:', data.toolName);
+                        fullResponse += `<div class="text-xs text-blue-500 mt-1">🔧 调用工具: ${data.toolName}</div>`;
+                        contentDiv.innerHTML = fullResponse;
                     },
                     onToolProgress: (data) => {
-                        console.log('[WS] Tool progress:', data.toolName, data.message);
+                        console.log('[Tool] Progress:', data.toolName, data.message);
+                    },
+                    onToolLog: (data) => {
+                        console.log('[Tool] Log:', data.toolName, data.message);
+                    },
+                    onToolError: (data) => {
+                        console.log('[Tool] Error:', data.toolName, data.message);
+                        fullResponse += `<div class="text-xs text-red-500 mt-1">⚠️ 工具错误: ${data.toolName} - ${data.message}</div>`;
+                        contentDiv.innerHTML = fullResponse;
+                    },
+                    onPostProcess: (category, data) => {
+                        console.log('[PostProcess]', category, data);
+                        if (category && data) {
+                            let ppHtml = '';
+                            if (category === 'card-append' && data.cards) {
+                                ppHtml = '<div class="mt-2 space-y-1">';
+                                data.cards.forEach(card => {
+                                    ppHtml += `<a href="${card.url || '#'}" target="_blank" class="block bg-purple-50 border border-purple-200 rounded-lg p-2 text-sm hover:bg-purple-100">
+                                        <strong>${card.title || card.type || ''}</strong>
+                                        ${card.description ? '<br><span class="text-gray-500">' + card.description + '</span>' : ''}
+                                    </a>`;
+                                });
+                                ppHtml += '</div>';
+                            } else if (category === 'deeplink') {
+                                // deeplink already applied to text
+                            } else {
+                                ppHtml = `<div class="text-xs text-gray-500 mt-1">[${category}] ${JSON.stringify(data)}</div>`;
+                            }
+                            if (ppHtml) {
+                                fullResponse += ppHtml;
+                                contentDiv.innerHTML = fullResponse;
+                            }
+                        }
+                    },
+                    onTrace: (trace) => {
+                        if (document.getElementById('trace-mode').checked) {
+                            appendTraceEvent(trace);
+                        }
                     }
                 });
             } catch (error) {
@@ -743,313 +566,519 @@
             }
         }
 
-        // Show session summary
+        async function loadSessionHistory() {
+            try {
+                const history = await window.soulComfortAPI.getSessionHistory(currentSessionId);
+                if (!history || history.length === 0) return;
+
+                const messagesDiv = document.getElementById('messages');
+                messagesDiv.innerHTML = '';
+
+                history.forEach(msg => {
+                    if (msg.role === 'user') addMessage('customer', msg.content);
+                    else if (msg.role === 'assistant') addMessage('shopkeeper', msg.content);
+                });
+
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (error) {
+                console.log('加载历史消息失败:', error);
+            }
+        }
+
         async function showSessionSummary() {
             try {
-                const response = await fetch(`/api/session/${currentSessionId}/summary`);
-                const summary = await response.json();
-
-                let summaryText = '📊 <strong>会话摘要</strong><br><br>';
-
-                if (summary.error) {
-                    summaryText += `暂无摘要信息`;
-                } else {
-                    if (summary.summary) {
-                        summaryText += `<strong>对话内容：</strong><br>${summary.summary}<br><br>`;
-                    }
-
-                    if (summary.recentEmotions && summary.recentEmotions.length > 0) {
-                        summaryText += `<strong>情绪记录：</strong><br>`;
-                        summary.recentEmotions.forEach(e => {
-                            summaryText += `- ${e.emotion} (${e.context})<br>`;
-                        });
-                        summaryText += '<br>';
-                    }
-
-                    if (summary.importantTopics && summary.importantTopics.length > 0) {
-                        summaryText += `<strong>重要话题：</strong><br>${summary.importantTopics.join(', ')}`;
-                    }
+                const summary = await window.soulComfortAPI.getSessionSummary(currentSessionId);
+                let text = '📊 <strong>会话摘要</strong><br><br>';
+                if (summary.summary) text += `<strong>对话内容：</strong><br>${summary.summary}<br><br>`;
+                if (summary.recentEmotions && summary.recentEmotions.length > 0) {
+                    text += '<strong>情绪记录：</strong><br>';
+                    summary.recentEmotions.forEach(e => { text += `- ${e.emotion} (${e.context})<br>`; });
                 }
-
-                addMessage('system', summaryText);
+                if (summary.importantTopics && summary.importantTopics.length > 0) {
+                    text += `<strong>重要话题：</strong><br>${summary.importantTopics.join(', ')}`;
+                }
+                addMessage('system', text);
             } catch (error) {
                 addMessage('error', `无法获取摘要：${error.message}`);
             }
         }
 
-        // Add message to UI
-        function addMessage(role, content, metadata) {
+        async function clearChat() {
+            if (!confirm('确定要清空对话吗？')) return;
+            try {
+                await window.soulComfortAPI.clearSession(currentSessionId);
+                currentSessionId = 'soul-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('soulComfort_sessionId', currentSessionId);
+                document.getElementById('session-id').textContent = currentSessionId;
+                document.getElementById('sys-session-id').textContent = currentSessionId;
+                document.getElementById('messages').innerHTML = `
+                    <div class="text-center">
+                        <div class="inline-block bg-purple-50 text-purple-700 px-4 py-2 rounded-2xl text-sm">
+                            ✨ 对话已清空，欢迎重新开始倾诉
+                        </div>
+                    </div>`;
+            } catch (error) {
+                addMessage('error', `清空失败：${error.message}`);
+            }
+        }
+
+        function addMessage(role, content) {
             const messages = document.getElementById('messages');
-            const id = 'msg-' + Date.now() + '-' + Math.random();
-
-            const messageDiv = document.createElement('div');
-            messageDiv.id = id;
-            messageDiv.className = 'message';
-
-            let html = '';
+            const id = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'message';
 
             if (role === 'customer') {
-                // Customer message (right side, purple)
-                html = `
-                    <div class="flex justify-end">
-                        <div class="message-bubble">
-                            <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-md">
-                                ${escapeHtml(content)}
-                            </div>
-                        </div>
-                    </div>
-                `;
+                div.innerHTML = `<div class="flex justify-end"><div class="max-w-[80%]">
+                    <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-md">
+                        ${escapeHtml(content)}
+                    </div></div></div>`;
             } else if (role === 'shopkeeper') {
-                // Shopkeeper message (left side, white)
-                html = `
-                    <div class="flex justify-start">
-                        <div class="message-bubble">
-                            <div class="bg-white text-gray-800 rounded-2xl rounded-tl-sm px-5 py-3 shadow-md border border-gray-100">
-                                ${content}
-                            </div>
-                            ${metadata && metadata.metadata ? createMetadataBadges(metadata.metadata) : ''}
-                        </div>
-                    </div>
-                `;
+                div.innerHTML = `<div class="flex justify-start"><div class="max-w-[80%]">
+                    <div class="msg-content bg-white text-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow-md border border-gray-100">
+                        ${content}
+                    </div></div></div>`;
             } else if (role === 'system') {
-                // System message (center, info style)
-                html = `
-                    <div class="flex justify-center">
-                        <div class="bg-blue-50 text-blue-800 px-5 py-3 rounded-xl text-sm shadow-sm max-w-2xl border border-blue-100">
-                            ${content}
-                        </div>
-                    </div>
-                `;
+                div.innerHTML = `<div class="flex justify-center">
+                    <div class="bg-blue-50 text-blue-800 px-4 py-2 rounded-xl text-sm max-w-2xl border border-blue-100">${content}</div></div>`;
             } else if (role === 'error') {
-                // Error message (center, red)
-                html = `
-                    <div class="flex justify-center">
-                        <div class="bg-red-50 text-red-800 px-5 py-3 rounded-xl text-sm shadow-sm max-w-2xl border border-red-100">
-                            ❌ ${content}
-                        </div>
-                    </div>
-                `;
+                div.innerHTML = `<div class="flex justify-center">
+                    <div class="bg-red-50 text-red-800 px-4 py-2 rounded-xl text-sm max-w-2xl border border-red-100">❌ ${content}</div></div>`;
             }
 
-            messageDiv.innerHTML = html;
-            messages.appendChild(messageDiv);
+            messages.appendChild(div);
             messages.scrollTop = messages.scrollHeight;
-
             return id;
         }
 
-        // Create metadata badges
-        function createMetadataBadges(metadata) {
-            const badges = [];
-
-            if (metadata.recentEmotions && metadata.recentEmotions.length > 0) {
-                badges.push(`<span class="inline-block bg-pink-100 text-pink-700 text-xs px-2 py-1 rounded-full mt-2">💝 情绪: ${metadata.recentEmotions.join(', ')}</span>`);
-            }
-
-            if (metadata.importantTopics && metadata.importantTopics.length > 0) {
-                badges.push(`<span class="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full mt-2">📌 话题: ${metadata.importantTopics.join(', ')}</span>`);
-            }
-
-            return badges.length > 0 ? `<div class="mt-2 space-x-2">${badges.join(' ')}</div>` : '';
-        }
-
-        // Escape HTML to prevent XSS
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
-        // Clear chat
-        async function clearChat() {
-            if (!confirm('确定要清空对话吗？店长会忘记之前的所有谈话内容。')) {
-                return;
-            }
-
+        // ==================== Assessment ====================
+        async function loadScales() {
             try {
-                // Clear session on server
-                await fetch(`/api/session/${currentSessionId}`, {
-                    method: 'DELETE'
+                const scales = await window.soulComfortAPI.getScales();
+                const container = document.getElementById('scale-list');
+                container.innerHTML = '';
+
+                Object.entries(scales).forEach(([type, scale]) => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-purple-50 transition border border-gray-200';
+                    div.onclick = () => startQuiz(type, scale);
+                    div.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h4 class="font-bold text-gray-800">${scale.name || type}</h4>
+                                <p class="text-sm text-gray-500 mt-1">${scale.description || ''}</p>
+                                <p class="text-xs text-gray-400 mt-1">${scale.questions ? scale.questions.length + ' 题' : ''}</p>
+                            </div>
+                            <span class="text-purple-500 text-2xl">→</span>
+                        </div>`;
+                    container.appendChild(div);
                 });
 
-                // Generate new session ID and save to localStorage
-                currentSessionId = 'soul-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('soulComfort_sessionId', currentSessionId);
-                updateSessionId();
-
-                // Clear UI
-                const messages = document.getElementById('messages');
-                messages.innerHTML = `
-                    <div class="text-center">
-                        <div class="inline-block bg-purple-50 text-purple-700 px-6 py-3 rounded-2xl text-sm shadow-sm">
-                            ✨ 对话已清空，欢迎重新开始倾诉
-                        </div>
-                    </div>
-                `;
-            } catch (error) {
-                addMessage('error', `清空失败：${error.message}`);
-            }
-        }
-
-        // ========== 流式模式功能 ==========
-
-        /**
-         * 切换流式模式
-         */
-        function toggleStreamingMode() {
-            useStreamingMode = document.getElementById('streaming-mode').checked;
-            console.log('流式模式:', useStreamingMode ? '已启用' : '已禁用');
-
-            if (useStreamingMode) {
-                // 初始化WebSocket客户端
-                setupStreamingCallbacks();
-            } else {
-                // 断开WebSocket
-                if (window.voiceStreamClient) {
-                    window.voiceStreamClient.disconnect();
-                }
-            }
-        }
-
-        /**
-         * 设置流式回调
-         */
-        function setupStreamingCallbacks() {
-            const client = window.voiceStreamClient;
-
-            // 语音识别结果
-            client.onTranscript = (text) => {
-                console.log('[Stream] 识别结果:', text);
-                addMessage('user', text);
-            };
-
-            // LLM流式响应
-            let currentResponseDiv = null;
-            client.onResponseDelta = (delta) => {
-                if (!currentResponseDiv) {
-                    // 创建新的助手消息
-                    const messagesDiv = document.getElementById('messages');
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = 'message flex justify-start';
-                    messageDiv.innerHTML = `
-                        <div class="max-w-[80%] bg-white text-gray-800 px-6 py-4 rounded-2xl shadow-md">
-                            <div class="flex items-start gap-3">
-                                <span class="text-2xl">🏮</span>
-                                <div class="flex-1">
-                                    <p class="text-sm whitespace-pre-wrap"></p>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    messagesDiv.appendChild(messageDiv);
-                    currentResponseDiv = messageDiv.querySelector('p');
-
-                    // 滚动到底部
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                }
-
-                // 追加文本
-                currentResponseDiv.textContent += delta;
-
-                // 滚动到底部
-                const messagesDiv = document.getElementById('messages');
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            };
-
-            // 音频流响应
-            client.onAudioResponse = async (audioData) => {
-                await playAudioChunk(audioData);
-            };
-
-            // 完成
-            client.onComplete = (fullText, emotion) => {
-                console.log('[Stream] 完成 - Emotion:', emotion);
-                currentResponseDiv = null;  // 重置
-                hideLoading();
-            };
-
-            // 错误
-            client.onError = (error) => {
-                console.error('[Stream] 错误:', error);
-                addMessage('error', `流式对话错误：${error}`);
-                currentResponseDiv = null;
-                hideLoading();
-            };
-        }
-
-        /**
-         * 播放音频块（流式）
-         */
-        async function playAudioChunk(audioData) {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-
-            try {
-                const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
-                audioQueue.push(audioBuffer);
-
-                if (!isPlayingStream) {
-                    playNextChunk();
+                if (Object.keys(scales).length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-sm">暂无可用量表</div>';
                 }
             } catch (error) {
-                console.error('音频解码失败:', error);
+                document.getElementById('scale-list').innerHTML =
+                    `<div class="text-red-500 text-sm">加载失败: ${error.message}</div>`;
             }
         }
 
-        /**
-         * 播放下一个音频块
-         */
-        function playNextChunk() {
-            if (audioQueue.length === 0) {
-                isPlayingStream = false;
+        function startQuiz(scaleType, scale) {
+            currentScaleType = scaleType;
+            currentScaleDefinition = scale;
+
+            document.getElementById('quiz-title').textContent = scale.name || scaleType;
+            document.getElementById('quiz-description').textContent = scale.description || '';
+
+            const container = document.getElementById('quiz-questions');
+            container.innerHTML = '';
+
+            if (scale.questions) {
+                scale.questions.forEach((q, idx) => {
+                    const qDiv = document.createElement('div');
+                    qDiv.className = 'bg-white rounded-lg p-4 border border-gray-200';
+                    let optionsHtml = '';
+                    if (scale.options) {
+                        scale.options.forEach((opt, optIdx) => {
+                            optionsHtml += `
+                                <label class="flex items-center gap-2 cursor-pointer py-1">
+                                    <input type="radio" name="q${idx}" value="${optIdx}" class="quiz-answer">
+                                    <span class="text-sm">${opt.label || opt.text || opt}</span>
+                                </label>`;
+                        });
+                    }
+                    qDiv.innerHTML = `
+                        <p class="font-medium text-gray-800 mb-2">${idx + 1}. ${q.text || q}</p>
+                        <div class="space-y-1">${optionsHtml}</div>`;
+                    container.appendChild(qDiv);
+                });
+            }
+
+            document.getElementById('quiz-panel').classList.remove('hidden');
+        }
+
+        function cancelQuiz() {
+            document.getElementById('quiz-panel').classList.add('hidden');
+            currentScaleType = '';
+            currentScaleDefinition = null;
+        }
+
+        async function submitAssessment() {
+            if (!currentUserId) {
+                alert('请先在"系统"页面创建用户');
                 return;
             }
 
-            isPlayingStream = true;
-            const audioBuffer = audioQueue.shift();
+            const answers = [];
+            const questions = currentScaleDefinition.questions || [];
+            for (let i = 0; i < questions.length; i++) {
+                const selected = document.querySelector(`input[name="q${i}"]:checked`);
+                if (!selected) {
+                    alert(`请回答第 ${i + 1} 题`);
+                    return;
+                }
+                answers.push(parseInt(selected.value));
+            }
 
-            const source = audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioContext.destination);
-
-            source.onended = () => {
-                playNextChunk();
-            };
-
-            source.start(0);
-        }
-
-        /**
-         * 流式录音开始
-         */
-        async function startStreamingRecording() {
             try {
-                showLoading('🎙️ 准备录音...');
-                await window.voiceStreamClient.startRecording();
-                isRecording = true;
-                updateRecordingUI(true);
-                hideLoading();
+                const result = await window.soulComfortAPI.submitAssessment(currentUserId, currentScaleType, answers);
+                cancelQuiz();
+
+                // 显示结果
+                let html = `<div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h4 class="font-bold text-green-800 mb-2">✅ 评估完成</h4>
+                    <p class="text-sm"><strong>总分：</strong>${result.totalScore || result.score || '-'}</p>
+                    <p class="text-sm"><strong>等级：</strong>${result.severity || result.level || '-'}</p>`;
+                if (result.report || result.aiReport) {
+                    html += `<p class="text-sm mt-2"><strong>AI 报告：</strong><br>${result.report || result.aiReport}</p>`;
+                }
+                html += '</div>';
+
+                const historyDiv = document.getElementById('assessment-history');
+                historyDiv.insertAdjacentHTML('afterbegin', html);
             } catch (error) {
-                console.error('流式录音失败:', error);
-                addMessage('error', `录音失败：${error.message}`);
-                hideLoading();
+                alert('提交失败: ' + error.message);
             }
         }
 
-        /**
-         * 流式录音停止
-         */
-        async function stopStreamingRecording() {
+        async function loadAssessmentHistory() {
+            if (!currentUserId) {
+                document.getElementById('assessment-history').innerHTML =
+                    '<div class="text-gray-400 text-sm">请先创建用户</div>';
+                return;
+            }
             try {
-                showLoading('🤔 正在处理...');
-                window.voiceStreamClient.stopRecording();
-                isRecording = false;
-                updateRecordingUI(false);
+                const history = await window.soulComfortAPI.getAssessmentHistory(currentUserId);
+                const container = document.getElementById('assessment-history');
+
+                if (!history || history.length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-sm">暂无评估记录</div>';
+                    return;
+                }
+
+                container.innerHTML = history.map(r => `
+                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <div class="flex justify-between text-sm">
+                            <span class="font-medium">${r.scaleType || r.type || '-'}</span>
+                            <span class="text-gray-500">${r.timestamp || r.date || '-'}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">分数: ${r.totalScore || r.score || '-'} | 等级: ${r.severity || r.level || '-'}</p>
+                    </div>`).join('');
             } catch (error) {
-                console.error('停止录音失败:', error);
-                addMessage('error', `停止录音失败：${error.message}`);
-                hideLoading();
+                document.getElementById('assessment-history').innerHTML =
+                    `<div class="text-red-500 text-sm">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        // ==================== Emotion ====================
+        function selectEmotion(emotion) {
+            selectedEmotion = emotion;
+            document.getElementById('selected-emotion').textContent = '已选: ' + emotion;
+            document.getElementById('checkin-btn').disabled = false;
+
+            // Highlight selected
+            document.querySelectorAll('.emotion-btn').forEach(btn => {
+                btn.classList.remove('bg-purple-100', 'border-purple-500');
+            });
+            event.target.classList.add('bg-purple-100', 'border-purple-500');
+        }
+
+        async function doCheckin() {
+            if (!currentUserId) {
+                alert('请先在"系统"页面创建用户');
+                return;
+            }
+            if (!selectedEmotion) return;
+
+            const note = document.getElementById('emotion-note').value.trim() || null;
+            try {
+                await window.soulComfortAPI.checkin(currentUserId, selectedEmotion, note);
+                document.getElementById('emotion-note').value = '';
+                selectedEmotion = '';
+                document.getElementById('selected-emotion').textContent = '✅ 签到成功！';
+                document.getElementById('checkin-btn').disabled = true;
+                document.querySelectorAll('.emotion-btn').forEach(btn => {
+                    btn.classList.remove('bg-purple-100', 'border-purple-500');
+                });
+                loadEmotions();
+            } catch (error) {
+                alert('签到失败: ' + error.message);
+            }
+        }
+
+        async function loadEmotions() {
+            if (!currentUserId) {
+                document.getElementById('emotion-history').innerHTML =
+                    '<div class="text-gray-400 text-sm">请先创建用户</div>';
+                return;
+            }
+            try {
+                const emotions = await window.soulComfortAPI.getEmotions(currentUserId);
+                const container = document.getElementById('emotion-history');
+
+                if (!emotions || emotions.length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-sm">暂无记录</div>';
+                    return;
+                }
+
+                container.innerHTML = emotions.map(e => `
+                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-200 flex justify-between items-center">
+                        <div>
+                            <span class="font-medium">${e.emotion || '-'}</span>
+                            ${e.note ? `<span class="text-gray-500 text-sm ml-2">${e.note}</span>` : ''}
+                        </div>
+                        <span class="text-xs text-gray-400">${e.timestamp || e.date || '-'}</span>
+                    </div>`).join('');
+            } catch (error) {
+                document.getElementById('emotion-history').innerHTML =
+                    `<div class="text-red-500 text-sm">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        async function loadStats() {
+            if (!currentUserId) {
+                document.getElementById('emotion-stats').innerHTML =
+                    '<div class="text-gray-400 text-sm">请先创建用户</div>';
+                return;
+            }
+            try {
+                const stats = await window.soulComfortAPI.getStats(currentUserId);
+                const container = document.getElementById('emotion-stats');
+                let html = '<div class="bg-gray-50 rounded-lg p-4 border border-gray-200 text-sm space-y-2">';
+
+                if (stats.streak !== undefined) {
+                    html += `<p>🔥 连续签到: <strong>${stats.streak}</strong> 天</p>`;
+                }
+                if (stats.distribution) {
+                    html += '<p class="font-medium mt-2">情绪分布:</p>';
+                    Object.entries(stats.distribution).forEach(([emotion, count]) => {
+                        html += `<p class="ml-4">${emotion}: ${count} 次</p>`;
+                    });
+                }
+                if (stats.totalCheckins !== undefined) {
+                    html += `<p>总签到次数: ${stats.totalCheckins}</p>`;
+                }
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) {
+                document.getElementById('emotion-stats').innerHTML =
+                    `<div class="text-red-500 text-sm">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        // ==================== Memory ====================
+        async function searchMemory() {
+            const query = document.getElementById('memory-query').value.trim();
+            if (!query) return;
+            const topK = parseInt(document.getElementById('memory-topk').value) || 10;
+
+            try {
+                const results = await window.soulComfortAPI.searchMemory(query, topK);
+                const container = document.getElementById('memory-results');
+
+                if (!results || results.length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-sm">未找到相关记忆</div>';
+                    return;
+                }
+
+                container.innerHTML = results.map((r, i) => `
+                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <div class="flex justify-between text-xs text-gray-400 mb-1">
+                            <span>#${i + 1} | 来源: ${r.source || '-'}</span>
+                            <span>相关度: ${(r.score || 0).toFixed(3)}</span>
+                        </div>
+                        <p class="text-sm text-gray-700">${escapeHtml(r.content || r.snippet || '')}</p>
+                    </div>`).join('');
+            } catch (error) {
+                document.getElementById('memory-results').innerHTML =
+                    `<div class="text-red-500 text-sm">搜索失败: ${error.message}</div>`;
+            }
+        }
+
+        async function rememberDurable() {
+            const section = document.getElementById('memory-section').value.trim();
+            const content = document.getElementById('memory-content').value.trim();
+            if (!section || !content) {
+                alert('请填写分区名称和内容');
+                return;
+            }
+
+            try {
+                await window.soulComfortAPI.rememberDurable(section, content);
+                document.getElementById('memory-save-status').textContent = '✅ 已保存';
+                document.getElementById('memory-content').value = '';
+                setTimeout(() => {
+                    document.getElementById('memory-save-status').textContent = '';
+                }, 3000);
+            } catch (error) {
+                document.getElementById('memory-save-status').textContent = '❌ 保存失败: ' + error.message;
+            }
+        }
+
+        // ==================== Tools & Skills ====================
+        async function loadSkills() {
+            try {
+                const skills = await window.soulComfortAPI.getSkills();
+                const container = document.getElementById('skills-list');
+
+                if (!skills || skills.length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-sm">暂无可用技能</div>';
+                    return;
+                }
+
+                container.innerHTML = skills.map(s => `
+                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <span class="font-medium text-purple-700">${s.name || '-'}</span>
+                        <span class="text-xs text-gray-400 ml-2">[${s.format || ''}]</span>
+                        <p class="text-sm text-gray-500 mt-1">${s.description || ''}</p>
+                    </div>`).join('');
+            } catch (error) {
+                document.getElementById('skills-list').innerHTML =
+                    `<div class="text-red-500 text-sm">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        async function loadToolsDetail() {
+            try {
+                const result = await window.soulComfortAPI.getToolsDetail();
+                const container = document.getElementById('tools-list');
+                const tools = result.tools || [];
+
+                if (tools.length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-sm">暂无可用工具</div>';
+                    return;
+                }
+
+                container.innerHTML = `<div class="text-xs text-gray-500 mb-2">共 ${result.total || 0} 个工具，启用 ${result.enabled || 0} 个</div>` +
+                    tools.map(t => {
+                        let badges = '';
+                        if (t.source) badges += `<span class="inline-block bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded">${t.source}</span> `;
+                        if (t.category) badges += `<span class="inline-block bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded">${t.category}</span> `;
+                        if (t.readOnly) badges += `<span class="inline-block bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded">只读</span> `;
+                        if (t.destructive) badges += `<span class="inline-block bg-red-100 text-red-600 text-xs px-1.5 py-0.5 rounded">危险</span> `;
+                        if (t.clientSide) badges += `<span class="inline-block bg-yellow-100 text-yellow-700 text-xs px-1.5 py-0.5 rounded">客户端</span> `;
+                        if (t.tags && t.tags.length > 0) badges += t.tags.map(tag => `<span class="inline-block bg-purple-100 text-purple-600 text-xs px-1.5 py-0.5 rounded">${tag}</span>`).join(' ');
+
+                        return `<div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                            <div class="flex justify-between items-start">
+                                <span class="font-medium text-blue-700">${t.name || '-'}</span>
+                                <span class="text-xs ${t.enabled ? 'text-green-500' : 'text-red-400'}">${t.enabled ? '✅ 启用' : '❌ 禁用'}</span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1">${t.description || ''}</p>
+                            <div class="mt-1 flex flex-wrap gap-1">${badges}</div>
+                            ${t.input_schema ? `<details class="mt-2"><summary class="text-xs text-gray-400 cursor-pointer">查看 Schema</summary><pre class="text-xs bg-white p-2 rounded mt-1 overflow-auto max-h-32">${JSON.stringify(t.input_schema, null, 2)}</pre></details>` : ''}
+                        </div>`;
+                    }).join('');
+            } catch (error) {
+                document.getElementById('tools-list').innerHTML =
+                    `<div class="text-red-500 text-sm">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        async function loadMcpServers() {
+            try {
+                const result = await window.soulComfortAPI.getMcpServers();
+                const container = document.getElementById('mcp-servers');
+
+                if (!result.enabled) {
+                    container.innerHTML = '<div class="text-gray-400 text-sm">MCP 未启用</div>';
+                    return;
+                }
+
+                const servers = result.servers || [];
+                if (servers.length === 0) {
+                    container.innerHTML = `<div class="text-gray-400 text-sm">MCP 已启用，但无服务器连接（共 ${result.totalToolCount || 0} 个工具）</div>`;
+                    return;
+                }
+
+                container.innerHTML = `<div class="text-xs text-gray-500 mb-2">共 ${result.serverCount} 个服务器，${result.totalToolCount} 个工具</div>` +
+                    servers.map(s => `
+                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                            <div class="font-medium text-green-700">🖥️ ${s.name} <span class="text-xs text-gray-400">(${s.toolCount} 个工具)</span></div>
+                            <div class="mt-2 space-y-1">
+                                ${(s.tools || []).map(t => `
+                                    <div class="text-sm ml-4 flex justify-between">
+                                        <span>${t.name}</span>
+                                        <span class="text-xs ${t.enabled ? 'text-green-500' : 'text-red-400'}">${t.enabled ? '启用' : '禁用'}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>`).join('');
+            } catch (error) {
+                document.getElementById('mcp-servers').innerHTML =
+                    `<div class="text-red-500 text-sm">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        async function loadToolDefinitions() {
+            try {
+                const result = await window.soulComfortAPI.getToolDefinitions();
+                const container = document.getElementById('tool-definitions');
+
+                const tools = result.tools || [];
+                if (tools.length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-sm">暂无工具定义</div>';
+                    return;
+                }
+
+                container.innerHTML = `<div class="text-xs text-gray-500 mb-2">共 ${result.count || 0} 个工具定义（LLM 格式）</div>
+                    <details><summary class="text-sm text-purple-600 cursor-pointer">展开查看 JSON</summary>
+                    <pre class="text-xs bg-gray-50 p-3 rounded-lg mt-2 overflow-auto max-h-96 border border-gray-200">${JSON.stringify(tools, null, 2)}</pre>
+                    </details>`;
+            } catch (error) {
+                document.getElementById('tool-definitions').innerHTML =
+                    `<div class="text-red-500 text-sm">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        // ==================== System ====================
+        async function loadHealth() {
+            try {
+                const health = await window.soulComfortAPI.checkHealth();
+                const container = document.getElementById('health-info');
+                container.innerHTML = `<pre class="whitespace-pre-wrap text-xs">${JSON.stringify(health, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('health-info').innerHTML =
+                    `<div class="text-red-500">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        async function createUser() {
+            try {
+                const user = await window.soulComfortAPI.createUser();
+                currentUserId = user.userId || user.id || '';
+                localStorage.setItem('soulComfort_userId', currentUserId);
+                document.getElementById('user-id').textContent = currentUserId;
+                alert('用户创建成功: ' + currentUserId);
+            } catch (error) {
+                alert('创建失败: ' + error.message);
             }
         }
     </script>

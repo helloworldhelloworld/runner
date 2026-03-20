@@ -1,397 +1,37 @@
 /**
- * Soul Comfort API Client
- * 统一的API客户端，支持Web和App
+ * Soul Comfort API Client - WebSocket Only
+ * 所有通信通过 WebSocket 进行，不使用 REST/SSE
  */
 
 class SoulComfortAPI {
-    constructor(baseURL = '') {
-        this.baseURL = baseURL || this.detectBaseURL();
-        console.log(`[API] Base URL: ${this.baseURL}`);
+    constructor() {
+        this._ws = null;
+        this._wsConnecting = null;
+        this._wsCallbacks = null;
+        /** 请求-响应式回调映射 (requestId → {resolve, reject}) */
+        this._pendingRequests = new Map();
+        this._requestIdCounter = 0;
     }
 
     /**
-     * 检测API基础URL
-     */
-    detectBaseURL() {
-        // App环境使用完整URL
-        if (window.appBridge && window.appBridge.isApp) {
-            // TODO: 从App配置中获取
-            return 'http://your-backend-server.com';
-        }
-        // Web环境使用相对路径
-        return '';
-    }
-
-    /**
-     * 通用请求方法
-     */
-    async request(url, options = {}) {
-        const fullURL = this.baseURL + url;
-
-        try {
-            const response = await fetch(fullURL, {
-                ...options,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            // 如果是音频响应
-            if (response.headers.get('Content-Type')?.includes('audio')) {
-                return {
-                    audio: await response.blob(),
-                    headers: this.extractHeaders(response)
-                };
-            }
-
-            // JSON响应
-            const data = await response.json();
-            return data;
-
-        } catch (error) {
-            console.error('[API] Request failed:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 提取响应头
-     */
-    extractHeaders(response) {
-        const headers = {};
-        const keys = [
-            'X-Recognized-Text',
-            'X-Response-Text',
-            'X-Emotion',
-            'X-Session-Id'
-        ];
-
-        keys.forEach(key => {
-            const value = response.headers.get(key);
-            if (value) {
-                headers[key] = value;
-            }
-        });
-
-        return headers;
-    }
-
-    // ========== Chat API ==========
-
-    /**
-     * 发送文字消息
-     */
-    async sendTextMessage(message, options = {}) {
-        return this.request('/api/chat', {
-            method: 'POST',
-            body: JSON.stringify({
-                message,
-                sessionId: options.sessionId,
-                model: options.model,
-                soulComfortMode: true,
-                debug: options.debug || false
-            })
-        });
-    }
-
-    /**
-     * 发送流式文字消息 (SSE)
-     * @param {string} message - 消息内容
-     * @param {Object} options - 选项
-     * @param {Function} options.onDelta - 每个文本片段的回调
-     * @param {Function} options.onComplete - 完成时的回调
-     * @param {Function} options.onError - 错误时的回调
-     */
-    async sendTextMessageStream(message, options = {}) {
-        const url = this.baseURL + '/api/chat/stream';
-
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message,
-                    sessionId: options.sessionId,
-                    model: options.model,
-                    soulComfortMode: true,
-                    debug: options.debug || false
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-
-                // Parse SSE events
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-                for (const line of lines) {
-                    if (line.startsWith('data:')) {
-                        try {
-                            const data = JSON.parse(line.slice(5).trim());
-
-                            if (data.type === 'delta' && options.onDelta) {
-                                options.onDelta(data.delta, data.emotion);
-                            } else if (data.type === 'complete' && options.onComplete) {
-                                options.onComplete(data.response, data);
-                            } else if (data.type === 'error' && options.onError) {
-                                options.onError(new Error(data.message));
-                            }
-                        } catch (e) {
-                            // Ignore parse errors for incomplete JSON
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('[API] Stream request failed:', error);
-            if (options.onError) {
-                options.onError(error);
-            }
-            throw error;
-        }
-    }
-
-    /**
-     * 发送语音消息（完整流程）
-     */
-    async sendVoiceMessage(audioBlob, options = {}) {
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.webm');
-
-        if (options.sessionId) {
-            formData.append('sessionId', options.sessionId);
-        }
-
-        if (options.model) {
-            formData.append('model', options.model);
-        }
-
-        const response = await fetch(this.baseURL + '/api/voice/chat', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!response.ok) {
-            // Try to get detailed error message from response header
-            const errorMessage = response.headers.get('X-Error-Message');
-            if (errorMessage) {
-                throw new Error(errorMessage);
-            }
-            throw new Error(`语音处理失败 (HTTP ${response.status})`);
-        }
-
-        return {
-            audio: await response.blob(),
-            recognizedText: response.headers.get('X-Recognized-Text'),
-            responseText: response.headers.get('X-Response-Text'),
-            emotion: response.headers.get('X-Emotion'),
-            sessionId: response.headers.get('X-Session-Id')
-        };
-    }
-
-    /**
-     * 语音识别（仅STT）
-     */
-    async recognizeSpeech(audioBlob) {
-        const formData = new FormData();
-        formData.append('audio', audioBlob);
-
-        return this.request('/api/voice/recognize', {
-            method: 'POST',
-            body: formData,
-            headers: {} // 不设置Content-Type，让浏览器自动设置
-        });
-    }
-
-    /**
-     * 语音合成（仅TTS）
-     */
-    async synthesizeSpeech(text, emotion = '温柔') {
-        const response = await fetch(this.baseURL + '/api/voice/synthesize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, emotion })
-        });
-
-        if (!response.ok) {
-            throw new Error(`TTS failed: ${response.status}`);
-        }
-
-        return await response.blob();
-    }
-
-    // ========== Session API ==========
-
-    /**
-     * 获取会话摘要
-     */
-    async getSessionSummary(sessionId) {
-        return this.request(`/api/session/${sessionId}/summary`);
-    }
-
-    /**
-     * 清空会话
-     */
-    async clearSession(sessionId) {
-        return this.request(`/api/session/${sessionId}`, {
-            method: 'DELETE'
-        });
-    }
-
-    // ========== Health API ==========
-
-    /**
-     * 健康检查
-     */
-    async checkHealth() {
-        return this.request('/api/health');
-    }
-
-    // ========== Gateway API (统一入口) ==========
-
-    /**
-     * 通过 Gateway 发送消息（同步）
-     */
-    async gatewaySend(message, options = {}) {
-        return this.request('/gateway/chat', {
-            method: 'POST',
-            body: JSON.stringify({
-                message,
-                session_id: options.sessionId,
-                model: options.model,
-                stream: false,
-                client_type: this.detectClientType(),
-                extra: options.extra
-            })
-        });
-    }
-
-    /**
-     * 通过 Gateway 发送消息（流式）
-     */
-    async gatewaySendStream(message, options = {}) {
-        const url = this.baseURL + '/gateway/chat/stream';
-
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message,
-                    session_id: options.sessionId,
-                    model: options.model,
-                    stream: true,
-                    client_type: this.detectClientType(),
-                    extra: options.extra
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    if (line.startsWith('data:')) {
-                        try {
-                            const data = JSON.parse(line.slice(5).trim());
-
-                            // 统一响应格式
-                            if (data.type === 'DELTA' && options.onDelta) {
-                                options.onDelta(data.content, data.metadata?.emotion);
-                            } else if (data.type === 'COMPLETE' && options.onComplete) {
-                                options.onComplete(data.content, data);
-                            } else if (data.type === 'ERROR' && options.onError) {
-                                options.onError(new Error(data.error_message));
-                            }
-                        } catch (e) {
-                            // Ignore parse errors
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('[Gateway] Stream request failed:', error);
-            if (options.onError) {
-                options.onError(error);
-            }
-            throw error;
-        }
-    }
-
-    /**
-     * 检测客户端类型
-     */
-    detectClientType() {
-        if (window.appBridge) {
-            if (window.appBridge.platform === 'harmonyos') return 'HARMONYOS';
-            if (window.appBridge.platform === 'ios') return 'IOS';
-            if (window.appBridge.platform === 'android') return 'ANDROID';
-        }
-
-        // 小程序检测
-        if (typeof wx !== 'undefined') return 'MINIPROGRAM';
-
-        return 'WEB';
-    }
-
-    /**
-     * Gateway 健康检查
-     */
-    async gatewayHealth() {
-        return this.request('/gateway/health');
-    }
-
-    // ========== WebSocket 流式聊天 ==========
-
-    /**
-     * 获取 WebSocket URL（自动推断 ws:// 或 wss://）
+     * 获取 WebSocket URL
      */
     getWebSocketURL() {
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = location.hostname;
-        // Vert.x WebSocket 服务运行在 8081 端口
-        const port = 8081;
+        // 优先使用与 HTTP 相同的端口（Spring WebSocket），Vert.x 模式可通过 ?wsPort=8081 覆盖
+        const params = new URLSearchParams(location.search);
+        const port = params.get('wsPort') || location.port || (protocol === 'wss:' ? '443' : '80');
         return `${protocol}//${host}:${port}/ws/chat`;
     }
 
     /**
-     * 确保 WebSocket 已连接，返回连接的 Promise
+     * 确保 WebSocket 已连接
      */
     ensureWebSocket() {
         if (this._ws && this._ws.readyState === WebSocket.OPEN) {
             return Promise.resolve(this._ws);
         }
-        // 正在连接中，等待
         if (this._wsConnecting) {
             return this._wsConnecting;
         }
@@ -419,15 +59,20 @@ class SoulComfortAPI {
                 console.log(`[WS] Closed: code=${event.code} reason=${event.reason}`);
                 this._ws = null;
                 this._wsConnecting = null;
-                // 通知当前活跃的回调（如果有）
+                // 通知流式回调
                 if (this._wsCallbacks && this._wsCallbacks.onError) {
                     this._wsCallbacks.onError(new Error('WebSocket 连接断开'));
                     this._wsCallbacks = null;
                 }
+                // 拒绝所有 pending 请求
+                this._pendingRequests.forEach(({ reject }) => {
+                    reject(new Error('WebSocket 连接断开'));
+                });
+                this._pendingRequests.clear();
             };
 
             ws.onmessage = (event) => {
-                this._handleWebSocketMessage(event.data);
+                this._handleMessage(event.data);
             };
         });
 
@@ -435,30 +80,38 @@ class SoulComfortAPI {
     }
 
     /**
-     * 处理 WebSocket 服务端消息
+     * 处理所有服务端消息
      */
-    _handleWebSocketMessage(raw) {
-        console.log('[WS] Raw message:', raw.substring(0, 200));
+    _handleMessage(raw) {
         try {
             const msg = JSON.parse(raw);
-            const cb = this._wsCallbacks;
-            if (!cb) {
-                console.warn('[WS] No callbacks registered, ignoring message type:', msg.type);
+
+            // 1. 先检查是否是请求-响应式消息（带 requestId）
+            if (msg.requestId && this._pendingRequests.has(msg.requestId)) {
+                const { resolve, reject } = this._pendingRequests.get(msg.requestId);
+                this._pendingRequests.delete(msg.requestId);
+
+                if (msg.type === 'error_response') {
+                    reject(new Error(msg.data?.error || '请求失败'));
+                } else {
+                    resolve(msg.data);
+                }
                 return;
             }
 
+            // 2. 流式消息（chat 相关）
+            const cb = this._wsCallbacks;
+            if (!cb) return;
+
             switch (msg.type) {
                 case 'token':
-                    console.log('[WS] token data len:', msg.data ? msg.data.length : 0);
                     if (cb.onDelta) cb.onDelta(msg.data);
                     break;
                 case 'stream_end':
-                    console.log('[WS] stream_end received');
                     if (cb.onComplete) cb.onComplete(msg.meta);
                     this._wsCallbacks = null;
                     break;
                 case 'error':
-                    console.error('[WS] error:', msg.message);
                     if (cb.onError) cb.onError(new Error(msg.message));
                     this._wsCallbacks = null;
                     break;
@@ -481,8 +134,9 @@ class SoulComfortAPI {
                 case 'post_process':
                     if (cb.onPostProcess) cb.onPostProcess(msg.category, msg.data);
                     break;
-                default:
-                    console.log('[WS] Unknown message type:', msg.type);
+                case 'trace':
+                    if (cb.onTrace) cb.onTrace(msg.data);
+                    break;
             }
         } catch (e) {
             console.error('[WS] Failed to parse message:', e);
@@ -490,24 +144,50 @@ class SoulComfortAPI {
     }
 
     /**
+     * 生成唯一的请求 ID
+     */
+    _nextRequestId() {
+        return 'req-' + (++this._requestIdCounter) + '-' + Date.now();
+    }
+
+    /**
+     * 发送请求并等待响应（请求-响应模式）
+     */
+    async _sendRequest(type, data = {}, timeoutMs = 30000) {
+        const ws = await this.ensureWebSocket();
+        const requestId = this._nextRequestId();
+
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this._pendingRequests.delete(requestId);
+                reject(new Error(`请求超时: ${type}`));
+            }, timeoutMs);
+
+            this._pendingRequests.set(requestId, {
+                resolve: (result) => {
+                    clearTimeout(timer);
+                    resolve(result);
+                },
+                reject: (err) => {
+                    clearTimeout(timer);
+                    reject(err);
+                }
+            });
+
+            ws.send(JSON.stringify({ type, requestId, ...data }));
+        });
+    }
+
+    // ========== Chat (流式) ==========
+
+    /**
      * 通过 WebSocket 发送流式聊天消息
-     *
-     * @param {string} message - 用户消息
-     * @param {Object} options
-     * @param {string} options.sessionId - 会话 ID
-     * @param {Function} options.onDelta - 文本片段回调 (delta)
-     * @param {Function} options.onComplete - 完成回调 (meta)
-     * @param {Function} options.onError - 错误回调 (error)
-     * @param {Function} [options.onToolCallStart] - 工具调用开始
-     * @param {Function} [options.onToolProgress] - 工具执行进度
-     * @returns {Promise<void>}
      */
     async wsSendStream(message, options = {}) {
         try {
             const ws = await this.ensureWebSocket();
 
             return new Promise((resolve, reject) => {
-                // 注册回调
                 this._wsCallbacks = {
                     onDelta: options.onDelta,
                     onComplete: (meta) => {
@@ -524,13 +204,14 @@ class SoulComfortAPI {
                     onToolLog: options.onToolLog,
                     onToolError: options.onToolError,
                     onPostProcess: options.onPostProcess,
+                    onTrace: options.onTrace,
                 };
 
-                // 发送 chat 消息
                 ws.send(JSON.stringify({
                     type: 'chat',
                     sessionId: options.sessionId || 'default',
                     message: message,
+                    model: options.model || null,
                     reactive: true
                 }));
             });
@@ -541,9 +222,102 @@ class SoulComfortAPI {
         }
     }
 
-    /**
-     * 断开 WebSocket 连接
-     */
+    // ========== Session ==========
+
+    async getSessionHistory(sessionId) {
+        return this._sendRequest('get_history', { sessionId });
+    }
+
+    async getSessionSummary(sessionId) {
+        return this._sendRequest('get_summary', { sessionId });
+    }
+
+    async clearSession(sessionId) {
+        return this._sendRequest('clear_session', { sessionId });
+    }
+
+    // ========== Skills & Tools ==========
+
+    async getSkills() {
+        return this._sendRequest('get_skills');
+    }
+
+    async getTools() {
+        return this._sendRequest('get_tools');
+    }
+
+    // ========== Health ==========
+
+    async checkHealth() {
+        return this._sendRequest('health');
+    }
+
+    // ========== Assessment ==========
+
+    async getScales() {
+        return this._sendRequest('get_scales');
+    }
+
+    async getScale(scaleType) {
+        return this._sendRequest('get_scale', { scaleType });
+    }
+
+    async submitAssessment(userId, scaleType, answers) {
+        return this._sendRequest('submit_assessment', { userId, scaleType, answers }, 60000);
+    }
+
+    async getAssessmentHistory(userId) {
+        return this._sendRequest('get_assessment_history', { userId });
+    }
+
+    // ========== User ==========
+
+    async createUser() {
+        return this._sendRequest('create_user');
+    }
+
+    async checkin(userId, emotion, note) {
+        return this._sendRequest('checkin', { userId, emotion, note });
+    }
+
+    async getEmotions(userId, days = 7) {
+        return this._sendRequest('get_emotions', { userId, days });
+    }
+
+    async getStats(userId) {
+        return this._sendRequest('get_stats', { userId });
+    }
+
+    // ========== Memory ==========
+
+    async searchMemory(query, topK = 10) {
+        return this._sendRequest('search_memory', { query, topK });
+    }
+
+    async rememberDurable(section, content) {
+        return this._sendRequest('remember_durable', { section, content });
+    }
+
+    // ========== MCP Tools Detail ==========
+
+    async getToolsDetail() {
+        return this._sendRequest('get_tools_detail');
+    }
+
+    async getToolDetail(toolName) {
+        return this._sendRequest('get_tool_detail', { toolName });
+    }
+
+    async getMcpServers() {
+        return this._sendRequest('get_mcp_servers');
+    }
+
+    async getToolDefinitions() {
+        return this._sendRequest('get_tool_definitions');
+    }
+
+    // ========== Connection ==========
+
     wsDisconnect() {
         if (this._ws) {
             this._ws.close(1000, 'Client disconnect');
@@ -551,13 +325,9 @@ class SoulComfortAPI {
         }
         this._wsCallbacks = null;
         this._wsConnecting = null;
+        this._pendingRequests.clear();
     }
 }
 
 // 创建全局实例
 window.soulComfortAPI = new SoulComfortAPI();
-
-// 导出
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = SoulComfortAPI;
-}

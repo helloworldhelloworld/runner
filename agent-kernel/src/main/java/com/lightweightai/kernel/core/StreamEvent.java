@@ -22,7 +22,8 @@ public class StreamEvent {
         TOOL_ERROR,        // 工具执行错误
         LLM_COMPLETE,      // LLM 最终响应(无更多工具调用)
         ERROR,             // 管道错误
-        POST_PROCESS_DATA  // 后处理器注入数据 (卡片、标注、风控信号等)
+        POST_PROCESS_DATA, // 后处理器注入数据 (卡片、标注、风控信号等)
+        TRACE              // 调用链追踪日志
     }
 
     private final EventType type;
@@ -34,6 +35,9 @@ public class StreamEvent {
     private final String category;
     private final Map<String, Object> data;
     private final Map<String, Object> metadata;
+    private final String tracePhase;
+    private final String traceMessage;
+    private final long traceTimestamp;
 
     private StreamEvent(EventType type, String textDelta, ToolCall toolCall,
                         ToolResultChunk chunk, LLMResponse response, Throwable error) {
@@ -49,6 +53,13 @@ public class StreamEvent {
     private StreamEvent(EventType type, String textDelta, ToolCall toolCall,
                         ToolResultChunk chunk, LLMResponse response, Throwable error,
                         String category, Map<String, Object> data, Map<String, Object> metadata) {
+        this(type, textDelta, toolCall, chunk, response, error, category, data, metadata, null, null, 0);
+    }
+
+    private StreamEvent(EventType type, String textDelta, ToolCall toolCall,
+                        ToolResultChunk chunk, LLMResponse response, Throwable error,
+                        String category, Map<String, Object> data, Map<String, Object> metadata,
+                        String tracePhase, String traceMessage, long traceTimestamp) {
         this.type = type;
         this.textDelta = textDelta;
         this.toolCall = toolCall;
@@ -58,6 +69,9 @@ public class StreamEvent {
         this.category = category;
         this.data = data;
         this.metadata = metadata;
+        this.tracePhase = tracePhase;
+        this.traceMessage = traceMessage;
+        this.traceTimestamp = traceTimestamp;
     }
 
     public static StreamEvent textDelta(String delta) {
@@ -102,6 +116,23 @@ public class StreamEvent {
                 category, data != null ? Collections.unmodifiableMap(data) : Collections.emptyMap());
     }
 
+    /**
+     * 调用链追踪事件
+     *
+     * @param phase   阶段名称（如 gateway.enter, agent.prompt, llm.request, tool.execute 等）
+     * @param message 描述信息
+     */
+    public static StreamEvent trace(String phase, String message) {
+        return new StreamEvent(EventType.TRACE, null, null, null, null, null,
+                null, null, null, phase, message, System.currentTimeMillis());
+    }
+
+    /** 带附加数据的 trace */
+    public static StreamEvent trace(String phase, String message, Map<String, Object> data) {
+        return new StreamEvent(EventType.TRACE, null, null, null, null, null,
+                null, data, null, phase, message, System.currentTimeMillis());
+    }
+
     public EventType getType() {
         return type;
     }
@@ -137,6 +168,10 @@ public class StreamEvent {
     public Map<String, Object> getMetadata() {
         return metadata != null ? metadata : Collections.emptyMap();
     }
+
+    public String getTracePhase() { return tracePhase; }
+    public String getTraceMessage() { return traceMessage; }
+    public long getTraceTimestamp() { return traceTimestamp; }
 
     @Override
     public String toString() {

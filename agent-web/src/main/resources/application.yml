@@ -1,7 +1,7 @@
 server:
   port: 8080
 
-# Vert.x WebSocket 配置
+# Vert.x WebSocket 配置（仅 app.websocket.provider=vertx 时生效）
 vertx:
   websocket:
     port: ${VERTX_WS_PORT:8081}
@@ -27,6 +27,9 @@ logging:
 
 # 应用配置
 app:
+  websocket:
+    # spring = Tomcat内置WebSocket(同端口8080), vertx = Vert.x独立端口(8081)
+    provider: ${WS_PROVIDER:spring}
   mock-mode: false  # mock模式已废弃，provider-type=auto时自动检测
   provider-type: ${PROVIDER_TYPE:auto}  # 可选: auto, api, pro, openrouter, mock。auto=按优先级自动检测可用的API Key
   claude:

@@ -2,7 +2,13 @@ package com.lightweightai.web.websocket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.lightweightai.assessment.AssessmentService;
+import com.lightweightai.assessment.model.AssessmentResult;
+import com.lightweightai.assessment.model.AssessmentSubmission;
+import com.lightweightai.assessment.model.ScaleDefinition;
+import com.lightweightai.assessment.model.ScaleType;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.directive.ClientCapability;
 import com.lightweightai.kernel.agent.directive.ClientManifest;
@@ -13,15 +19,25 @@ import com.lightweightai.kernel.gateway.Gateway;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
 import com.lightweightai.kernel.gateway.GatewayStreamHandler;
+import com.lightweightai.kernel.gateway.SessionManager;
+import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.ResilientLLMProvider;
 import com.lightweightai.safety.CrisisDetector;
 import com.lightweightai.safety.CrisisResource;
 import com.lightweightai.safety.SafetyResult;
+import com.lightweightai.user.UserService;
+import com.lightweightai.user.model.EmotionRecord;
+import com.lightweightai.user.model.SoulUser;
+import com.lightweightai.web.config.McpConfig.McpToolRegistrar;
+import com.lightweightai.web.service.ChatService;
+import com.lightweightai.web.service.SoulComfortChatService;
 import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -73,6 +89,12 @@ public class VertxChatWebSocketHandler {
     private final Gateway gateway;
     private final CrisisDetector crisisDetector;
     private final ToolRegistry toolRegistry;
+    private final ChatService chatService;
+    private final SoulComfortChatService soulComfortChatService;
+    private final AssessmentService assessmentService;
+    private final UserService userService;
+    private final LLMProvider llmProvider;
+    private final McpToolRegistrar mcpToolRegistrar;
     private final ClientToolResultRouter clientToolResultRouter;
     private final ClientToolSessionBinder clientToolSessionBinder;
 
@@ -85,10 +107,22 @@ public class VertxChatWebSocketHandler {
 
     public VertxChatWebSocketHandler(Gateway gateway,
                                      CrisisDetector crisisDetector,
-                                     ToolRegistry toolRegistry) {
+                                     ToolRegistry toolRegistry,
+                                     ChatService chatService,
+                                     SoulComfortChatService soulComfortChatService,
+                                     AssessmentService assessmentService,
+                                     UserService userService,
+                                     LLMProvider llmProvider,
+                                     McpToolRegistrar mcpToolRegistrar) {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
         this.toolRegistry = toolRegistry;
+        this.chatService = chatService;
+        this.soulComfortChatService = soulComfortChatService;
+        this.assessmentService = assessmentService;
+        this.userService = userService;
+        this.llmProvider = llmProvider;
+        this.mcpToolRegistrar = mcpToolRegistrar;
         this.clientToolResultRouter = new ClientToolResultRouter(MAPPER, toolRegistry);
         this.clientToolSessionBinder = new ClientToolSessionBinder(toolRegistry);
     }
@@ -136,11 +170,40 @@ public class VertxChatWebSocketHandler {
             JsonNode payload = MAPPER.readTree(message);
             String type = payload.path("type").asText("chat");
 
+            String requestId = payload.path("requestId").asText(null);
+
             switch (type) {
                 case "chat" -> handleChatMessage(ws, payload);
                 case "client_tool_result" -> handleClientToolResult(ws, payload);
                 case "client_manifest" -> handleClientManifest(ws, payload);
                 case "directive_result" -> handleDirectiveResult(ws, payload);
+                // Session management
+                case "get_history" -> handleGetHistory(ws, payload, requestId);
+                case "get_summary" -> handleGetSummary(ws, payload, requestId);
+                case "clear_session" -> handleClearSession(ws, payload, requestId);
+                // Skills & Tools
+                case "get_skills" -> handleGetSkills(ws, requestId);
+                case "get_tools" -> handleGetTools(ws, requestId);
+                // Health
+                case "health" -> handleHealth(ws, requestId);
+                // Assessment
+                case "get_scales" -> handleGetScales(ws, requestId);
+                case "get_scale" -> handleGetScale(ws, payload, requestId);
+                case "submit_assessment" -> handleSubmitAssessment(ws, payload, requestId);
+                case "get_assessment_history" -> handleGetAssessmentHistory(ws, payload, requestId);
+                // User
+                case "create_user" -> handleCreateUser(ws, requestId);
+                case "checkin" -> handleCheckin(ws, payload, requestId);
+                case "get_emotions" -> handleGetEmotions(ws, payload, requestId);
+                case "get_stats" -> handleGetStats(ws, payload, requestId);
+                // Memory
+                case "search_memory" -> handleSearchMemory(ws, payload, requestId);
+                case "remember_durable" -> handleRememberDurable(ws, payload, requestId);
+                // MCP Tools detail
+                case "get_tools_detail" -> handleGetToolsDetail(ws, requestId);
+                case "get_tool_detail" -> handleGetToolDetail(ws, payload, requestId);
+                case "get_mcp_servers" -> handleGetMcpServers(ws, requestId);
+                case "get_tool_definitions" -> handleGetToolDefinitions(ws, requestId);
                 default -> logger.warn("Unknown WS message type: {}", type);
             }
         } catch (Exception e) {
@@ -173,6 +236,7 @@ public class VertxChatWebSocketHandler {
         String socketId = ws.textHandlerID();
         String sessionId = payload.path("sessionId").asText(socketId);
         String message = payload.path("message").asText("").trim();
+        String model = payload.path("model").asText(null);
         boolean useReactive = payload.path("reactive").asBoolean(true);
 
         if (message.isEmpty()) {
@@ -188,11 +252,14 @@ public class VertxChatWebSocketHandler {
         }
 
         // 通过 Gateway 委托业务逻辑
-        GatewayRequest request = GatewayRequest.builder()
+        GatewayRequest.Builder builder = GatewayRequest.builder()
             .sessionId(sessionId)
             .message(message)
-            .metadata("protocol", "websocket")
-            .build();
+            .metadata("protocol", "websocket");
+        if (model != null && !model.isEmpty()) {
+            builder.metadata("model", model);
+        }
+        GatewayRequest request = builder.build();
 
         if (useReactive) {
             handleChatMessageReactive(ws, request, sessionId);
@@ -237,6 +304,7 @@ public class VertxChatWebSocketHandler {
                         case TOOL_RESULT -> { /* 工具结果已喂回 LLM，不需要额外通知 */ }
                         case TOOL_ERROR -> sendToolError(ws, event);
                         case POST_PROCESS_DATA -> sendPostProcessData(ws, event);
+                        case TRACE -> sendTrace(ws, event);
                         case LLM_COMPLETE -> {
                             logger.info("[WS-STREAM] LLM_COMPLETE hasToolCalls={} session={}",
                                 event.getResponse() != null && event.getResponse().hasToolCalls(), sessionId);
@@ -371,6 +439,300 @@ public class VertxChatWebSocketHandler {
         if (!matched) {
             logger.warn("No pending directive call matched for socket={}", socketId);
         }
+    }
+
+    // ==================== 请求-响应式消息处理 ====================
+
+    /**
+     * 发送带 requestId 的响应消息
+     */
+    private void sendResponse(ServerWebSocket ws, String responseType, String requestId, Object data) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", responseType);
+            if (requestId != null) {
+                msg.put("requestId", requestId);
+            }
+            if (data != null) {
+                msg.set("data", MAPPER.valueToTree(data));
+            }
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize {} response", responseType, e);
+            sendError(ws, "响应序列化失败: " + e.getMessage());
+        }
+    }
+
+    private void handleGetHistory(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String sessionId = payload.path("sessionId").asText("");
+        SessionManager sm = gateway.getSessionManager();
+        List<Map<String, String>> history = (sm != null) ? sm.getSessionHistory(sessionId) : List.of();
+        sendResponse(ws, "history", requestId, history);
+    }
+
+    private void handleGetSummary(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String sessionId = payload.path("sessionId").asText("");
+        SessionManager sm = gateway.getSessionManager();
+        Map<String, Object> summary = (sm != null)
+            ? sm.getSessionSummary(sessionId)
+            : Map.of("sessionId", sessionId);
+        sendResponse(ws, "summary", requestId, summary);
+    }
+
+    private void handleClearSession(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String sessionId = payload.path("sessionId").asText("");
+        SessionManager sm = gateway.getSessionManager();
+        if (sm != null) {
+            sm.clearSession(sessionId);
+        }
+        sendResponse(ws, "session_cleared", requestId, Map.of("status", "cleared", "sessionId", sessionId));
+    }
+
+    private void handleGetSkills(ServerWebSocket ws, String requestId) {
+        List<Map<String, String>> skills = chatService.getAvailableSkills();
+        sendResponse(ws, "skills", requestId, skills);
+    }
+
+    private void handleGetTools(ServerWebSocket ws, String requestId) {
+        List<Map<String, Object>> tools = chatService.getAvailableTools();
+        sendResponse(ws, "tools", requestId, tools);
+    }
+
+    private void handleHealth(ServerWebSocket ws, String requestId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", "UP");
+        result.put("skills", chatService.getAvailableSkills().size());
+        result.put("tools", chatService.getAvailableTools().size());
+
+        Map<String, Object> llmHealth = new LinkedHashMap<>();
+        if (llmProvider instanceof ResilientLLMProvider resilient) {
+            ResilientLLMProvider.HealthInfo info = resilient.getHealthInfo();
+            llmHealth.put("status", info.status().name());
+            llmHealth.put("provider", info.providerName());
+            llmHealth.put("totalRequests", info.totalRequests());
+            llmHealth.put("totalFailures", info.totalFailures());
+        } else {
+            llmHealth.put("provider", llmProvider.getProviderName());
+            llmHealth.put("status", "NOT_MONITORED");
+        }
+        result.put("llm", llmHealth);
+        result.put("wsConnections", activeConnections.get());
+
+        sendResponse(ws, "health", requestId, result);
+    }
+
+    private void handleGetScales(ServerWebSocket ws, String requestId) {
+        Map<String, ScaleDefinition> scales = assessmentService.getScales();
+        sendResponse(ws, "scales", requestId, scales);
+    }
+
+    private void handleGetScale(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String scaleTypeStr = payload.path("scaleType").asText("");
+        try {
+            ScaleType scaleType = ScaleType.valueOf(scaleTypeStr.toUpperCase());
+            ScaleDefinition scale = assessmentService.getScale(scaleType);
+            sendResponse(ws, "scale", requestId, scale);
+        } catch (IllegalArgumentException e) {
+            sendResponse(ws, "error_response", requestId, Map.of("error", "Invalid scale type: " + scaleTypeStr));
+        }
+    }
+
+    private void handleSubmitAssessment(ServerWebSocket ws, JsonNode payload, String requestId) {
+        try {
+            String userId = payload.path("userId").asText("");
+            String scaleTypeStr = payload.path("scaleType").asText("");
+            ScaleType scaleType = ScaleType.valueOf(scaleTypeStr.toUpperCase());
+
+            List<Integer> answers = new ArrayList<>();
+            JsonNode answersNode = payload.path("answers");
+            if (answersNode.isArray()) {
+                for (JsonNode a : answersNode) {
+                    answers.add(a.asInt());
+                }
+            }
+
+            AssessmentSubmission submission = new AssessmentSubmission(userId, scaleType, answers);
+            AssessmentResult result = assessmentService.submit(submission);
+            sendResponse(ws, "assessment_result", requestId, result);
+        } catch (IllegalArgumentException e) {
+            sendResponse(ws, "error_response", requestId, Map.of("error", "Invalid scale type"));
+        } catch (Exception e) {
+            logger.error("Assessment submission failed", e);
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
+    }
+
+    private void handleGetAssessmentHistory(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String userId = payload.path("userId").asText("");
+        List<AssessmentResult> history = assessmentService.getHistory(userId);
+        sendResponse(ws, "assessment_history", requestId, history);
+    }
+
+    private void handleCreateUser(ServerWebSocket ws, String requestId) {
+        SoulUser user = userService.createAnonymousUser();
+        sendResponse(ws, "user_created", requestId, user);
+    }
+
+    private void handleCheckin(ServerWebSocket ws, JsonNode payload, String requestId) {
+        try {
+            String userId = payload.path("userId").asText("");
+            String emotion = payload.path("emotion").asText("");
+            String note = payload.path("note").asText(null);
+            EmotionRecord record = userService.checkin(userId, emotion, note);
+            sendResponse(ws, "checkin_result", requestId, record);
+        } catch (Exception e) {
+            logger.error("Checkin failed", e);
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
+    }
+
+    private void handleGetEmotions(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String userId = payload.path("userId").asText("");
+        int days = payload.path("days").asInt(7);
+        List<EmotionRecord> emotions = userService.getEmotions(userId, days);
+        sendResponse(ws, "emotions", requestId, emotions);
+    }
+
+    private void handleGetStats(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String userId = payload.path("userId").asText("");
+        Map<String, Object> stats = userService.getStats(userId);
+        sendResponse(ws, "stats", requestId, stats);
+    }
+
+    // ==================== Memory ====================
+
+    private void handleSearchMemory(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String query = payload.path("query").asText("");
+        int topK = payload.path("topK").asInt(10);
+        try {
+            List<Map<String, Object>> results = soulComfortChatService.searchMemory(query, topK);
+            sendResponse(ws, "memory_results", requestId, results);
+        } catch (Exception e) {
+            logger.error("Memory search failed", e);
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
+    }
+
+    private void handleRememberDurable(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String section = payload.path("section").asText("");
+        String content = payload.path("content").asText("");
+        try {
+            soulComfortChatService.rememberDurable(section, content);
+            sendResponse(ws, "remember_result", requestId, Map.of("status", "saved", "section", section));
+        } catch (Exception e) {
+            logger.error("Remember durable failed", e);
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ==================== MCP Tools Detail ====================
+
+    private void handleGetToolsDetail(ServerWebSocket ws, String requestId) {
+        List<Map<String, Object>> toolList = new ArrayList<>();
+        for (com.lightweightai.kernel.agent.Tool tool : toolRegistry.getAll()) {
+            Map<String, Object> toolInfo = new LinkedHashMap<>();
+            toolInfo.put("name", tool.getName());
+            toolInfo.put("description", tool.getDescription());
+            toolInfo.put("enabled", toolRegistry.isEnabled(tool.getName()));
+
+            if (tool instanceof com.lightweightai.mcp.McpToolWrapper mcpTool) {
+                toolInfo.put("source", "mcp");
+                toolInfo.put("server", mcpTool.getServerName());
+            } else {
+                toolInfo.put("source", "local");
+            }
+
+            if (tool instanceof com.lightweightai.kernel.agent.ToolMetadata meta) {
+                toolInfo.put("category", meta.getCategory());
+                toolInfo.put("tags", meta.getTags());
+                toolInfo.put("readOnly", meta.isReadOnly());
+                toolInfo.put("destructive", meta.isDestructive());
+                toolInfo.put("clientSide", meta.isClientSide());
+            }
+
+            if (tool.getSchema() != null) {
+                toolInfo.put("input_schema", tool.getSchema().toMap());
+            }
+            toolList.add(toolInfo);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("total", toolList.size());
+        result.put("enabled", toolRegistry.enabledCount());
+        result.put("tools", toolList);
+        sendResponse(ws, "tools_detail", requestId, result);
+    }
+
+    private void handleGetToolDetail(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String toolName = payload.path("toolName").asText("");
+        toolRegistry.get(toolName)
+            .ifPresentOrElse(
+                tool -> {
+                    Map<String, Object> detail = new LinkedHashMap<>();
+                    detail.put("name", tool.getName());
+                    detail.put("description", tool.getDescription());
+                    detail.put("enabled", toolRegistry.isEnabled(tool.getName()));
+
+                    if (tool instanceof com.lightweightai.mcp.McpToolWrapper mcpTool) {
+                        detail.put("source", "mcp");
+                        detail.put("server", mcpTool.getServerName());
+                    } else {
+                        detail.put("source", "local");
+                    }
+
+                    if (tool instanceof com.lightweightai.kernel.agent.ToolMetadata meta) {
+                        detail.put("category", meta.getCategory());
+                        detail.put("tags", meta.getTags());
+                        detail.put("readOnly", meta.isReadOnly());
+                        detail.put("destructive", meta.isDestructive());
+                        detail.put("idempotent", meta.isIdempotent());
+                        detail.put("openWorld", meta.isOpenWorld());
+                        detail.put("clientSide", meta.isClientSide());
+                    }
+
+                    if (tool.getSchema() != null) {
+                        detail.put("input_schema", tool.getSchema().toMap());
+                    }
+                    sendResponse(ws, "tool_detail", requestId, detail);
+                },
+                () -> sendResponse(ws, "error_response", requestId, Map.of("error", "Tool not found: " + toolName))
+            );
+    }
+
+    private void handleGetMcpServers(ServerWebSocket ws, String requestId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (mcpToolRegistrar == null) {
+            result.put("enabled", false);
+            result.put("servers", List.of());
+        } else {
+            result.put("enabled", true);
+            result.put("serverCount", mcpToolRegistrar.getServerCount());
+            result.put("totalToolCount", mcpToolRegistrar.getTotalToolCount());
+
+            List<Map<String, Object>> servers = new ArrayList<>();
+            mcpToolRegistrar.getClients().forEach(client -> {
+                Map<String, Object> serverInfo = new LinkedHashMap<>();
+                serverInfo.put("name", client.getServerName());
+                List<Map<String, Object>> tools = new ArrayList<>();
+                client.getDiscoveredTools().forEach(wrapper -> {
+                    Map<String, Object> toolInfo = new LinkedHashMap<>();
+                    toolInfo.put("name", wrapper.getName());
+                    toolInfo.put("description", wrapper.getDescription());
+                    toolInfo.put("enabled", toolRegistry.isEnabled(wrapper.getName()));
+                    tools.add(toolInfo);
+                });
+                serverInfo.put("toolCount", tools.size());
+                serverInfo.put("tools", tools);
+                servers.add(serverInfo);
+            });
+            result.put("servers", servers);
+        }
+        sendResponse(ws, "mcp_servers", requestId, result);
+    }
+
+    private void handleGetToolDefinitions(ServerWebSocket ws, String requestId) {
+        List<Map<String, Object>> definitions = toolRegistry.getToolDefinitions();
+        sendResponse(ws, "tool_definitions", requestId, Map.of("count", definitions.size(), "tools", definitions));
     }
 
     // ==================== WebSocket 消息发送（线程安全） ====================
@@ -514,6 +876,24 @@ public class VertxChatWebSocketHandler {
             safeSend(ws, MAPPER.writeValueAsString(msg));
         } catch (Exception e) {
             logger.error("Failed to serialize post_process message", e);
+        }
+    }
+
+    private void sendTrace(ServerWebSocket ws, StreamEvent event) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "trace");
+            ObjectNode data = MAPPER.createObjectNode();
+            data.put("phase", event.getTracePhase());
+            data.put("message", event.getTraceMessage());
+            data.put("timestamp", event.getTraceTimestamp());
+            if (event.getData() != null) {
+                data.set("extra", MAPPER.valueToTree(event.getData()));
+            }
+            msg.set("data", data);
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize trace message", e);
         }
     }
 

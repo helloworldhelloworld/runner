@@ -53,13 +53,13 @@ public class UserController {
 
     @GetMapping("/{userId}/emotions")
     public ResponseEntity<List<EmotionRecord>> getEmotions(
-            @PathVariable String userId,
-            @RequestParam(defaultValue = "7") int days) {
+            @PathVariable("userId") String userId,
+            @RequestParam(name = "days", defaultValue = "7") int days) {
         return ResponseEntity.ok(userService.getEmotions(userId, days));
     }
 
     @GetMapping("/{userId}/stats")
-    public ResponseEntity<Map<String, Object>> getStats(@PathVariable String userId) {
+    public ResponseEntity<Map<String, Object>> getStats(@PathVariable("userId") String userId) {
         return ResponseEntity.ok(userService.getStats(userId));
     }
 

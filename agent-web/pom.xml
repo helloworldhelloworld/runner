@@ -70,13 +70,19 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Vert.x WebSocket Support for Streaming -->
+        <!-- Spring WebSocket (Tomcat built-in, same port 8080) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <!-- Vert.x WebSocket Support for Streaming (kept as optional fallback) -->
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-core</artifactId>
         </dependency>
 
-        <!-- Netty handler required by Vert.x (not transitively included via Spring Boot Tomcat starter) -->
+        <!-- Netty handler required by Vert.x -->
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-handler</artifactId>

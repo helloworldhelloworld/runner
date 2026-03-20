@@ -69,27 +69,35 @@ public class VertxWebSocketServer implements SmartLifecycle {
 
         httpServer = vertx.createHttpServer(options);
 
-        httpServer.webSocketHandler(ws -> {
-            // 路径校验
-            if (!WS_PATH.equals(ws.path())) {
-                ws.reject(404);
-                return;
+        // 统一通过 requestHandler 处理所有 HTTP 请求（包括 WebSocket Upgrade）
+        httpServer.requestHandler(req -> {
+            // 检查是否是 WebSocket 升级请求
+            String upgradeHeader = req.getHeader("Upgrade");
+            if ("websocket".equalsIgnoreCase(upgradeHeader)) {
+                // 路径校验
+                if (!WS_PATH.equals(req.path())) {
+                    req.response().setStatusCode(404).end("Not found");
+                    return;
+                }
+
+                // 执行 WebSocket 升级
+                req.toWebSocket().onSuccess(ws -> {
+                    handler.onConnect(ws);
+                    ws.textMessageHandler(msg -> handler.onMessage(ws, msg));
+                    ws.closeHandler(v -> handler.onClose(ws));
+                    ws.exceptionHandler(err -> handler.onError(ws, err));
+                }).onFailure(err -> {
+                    logger.error("WebSocket upgrade failed", err);
+                    req.response().setStatusCode(400).end("WebSocket upgrade failed");
+                });
+            } else {
+                // 非 WebSocket 请求返回 426
+                req.response()
+                    .setStatusCode(426)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("WebSocket endpoint. Use ws:// protocol.");
             }
-
-            handler.onConnect(ws);
-
-            ws.textMessageHandler(msg -> handler.onMessage(ws, msg));
-            ws.closeHandler(v -> handler.onClose(ws));
-            ws.exceptionHandler(err -> handler.onError(ws, err));
         });
-
-        // 对非 WebSocket 的 HTTP 请求返回 426 Upgrade Required
-        httpServer.requestHandler(req ->
-            req.response()
-                .setStatusCode(426)
-                .putHeader("Content-Type", "text/plain")
-                .end("WebSocket endpoint. Use ws:// protocol.")
-        );
 
         httpServer.listen()
             .onSuccess(server -> {
