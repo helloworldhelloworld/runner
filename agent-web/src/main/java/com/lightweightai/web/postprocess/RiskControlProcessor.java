@@ -1,5 +1,6 @@
-package com.lightweightai.kernel.core.postprocess;
+package com.lightweightai.web.postprocess;
 
+import com.lightweightai.kernel.core.postprocess.StreamPostProcessor;
 import com.lightweightai.kernel.core.StreamEvent;
 import reactor.core.publisher.Flux;
 

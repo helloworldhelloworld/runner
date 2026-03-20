@@ -1,8 +1,8 @@
 package com.lightweightai.web.config;
 
-import com.lightweightai.kernel.core.postprocess.CardAppendProcessor;
-import com.lightweightai.kernel.core.postprocess.DeeplinkProcessor;
-import com.lightweightai.kernel.core.postprocess.RiskControlProcessor;
+import com.lightweightai.web.postprocess.CardAppendProcessor;
+import com.lightweightai.web.postprocess.DeeplinkProcessor;
+import com.lightweightai.web.postprocess.RiskControlProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

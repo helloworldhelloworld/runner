@@ -2,17 +2,15 @@ package com.lightweightai.web.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.lightweightai.kernel.agent.ToolRegistry;
-import com.lightweightai.kernel.agent.annotation.ClientTool;
 import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
-
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,18 +19,18 @@ class ClientToolResultRouterTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    void clientToolResultWithoutCallIdShouldFallbackToLatest() {
+    void clientToolResultWithoutCallIdShouldRejectInsteadOfGuessing() {
         VertxWebSocketClientToolDispatcher dispatcher = mock(VertxWebSocketClientToolDispatcher.class);
-        when(dispatcher.completeLatestCall(any(ToolResult.class))).thenReturn(true);
 
         ObjectNode payload = mapper.createObjectNode();
         payload.put("content", "ok");
         payload.put("isError", false);
 
         ClientToolResultRouter router = new ClientToolResultRouter(mapper, null);
-        assertTrue(router.routeClientToolResult(dispatcher, payload));
+        assertFalse(router.routeClientToolResult(dispatcher, payload));
 
-        verify(dispatcher).completeLatestCall(any(ToolResult.class));
+        verify(dispatcher, never()).completeLatestCall(any(ToolResult.class));
+        verify(dispatcher, never()).completeCall(any(), any());
     }
 
     @Test
@@ -52,53 +50,18 @@ class ClientToolResultRouterTest {
     }
 
     @Test
-    void directiveResultWithoutIdShouldMatchByUpActionToDownAction() {
+    void directiveResultWithoutIdShouldRejectInsteadOfGuessing() {
         VertxWebSocketClientToolDispatcher dispatcher = mock(VertxWebSocketClientToolDispatcher.class);
-        when(dispatcher.completeLatestCall(any(ToolResult.class), eq("GeoInformation.GetPosition")))
-            .thenReturn(true);
-
-        ToolRegistry registry = new ToolRegistry();
-        registry.register(new DummyGetPositionTool());
 
         ObjectNode payload = mapper.createObjectNode();
         payload.put("success", true);
         payload.put("content", "done");
-        ObjectNode header = payload.putObject("header");
-        header.put("namespace", "GeoInformation");
-        header.put("name", "PositionInfo");
 
-        ClientToolResultRouter router = new ClientToolResultRouter(mapper, registry);
-        assertTrue(router.routeDirectiveResult(dispatcher, payload));
+        ClientToolResultRouter router = new ClientToolResultRouter(mapper, null);
+        assertFalse(router.routeDirectiveResult(dispatcher, payload));
 
-        verify(dispatcher).completeLatestCall(any(ToolResult.class), eq("GeoInformation.GetPosition"));
+        verify(dispatcher, never()).completeLatestCall(any(ToolResult.class), any());
+        verify(dispatcher, never()).completeCall(any(), any());
     }
 
-    @ClientTool(
-        toolName = "GetPosition",
-        downAction = "GetPosition",
-        upAction = "PositionInfo",
-        namespace = "GeoInformation"
-    )
-    private static class DummyGetPositionTool implements com.lightweightai.kernel.agent.Tool {
-
-        @Override
-        public String getName() {
-            return "GeoInformation.GetPosition";
-        }
-
-        @Override
-        public String getDescription() {
-            return "dummy";
-        }
-
-        @Override
-        public com.lightweightai.kernel.agent.ToolSchema getSchema() {
-            return com.lightweightai.kernel.agent.ToolSchema.empty();
-        }
-
-        @Override
-        public ToolResult execute(Map<String, Object> args) {
-            return ToolResult.success("ok");
-        }
-    }
 }

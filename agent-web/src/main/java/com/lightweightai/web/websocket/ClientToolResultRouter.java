@@ -41,8 +41,8 @@ public class ClientToolResultRouter {
 
         ToolResult result = isError ? ToolResult.error(content) : ToolResult.success(content);
         if (callId.isEmpty()) {
-            logger.warn("client_tool_result missing callId, falling back to latest pending call");
-            return dispatcher.completeLatestCall(result);
+            logger.error("client_tool_result missing callId — client MUST include callId for reliable matching");
+            return false;
         }
         return dispatcher.completeCall(callId, result);
     }
@@ -64,9 +64,8 @@ public class ClientToolResultRouter {
         DirectiveResult directiveResult = new DirectiveResult(directiveId, success, content, metadata);
         ToolResult toolResult = directiveResult.toToolResult();
         if (directiveId.isEmpty()) {
-            logger.warn("directive_result missing directiveId, falling back to latest pending call");
-            String expectedDownlink = resolveExpectedDownlinkToolName(payload).orElse(null);
-            return dispatcher.completeLatestCall(toolResult, expectedDownlink);
+            logger.error("directive_result missing directiveId — client MUST include directiveId for reliable matching");
+            return false;
         }
         return dispatcher.completeCall(directiveId, toolResult);
     }

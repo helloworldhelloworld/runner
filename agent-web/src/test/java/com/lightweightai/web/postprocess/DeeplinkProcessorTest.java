@@ -1,4 +1,4 @@
-package com.lightweightai.kernel.core.postprocess;
+package com.lightweightai.web.postprocess;
 
 import com.lightweightai.kernel.core.StreamEvent;
 import org.junit.jupiter.api.DisplayName;
