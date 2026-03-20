@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "b260c9fa41688d67064053c1d45c48b81d968bb0",
+  "trigger_sha": "4554908047f45eba3d0dded832294e6898a1f7fe",
   "exit_code": 1,
-  "timestamp": "2026-03-19T17:10:13Z",
+  "timestamp": "2026-03-20T04:06:52Z",
   "branch": "claude/debug-websocket-streaming-qHPe7",
-  "run_id": "23307190072",
-  "test_summary": ""
+  "run_id": "23328610692",
+  "test_summary": "[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s - in com.lightweightai.kernel.skill.SkillRegistryTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.memory.MemoryProviderTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.585 s - in com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.llm.ToolResultTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.222 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.027 s - in com.lightweightai.kernel.core.postprocess.CardAppendProcessorTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.core.postprocess.DeeplinkProcessorTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.core.postprocess.RiskControlProcessorTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipelineTest|[ERROR] Tests run: 200, Failures: 1, Errors: 0, Skipped: 0|"
 }
