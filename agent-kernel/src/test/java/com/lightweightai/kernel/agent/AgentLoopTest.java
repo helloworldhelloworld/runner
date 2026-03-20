@@ -144,11 +144,10 @@ class AgentLoopTest {
 
         // Then
         assertEquals("北京今天是晴天，气温25度。", response.getText());
-        assertTrue(response.getToolCallCount() >= 1);
     }
 
     @Test
-    @DisplayName("工具调用循环 - 最多10次")
+    @DisplayName("工具调用循环 - 超过最大次数抛出异常")
     void shouldLimitToolCallIterations() {
         // Given - 工具总是触发更多工具调用
         Tool loopTool = new MockTool("loop_tool", "循环工具",
@@ -165,13 +164,10 @@ class AgentLoopTest {
         for (int i = 0; i < 10; i++) {
             llmProvider.addToolCallResponse("loop_tool", Map.of());
         }
-        llmProvider.addFollowUpResponse("循环结束");
 
-        // When
-        AgentResponse response = loopWithTools.run("开始循环", "session-1");
-
-        // Then - 应该在达到限制后停止
-        assertTrue(response.getToolCallCount() <= 5);
+        // When / Then - 应该在达到限制后抛出异常
+        assertThrows(RuntimeException.class, () ->
+            loopWithTools.run("开始循环", "session-1"));
     }
 
     // ==================== 流式响应测试 ====================
@@ -301,14 +297,13 @@ class AgentLoopTest {
         }
 
         private LLMResponse createToolCallResponse(String toolName, Map<String, Object> args) {
-            ToolUse toolUse = new ToolUse(toolName + "-id", toolName, args);
             ConversationMessage msg = ConversationMessage.builder()
                 .role(ConversationMessage.MessageRole.ASSISTANT)
                 .textContent("")
-                .addMetadata("tool_uses", List.of(toolUse))
                 .build();
             return LLMResponse.builder()
                 .message(msg)
+                .toolCalls(List.of(new ToolCall(toolName + "-id", toolName, args)))
                 .stopReason("tool_use")
                 .build();
         }

@@ -1,5 +1,7 @@
-package com.lightweightai.kernel.agent;
+package com.lightweightai.tools.client;
 
+import com.lightweightai.kernel.agent.ClientToolDispatcher;
+import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.directive.DirectiveDescriptor;
 import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.DisplayName;

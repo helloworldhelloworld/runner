@@ -1,6 +1,6 @@
 package com.lightweightai.web.websocket;
 
-import com.lightweightai.kernel.agent.GetPositionTool;
+import com.lightweightai.tools.client.GetPositionTool;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 
