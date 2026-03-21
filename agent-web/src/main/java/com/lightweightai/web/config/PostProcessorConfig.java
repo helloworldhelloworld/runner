@@ -4,6 +4,7 @@ import com.lightweightai.web.postprocess.CardAppendProcessor;
 import com.lightweightai.web.postprocess.DeeplinkProcessor;
 import com.lightweightai.web.postprocess.RiskControlProcessor;
 import com.lightweightai.web.postprocess.SimpleRiskChecker;
+import com.lightweightai.web.postprocess.TracingPostProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -45,5 +46,15 @@ public class PostProcessorConfig {
     @ConditionalOnBean(CardAppendProcessor.CardProvider.class)
     public CardAppendProcessor cardAppendProcessor(CardAppendProcessor.CardProvider provider) {
         return new CardAppendProcessor(provider);
+    }
+
+    /**
+     * 调用链追踪处理器 — 默认启用
+     * 可通过 app.tracing.enabled=false 关闭
+     */
+    @Bean
+    @ConditionalOnProperty(name = "app.tracing.enabled", havingValue = "true", matchIfMissing = true)
+    public TracingPostProcessor tracingPostProcessor() {
+        return new TracingPostProcessor();
     }
 }
