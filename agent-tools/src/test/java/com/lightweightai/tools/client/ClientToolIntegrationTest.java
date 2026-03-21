@@ -23,11 +23,11 @@ class ClientToolIntegrationTest {
 
         registry.register(tool);
 
-        assertTrue(registry.has("GeoInformation.GetPosition"));
-        assertTrue(registry.getDirectiveRegistry().has("GeoInformation.GetPosition"));
+        assertTrue(registry.has("GetPosition"));
+        assertTrue(registry.getDirectiveRegistry().has("GetPosition"));
 
         DirectiveDescriptor descriptor = registry.getDirectiveRegistry()
-            .get("GeoInformation.GetPosition")
+            .get("GetPosition")
             .orElseThrow();
 
         assertEquals("GetPosition", descriptor.getTool());
@@ -50,8 +50,8 @@ class ClientToolIntegrationTest {
         assertEquals("31.984", result.get("latitude"));
         assertEquals("南京", result.get("city"));
 
-        assertEquals("GeoInformation.GetPosition", tool.getName());
-        assertEquals("GeoInformation.GetPosition", dispatcher.dispatchedToolName);
+        assertEquals("GetPosition", tool.getName());
+        assertEquals("GetPosition", dispatcher.dispatchedToolName);
         assertEquals(3, dispatcher.dispatchedArgs.get("precision"));
         assertEquals("true", dispatcher.dispatchedArgs.get("needCityName"));
 
