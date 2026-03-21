@@ -10,6 +10,7 @@ import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.ResilientLLMProvider;
 import com.lightweightai.kernel.llm.claude.ClaudeProvider;
 import com.lightweightai.kernel.llm.claude.ClaudeProProvider;
+import com.lightweightai.kernel.llm.openrouter.OpenAIWebSocketProvider;
 import com.lightweightai.kernel.llm.openrouter.OpenRouterProvider;
 import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.skill.Skill;
@@ -62,6 +63,15 @@ public class AgentConfig {
 
     @Value("${app.openrouter.base-url:}")
     private String openRouterBaseUrl;
+
+    @Value("${app.ws.url:}")
+    private String wsLlmUrl;
+
+    @Value("${app.ws.api-key:}")
+    private String wsLlmApiKey;
+
+    @Value("${app.ws.model:gpt-4}")
+    private String wsLlmModel;
 
     @Value("${app.tools-enabled:true}")
     private boolean toolsEnabled;
@@ -138,6 +148,14 @@ public class AgentConfig {
                         !isBlank(openRouterBaseUrl) ? openRouterBaseUrl : "(default)");
                     return new OpenRouterProvider(openRouterApiKey, openRouterModel, openRouterBaseUrl);
 
+                case "ws":
+                    if (isBlank(wsLlmUrl)) {
+                        logger.error("WS mode requires WS_LLM_URL — falling back to mock.");
+                        return new MockLLMProvider();
+                    }
+                    logger.info("Using OpenAI WebSocket Provider: url={}, model={}", wsLlmUrl, wsLlmModel);
+                    return new OpenAIWebSocketProvider(wsLlmUrl, wsLlmModel, wsLlmApiKey);
+
                 case "pro":
                     if (isBlank(claudeSessionKey)) {
                         logger.error("Pro mode requires CLAUDE_SESSION_KEY — falling back to mock.");
@@ -148,7 +166,7 @@ public class AgentConfig {
 
                 default:
                     logger.error("Unknown provider type: '{}' — falling back to mock. " +
-                        "Valid values: auto, api, openrouter, pro, mock", type);
+                        "Valid values: auto, api, openrouter, ws, pro, mock", type);
                     return new MockLLMProvider();
             }
         } catch (Exception e) {
@@ -167,6 +185,10 @@ public class AgentConfig {
      * 5. 全部为空 → mock（并警告）
      */
     private String detectProviderType() {
+        // WebSocket LLM URL 最高优先级：用户明确指定了 WebSocket 网关
+        if (!isBlank(wsLlmUrl)) {
+            return "ws";
+        }
         // 自定义 base-url 优先级最高：用户明确指定了自建 LLM 网关
         if (!isBlank(openRouterBaseUrl)) {
             return "openrouter";
