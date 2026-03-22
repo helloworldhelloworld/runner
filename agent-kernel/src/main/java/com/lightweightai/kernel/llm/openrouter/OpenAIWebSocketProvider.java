@@ -238,20 +238,7 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                                 }
 
                                 // Tool call chunks
-                                JsonNode tcArr = delta.get("tool_calls");
-                                if (tcArr != null && tcArr.isArray()) {
-                                    for (JsonNode tc : tcArr) {
-                                        int idx = tc.has("index") ? tc.get("index").asInt() : 0;
-                                        ToolCallAccumulator acc = toolCallMap.computeIfAbsent(
-                                            idx, i -> new ToolCallAccumulator());
-                                        if (tc.has("id")) acc.id = tc.get("id").asText();
-                                        JsonNode fn = tc.get("function");
-                                        if (fn != null) {
-                                            if (fn.has("name")) acc.name = fn.get("name").asText();
-                                            if (fn.has("arguments")) acc.argsJson.append(fn.get("arguments").asText());
-                                        }
-                                    }
-                                }
+                                accumulateToolCalls(delta.get("tool_calls"), toolCallMap);
                             }
 
                             // Non-streaming "message" format (single-frame complete response)
@@ -265,28 +252,27 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                                         handler.onTextDelta(content);
                                     }
                                 }
-                                // Parse complete tool_calls from message
-                                JsonNode toolCallsNode = message.get("tool_calls");
-                                if (toolCallsNode != null && toolCallsNode.isArray()) {
-                                    for (int i = 0; i < toolCallsNode.size(); i++) {
-                                        JsonNode tc = toolCallsNode.get(i);
-                                        ToolCallAccumulator acc = toolCallMap.computeIfAbsent(
-                                            i, k -> new ToolCallAccumulator());
-                                        acc.id = tc.get("id").asText();
-                                        JsonNode fn = tc.get("function");
-                                        acc.name = fn.get("name").asText();
-                                        acc.argsJson.append(fn.get("arguments").asText());
-                                    }
-                                }
+                                accumulateToolCalls(message.get("tool_calls"), toolCallMap);
+                            }
+
+                            // Top-level tool_calls (some models put it directly under choice)
+                            if (toolCallMap.isEmpty()) {
+                                accumulateToolCalls(firstChoice.get("tool_calls"), toolCallMap);
                             }
 
                             // finish_reason
                             if (firstChoice.has("finish_reason") && !firstChoice.get("finish_reason").isNull()) {
-                                finishReason[0] = firstChoice.get("finish_reason").asText();
+                                String fr = firstChoice.get("finish_reason").asText();
+                                finishReason[0] = fr;
+                                // GLM-5: finish_reason="tool_calls" 后可能不发 [DONE]
+                                if ("tool_calls".equals(fr) || "function_call".equals(fr)) {
+                                    logger.info("WS: finish_reason={}, closing connection", fr);
+                                    webSocket.close(1000, "tool_calls");
+                                }
                             }
 
                         } catch (Exception e) {
-                            logger.warn("WS: failed to parse frame: {}", e.getMessage());
+                            logger.warn("WS: failed to parse frame: {}", e.getMessage(), e);
                         }
                     }
 
@@ -543,6 +529,46 @@ public class OpenAIWebSocketProvider implements LLMProvider {
             .stopReason(finishReason)
             .usage(usageInfo)
             .build();
+    }
+
+    /**
+     * Null-safe tool_calls 积累，处理 delta.tool_calls / message.tool_calls / choice.tool_calls
+     */
+    private void accumulateToolCalls(JsonNode toolCallsNode, Map<Integer, ToolCallAccumulator> toolCallMap) {
+        if (toolCallsNode == null || !toolCallsNode.isArray() || toolCallsNode.isEmpty()) return;
+
+        logger.info("WS: accumulating {} tool_call entries", toolCallsNode.size());
+        for (int i = 0; i < toolCallsNode.size(); i++) {
+            JsonNode tc = toolCallsNode.get(i);
+            int idx = tc.has("index") ? tc.get("index").asInt() : i;
+            ToolCallAccumulator acc = toolCallMap.computeIfAbsent(idx, k -> new ToolCallAccumulator());
+
+            // id（可能只在第一个 chunk 中出现）
+            if (tc.has("id") && !tc.get("id").isNull()) {
+                acc.id = tc.get("id").asText();
+            }
+
+            // function.name / function.arguments
+            JsonNode fn = tc.get("function");
+            if (fn != null) {
+                if (fn.has("name") && !fn.get("name").isNull()) {
+                    acc.name = fn.get("name").asText();
+                }
+                if (fn.has("arguments") && !fn.get("arguments").isNull()) {
+                    acc.argsJson.append(fn.get("arguments").asText());
+                }
+            }
+
+            // 有些模型直接在 tool_call 层级放 name/arguments（非嵌套 function）
+            if (fn == null) {
+                if (tc.has("name") && !tc.get("name").isNull()) {
+                    acc.name = tc.get("name").asText();
+                }
+                if (tc.has("arguments") && !tc.get("arguments").isNull()) {
+                    acc.argsJson.append(tc.get("arguments").asText());
+                }
+            }
+        }
     }
 
     private List<ToolCall> assembleToolCalls(Map<Integer, ToolCallAccumulator> toolCallMap) {
