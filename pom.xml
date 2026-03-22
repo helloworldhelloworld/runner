@@ -24,6 +24,7 @@
         <module>soul-user</module>
         <module>agent-web</module>
         <module>agent-demo</module>
+        <module>agent-plugin-example</module>
     </modules>
 
     <properties>
