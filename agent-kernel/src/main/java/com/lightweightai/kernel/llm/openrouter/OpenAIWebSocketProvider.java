@@ -12,21 +12,18 @@ import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ModelCapability;
 import com.lightweightai.kernel.llm.ToolCall;
-import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
-import okhttp3.RequestBody;
 import okhttp3.Response;
-import okhttp3.ResponseBody;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -36,19 +33,18 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * OpenAI-compatible LLM Provider using HTTP POST with text/plain content type.
+ * OpenAI-compatible LLM Provider over WebSocket transport.
  *
- * Sends OpenAI chat/completions format JSON via HTTP POST (text/plain),
- * receives SSE streaming deltas or plain JSON responses.
+ * Sends OpenAI chat/completions format JSON as WebSocket text frames,
+ * receives multi-frame streaming deltas in OpenAI format.
  *
- * Compatible with custom gateways that accept text/plain POST requests.
+ * Each LLM call opens a new WebSocket connection (request-scoped).
  */
 public class OpenAIWebSocketProvider implements LLMProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(OpenAIWebSocketProvider.class);
-    private static final MediaType TEXT_PLAIN = MediaType.parse("text/plain; charset=utf-8");
 
-    private final String requestUrl;
+    private final String websocketUrl;
     private final String model;
     private final String apiKey;
     private final OkHttpClient httpClient;
@@ -61,61 +57,89 @@ public class OpenAIWebSocketProvider implements LLMProvider {
 
     public OpenAIWebSocketProvider(String websocketUrl, String model, String apiKey) {
         if (websocketUrl == null || websocketUrl.trim().isEmpty()) {
-            throw new IllegalArgumentException("URL cannot be null or empty");
+            throw new IllegalArgumentException("WebSocket URL cannot be null or empty");
         }
         if (model == null || model.trim().isEmpty()) {
             throw new IllegalArgumentException("Model name cannot be null or empty");
         }
 
-        // Convert ws(s):// to http(s):// if needed
-        String url = websocketUrl.trim()
-            .replaceFirst("^ws://", "http://")
-            .replaceFirst("^wss://", "https://")
-            .replaceAll("/+$", "");
-        // Ensure URL ends with /chat/completions
-        if (!url.endsWith("/chat/completions")) {
-            url = url + "/chat/completions";
+        // OkHttp WebSocket 需要 ws:// 或 wss:// scheme；
+        // 用户可能传 http:// 或 https://，这里自动转换
+        String normalizedUrl = websocketUrl.trim().replaceAll("/+$", "");
+        if (normalizedUrl.startsWith("http://")) {
+            normalizedUrl = "ws://" + normalizedUrl.substring(7);
+        } else if (normalizedUrl.startsWith("https://")) {
+            normalizedUrl = "wss://" + normalizedUrl.substring(8);
         }
-        this.requestUrl = url;
+        this.websocketUrl = normalizedUrl;
         this.model = model;
         this.apiKey = apiKey != null ? apiKey : "";
         this.httpClient = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.SECONDS) // No read timeout for streaming
             .writeTimeout(30, TimeUnit.SECONDS)
             .build();
         this.objectMapper = new ObjectMapper();
         this.modelCapability = new OpenRouterModelCapability(model);
 
-        logger.info("Initialized OpenAI HTTP Provider (text/plain): url={}, model={}", this.requestUrl, model);
+        logger.info("Initialized OpenAI WebSocket Provider: url={}, model={}", this.websocketUrl, model);
     }
 
     @Override
     public LLMResponse complete(List<ConversationMessage> messages, LLMOptions options) {
         try {
-            String body = buildRequestBody(messages, options, false);
-            Request request = buildHttpRequest(body);
-            logger.debug("HTTP complete: POST {} (model: {})", requestUrl, model);
-
-            try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful()) {
-                    String errorBody = response.body() != null ? response.body().string() : "No error details";
-                    logger.error("HTTP POST {} → {} \nError: {}", requestUrl, response.code(), errorBody);
-                    throw new RuntimeException("LLM API call failed: " + response.code() +
-                        " (url: " + requestUrl + ")\nError: " + errorBody);
-                }
-                String responseBody = response.body().string();
-                logger.debug("HTTP response: {}", responseBody);
-                return parseResponse(responseBody);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("LLM HTTP call failed", e);
+            return completeAsync(messages, options).get(120, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new RuntimeException("WebSocket LLM call failed", e);
         }
     }
 
     @Override
     public CompletableFuture<LLMResponse> completeAsync(List<ConversationMessage> messages, LLMOptions options) {
-        return CompletableFuture.supplyAsync(() -> complete(messages, options));
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String requestBody = buildRequestBody(messages, options, false);
+                CompletableFuture<String> responseFuture = new CompletableFuture<>();
+
+                Request wsRequest = buildWsRequest();
+                WebSocket ws = httpClient.newWebSocket(wsRequest, new WebSocketListener() {
+                    private final StringBuilder responseBuffer = new StringBuilder();
+
+                    @Override
+                    public void onOpen(WebSocket webSocket, Response response) {
+                        logger.debug("WS connected for sync request, sending payload");
+                        webSocket.send(requestBody);
+                    }
+
+                    @Override
+                    public void onMessage(WebSocket webSocket, String text) {
+                        responseBuffer.append(text);
+                    }
+
+                    @Override
+                    public void onClosing(WebSocket webSocket, int code, String reason) {
+                        // 必须回复 close，否则 onClosed 不会被调用
+                        webSocket.close(1000, null);
+                    }
+
+                    @Override
+                    public void onClosed(WebSocket webSocket, int code, String reason) {
+                        responseFuture.complete(responseBuffer.toString());
+                    }
+
+                    @Override
+                    public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+                        responseFuture.completeExceptionally(t);
+                    }
+                });
+
+                String responseBody = responseFuture.get(120, TimeUnit.SECONDS);
+                return parseResponse(responseBody);
+
+            } catch (Exception e) {
+                throw new RuntimeException("WebSocket LLM call failed", e);
+            }
+        });
     }
 
     @Override
@@ -126,33 +150,177 @@ public class OpenAIWebSocketProvider implements LLMProvider {
     ) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String body = buildRequestBody(messages, options, true);
-                Request request = buildHttpRequest(body);
-                logger.info("HTTP streaming: POST {} (model: {})", requestUrl, model);
+                String requestBody = buildRequestBody(messages, options, true);
+                logger.debug("WS streaming request body: {}", requestBody);
 
-                handler.onStart();
+                StringBuilder textContent = new StringBuilder();
+                Map<Integer, ToolCallAccumulator> toolCallMap = new LinkedHashMap<>();
+                String[] finishReason = {null};
 
-                try (Response response = httpClient.newCall(request).execute()) {
-                    if (!response.isSuccessful()) {
-                        String errorBody = response.body() != null ? response.body().string() : "No error details";
-                        logger.error("HTTP streaming POST {} → {} \nError: {}", requestUrl, response.code(), errorBody);
-                        throw new RuntimeException("LLM streaming failed: " + response.code() +
-                            " (url: " + requestUrl + ")\nError: " + errorBody);
+                CompletableFuture<Void> doneFuture = new CompletableFuture<>();
+
+                Request wsRequest = buildWsRequest();
+                logger.info("WS streaming: connecting to {}", websocketUrl);
+
+                WebSocket ws = httpClient.newWebSocket(wsRequest, new WebSocketListener() {
+                    @Override
+                    public void onOpen(WebSocket webSocket, Response response) {
+                        logger.info("WS connected for streaming, sending request");
+                        handler.onStart();
+                        webSocket.send(requestBody);
                     }
 
-                    LLMResponse finalResponse = parseStreamingResponse(response.body(), handler);
-                    logger.info("HTTP stream complete: textLen={}, toolCalls={}, stopReason={}",
-                        finalResponse.getMessage().getTextContent() != null
-                            ? finalResponse.getMessage().getTextContent().length() : 0,
-                        finalResponse.hasToolCalls() ? finalResponse.getToolCalls().size() : 0,
-                        finalResponse.getStopReason());
+                    @Override
+                    public void onMessage(WebSocket webSocket, String text) {
+                        String trimmed = text.trim();
 
-                    handler.onComplete(finalResponse);
-                    return finalResponse;
-                }
+                        // Handle [DONE] signal
+                        if ("[DONE]".equals(trimmed)) {
+                            logger.debug("WS stream: received [DONE]");
+                            webSocket.close(1000, "done");
+                            return;
+                        }
+
+                        // Strip SSE prefix if present (some backends send SSE-style over WS)
+                        if (trimmed.startsWith("data: ")) {
+                            trimmed = trimmed.substring(6).trim();
+                            if ("[DONE]".equals(trimmed)) {
+                                logger.debug("WS stream: received data: [DONE]");
+                                webSocket.close(1000, "done");
+                                return;
+                            }
+                        }
+
+                        try {
+                            JsonNode eventData = objectMapper.readTree(trimmed);
+
+                            // Handle double-encoded JSON
+                            if (eventData.isTextual()) {
+                                logger.warn("WS: double-encoded JSON, unwrapping");
+                                eventData = objectMapper.readTree(eventData.asText());
+                            }
+
+                            JsonNode choices = eventData.get("choices");
+                            if (choices == null || !choices.isArray() || choices.isEmpty()) {
+                                // Could be a non-streaming full response
+                                if (eventData.has("message") || eventData.has("error")) {
+                                    logger.debug("WS: received non-delta message, treating as full response");
+                                }
+                                return;
+                            }
+
+                            JsonNode firstChoice = choices.get(0);
+
+                            // Streaming delta format
+                            JsonNode delta = firstChoice.get("delta");
+                            if (delta != null) {
+                                // Text content
+                                if (delta.has("content") && !delta.get("content").isNull()) {
+                                    String deltaContent = delta.get("content").asText();
+                                    if (!deltaContent.isEmpty()) {
+                                        textContent.append(deltaContent);
+                                        handler.onTextDelta(deltaContent);
+                                    }
+                                }
+
+                                // Tool call chunks
+                                JsonNode tcArr = delta.get("tool_calls");
+                                if (tcArr != null && tcArr.isArray()) {
+                                    for (JsonNode tc : tcArr) {
+                                        int idx = tc.has("index") ? tc.get("index").asInt() : 0;
+                                        ToolCallAccumulator acc = toolCallMap.computeIfAbsent(
+                                            idx, i -> new ToolCallAccumulator());
+                                        if (tc.has("id")) acc.id = tc.get("id").asText();
+                                        JsonNode fn = tc.get("function");
+                                        if (fn != null) {
+                                            if (fn.has("name")) acc.name = fn.get("name").asText();
+                                            if (fn.has("arguments")) acc.argsJson.append(fn.get("arguments").asText());
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Non-streaming "message" format (single-frame complete response)
+                            JsonNode message = firstChoice.get("message");
+                            if (message != null) {
+                                JsonNode contentNode = message.get("content");
+                                if (contentNode != null && !contentNode.isNull()) {
+                                    String content = contentNode.asText();
+                                    if (!content.isEmpty()) {
+                                        textContent.append(content);
+                                        handler.onTextDelta(content);
+                                    }
+                                }
+                                // Parse complete tool_calls from message
+                                JsonNode toolCallsNode = message.get("tool_calls");
+                                if (toolCallsNode != null && toolCallsNode.isArray()) {
+                                    for (int i = 0; i < toolCallsNode.size(); i++) {
+                                        JsonNode tc = toolCallsNode.get(i);
+                                        ToolCallAccumulator acc = toolCallMap.computeIfAbsent(
+                                            i, k -> new ToolCallAccumulator());
+                                        acc.id = tc.get("id").asText();
+                                        JsonNode fn = tc.get("function");
+                                        acc.name = fn.get("name").asText();
+                                        acc.argsJson.append(fn.get("arguments").asText());
+                                    }
+                                }
+                            }
+
+                            // finish_reason
+                            if (firstChoice.has("finish_reason") && !firstChoice.get("finish_reason").isNull()) {
+                                finishReason[0] = firstChoice.get("finish_reason").asText();
+                            }
+
+                        } catch (Exception e) {
+                            logger.warn("WS: failed to parse frame: {}", e.getMessage());
+                        }
+                    }
+
+                    @Override
+                    public void onClosing(WebSocket webSocket, int code, String reason) {
+                        webSocket.close(1000, null);
+                    }
+
+                    @Override
+                    public void onClosed(WebSocket webSocket, int code, String reason) {
+                        logger.debug("WS stream closed: {} {}", code, reason);
+                        doneFuture.complete(null);
+                    }
+
+                    @Override
+                    public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+                        logger.error("WS stream failure: {}", t.getMessage());
+                        doneFuture.completeExceptionally(t);
+                    }
+                });
+
+                // Wait for stream to complete
+                doneFuture.get(120, TimeUnit.SECONDS);
+
+                // Assemble tool calls
+                List<ToolCall> toolCalls = assembleToolCalls(toolCallMap);
+
+                // Build final response
+                ConversationMessage responseMessage = ConversationMessage.builder()
+                    .role(MessageRole.ASSISTANT)
+                    .textContent(textContent.toString())
+                    .build();
+
+                LLMResponse response = LLMResponse.builder()
+                    .message(responseMessage)
+                    .toolCalls(toolCalls)
+                    .stopReason(finishReason[0])
+                    .build();
+
+                logger.info("WS stream complete: textLen={}, toolCalls={}, stopReason={}",
+                    textContent.length(), toolCalls.size(), finishReason[0]);
+
+                handler.onComplete(response);
+                return response;
+
             } catch (Exception e) {
                 handler.onError(e);
-                throw new RuntimeException("HTTP streaming failed", e);
+                throw new RuntimeException("WebSocket streaming failed", e);
             }
         });
     }
@@ -174,12 +342,12 @@ public class OpenAIWebSocketProvider implements LLMProvider {
         return "openai-ws";
     }
 
-    // ─── HTTP Request Building ───────────────────────────────────────
+    // ─── Request Building (OpenAI format) ───────────────────────────
 
-    private Request buildHttpRequest(String body) {
-        Request.Builder builder = new Request.Builder()
-            .url(requestUrl)
-            .post(RequestBody.create(body, TEXT_PLAIN));
+    private Request buildWsRequest() {
+        Request.Builder builder = new Request.Builder().url(websocketUrl);
+        // 自定义网关：仅用 api_key header 认证，不发 Authorization: Bearer
+        // （api_key 同时也在 JSON body 中传递）
         if (!apiKey.isEmpty()) {
             builder.header("api_key", apiKey);
         }
@@ -298,7 +466,7 @@ public class OpenAIWebSocketProvider implements LLMProvider {
         }
     }
 
-    // ─── Response Parsing ────────────────────────────────────────────
+    // ─── Response Parsing (OpenAI format) ───────────────────────────
 
     private LLMResponse parseResponse(String responseBody) throws IOException {
         JsonNode root = objectMapper.readTree(responseBody);
@@ -309,7 +477,7 @@ public class OpenAIWebSocketProvider implements LLMProvider {
 
         JsonNode choices = root.get("choices");
         if (choices == null || !choices.isArray() || choices.isEmpty()) {
-            logger.error("No choices in response. Raw: {}", responseBody);
+            logger.error("No choices in WS response. Raw: {}", responseBody);
             throw new RuntimeException("No choices in response: " + responseBody);
         }
 
@@ -359,124 +527,7 @@ public class OpenAIWebSocketProvider implements LLMProvider {
             .build();
     }
 
-    /**
-     * Parse streaming response — handles both SSE format and plain JSON fallback.
-     */
-    private LLMResponse parseStreamingResponse(ResponseBody responseBody, StreamEventHandler handler) throws IOException {
-        StringBuilder textContent = new StringBuilder();
-        String finishReason = null;
-        Map<Integer, ToolCallAccumulator> toolCallMap = new LinkedHashMap<>();
-
-        StringBuilder rawBody = new StringBuilder();
-        boolean isSse = false;
-
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(responseBody.byteStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                rawBody.append(line).append('\n');
-
-                if (line.startsWith("data: ")) {
-                    isSse = true;
-                    String data = line.substring(6).trim();
-
-                    if (data.equals("[DONE]")) {
-                        logger.debug("SSE stream: [DONE]");
-                        break;
-                    }
-
-                    try {
-                        JsonNode eventData = objectMapper.readTree(data);
-
-                        // Handle double-encoded JSON
-                        if (eventData.isTextual()) {
-                            eventData = objectMapper.readTree(eventData.asText());
-                        }
-
-                        JsonNode choices = eventData.get("choices");
-                        if (choices != null && choices.isArray() && !choices.isEmpty()) {
-                            JsonNode firstChoice = choices.get(0);
-                            JsonNode delta = firstChoice.get("delta");
-
-                            if (delta != null) {
-                                // Text content
-                                if (delta.has("content") && !delta.get("content").isNull()) {
-                                    String deltaContent = delta.get("content").asText();
-                                    if (!deltaContent.isEmpty()) {
-                                        textContent.append(deltaContent);
-                                        handler.onTextDelta(deltaContent);
-                                    }
-                                }
-
-                                // Tool call chunks
-                                JsonNode tcArr = delta.get("tool_calls");
-                                if (tcArr != null && tcArr.isArray()) {
-                                    for (JsonNode tc : tcArr) {
-                                        int idx = tc.has("index") ? tc.get("index").asInt() : 0;
-                                        ToolCallAccumulator acc = toolCallMap.computeIfAbsent(
-                                            idx, i -> new ToolCallAccumulator());
-                                        if (tc.has("id")) acc.id = tc.get("id").asText();
-                                        JsonNode fn = tc.get("function");
-                                        if (fn != null) {
-                                            if (fn.has("name")) acc.name = fn.get("name").asText();
-                                            if (fn.has("arguments")) acc.argsJson.append(fn.get("arguments").asText());
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Non-streaming "message" format (single-frame complete response)
-                            JsonNode message = firstChoice.get("message");
-                            if (message != null) {
-                                JsonNode contentNode = message.get("content");
-                                if (contentNode != null && !contentNode.isNull()) {
-                                    String content = contentNode.asText();
-                                    if (!content.isEmpty()) {
-                                        textContent.append(content);
-                                        handler.onTextDelta(content);
-                                    }
-                                }
-                                JsonNode toolCallsNode = message.get("tool_calls");
-                                if (toolCallsNode != null && toolCallsNode.isArray()) {
-                                    for (int i = 0; i < toolCallsNode.size(); i++) {
-                                        JsonNode tc = toolCallsNode.get(i);
-                                        ToolCallAccumulator acc = toolCallMap.computeIfAbsent(
-                                            i, k -> new ToolCallAccumulator());
-                                        acc.id = tc.get("id").asText();
-                                        JsonNode fn = tc.get("function");
-                                        acc.name = fn.get("name").asText();
-                                        acc.argsJson.append(fn.get("arguments").asText());
-                                    }
-                                }
-                            }
-
-                            if (firstChoice.has("finish_reason") && !firstChoice.get("finish_reason").isNull()) {
-                                finishReason = firstChoice.get("finish_reason").asText();
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.warn("Failed to parse SSE event: {}", e.getMessage());
-                    }
-                }
-            }
-        }
-
-        // Non-SSE fallback: parse as plain JSON response
-        if (!isSse) {
-            logger.info("Response is not SSE format, parsing as plain JSON");
-            try {
-                LLMResponse fallbackResponse = parseResponse(rawBody.toString().trim());
-                String text = fallbackResponse.getMessage().getTextContent();
-                if (text != null && !text.isEmpty()) {
-                    handler.onTextDelta(text);
-                }
-                return fallbackResponse;
-            } catch (Exception e) {
-                logger.error("Failed to parse non-SSE response: {}", e.getMessage());
-            }
-        }
-
-        // Assemble tool calls
+    private List<ToolCall> assembleToolCalls(Map<Integer, ToolCallAccumulator> toolCallMap) {
         List<ToolCall> toolCalls = new ArrayList<>();
         for (ToolCallAccumulator acc : toolCallMap.values()) {
             try {
@@ -490,17 +541,10 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                 logger.warn("Failed to parse tool call args: {}", e.getMessage());
             }
         }
-
-        ConversationMessage message = ConversationMessage.builder()
-            .role(MessageRole.ASSISTANT)
-            .textContent(textContent.toString())
-            .build();
-
-        return LLMResponse.builder()
-            .message(message)
-            .toolCalls(toolCalls)
-            .stopReason(finishReason)
-            .build();
+        if (!toolCalls.isEmpty()) {
+            logger.debug("Assembled {} tool calls from WS stream", toolCalls.size());
+        }
+        return toolCalls;
     }
 
     private static class ToolCallAccumulator {
