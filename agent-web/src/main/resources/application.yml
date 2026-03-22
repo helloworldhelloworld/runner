@@ -31,7 +31,7 @@ app:
     # spring = Tomcat内置WebSocket(同端口8080), vertx = Vert.x独立端口(8081)
     provider: ${WS_PROVIDER:spring}
   mock-mode: false  # mock模式已废弃，provider-type=auto时自动检测
-  provider-type: ${PROVIDER_TYPE:auto}  # 可选: auto, api, pro, openrouter, mock。auto=按优先级自动检测可用的API Key
+  provider-type: ${PROVIDER_TYPE:auto}  # 可选: auto, api, pro, openrouter, ws, mock。auto=按优先级自动检测可用的API Key
   claude:
     # 官方API配置
     api-key: ${ANTHROPIC_API_KEY:}  # 从环境变量读取，为空则使用 mock
@@ -44,6 +44,11 @@ app:
     api-key: ${OPENROUTER_API_KEY:}  # API Key（部分自建服务可留空）
     model: ${OPENROUTER_MODEL:anthropic/claude-3.5-sonnet}  # 模型选择
     base-url: ${OPENROUTER_BASE_URL:}  # 自定义API地址，留空则默认OpenRouter。示例: http://10.32.101.24:8086/llm/openai
+  ws:
+    # OpenAI兼容 WebSocket LLM 接口配置
+    url: ${WS_LLM_URL:}             # WebSocket端点地址，示例: ws://10.32.101.24:8086/ws/chat
+    api-key: ${WS_LLM_API_KEY:}     # API Key（可选，部分自建服务不需要）
+    model: ${WS_LLM_MODEL:gpt-4}    # 模型名称
   # 工具调用（function calling）开关
   # 部分自建 LLM 网关不支持 tools 参数，设为 false 关闭
   tools-enabled: ${TOOLS_ENABLED:true}
