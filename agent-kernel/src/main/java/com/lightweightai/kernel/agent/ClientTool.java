@@ -1,6 +1,7 @@
 package com.lightweightai.kernel.agent;
 
 import com.lightweightai.kernel.agent.directive.DirectiveDescriptor;
+import com.lightweightai.kernel.agent.directive.Directive;
 import com.lightweightai.kernel.llm.ToolResult;
 
 import java.util.Map;
@@ -38,8 +39,18 @@ public abstract class ClientTool<T> implements Tool {
         Map<String, Object> payload = buildPayload(args != null ? args : Map.of());
         String callId = UUID.randomUUID().toString();
         try {
-            // 下发名称使用 namespace.downAction；payload 保持纯业务参数，避免与传输层 envelope 重复。
-            ToolResult result = dispatcher.dispatch(callId, descriptor.toDownlinkToolName(), payload)
+            Directive directive = new Directive(
+                callId,
+                descriptor.getNamespace(),
+                descriptor.getDownAction(),
+                payload,
+                descriptor.getTimeoutMs()
+            );
+            // 下发 Directive 在外层封装，dispatcher 只负责分发。
+            ToolResult result = dispatcher.dispatch(
+                    callId,
+                    descriptor.toDownlinkToolName(),
+                    directive)
                 .get(descriptor.getTimeoutMs(), TimeUnit.MILLISECONDS);
             ToolResult normalized = normalizeForParser(result);
             return parseResult(normalized);

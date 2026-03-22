@@ -367,7 +367,7 @@ public class WebSocketMessage {
         }
     }
 
-    public static WebSocketMessage directive(String requestId, DirectiveData data) {
+    public static WebSocketMessage directive(String requestId, DirectiveEnvelopeData data) {
         return new WebSocketMessage(MessageType.DIRECTIVE, requestId, data);
     }
 
@@ -382,44 +382,73 @@ public class WebSocketMessage {
     /**
      * Directive 指令数据（Server → Client）
      */
-    public static class DirectiveData {
-        @JsonProperty("directive_id")
-        private String directiveId;
-
+    public static class DirectiveHeader {
         @JsonProperty("namespace")
         private String namespace;
 
         @JsonProperty("name")
         private String name;
 
-        @JsonProperty("payload")
-        private Map<String, Object> payload;
-
-        @JsonProperty("timeout_ms")
-        private Long timeoutMs;
-
-        public DirectiveData() {
+        public DirectiveHeader() {
         }
 
-        public DirectiveData(String directiveId, String namespace, String name,
-                             Map<String, Object> payload, Long timeoutMs) {
-            this.directiveId = directiveId;
+        public DirectiveHeader(String namespace, String name) {
             this.namespace = namespace;
             this.name = name;
-            this.payload = payload;
-            this.timeoutMs = timeoutMs;
         }
 
-        public String getDirectiveId() { return directiveId; }
-        public void setDirectiveId(String directiveId) { this.directiveId = directiveId; }
         public String getNamespace() { return namespace; }
         public void setNamespace(String namespace) { this.namespace = namespace; }
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
+    }
+
+    /**
+     * Directive 指令项数据（Server → Client）
+     */
+    public static class DirectiveData {
+        @JsonProperty("header")
+        private DirectiveHeader header;
+
+        @JsonProperty("payload")
+        private Map<String, Object> payload;
+
+        public DirectiveData() {
+        }
+
+        public DirectiveData(DirectiveHeader header, Map<String, Object> payload) {
+            this.header = header;
+            this.payload = payload;
+        }
+
+        public DirectiveHeader getHeader() { return header; }
+        public void setHeader(DirectiveHeader header) { this.header = header; }
         public Map<String, Object> getPayload() { return payload; }
         public void setPayload(Map<String, Object> payload) { this.payload = payload; }
-        public Long getTimeoutMs() { return timeoutMs; }
-        public void setTimeoutMs(Long timeoutMs) { this.timeoutMs = timeoutMs; }
+    }
+
+    /**
+     * Directive 指令信封数据（Server → Client）
+     */
+    public static class DirectiveEnvelopeData {
+        @JsonProperty("directive_id")
+        private String directiveId;
+
+        @JsonProperty("directives")
+        private List<DirectiveData> directives;
+
+        public DirectiveEnvelopeData() {
+        }
+
+        public DirectiveEnvelopeData(String directiveId, List<DirectiveData> directives) {
+            this.directiveId = directiveId;
+            this.directives = directives;
+        }
+
+        public String getDirectiveId() { return directiveId; }
+        public void setDirectiveId(String directiveId) { this.directiveId = directiveId; }
+        public List<DirectiveData> getDirectives() { return directives; }
+        public void setDirectives(List<DirectiveData> directives) { this.directives = directives; }
     }
 
     /**

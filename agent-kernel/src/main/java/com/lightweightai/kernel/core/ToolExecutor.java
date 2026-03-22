@@ -3,6 +3,7 @@ package com.lightweightai.kernel.core;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.directive.Directive;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.plugin.FunctionResult;
@@ -255,8 +256,14 @@ public class ToolExecutor {
         logger.info("Dispatching to client: {} (callId={})", toolCall.getName(), callId);
 
         try {
+            Directive directive = Directive.fromToolName(
+                callId,
+                toolCall.getName(),
+                toolCall.getArguments(),
+                context.getClientToolTimeoutMs()
+            );
             ToolResult result = context.getClientDispatcher()
-                .dispatch(callId, toolCall.getName(), toolCall.getArguments())
+                .dispatch(callId, toolCall.getName(), directive)
                 .get(context.getClientToolTimeoutMs(), TimeUnit.MILLISECONDS);
             return result.withToolUseId(toolCall.getId());
 

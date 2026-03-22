@@ -1,18 +1,16 @@
 package com.lightweightai.web.websocket;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.ClientToolDispatcher;
 import com.lightweightai.kernel.agent.directive.ClientManifest;
+import com.lightweightai.kernel.agent.directive.DefaultDirectiveManager;
 import com.lightweightai.kernel.agent.directive.Directive;
+import com.lightweightai.kernel.agent.directive.DirectiveManager;
 import com.lightweightai.kernel.llm.ToolResult;
-import com.lightweightai.kernel.llm.websocket.WebSocketMessage;
-import com.lightweightai.kernel.llm.websocket.WebSocketMessage.ClientToolCallData;
-import com.lightweightai.kernel.llm.websocket.WebSocketMessage.DirectiveData;
 import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -35,9 +33,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher {
 
     private static final Logger logger = LoggerFactory.getLogger(VertxWebSocketClientToolDispatcher.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final ServerWebSocket ws;
+    private final DirectiveManager directiveManager;
 
     /** callId → CompletableFuture，等待客户端回传结果 */
     private final ConcurrentHashMap<String, CompletableFuture<ToolResult>> pendingCalls =
@@ -51,7 +49,12 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
     private volatile ClientManifest manifest;
 
     public VertxWebSocketClientToolDispatcher(ServerWebSocket ws) {
+        this(ws, new DefaultDirectiveManager());
+    }
+
+    public VertxWebSocketClientToolDispatcher(ServerWebSocket ws, DirectiveManager directiveManager) {
         this.ws = ws;
+        this.directiveManager = Objects.requireNonNull(directiveManager, "directiveManager cannot be null");
     }
 
     /**
@@ -77,7 +80,7 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
 
     @Override
     public CompletableFuture<ToolResult> dispatch(String callId, String toolName,
-                                                   Map<String, Object> args) {
+                                                   Directive directive) {
         if (!tryAcquireSingleFlight(callId, toolName)) {
             CompletableFuture<ToolResult> busy = new CompletableFuture<>();
             busy.completeExceptionally(new IllegalStateException(
@@ -89,27 +92,9 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
         pendingCalls.put(callId, future);
 
         try {
-            String json;
-            if (hasManifest()) {
-                // Directive 协议格式（新客户端）
-                Directive directive = Directive.fromToolName(callId, toolName, args, 0);
-                DirectiveData data = new DirectiveData(
-                    directive.getDirectiveId(),
-                    directive.getNamespace(),
-                    directive.getName(),
-                    directive.getPayload(),
-                    directive.getTimeoutMs() > 0 ? directive.getTimeoutMs() : null
-                );
-                WebSocketMessage message = WebSocketMessage.directive(callId, data);
-                json = MAPPER.writeValueAsString(message);
-                logger.debug("Directive dispatched: {} (directiveId={})", toolName, callId);
-            } else {
-                // 旧协议格式（向后兼容）
-                ClientToolCallData data = new ClientToolCallData(callId, toolName, args, null);
-                WebSocketMessage message = WebSocketMessage.clientToolCall(callId, data);
-                json = MAPPER.writeValueAsString(message);
-                logger.debug("Client tool call dispatched: {} (callId={})", toolName, callId);
-            }
+            Directive primary = ensureDirectiveDefaults(directive, callId, toolName);
+            String json = directiveManager.getResult(callId, primary);
+            logger.debug("Directive dispatched: {} (directiveId={})", toolName, callId);
 
             if (ws.isClosed()) {
                 pendingCalls.remove(callId);
@@ -142,6 +127,26 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher 
         });
 
         return future;
+    }
+
+    private Directive ensureDirectiveDefaults(Directive directive, String callId, String toolName) {
+        Directive effective = directive != null
+            ? directive
+            : Directive.fromToolName(callId, toolName, null, 0);
+        if (effective.getDirectiveId() == null || effective.getDirectiveId().isBlank()) {
+            effective.setDirectiveId(callId);
+        }
+        if (effective.getNamespace() == null || effective.getNamespace().isBlank()
+            || effective.getName() == null || effective.getName().isBlank()) {
+            Directive fallback = Directive.fromToolName(callId, toolName, effective.getPayload(), 0);
+            if (effective.getNamespace() == null || effective.getNamespace().isBlank()) {
+                effective.setNamespace(fallback.getNamespace());
+            }
+            if (effective.getName() == null || effective.getName().isBlank()) {
+                effective.setName(fallback.getName());
+            }
+        }
+        return effective;
     }
 
     private synchronized boolean tryAcquireSingleFlight(String callId, String toolName) {
