@@ -34,6 +34,7 @@ Thumbs.db
 
 # Runtime data
 agent-web/data/
+plugins/
 
 # CI results - tracked intentionally
 !ci-results/

@@ -1,6 +1,10 @@
 package com.lightweightai.web.config;
 
+import com.lightweightai.kernel.agent.DynamicPluginProvider;
+import com.lightweightai.kernel.agent.LegacyScanProvider;
+import com.lightweightai.kernel.agent.ManualToolProvider;
 import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.ToolSourceProvider;
 import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.kernel.trace.Tracer;
@@ -331,22 +335,31 @@ public class AgentConfig {
             return registry;
         }
 
-        // Auto-scan and register all Tool implementations via Java SPI
-        // Includes Tool SPI (interface) and ToolSource SPI (annotation-based)
-        int scanned = registry.scanAndRegister(tool ->
-            !tool.getName().equals("web_search") // Skip default WebTools — needs config injection
+        // 通过 ToolSourceProvider 组装工具来源
+        List<ToolSourceProvider> providers = List.of(
+            // 1. SPI 扫描（现有逻辑包装）
+            new LegacyScanProvider(tool -> !tool.getName().equals("web_search")),
+            // 2. 手动注册（需要构造参数 / 运行时绑定的工具）
+            new ManualToolProvider()
+                .addAnnotated(new WebTools(webSearchApiKey, webSearchMaxResults))
+                .addTool(new GetPositionTool(clientToolDispatcher)),
+            // 3. 动态插件（监听 plugins/ 目录，支持热加载 jar）
+            dynamicPluginProvider()
         );
-        logger.info("Auto-scanned {} tools via SPI", scanned);
 
-        // Manually register tools that require configuration
-        registry.registerObject(new WebTools(webSearchApiKey, webSearchMaxResults));
-
-        // 全局注册端工具（dispatcher 在 WebSocket 连接时绑定）
-        registry.register(new GetPositionTool(clientToolDispatcher));
-        logger.info("Registered client tool: GetPosition (dispatcher bound at WebSocket connect)");
+        providers.forEach(p -> {
+            p.start(registry);
+            logger.info("ToolSourceProvider started: {} → registry now has {} tools",
+                p.sourceType(), registry.size());
+        });
 
         logger.info("ToolRegistry initialized: {}", registry);
         return registry;
+    }
+
+    @Bean
+    public DynamicPluginProvider dynamicPluginProvider() {
+        return new DynamicPluginProvider(java.nio.file.Path.of("plugins"));
     }
 
     @Bean

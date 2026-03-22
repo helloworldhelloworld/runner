@@ -2,6 +2,7 @@ package com.lightweightai.web;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Agent Web Application
@@ -16,6 +17,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * - Interactive playground
  */
 @SpringBootApplication
+@EnableScheduling
 public class AgentWebApplication {
 
     public static void main(String[] args) {
