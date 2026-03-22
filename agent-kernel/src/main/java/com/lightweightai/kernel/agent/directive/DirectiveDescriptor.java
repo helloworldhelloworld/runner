@@ -72,10 +72,10 @@ public class DirectiveDescriptor {
     }
 
     public String toToolName() {
-        return namespace + "." + tool;
+        return tool;
     }
 
     public String toDownlinkToolName() {
-        return namespace + "." + downAction;
+        return downAction;
     }
 }

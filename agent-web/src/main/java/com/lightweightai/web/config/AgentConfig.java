@@ -17,7 +17,9 @@ import com.lightweightai.kernel.skill.SkillLoader;
 import com.lightweightai.kernel.speech.SpeechProvider;
 import com.lightweightai.kernel.speech.AzureSpeechProvider;
 import com.lightweightai.kernel.speech.OpenAISpeechProvider;
+import com.lightweightai.tools.client.GetPositionTool;
 import com.lightweightai.tools.web.WebTools;
+import com.lightweightai.web.websocket.SessionAwareClientToolDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -265,13 +267,33 @@ public class AgentConfig {
             .priority(2)
             .build());
 
+        // 天气查询 Skill（触发词匹配后激活，调用端工具 GetPosition + 云工具 checkWeather）
+        engine.registerSkill(com.lightweightai.kernel.prompt.Skill.builder()
+            .name("weather")
+            .description("天气查询")
+            .systemPrompt(
+                "当用户询问天气时：\n" +
+                "1. 先调用 GetPosition 获取用户的GPS位置和城市名\n" +
+                "2. 再调用 checkWeather 传入位置信息查询天气\n" +
+                "3. 自然地告知用户天气信息\n" +
+                "如果 GetPosition 失败，请直接询问用户所在城市，然后调用 checkWeather。"
+            )
+            .triggers(List.of("天气", "weather", "forecast", "预报", "气温", "下雨"))
+            .priority(3)
+            .build());
+
         logger.info("PromptEngine initialized with {} skills: {}",
             engine.getRegisteredSkills().size(), engine.getRegisteredSkills());
         return engine;
     }
 
     @Bean
-    public ToolRegistry toolRegistry() {
+    public SessionAwareClientToolDispatcher sessionAwareClientToolDispatcher() {
+        return new SessionAwareClientToolDispatcher();
+    }
+
+    @Bean
+    public ToolRegistry toolRegistry(SessionAwareClientToolDispatcher clientToolDispatcher) {
         ToolRegistry registry = new ToolRegistry();
 
         if (!toolsEnabled) {
@@ -290,6 +312,10 @@ public class AgentConfig {
 
         // Manually register tools that require configuration
         registry.registerObject(new WebTools(webSearchApiKey, webSearchMaxResults));
+
+        // 全局注册端工具（dispatcher 在 WebSocket 连接时绑定）
+        registry.register(new GetPositionTool(clientToolDispatcher));
+        logger.info("Registered client tool: GetPosition (dispatcher bound at WebSocket connect)");
 
         logger.info("ToolRegistry initialized: {}", registry);
         return registry;

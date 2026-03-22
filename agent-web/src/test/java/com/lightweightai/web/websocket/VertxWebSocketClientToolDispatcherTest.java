@@ -34,10 +34,10 @@ class VertxWebSocketClientToolDispatcherTest {
 
         VertxWebSocketClientToolDispatcher dispatcher = new VertxWebSocketClientToolDispatcher(ws);
 
-        var first = dispatcher.dispatch("c1", "GeoInformation.GetPosition",
-            Directive.fromToolName("c1", "GeoInformation.GetPosition", Map.of("precision", 3), 0));
-        var second = dispatcher.dispatch("c2", "GeoInformation.GetPosition",
-            Directive.fromToolName("c2", "GeoInformation.GetPosition", Map.of("precision", 3), 0));
+        var first = dispatcher.dispatch("c1", "GetPosition",
+            Directive.fromToolName("c1", "GetPosition", Map.of("precision", 3), 0));
+        var second = dispatcher.dispatch("c2", "GetPosition",
+            Directive.fromToolName("c2", "GetPosition", Map.of("precision", 3), 0));
 
         CompletionException ex = assertThrows(CompletionException.class, second::join);
         assertTrue(ex.getCause().getMessage().contains("busy"));
@@ -55,8 +55,8 @@ class VertxWebSocketClientToolDispatcherTest {
 
         VertxWebSocketClientToolDispatcher dispatcher = new VertxWebSocketClientToolDispatcher(ws);
 
-        var pending = dispatcher.dispatch("c1", "GeoInformation.GetPosition",
-            Directive.fromToolName("c1", "GeoInformation.GetPosition", Map.of("precision", 3), 0));
+        var pending = dispatcher.dispatch("c1", "GetPosition",
+            Directive.fromToolName("c1", "GetPosition", Map.of("precision", 3), 0));
 
         assertTrue(dispatcher.completeLatestCall(ToolResult.success("ok")));
         assertEquals("ok", pending.join().getContent());
@@ -75,8 +75,8 @@ class VertxWebSocketClientToolDispatcherTest {
             List.of(new ClientCapability("GeoInformation", "GetPosition", "desc", Map.of(), 3000L))
         ));
 
-        dispatcher.dispatch("c1", "GeoInformation.GetPosition",
-            Directive.fromToolName("c1", "GeoInformation.GetPosition", Map.of("precision", 3), 0));
+        dispatcher.dispatch("c1", "GetPosition",
+            new Directive("c1", "GeoInformation", "GetPosition", Map.of("precision", 3), 0));
 
         ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
         verify(ws).writeTextMessage(jsonCaptor.capture());
@@ -114,8 +114,8 @@ class VertxWebSocketClientToolDispatcherTest {
             List.of(new ClientCapability("GeoInformation", "GetPosition", "desc", Map.of(), 3000L))
         ));
 
-        dispatcher.dispatch("c1", "GeoInformation.GetPosition",
-            Directive.fromToolName("c1", "GeoInformation.GetPosition", Map.of("precision", 3), 0));
+        dispatcher.dispatch("c1", "GetPosition",
+            new Directive("c1", "GeoInformation", "GetPosition", Map.of("precision", 3), 0));
 
         ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
         verify(ws).writeTextMessage(jsonCaptor.capture());
@@ -142,7 +142,7 @@ class VertxWebSocketClientToolDispatcherTest {
 
         Directive wrapped = new Directive("external-id", "UserInteraction", "DisplayLoadingCard",
             Map.of("state", "open"), 5000);
-        dispatcher.dispatch("c1", "GeoInformation.GetPosition", wrapped);
+        dispatcher.dispatch("c1", "GetPosition", wrapped);
 
         ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
         verify(ws).writeTextMessage(jsonCaptor.capture());

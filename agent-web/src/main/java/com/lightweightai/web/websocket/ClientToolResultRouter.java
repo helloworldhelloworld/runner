@@ -31,7 +31,7 @@ public class ClientToolResultRouter {
         this.toolRegistry = toolRegistry;
     }
 
-    public boolean routeClientToolResult(VertxWebSocketClientToolDispatcher dispatcher, JsonNode payload) {
+    public boolean routeClientToolResult(ToolCallCompleter dispatcher, JsonNode payload) {
         Objects.requireNonNull(dispatcher, "dispatcher cannot be null");
         Objects.requireNonNull(payload, "payload cannot be null");
 
@@ -47,27 +47,43 @@ public class ClientToolResultRouter {
         return dispatcher.completeCall(callId, result);
     }
 
-    public boolean routeDirectiveResult(VertxWebSocketClientToolDispatcher dispatcher, JsonNode payload) {
+    public boolean routeDirectiveResult(ToolCallCompleter dispatcher, JsonNode payload) {
         Objects.requireNonNull(dispatcher, "dispatcher cannot be null");
         Objects.requireNonNull(payload, "payload cannot be null");
 
         String directiveId = payload.path("directiveId").asText("");
         boolean success = payload.path("success").asBoolean(false);
         String content = payload.path("content").asText("");
-        Map<String, Object> metadata = null;
-        if (payload.has("metadata") && !payload.get("metadata").isNull()) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> m = objectMapper.convertValue(payload.get("metadata"), Map.class);
-            metadata = m;
-        }
 
-        DirectiveResult directiveResult = new DirectiveResult(directiveId, success, content, metadata);
-        ToolResult toolResult = directiveResult.toToolResult();
         if (directiveId.isEmpty()) {
             logger.error("directive_result missing directiveId — client MUST include directiveId for reliable matching");
             return false;
         }
+
+        ToolResult toolResult;
+        if (!success) {
+            toolResult = ToolResult.error(content);
+        } else {
+            // content 可能是 JSON 字符串（如端工具返回的 {header, payload} 结构），尝试解析为 structuredContent
+            Map<String, Object> structured = tryParseJsonContent(content);
+            toolResult = structured != null
+                ? ToolResult.success(content, structured)
+                : ToolResult.success(content);
+        }
+
         return dispatcher.completeCall(directiveId, toolResult);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> tryParseJsonContent(String content) {
+        if (content == null || content.isBlank() || !content.startsWith("{")) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(content, Map.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

@@ -1,86 +1,49 @@
 package com.lightweightai.web.websocket;
 
 import com.lightweightai.kernel.agent.ClientToolDispatcher;
-import com.lightweightai.kernel.agent.directive.ClientManifest;
 import com.lightweightai.kernel.agent.directive.DefaultDirectiveManager;
 import com.lightweightai.kernel.agent.directive.Directive;
 import com.lightweightai.kernel.agent.directive.DirectiveManager;
 import com.lightweightai.kernel.llm.ToolResult;
-import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 基于 Vert.x WebSocket 的客户端工具调度器。
+ * 基于 Spring WebSocket 的客户端工具调度器。
  *
- * 负责将工具调用通过 WebSocket 推送到客户端，并管理挂起请求的 Future。
- * 当客户端回传 CLIENT_TOOL_RESULT 消息时，由 VertxChatWebSocketHandler 调用
- * {@link #completeCall(String, ToolResult)} 来完成对应的 Future。
- *
- * <p>生命周期绑定到一个 ServerWebSocket：
- * <ul>
- *   <li>一个 connection 对应一个 dispatcher 实例</li>
- *   <li>连接断开时，所有挂起的 Future 都会被异常完成</li>
- * </ul>
- *
- * <p>线程安全：Vert.x ServerWebSocket.writeTextMessage() 在 4.x 中是线程安全的，
- * 内部会调度到正确的 event loop。ConcurrentHashMap 保证挂起调用的跨线程安全访问。
+ * 功能与 {@link VertxWebSocketClientToolDispatcher} 对齐，但使用 Spring {@link WebSocketSession}。
+ * 每个 WebSocket 连接对应一个实例，连接断开时调用 {@link #cancelAll()}。
  */
-public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher, ToolCallCompleter {
+public class SpringWebSocketClientToolDispatcher implements ClientToolDispatcher, ToolCallCompleter {
 
-    private static final Logger logger = LoggerFactory.getLogger(VertxWebSocketClientToolDispatcher.class);
+    private static final Logger logger = LoggerFactory.getLogger(SpringWebSocketClientToolDispatcher.class);
 
-    private final ServerWebSocket ws;
+    private final WebSocketSession session;
     private final DirectiveManager directiveManager;
 
-    /** callId → CompletableFuture，等待客户端回传结果 */
     private final ConcurrentHashMap<String, CompletableFuture<ToolResult>> pendingCalls =
             new ConcurrentHashMap<>();
 
-    /** 单飞控制：仅保留最近一个挂起调用（无 ID 回包时用于回退匹配） */
     private volatile String latestPendingCallId;
     private volatile String latestPendingToolName;
 
-    /** 端侧上报的能力清单，非 null 表示支持 Directive 协议 */
-    private volatile ClientManifest manifest;
-
-    public VertxWebSocketClientToolDispatcher(ServerWebSocket ws) {
-        this(ws, new DefaultDirectiveManager());
+    public SpringWebSocketClientToolDispatcher(WebSocketSession session) {
+        this(session, new DefaultDirectiveManager());
     }
 
-    public VertxWebSocketClientToolDispatcher(ServerWebSocket ws, DirectiveManager directiveManager) {
-        this.ws = ws;
+    public SpringWebSocketClientToolDispatcher(WebSocketSession session, DirectiveManager directiveManager) {
+        this.session = Objects.requireNonNull(session, "session cannot be null");
         this.directiveManager = Objects.requireNonNull(directiveManager, "directiveManager cannot be null");
     }
 
-    /**
-     * 设置端侧 manifest（表示该 session 支持 Directive 协议）
-     */
-    public void setManifest(ClientManifest manifest) {
-        this.manifest = manifest;
-    }
-
-    /**
-     * 获取端侧 manifest
-     */
-    public ClientManifest getManifest() {
-        return manifest;
-    }
-
-    /**
-     * 是否支持 Directive 协议（端侧已上报 manifest）
-     */
-    public boolean hasManifest() {
-        return manifest != null;
-    }
-
     @Override
-    public CompletableFuture<ToolResult> dispatch(String callId, String toolName,
-                                                   Directive directive) {
+    public CompletableFuture<ToolResult> dispatch(String callId, String toolName, Directive directive) {
         if (!tryAcquireSingleFlight(callId, toolName)) {
             CompletableFuture<ToolResult> busy = new CompletableFuture<>();
             busy.completeExceptionally(new IllegalStateException(
@@ -96,31 +59,22 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher,
             String json = directiveManager.getResult(callId, primary);
             logger.debug("Directive dispatched: {} (directiveId={})", toolName, callId);
 
-            if (ws.isClosed()) {
+            if (!session.isOpen()) {
                 pendingCalls.remove(callId);
                 clearSingleFlight(callId);
                 future.completeExceptionally(
-                    new RuntimeException("WebSocket connection is closed, cannot dispatch tool call"));
+                    new RuntimeException("WebSocket session is closed, cannot dispatch tool call"));
                 return future;
             }
 
-            ws.writeTextMessage(json).onFailure(err -> {
-                pendingCalls.remove(callId);
-                clearSingleFlight(callId);
-                if (!future.isDone()) {
-                    future.completeExceptionally(
-                        new RuntimeException("Failed to send client tool call: " + err.getMessage(), err));
-                }
-            });
-
+            session.sendMessage(new TextMessage(json));
         } catch (Exception e) {
             pendingCalls.remove(callId);
             clearSingleFlight(callId);
             future.completeExceptionally(
-                    new RuntimeException("Failed to serialize client tool call: " + e.getMessage(), e));
+                new RuntimeException("Failed to send client tool call: " + e.getMessage(), e));
         }
 
-        // Future 超时由 ClientToolWrapper 的 get(timeout) 控制
         future.whenComplete((result, error) -> {
             pendingCalls.remove(callId);
             clearSingleFlight(callId);
@@ -165,13 +119,6 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher,
         }
     }
 
-    /**
-     * 客户端回传结果时调用此方法，完成挂起的 Future
-     *
-     * @param callId 调用标识
-     * @param result 客户端返回的工具结果
-     * @return true 如果匹配到挂起的请求
-     */
     public boolean completeCall(String callId, ToolResult result) {
         CompletableFuture<ToolResult> future = pendingCalls.remove(callId);
         if (future != null) {
@@ -183,50 +130,25 @@ public class VertxWebSocketClientToolDispatcher implements ClientToolDispatcher,
         return false;
     }
 
-    /**
-     * 回退匹配：当端侧未携带 callId/directiveId 时，按单飞中的最近挂起调用完成。
-     *
-     * @param expectedToolName 期望匹配的下行 toolName（namespace.downAction）；为空则仅按单飞回退
-     */
-    public boolean completeLatestCall(ToolResult result, String expectedToolName) {
+    public boolean completeLatestCall(ToolResult result) {
         String latest = latestPendingCallId;
         if (latest == null) {
             logger.warn("No latest pending call for fallback completion");
             return false;
         }
-
-        if (expectedToolName != null && !expectedToolName.isBlank()) {
-            String pendingToolName = latestPendingToolName;
-            if (!expectedToolName.equals(pendingToolName)) {
-                logger.warn("Fallback completion tool mismatch: expected={}, pending={}",
-                    expectedToolName, pendingToolName);
-                return false;
-            }
-        }
-
         return completeCall(latest, result);
     }
 
-    public boolean completeLatestCall(ToolResult result) {
-        return completeLatestCall(result, null);
-    }
-
-    /**
-     * 连接断开时，取消所有挂起的调用
-     */
     public void cancelAll() {
         pendingCalls.forEach((callId, future) -> {
             future.completeExceptionally(
-                    new RuntimeException("WebSocket connection closed, client tool call cancelled"));
+                new RuntimeException("WebSocket connection closed, client tool call cancelled"));
         });
         pendingCalls.clear();
         latestPendingCallId = null;
         latestPendingToolName = null;
     }
 
-    /**
-     * 获取当前挂起的调用数量
-     */
     public int pendingCount() {
         return pendingCalls.size();
     }

@@ -60,9 +60,12 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private final UserService userService;
     private final LLMProvider llmProvider;
     private final McpConfig.McpToolRegistrar mcpToolRegistrar;
+    private final SessionAwareClientToolDispatcher sessionAwareDispatcher;
 
     private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
+    private final Map<String, SpringWebSocketClientToolDispatcher> dispatchers = new ConcurrentHashMap<>();
+    private final ClientToolResultRouter clientToolResultRouter;
     private final AtomicLong activeConnections = new AtomicLong(0);
     private final java.util.concurrent.ExecutorService chatExecutor =
         java.util.concurrent.Executors.newCachedThreadPool();
@@ -75,7 +78,8 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                                        AssessmentService assessmentService,
                                        UserService userService,
                                        LLMProvider llmProvider,
-                                       McpConfig.McpToolRegistrar mcpToolRegistrar) {
+                                       McpConfig.McpToolRegistrar mcpToolRegistrar,
+                                       SessionAwareClientToolDispatcher sessionAwareDispatcher) {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
         this.toolRegistry = toolRegistry;
@@ -85,6 +89,8 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         this.userService = userService;
         this.llmProvider = llmProvider;
         this.mcpToolRegistrar = mcpToolRegistrar;
+        this.sessionAwareDispatcher = sessionAwareDispatcher;
+        this.clientToolResultRouter = new ClientToolResultRouter(MAPPER, toolRegistry);
     }
 
     // Legacy constructor for compatibility
@@ -93,9 +99,22 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
+    public void handleTransportError(WebSocketSession session, Throwable exception) {
+        logger.error("WS transport error session={}: {}", session.getId(), exception.getMessage(), exception);
+    }
+
+    @Override
+    public void afterConnectionEstablished(WebSocketSession rawSession) {
+        // 包装为线程安全的 session（DIRECTIVE 从非 Tomcat 线程发送）
+        WebSocketSession session = new ConcurrentWebSocketSessionDecorator(rawSession, 10000, 512 * 1024);
         sessions.put(session.getId(), session);
         activeConnections.incrementAndGet();
+
+        // 创建 per-session dispatcher 并绑定到全局代理
+        SpringWebSocketClientToolDispatcher dispatcher = new SpringWebSocketClientToolDispatcher(session);
+        dispatchers.put(session.getId(), dispatcher);
+        sessionAwareDispatcher.setDelegate(dispatcher);
+
         logger.info("Spring WS connected: {} (active: {})", session.getId(), activeConnections.get());
     }
 
@@ -104,6 +123,14 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         sessions.remove(session.getId());
         Disposable d = activeStreams.remove(session.getId());
         if (d != null && !d.isDisposed()) d.dispose();
+
+        // 清理 dispatcher
+        SpringWebSocketClientToolDispatcher dispatcher = dispatchers.remove(session.getId());
+        if (dispatcher != null) {
+            dispatcher.cancelAll();
+        }
+        sessionAwareDispatcher.clearDelegate();
+
         activeConnections.decrementAndGet();
         logger.info("Spring WS disconnected: {} status={} (active: {})", session.getId(), status, activeConnections.get());
     }
@@ -196,6 +223,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                     sendResponse(session, "tool_definitions", requestId, Map.of("count", defs.size(), "tools", defs));
                 }
                 case "get_mcp_servers" -> sendResponse(session, "mcp_servers", requestId, buildMcpServers());
+                case "directive_result", "client_tool_result" -> handleClientToolResponse(session, type, payload);
                 default -> logger.warn("Unknown WS type: {}", type);
             }
         } catch (Exception e) {
@@ -334,6 +362,27 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    // ==================== Client Tool Result ====================
+
+    private void handleClientToolResponse(WebSocketSession session, String type, JsonNode payload) {
+        SpringWebSocketClientToolDispatcher dispatcher = dispatchers.get(session.getId());
+        if (dispatcher == null) {
+            logger.warn("No dispatcher for session {}, ignoring {} message", session.getId(), type);
+            return;
+        }
+
+        boolean matched;
+        if ("directive_result".equals(type)) {
+            matched = clientToolResultRouter.routeDirectiveResult(dispatcher, payload);
+        } else {
+            matched = clientToolResultRouter.routeClientToolResult(dispatcher, payload);
+        }
+
+        if (!matched) {
+            logger.warn("Unmatched {} for session {}", type, session.getId());
+        }
+    }
+
     // ==================== Helpers ====================
 
     private Optional<SessionManager> getSessionManager() {
@@ -355,9 +404,8 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private void safeSend(WebSocketSession session, String json) {
         if (!session.isOpen()) return;
         try {
-            synchronized (session) {
-                session.sendMessage(new TextMessage(json));
-            }
+            // session 已由 ConcurrentWebSocketSessionDecorator 包装，内部线程安全
+            session.sendMessage(new TextMessage(json));
         } catch (IOException e) {
             logger.warn("Failed to send WS message to {}: {}", session.getId(), e.getMessage());
         } catch (Exception e) {

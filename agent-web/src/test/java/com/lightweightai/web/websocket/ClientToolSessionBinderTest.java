@@ -19,9 +19,9 @@ class ClientToolSessionBinderTest {
             new VertxWebSocketClientToolDispatcher(mock(ServerWebSocket.class));
 
         binder.bind("s1", dispatcher);
-        assertTrue(registry.has("GeoInformation.GetPosition"));
+        assertTrue(registry.has("GetPosition"));
 
         binder.unbind("s1");
-        assertFalse(registry.has("GeoInformation.GetPosition"));
+        assertFalse(registry.has("GetPosition"));
     }
 }
