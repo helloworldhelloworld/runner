@@ -298,7 +298,11 @@ public class VertxChatWebSocketHandler {
                             logger.info("[WS-STREAM] TEXT_DELTA len={} preview='{}'",
                                 delta != null ? delta.length() : 0,
                                 delta != null ? delta.substring(0, Math.min(50, delta.length())) : "null");
-                            sendToken(ws, delta);
+                            if ("reasoning".equals(event.getMetadata().get("type"))) {
+                                sendReasoningToken(ws, delta);
+                            } else {
+                                sendToken(ws, delta);
+                            }
                         }
                         case TOOL_CALL_START -> sendToolCallStart(ws, event);
                         case TOOL_PROGRESS -> sendToolProgress(ws, event);
@@ -765,6 +769,17 @@ public class VertxChatWebSocketHandler {
             safeSend(ws, MAPPER.writeValueAsString(msg));
         } catch (Exception e) {
             logger.error("Failed to serialize token message", e);
+        }
+    }
+
+    private void sendReasoningToken(ServerWebSocket ws, String delta) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "reasoning_token");
+            msg.put("data", delta);
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize reasoning token message", e);
         }
     }
 

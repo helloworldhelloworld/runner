@@ -297,7 +297,11 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
             switch (event.getType()) {
                 case TEXT_DELTA -> {
                     ObjectNode msg = MAPPER.createObjectNode();
-                    msg.put("type", "token");
+                    if ("reasoning".equals(event.getMetadata().get("type"))) {
+                        msg.put("type", "reasoning_token");
+                    } else {
+                        msg.put("type", "token");
+                    }
                     msg.put("data", event.getTextDelta());
                     safeSend(session, MAPPER.writeValueAsString(msg));
                 }

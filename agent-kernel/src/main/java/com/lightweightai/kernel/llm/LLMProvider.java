@@ -4,6 +4,7 @@ import com.lightweightai.kernel.core.StreamEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -79,6 +80,11 @@ public interface LLMProvider {
                 }
 
                 @Override
+                public void onReasoningDelta(String delta) {
+                    sink.next(StreamEvent.textDelta(delta, Map.of("type", "reasoning")));
+                }
+
+                @Override
                 public void onToolCallDelta(ToolCall toolCall) {
                     sink.next(StreamEvent.toolCallStart(toolCall));
                 }
@@ -127,6 +133,13 @@ public interface LLMProvider {
          * @param response Final complete response
          */
         default void onComplete(LLMResponse response) {}
+
+        /**
+         * Called when a reasoning content delta is received (e.g. DeepSeek, QwQ reasoning models)
+         *
+         * @param delta Reasoning text chunk
+         */
+        default void onReasoningDelta(String delta) {}
 
         /**
          * Called when an error occurs

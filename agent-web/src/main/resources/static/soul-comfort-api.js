@@ -137,6 +137,9 @@ class SoulComfortAPI {
                 case 'token':
                     if (cb.onDelta) cb.onDelta(msg.data);
                     break;
+                case 'reasoning_token':
+                    if (cb.onReasoningDelta) cb.onReasoningDelta(msg.data);
+                    break;
                 case 'stream_end':
                     if (cb.onComplete) cb.onComplete(msg.meta);
                     this._wsCallbacks = null;

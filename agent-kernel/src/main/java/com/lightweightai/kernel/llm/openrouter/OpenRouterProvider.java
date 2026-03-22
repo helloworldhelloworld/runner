@@ -510,6 +510,15 @@ public class OpenRouterProvider implements LLMProvider {
                                     }
                                 }
 
+                                // Reasoning content (DeepSeek, QwQ etc.)
+                                if (delta.has("reasoning_content") && !delta.get("reasoning_content").isNull()) {
+                                    String reasoningContent = delta.get("reasoning_content").asText();
+                                    if (!reasoningContent.isEmpty()) {
+                                        textContent.append(reasoningContent);
+                                        handler.onReasoningDelta(reasoningContent);
+                                    }
+                                }
+
                                 // Tool call chunks (OpenAI streaming format)
                                 JsonNode tcArr = delta.get("tool_calls");
                                 if (tcArr != null && tcArr.isArray()) {

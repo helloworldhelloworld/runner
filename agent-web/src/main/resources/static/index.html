@@ -39,6 +39,7 @@
         .tab-btn.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .modal-overlay { background: rgba(0,0,0,0.5); }
         body.app-mode { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+        .reasoning-content { color: #6b7280; font-style: italic; opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -640,6 +641,13 @@
                     onDelta: (delta) => {
                         if (delta) {
                             fullResponse += delta;
+                            contentDiv.innerHTML = fullResponse;
+                            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+                        }
+                    },
+                    onReasoningDelta: (delta) => {
+                        if (delta) {
+                            fullResponse += `<span class="reasoning-content">${delta}</span>`;
                             contentDiv.innerHTML = fullResponse;
                             document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
                         }
