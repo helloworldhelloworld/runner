@@ -17,6 +17,8 @@ import com.lightweightai.kernel.llm.websocket.WebSocketMessage;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage.ClientToolCallData;
 import com.lightweightai.kernel.llm.websocket.WebSocketMessage.ClientToolResultData;
 
+import com.lightweightai.kernel.agent.directive.Directive;
+
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -359,7 +361,7 @@ public class ClientToolDemo {
         // 场景 1: 超时 — App 未响应
         System.out.println("[场景 1] 超时 — App 未在指定时间内响应：\n");
         {
-            ClientToolDispatcher slowDispatcher = (callId, toolName, args) ->
+            ClientToolDispatcher slowDispatcher = (callId, toolName, directive) ->
                 new CompletableFuture<>(); // 永不 complete
 
             // ClientToolWrapper 也可以单独使用（带内嵌 dispatcher 的简便方式）
@@ -375,7 +377,7 @@ public class ClientToolDemo {
         // 场景 2: 用户拒绝授权
         System.out.println("[场景 2] 错误 — 用户拒绝授权：\n");
         {
-            ClientToolDispatcher errorDispatcher = (callId, toolName, args) ->
+            ClientToolDispatcher errorDispatcher = (callId, toolName, directive) ->
                 CompletableFuture.completedFuture(ToolResult.error("用户拒绝了相机权限，无法拍照"));
 
             // 通过 ToolExecutor 路由（@ToolFunction 声明的端侧工具 + 自定义 dispatcher）
@@ -393,7 +395,7 @@ public class ClientToolDemo {
         // 场景 3: WebSocket 断开
         System.out.println("[场景 3] 连接断开 — WebSocket session 关闭：\n");
         {
-            ClientToolDispatcher disconnected = (callId, toolName, args) -> {
+            ClientToolDispatcher disconnected = (callId, toolName, directive) -> {
                 CompletableFuture<ToolResult> f = new CompletableFuture<>();
                 f.completeExceptionally(new RuntimeException("WebSocket session closed"));
                 return f;
@@ -537,7 +539,8 @@ public class ClientToolDemo {
 
         @Override
         public CompletableFuture<ToolResult> dispatch(String callId, String toolName,
-                                                       Map<String, Object> args) {
+                                                       Directive directive) {
+            Map<String, Object> args = directive != null ? directive.getPayload() : Map.of();
             System.out.println("    [App] 收到端侧工具调用: " + toolName
                 + " (callId=" + callId.substring(0, Math.min(8, callId.length())) + "...)");
 
