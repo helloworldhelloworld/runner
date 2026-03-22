@@ -127,7 +127,7 @@ class DirectiveToolBridgeTest {
     private static class MockDispatcher implements ClientToolDispatcher {
         @Override
         public CompletableFuture<ToolResult> dispatch(String callId, String toolName,
-                                                       Map<String, Object> args) {
+                                                       Directive directive) {
             return new CompletableFuture<>(); // Never completes (not needed for registration tests)
         }
     }

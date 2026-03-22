@@ -1,8 +1,8 @@
 package com.lightweightai.kernel.agent;
 
+import com.lightweightai.kernel.agent.directive.Directive;
 import com.lightweightai.kernel.llm.ToolResult;
 
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -21,8 +21,8 @@ public interface ClientToolDispatcher {
      *
      * @param callId    本次调用的唯一标识（用于关联请求和响应）
      * @param toolName  工具名称
-     * @param args      工具参数
+     * @param directive 下发 Directive（由调用方在外部完成封装）
      * @return 一个 CompletableFuture，在客户端回传结果后完成
      */
-    CompletableFuture<ToolResult> dispatch(String callId, String toolName, Map<String, Object> args);
+    CompletableFuture<ToolResult> dispatch(String callId, String toolName, Directive directive);
 }

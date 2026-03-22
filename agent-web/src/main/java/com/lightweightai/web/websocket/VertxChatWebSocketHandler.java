@@ -12,6 +12,7 @@ import com.lightweightai.assessment.model.ScaleType;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.directive.ClientCapability;
 import com.lightweightai.kernel.agent.directive.ClientManifest;
+import com.lightweightai.kernel.agent.directive.DefaultDirectiveManager;
 import com.lightweightai.kernel.agent.directive.DirectiveToolBridge;
 import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.core.ToolResultChunk;
@@ -142,7 +143,8 @@ public class VertxChatWebSocketHandler {
 
         String socketId = ws.textHandlerID();
         sessions.put(socketId, ws);
-        VertxWebSocketClientToolDispatcher dispatcher = new VertxWebSocketClientToolDispatcher(ws);
+        VertxWebSocketClientToolDispatcher dispatcher =
+            new VertxWebSocketClientToolDispatcher(ws, new DefaultDirectiveManager());
         dispatchers.put(socketId, dispatcher);
         clientToolSessionBinder.bind(socketId, dispatcher);
         rateLimiters.put(socketId, new RateLimiter(MAX_MESSAGES_PER_SECOND));
