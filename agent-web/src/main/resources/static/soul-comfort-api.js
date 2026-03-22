@@ -11,6 +11,30 @@ class SoulComfortAPI {
         /** 请求-响应式回调映射 (requestId → {resolve, reject}) */
         this._pendingRequests = new Map();
         this._requestIdCounter = 0;
+
+        /** 客户端工具模拟配置 */
+        this._clientTools = new Map();
+        this._onDirective = null;
+        this._onDirectiveResult = null;
+        this._loadClientToolsFromStorage();
+        if (this._clientTools.size === 0) {
+            // 预配置 GetPosition 端工具
+            this._clientTools.set('GeoInformation.GetPosition', {
+                namespace: 'GeoInformation',
+                name: 'GetPosition',
+                description: '获取设备GPS定位和城市名',
+                enabled: true,
+                mockResponse: {
+                    header: { namespace: 'GeoInformation', name: 'PositionInfo' },
+                    payload: {
+                        errorCode: '0',
+                        position: { longitude: '116.397', latitude: '39.909', locationSystem: 'WGS84' },
+                        city: '北京'
+                    }
+                }
+            });
+            this._saveClientToolsToStorage();
+        }
     }
 
     /**
@@ -85,6 +109,12 @@ class SoulComfortAPI {
     _handleMessage(raw) {
         try {
             const msg = JSON.parse(raw);
+
+            // 0. 处理 DIRECTIVE 消息（端工具调用）
+            if (msg.type === 'DIRECTIVE') {
+                this._handleDirective(msg);
+                return;
+            }
 
             // 1. 先检查是否是请求-响应式消息（带 requestId）
             if (msg.requestId && this._pendingRequests.has(msg.requestId)) {
@@ -314,6 +344,125 @@ class SoulComfortAPI {
 
     async getToolDefinitions() {
         return this._sendRequest('get_tool_definitions');
+    }
+
+    // ========== Client Tool Simulation ==========
+
+    _handleDirective(msg) {
+        const data = msg.data;
+        const directiveId = data.directive_id;
+        const directives = data.directives || [];
+
+        console.log('[WS] Received DIRECTIVE:', directiveId, directives);
+
+        const primaryDirective = directives[0];
+        if (!primaryDirective) return;
+
+        const namespace = primaryDirective.header.namespace;
+        const name = primaryDirective.header.name;
+        const toolKey = namespace + '.' + name;
+        const tool = this._clientTools.get(toolKey);
+
+        // 通知 UI
+        if (this._onDirective) {
+            this._onDirective(directiveId, toolKey, primaryDirective.payload, tool);
+        }
+
+        const startTime = Date.now();
+
+        // 模拟异步执行（200ms 延迟）
+        setTimeout(() => {
+            const elapsed = Date.now() - startTime;
+            let response;
+
+            if (tool && tool.enabled && tool.mockResponse) {
+                response = {
+                    type: 'directive_result',
+                    directiveId: directiveId,
+                    success: true,
+                    content: JSON.stringify(tool.mockResponse),
+                    metadata: { elapsed_ms: elapsed, simulated: true }
+                };
+            } else {
+                response = {
+                    type: 'directive_result',
+                    directiveId: directiveId,
+                    success: false,
+                    content: tool ? 'Tool disabled: ' + toolKey : 'No mock configured for ' + toolKey,
+                    metadata: { elapsed_ms: elapsed, simulated: true }
+                };
+            }
+
+            if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+                this._ws.send(JSON.stringify(response));
+                console.log('[WS] Sent directive_result for', directiveId, `(${elapsed}ms)`);
+            }
+
+            // 通知 UI 结果
+            if (this._onDirectiveResult) {
+                this._onDirectiveResult(directiveId, response, elapsed);
+            }
+        }, 200);
+    }
+
+    getClientTools() {
+        return Array.from(this._clientTools.entries());
+    }
+
+    setClientTool(key, config) {
+        this._clientTools.set(key, config);
+        this._saveClientToolsToStorage();
+    }
+
+    removeClientTool(key) {
+        this._clientTools.delete(key);
+        this._saveClientToolsToStorage();
+    }
+
+    toggleClientTool(key, enabled) {
+        const tool = this._clientTools.get(key);
+        if (tool) {
+            tool.enabled = enabled;
+            this._saveClientToolsToStorage();
+        }
+    }
+
+    updateMockResponse(key, jsonStr) {
+        const tool = this._clientTools.get(key);
+        if (tool) {
+            try {
+                tool.mockResponse = JSON.parse(jsonStr);
+                this._saveClientToolsToStorage();
+                return true;
+            } catch (e) {
+                console.error('Invalid JSON for mock response:', e);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    setDirectiveCallback(onDirective, onResult) {
+        this._onDirective = onDirective;
+        this._onDirectiveResult = onResult;
+    }
+
+    _saveClientToolsToStorage() {
+        try {
+            const data = {};
+            this._clientTools.forEach((v, k) => { data[k] = v; });
+            localStorage.setItem('clientToolSimulations', JSON.stringify(data));
+        } catch (e) { /* ignore */ }
+    }
+
+    _loadClientToolsFromStorage() {
+        try {
+            const saved = localStorage.getItem('clientToolSimulations');
+            if (saved) {
+                const data = JSON.parse(saved);
+                Object.entries(data).forEach(([k, v]) => this._clientTools.set(k, v));
+            }
+        } catch (e) { /* ignore */ }
     }
 
     // ========== Connection ==========

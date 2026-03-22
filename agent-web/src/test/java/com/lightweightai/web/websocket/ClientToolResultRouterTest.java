@@ -20,7 +20,7 @@ class ClientToolResultRouterTest {
 
     @Test
     void clientToolResultWithoutCallIdShouldRejectInsteadOfGuessing() {
-        VertxWebSocketClientToolDispatcher dispatcher = mock(VertxWebSocketClientToolDispatcher.class);
+        ToolCallCompleter dispatcher = mock(ToolCallCompleter.class);
 
         ObjectNode payload = mapper.createObjectNode();
         payload.put("content", "ok");
@@ -35,7 +35,7 @@ class ClientToolResultRouterTest {
 
     @Test
     void directiveResultWithIdShouldUseCompleteCall() {
-        VertxWebSocketClientToolDispatcher dispatcher = mock(VertxWebSocketClientToolDispatcher.class);
+        ToolCallCompleter dispatcher = mock(ToolCallCompleter.class);
         when(dispatcher.completeCall(eq("d-1"), any(ToolResult.class))).thenReturn(true);
 
         ObjectNode payload = mapper.createObjectNode();
@@ -51,7 +51,7 @@ class ClientToolResultRouterTest {
 
     @Test
     void directiveResultWithoutIdShouldRejectInsteadOfGuessing() {
-        VertxWebSocketClientToolDispatcher dispatcher = mock(VertxWebSocketClientToolDispatcher.class);
+        ToolCallCompleter dispatcher = mock(ToolCallCompleter.class);
 
         ObjectNode payload = mapper.createObjectNode();
         payload.put("success", true);
@@ -60,7 +60,7 @@ class ClientToolResultRouterTest {
         ClientToolResultRouter router = new ClientToolResultRouter(mapper, null);
         assertFalse(router.routeDirectiveResult(dispatcher, payload));
 
-        verify(dispatcher, never()).completeLatestCall(any(ToolResult.class), any());
+        verify(dispatcher, never()).completeLatestCall(any(ToolResult.class));
         verify(dispatcher, never()).completeCall(any(), any());
     }
 
