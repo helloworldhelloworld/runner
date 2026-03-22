@@ -1,5 +1,6 @@
 package com.lightweightai.kernel.agent;
 
+import com.lightweightai.kernel.agent.directive.Directive;
 import com.lightweightai.kernel.llm.ToolResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,7 +117,8 @@ public class ClientToolWrapper implements Tool, ToolMetadata {
         logger.info("Dispatching client tool call: {} (callId={})", name, callId);
 
         try {
-            ToolResult result = dispatcher.dispatch(callId, name, args)
+            Directive directive = Directive.fromToolName(callId, name, args, timeoutMs);
+            ToolResult result = dispatcher.dispatch(callId, name, directive)
                     .get(timeoutMs, TimeUnit.MILLISECONDS);
 
             logger.info("Client tool result received: {} (callId={}, isError={})",
