@@ -19,7 +19,11 @@ import com.lightweightai.kernel.memory.UserMemory;
 import com.lightweightai.kernel.prompt.PromptContext;
 import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.prompt.PromptRequest;
+import com.lightweightai.kernel.prompt.Skill;
 import reactor.core.publisher.Flux;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -43,6 +47,7 @@ import java.util.stream.Collectors;
  */
 public class SoulComfortAgent {
 
+    private static final Logger logger = LoggerFactory.getLogger(SoulComfortAgent.class);
     private static final int MAX_TOOL_ITERATIONS = 5;
 
     private final LLMProvider llmProvider;
@@ -148,11 +153,20 @@ public class SoulComfortAgent {
         if (observer != null) observer.onAgentStart(userMessage, sessionId);
 
         try {
-            List<ConversationMessage> messages = buildMessages(sessionId, userMessage, externalMemoryContext);
+            // OpenClaw 路径：根据 Skill 激活决定可见工具
+            List<ConversationMessage> messages;
+            List<Map<String, Object>> toolDefs;
+            if (promptEngine != null) {
+                PromptContext ctx = buildPromptContext(sessionId, userMessage);
+                messages = buildMessagesFromContext(ctx);
+                toolDefs = buildToolDefinitionsFromContext(ctx);
+            } else {
+                messages = buildMessagesFallback(sessionId, userMessage, externalMemoryContext);
+                toolDefs = buildToolDefinitions();
+            }
 
             if (observer != null) observer.onLLMRequest(messages);
 
-            List<Map<String, Object>> toolDefs = buildToolDefinitions();
             LLMOptions.Builder optBuilder = LLMOptions.builder()
                 .maxTokens(2048)
                 .temperature(0.8);
@@ -359,14 +373,24 @@ public class SoulComfortAgent {
         }
 
         // 有 ToolCallingLoop — 走 Reactive 管道，包含完整工具事件
-        List<ConversationMessage> messages = buildMessages(sessionId, userMessage, null);
+        // 根据 Skill 激活决定可见工具
+        List<ConversationMessage> messages;
+        List<Map<String, Object>> toolDefs;
+        if (promptEngine != null) {
+            PromptContext ctx = buildPromptContext(sessionId, userMessage);
+            messages = buildMessagesFromContext(ctx);
+            toolDefs = buildToolDefinitionsFromContext(ctx);
+        } else {
+            messages = buildMessagesFallback(sessionId, userMessage, null);
+            toolDefs = buildToolDefinitions();
+        }
 
         LLMOptions.Builder optBuilder = LLMOptions.builder()
             .maxTokens(2048)
             .temperature(0.8);
 
-        if (!tools.isEmpty()) {
-            optBuilder.toolDefinitions(buildToolDefinitions());
+        if (!toolDefs.isEmpty()) {
+            optBuilder.toolDefinitions(toolDefs);
         }
 
         StringBuilder fullText = new StringBuilder();
@@ -452,13 +476,9 @@ public class SoulComfortAgent {
 
     /**
      * OpenClaw 路径：委托 PromptEngine 完成 Skill 激活 + 记忆检索 + 历史加载
-     *
-     * 输出为标准的单条 system + 多轮对话 messages。
      */
-    private List<ConversationMessage> buildMessagesViaPromptEngine(String sessionId, String userMessage) {
+    private PromptContext buildPromptContext(String sessionId, String userMessage) {
         MemoryProvider mp = promptEngine.getMemoryProvider();
-
-        // 先把当前用户消息写入会话历史，PromptEngine.loadHistory() 会把它包含进来
         mp.addMessage(sessionId, Message.user(userMessage));
 
         PromptRequest request = PromptRequest.builder()
@@ -470,10 +490,18 @@ public class SoulComfortAgent {
             .build();
 
         PromptContext ctx = promptEngine.build(request);
+        logger.info("[Agent] Skills activated: {}, skill tools: {}",
+            ctx.getActiveSkillNames(),
+            ctx.getTools().stream().map(Skill.ToolDefinition::getName).collect(Collectors.toList()));
+        return ctx;
+    }
 
+    /**
+     * 从 PromptContext 提取 messages（system prompt + history）
+     */
+    private List<ConversationMessage> buildMessagesFromContext(PromptContext ctx) {
         List<ConversationMessage> messages = new ArrayList<>();
 
-        // 单条 System Message（base prompt + memory context）
         StringBuilder sys = new StringBuilder(ctx.getSystemPrompt());
         if (ctx.hasMemoryContext()) {
             sys.append("\n\n").append(ctx.getMemoryContext());
@@ -483,13 +511,45 @@ public class SoulComfortAgent {
             .textContent(sys.toString())
             .build());
 
-        // 会话历史（已包含刚添加的用户消息）
         ctx.getHistoryMessages().stream()
             .filter(m -> !"system".equals(m.getRole()))
             .map(Message::toConversationMessage)
             .forEach(messages::add);
 
         return messages;
+    }
+
+    private List<ConversationMessage> buildMessagesViaPromptEngine(String sessionId, String userMessage) {
+        return buildMessagesFromContext(buildPromptContext(sessionId, userMessage));
+    }
+
+    /**
+     * 从 PromptContext 的 skill tools 构建 tool definitions。
+     * 如果有 skill tools → 只暴露 skill 声明的工具。
+     * 如果没有 skill tools → 回退到全量工具列表（保持兼容）。
+     */
+    private List<Map<String, Object>> buildToolDefinitionsFromContext(PromptContext ctx) {
+        List<Skill.ToolDefinition> skillTools = ctx.getTools();
+        if (skillTools != null && !skillTools.isEmpty()) {
+            logger.info("[Agent] LLM tool definitions from skills: {}",
+                skillTools.stream().map(Skill.ToolDefinition::getName).collect(Collectors.toList()));
+            return skillTools.stream().map(t -> {
+                Map<String, Object> function = new LinkedHashMap<>();
+                function.put("name", t.getName());
+                function.put("description", t.getDescription());
+                function.put("parameters", Map.of(
+                    "type", "object",
+                    "properties", t.getParameters()
+                ));
+
+                Map<String, Object> def = new LinkedHashMap<>();
+                def.put("type", "function");
+                def.put("function", function);
+                return def;
+            }).collect(Collectors.toList());
+        }
+        // 回退：无 skill tools 时使用全量工具
+        return buildToolDefinitions();
     }
 
     /**
