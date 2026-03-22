@@ -65,6 +65,12 @@ mvn install -DskipTests
 cd agent-web && mvn spring-boot:run
 ```
 
+## Build Principles
+
+- **Interface changes require `mvn clean test`**: After modifying interface/abstract class signatures, always use `mvn clean test` (not `mvn test`). Plain `mvn test` may use stale jars from `.m2` cache, hiding compilation errors in dependent modules (e.g., `agent-demo` has no tests, so broken code won't be caught unless it's recompiled from source).
+- **Grep for all callers**: When changing a method signature, `grep` for all call sites across the entire repo before committing. Don't rely solely on the compiler — cached artifacts can mask breakage.
+- **No module left behind**: Modules without test classes (like `agent-demo`) still need compilation verification. `mvn clean compile` covers them; `mvn test` alone may not.
+
 ## Architecture Overview
 
 ### Execution Flow
