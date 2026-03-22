@@ -501,6 +501,14 @@ public class OpenRouterProvider implements LLMProvider {
                             JsonNode delta = firstChoice.get("delta");
 
                             if (delta != null) {
+                                // Reasoning/thinking content (GLM-5, DeepSeek etc.)
+                                if (delta.has("reasoning_content") && !delta.get("reasoning_content").isNull()) {
+                                    String reasoning = delta.get("reasoning_content").asText();
+                                    if (!reasoning.isEmpty()) {
+                                        handler.onTextDelta(reasoning);
+                                    }
+                                }
+
                                 // Text content — skip empty chunks from API warmup
                                 if (delta.has("content") && !delta.get("content").isNull()) {
                                     String deltaContent = delta.get("content").asText();

@@ -151,6 +151,10 @@ public class OpenAIWebSocketProvider implements LLMProvider {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String requestBody = buildRequestBody(messages, options, true);
+                int toolCount = options != null && options.getToolDefinitions() != null
+                    ? options.getToolDefinitions().size() : 0;
+                logger.info("WS streaming: {} messages, {} tools, model={}",
+                    messages.size(), toolCount, model);
                 logger.debug("WS streaming request body: {}", requestBody);
 
                 StringBuilder textContent = new StringBuilder();
@@ -173,6 +177,8 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                     @Override
                     public void onMessage(WebSocket webSocket, String text) {
                         String trimmed = text.trim();
+                        logger.debug("WS frame: {}", trimmed.length() > 500
+                            ? trimmed.substring(0, 500) + "..." : trimmed);
 
                         // Handle [DONE] signal
                         if ("[DONE]".equals(trimmed)) {
@@ -214,6 +220,14 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                             // Streaming delta format
                             JsonNode delta = firstChoice.get("delta");
                             if (delta != null) {
+                                // Reasoning/thinking content (GLM-5, DeepSeek etc.)
+                                if (delta.has("reasoning_content") && !delta.get("reasoning_content").isNull()) {
+                                    String reasoning = delta.get("reasoning_content").asText();
+                                    if (!reasoning.isEmpty()) {
+                                        handler.onTextDelta(reasoning);
+                                    }
+                                }
+
                                 // Text content
                                 if (delta.has("content") && !delta.get("content").isNull()) {
                                     String deltaContent = delta.get("content").asText();
@@ -314,6 +328,10 @@ public class OpenAIWebSocketProvider implements LLMProvider {
 
                 logger.info("WS stream complete: textLen={}, toolCalls={}, stopReason={}",
                     textContent.length(), toolCalls.size(), finishReason[0]);
+                if (!toolCalls.isEmpty()) {
+                    logger.info("WS tool calls: {}",
+                        toolCalls.stream().map(tc -> tc.getName() + "(" + tc.getId() + ")").toList());
+                }
 
                 handler.onComplete(response);
                 return response;
