@@ -30,7 +30,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -64,7 +63,15 @@ public class OpenAIWebSocketProvider implements LLMProvider {
             throw new IllegalArgumentException("Model name cannot be null or empty");
         }
 
-        this.websocketUrl = websocketUrl.replaceAll("/+$", "");
+        // OkHttp WebSocket 需要 ws:// 或 wss:// scheme；
+        // 用户可能传 http:// 或 https://，这里自动转换
+        String normalizedUrl = websocketUrl.trim().replaceAll("/+$", "");
+        if (normalizedUrl.startsWith("http://")) {
+            normalizedUrl = "ws://" + normalizedUrl.substring(7);
+        } else if (normalizedUrl.startsWith("https://")) {
+            normalizedUrl = "wss://" + normalizedUrl.substring(8);
+        }
+        this.websocketUrl = normalizedUrl;
         this.model = model;
         this.apiKey = apiKey != null ? apiKey : "";
         this.httpClient = new OkHttpClient.Builder()
@@ -107,6 +114,12 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                     @Override
                     public void onMessage(WebSocket webSocket, String text) {
                         responseBuffer.append(text);
+                    }
+
+                    @Override
+                    public void onClosing(WebSocket webSocket, int code, String reason) {
+                        // 必须回复 close，否则 onClosed 不会被调用
+                        webSocket.close(1000, null);
                     }
 
                     @Override
@@ -333,8 +346,9 @@ public class OpenAIWebSocketProvider implements LLMProvider {
 
     private Request buildWsRequest() {
         Request.Builder builder = new Request.Builder().url(websocketUrl);
+        // 自定义网关：仅用 api_key header 认证，不发 Authorization: Bearer
+        // （api_key 同时也在 JSON body 中传递）
         if (!apiKey.isEmpty()) {
-            builder.header("Authorization", "Bearer " + apiKey);
             builder.header("api_key", apiKey);
         }
         return builder.build();
