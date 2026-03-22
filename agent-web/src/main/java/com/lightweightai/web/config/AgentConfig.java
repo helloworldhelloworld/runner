@@ -3,6 +3,9 @@ package com.lightweightai.web.config;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.core.ToolExecutor;
+import com.lightweightai.kernel.trace.Tracer;
+import com.lightweightai.kernel.trace.export.ConsoleSpanExporter;
+import com.lightweightai.kernel.trace.export.StreamEventSpanExporter;
 import com.lightweightai.kernel.instruction.InstructionRegistry;
 import com.lightweightai.kernel.instruction.ProviderAdapterFactory;
 import com.lightweightai.kernel.instruction.claude.ClaudeSkillAdapter;
@@ -354,11 +357,25 @@ public class AgentConfig {
     }
 
     @Bean
-    public ToolCallingLoop toolCallingLoop(LLMProvider provider, ToolExecutor executor) {
+    public StreamEventSpanExporter streamEventSpanExporter() {
+        return new StreamEventSpanExporter();
+    }
+
+    @Bean
+    public Tracer tracer(StreamEventSpanExporter streamEventSpanExporter) {
+        return Tracer.builder()
+            .addExporter(new ConsoleSpanExporter())
+            .addExporter(streamEventSpanExporter)
+            .build();
+    }
+
+    @Bean
+    public ToolCallingLoop toolCallingLoop(LLMProvider provider, ToolExecutor executor, Tracer tracer) {
         return ToolCallingLoop.builder()
             .provider(provider)
             .toolExecutor(executor)
             .maxIterations(10)
+            .tracer(tracer)
             .build();
     }
 

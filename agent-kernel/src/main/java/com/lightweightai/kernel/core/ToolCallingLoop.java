@@ -7,6 +7,9 @@ import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
+import com.lightweightai.kernel.trace.SpanContext;
+import com.lightweightai.kernel.trace.TraceContext;
+import com.lightweightai.kernel.trace.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -31,6 +34,7 @@ public class ToolCallingLoop {
     private final ToolExecutor toolExecutor;
     private final int maxIterations;
     private final ToolExecutionContext executionContext;
+    private final Tracer tracer;
 
     /**
      * Create a new ToolCallingLoop
@@ -40,11 +44,16 @@ public class ToolCallingLoop {
      * @param maxIterations Maximum number of tool calling iterations (prevents infinite loops)
      */
     public ToolCallingLoop(LLMProvider provider, ToolExecutor toolExecutor, int maxIterations) {
-        this(provider, toolExecutor, maxIterations, null);
+        this(provider, toolExecutor, maxIterations, null, null);
     }
 
     public ToolCallingLoop(LLMProvider provider, ToolExecutor toolExecutor, int maxIterations,
                            ToolExecutionContext executionContext) {
+        this(provider, toolExecutor, maxIterations, executionContext, null);
+    }
+
+    public ToolCallingLoop(LLMProvider provider, ToolExecutor toolExecutor, int maxIterations,
+                           ToolExecutionContext executionContext, Tracer tracer) {
         if (provider == null) {
             throw new IllegalArgumentException("LLM provider cannot be null");
         }
@@ -59,6 +68,7 @@ public class ToolCallingLoop {
         this.toolExecutor = toolExecutor;
         this.maxIterations = maxIterations;
         this.executionContext = executionContext;
+        this.tracer = tracer != null ? tracer : Tracer.NOOP;
     }
 
     /**
@@ -202,89 +212,97 @@ public class ToolCallingLoop {
             int iteration) {
 
         if (iteration >= maxIterations) {
-            logger.error("[TCL] Max iterations ({}) reached", maxIterations);
             return Flux.error(new RuntimeException(
                 "Tool calling loop exceeded maximum iterations: " + maxIterations));
         }
 
-        logger.info("[TCL] executeReactiveLoop iteration={} messagesCount={}", iteration, conversation.size());
+        return Flux.deferContextual(ctx -> {
+            // 从 Reactor Context 读取父 span，创建迭代子 span
+            SpanContext parentSpan = TraceContext.current(ctx);
+            SpanContext iterationSpan = parentSpan != null
+                ? parentSpan.createChild("tcl.iteration." + iteration)
+                : SpanContext.createRoot("tcl.iteration." + iteration);
+            iterationSpan.setAttribute("iteration", iteration);
+            iterationSpan.setAttribute("messagesCount", conversation.size());
 
-        // Step 1: LLM 流式调用 — 收集所有事件
-        List<StreamEvent> accumulated = new ArrayList<>();
+            // Step 1: LLM 流式调用 — 收集所有事件
+            List<StreamEvent> accumulated = new ArrayList<>();
 
-        return provider.completeStreamReactive(conversation, options)
-            .doOnNext(event -> {
-                accumulated.add(event);
-                logger.debug("[TCL] Accumulated event: type={}", event.getType());
-            })
-            .doOnComplete(() -> logger.info("[TCL] LLM stream complete, accumulated {} events", accumulated.size()))
-            .doOnError(e -> logger.error("[TCL] LLM stream error at iteration={}", iteration, e))
-            .concatWith(Flux.defer(() -> {
-                // Step 2: 从收集的事件中找到 LLM_COMPLETE
-                StreamEvent completeEvent = accumulated.stream()
-                    .filter(e -> e.getType() == StreamEvent.EventType.LLM_COMPLETE)
-                    .findFirst()
-                    .orElse(null);
+            // LLM 流子 span
+            SpanContext llmSpan = iterationSpan.createChild("llm.stream");
 
-                boolean hasToolCalls = completeEvent != null
-                    && completeEvent.getResponse() != null
-                    && completeEvent.getResponse().hasToolCalls();
-                logger.info("[TCL] Post-LLM: completeEvent={} hasToolCalls={} iteration={}",
-                    completeEvent != null, hasToolCalls, iteration);
+            return provider.completeStreamReactive(conversation, options)
+                .doOnNext(accumulated::add)
+                .doOnComplete(() -> {
+                    llmSpan.setAttribute("eventCount", accumulated.size());
+                    tracer.endSpan(llmSpan);
+                })
+                .doOnError(e -> tracer.endSpanWithError(llmSpan, e))
+                .concatWith(Flux.defer(() -> {
+                    // Step 2: 从收集的事件中找到 LLM_COMPLETE
+                    StreamEvent completeEvent = accumulated.stream()
+                        .filter(e -> e.getType() == StreamEvent.EventType.LLM_COMPLETE)
+                        .findFirst()
+                        .orElse(null);
 
-                if (completeEvent == null || !hasToolCalls) {
-                    logger.info("[TCL] No tool calls, ending loop at iteration={}", iteration);
-                    return Flux.empty();  // 无工具调用，结束
-                }
+                    boolean hasToolCalls = completeEvent != null
+                        && completeEvent.getResponse() != null
+                        && completeEvent.getResponse().hasToolCalls();
+                    iterationSpan.setAttribute("hasToolCalls", hasToolCalls);
 
-                // Step 3: LLM 要调用工具
-                LLMResponse response = completeEvent.getResponse();
-                List<com.lightweightai.kernel.llm.ToolCall> toolCalls = response.getToolCalls();
-                logger.info("[TCL] Executing {} tool calls: {}", toolCalls.size(),
-                    toolCalls.stream().map(ToolCall::getName).toList());
-                conversation.add(enrichWithToolCalls(response));
+                    if (completeEvent == null || !hasToolCalls) {
+                        tracer.endSpan(iterationSpan);
+                        return Flux.empty();
+                    }
 
-                // Step 3a: 发出 TOOL_CALL_START 事件
-                Flux<StreamEvent> toolStartEvents = Flux.fromIterable(toolCalls)
-                    .map(StreamEvent::toolCallStart);
+                    // Step 3: LLM 要调用工具
+                    LLMResponse response = completeEvent.getResponse();
+                    List<com.lightweightai.kernel.llm.ToolCall> toolCalls = response.getToolCalls();
+                    iterationSpan.setAttribute("toolCallCount", toolCalls.size());
+                    iterationSpan.setAttribute("toolNames",
+                        toolCalls.stream().map(ToolCall::getName).toList());
+                    conversation.add(enrichWithToolCalls(response));
 
-                // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
-                // 注意：不能用 share()，因为 concat() 是顺序订阅，
-                // nextRound 订阅时 share() 的上游已经完成，会丢失所有事件。
-                // cache() 会缓存所有事件并重播给后续订阅者（nextRound）。
-                Flux<ToolResultChunk> sharedToolExec = toolExecutor
-                    .executeToolCallsReactive(toolCalls)
-                    .cache();
+                    // Step 3a: 发出 TOOL_CALL_START 事件
+                    Flux<StreamEvent> toolStartEvents = Flux.fromIterable(toolCalls)
+                        .map(StreamEvent::toolCallStart);
 
-                // 流式发出 TOOL_PROGRESS / TOOL_LOG / TOOL_RESULT 事件
-                Flux<StreamEvent> toolExecEvents = sharedToolExec
-                    .map(chunk -> switch (chunk.getType()) {
-                        case PROGRESS -> StreamEvent.toolProgress(chunk);
-                        case LOG -> StreamEvent.toolLog(chunk);
-                        case COMPLETE -> StreamEvent.toolResult(chunk);
-                        case ERROR -> StreamEvent.toolError(chunk);
-                    });
+                    // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
+                    Flux<ToolResultChunk> sharedToolExec = toolExecutor
+                        .executeToolCallsReactive(toolCalls)
+                        .cache();
 
-                // Step 3c: 收集工具结果，加入对话，递归下一轮
-                Flux<StreamEvent> nextRound = sharedToolExec
-                    .filter(c -> c.getType() == ToolResultChunk.ChunkType.COMPLETE
-                              || c.getType() == ToolResultChunk.ChunkType.ERROR)
-                    .map(c -> {
-                        if (c.getType() == ToolResultChunk.ChunkType.COMPLETE) {
-                            return c.getResult().withToolUseId(c.getToolCallId());
-                        }
-                        return ToolResult.error(c.getToolCallId(), c.getMessage());
-                    })
-                    .collectList()
-                    .flatMapMany(results -> {
-                        for (ToolResult result : results) {
-                            conversation.add(createToolResultMessage(result));
-                        }
-                        return executeReactiveLoop(conversation, options, iteration + 1);
-                    });
+                    // 流式发出 TOOL_PROGRESS / TOOL_LOG / TOOL_RESULT 事件
+                    Flux<StreamEvent> toolExecEvents = sharedToolExec
+                        .map(chunk -> switch (chunk.getType()) {
+                            case PROGRESS -> StreamEvent.toolProgress(chunk);
+                            case LOG -> StreamEvent.toolLog(chunk);
+                            case COMPLETE -> StreamEvent.toolResult(chunk);
+                            case ERROR -> StreamEvent.toolError(chunk);
+                        });
 
-                return Flux.concat(toolStartEvents, toolExecEvents, nextRound);
-            }));
+                    // Step 3c: 收集工具结果，加入对话，递归下一轮
+                    Flux<StreamEvent> nextRound = sharedToolExec
+                        .filter(c -> c.getType() == ToolResultChunk.ChunkType.COMPLETE
+                                  || c.getType() == ToolResultChunk.ChunkType.ERROR)
+                        .map(c -> {
+                            if (c.getType() == ToolResultChunk.ChunkType.COMPLETE) {
+                                return c.getResult().withToolUseId(c.getToolCallId());
+                            }
+                            return ToolResult.error(c.getToolCallId(), c.getMessage());
+                        })
+                        .collectList()
+                        .flatMapMany(results -> {
+                            for (ToolResult result : results) {
+                                conversation.add(createToolResultMessage(result));
+                            }
+                            tracer.endSpan(iterationSpan);
+                            return executeReactiveLoop(conversation, options, iteration + 1);
+                        });
+
+                    return Flux.concat(toolStartEvents, toolExecEvents, nextRound);
+                }));
+        });
     }
 
     /**
@@ -340,6 +358,7 @@ public class ToolCallingLoop {
         private ToolExecutor toolExecutor;
         private int maxIterations = 10;
         private ToolExecutionContext executionContext;
+        private Tracer tracer;
 
         public Builder provider(LLMProvider provider) {
             this.provider = provider;
@@ -364,8 +383,13 @@ public class ToolCallingLoop {
             return this;
         }
 
+        public Builder tracer(Tracer tracer) {
+            this.tracer = tracer;
+            return this;
+        }
+
         public ToolCallingLoop build() {
-            return new ToolCallingLoop(provider, toolExecutor, maxIterations, executionContext);
+            return new ToolCallingLoop(provider, toolExecutor, maxIterations, executionContext, tracer);
         }
     }
 

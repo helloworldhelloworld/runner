@@ -1,9 +1,11 @@
 package com.lightweightai.web.config;
 
+import com.lightweightai.kernel.trace.export.StreamEventSpanExporter;
 import com.lightweightai.web.postprocess.CardAppendProcessor;
 import com.lightweightai.web.postprocess.DeeplinkProcessor;
 import com.lightweightai.web.postprocess.RiskControlProcessor;
 import com.lightweightai.web.postprocess.SimpleRiskChecker;
+import com.lightweightai.web.postprocess.SpanTracePostProcessor;
 import com.lightweightai.web.postprocess.TracingPostProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -56,5 +58,14 @@ public class PostProcessorConfig {
     @ConditionalOnProperty(name = "app.tracing.enabled", havingValue = "true", matchIfMissing = true)
     public TracingPostProcessor tracingPostProcessor() {
         return new TracingPostProcessor();
+    }
+
+    /**
+     * Span 追踪后处理器 — 将 span 数据注入流末尾
+     */
+    @Bean
+    @ConditionalOnProperty(name = "app.tracing.enabled", havingValue = "true", matchIfMissing = true)
+    public SpanTracePostProcessor spanTracePostProcessor(StreamEventSpanExporter exporter) {
+        return new SpanTracePostProcessor(exporter);
     }
 }

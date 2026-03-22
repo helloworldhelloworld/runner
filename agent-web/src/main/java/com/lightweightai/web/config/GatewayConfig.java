@@ -4,6 +4,7 @@ import com.lightweightai.kernel.core.postprocess.StreamPostProcessor;
 import com.lightweightai.kernel.gateway.ChatHandler;
 import com.lightweightai.kernel.gateway.Gateway;
 import com.lightweightai.kernel.gateway.SessionManager;
+import com.lightweightai.kernel.trace.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,12 +28,14 @@ public class GatewayConfig {
     @Bean
     public Gateway gateway(ChatHandler chatHandler,
                            SessionManager sessionManager,
+                           Tracer tracer,
                            @Autowired(required = false) List<StreamPostProcessor> postProcessors) {
         List<StreamPostProcessor> processors = postProcessors != null ? postProcessors : Collections.emptyList();
 
         Gateway.Builder builder = Gateway.builder()
             .chatHandler(chatHandler)
-            .sessionManager(sessionManager);
+            .sessionManager(sessionManager)
+            .tracer(tracer);
 
         for (StreamPostProcessor processor : processors) {
             builder.addPostProcessor(processor);

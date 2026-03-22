@@ -123,9 +123,9 @@
             <div id="trace-panel" class="mt-4 chat-container rounded-2xl shadow-lg p-4 hidden">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="text-sm font-bold text-indigo-700">🔗 调用链追踪</h3>
-                    <button onclick="document.getElementById('trace-entries').innerHTML=''" class="text-xs text-gray-400 hover:text-gray-600">清空</button>
+                    <button onclick="clearTracePanel()" class="text-xs text-gray-400 hover:text-gray-600">清空</button>
                 </div>
-                <div id="trace-entries" class="space-y-1 max-h-48 overflow-y-auto font-mono text-xs"></div>
+                <div id="trace-entries" class="space-y-0 max-h-96 overflow-y-auto font-mono text-xs"></div>
             </div>
         </div>
 
@@ -459,21 +459,154 @@
             });
         });
 
-        const PHASE_COLORS = {
-            'gateway.enter': 'text-blue-600', 'gateway.postprocess': 'text-blue-500', 'gateway.complete': 'text-blue-700',
-            'agent.start': 'text-green-600', 'agent.prompt': 'text-green-500', 'agent.llm': 'text-yellow-600', 'agent.complete': 'text-green-700',
+        // ==================== 调用链追踪 ====================
+
+        // 每次发消息时重置，收集当前请求的所有 trace
+        let _traceEvents = [];
+        let _traceStartTime = 0;
+
+        const PHASE_CONFIG = {
+            'user.message':    { icon: '📩', label: '用户输入',   color: 'bg-blue-50 border-blue-200',   barColor: 'bg-blue-400' },
+            'llm.first_token': { icon: '⚡', label: '首Token',    color: 'bg-yellow-50 border-yellow-200', barColor: 'bg-yellow-400' },
+            'tool.start':      { icon: '🔧', label: '工具调用',   color: 'bg-purple-50 border-purple-200', barColor: 'bg-purple-400' },
+            'tool.result':     { icon: '✅', label: '工具结果',   color: 'bg-green-50 border-green-200',  barColor: 'bg-green-400' },
+            'tool.error':      { icon: '❌', label: '工具错误',   color: 'bg-red-50 border-red-200',      barColor: 'bg-red-400' },
+            'llm.complete':    { icon: '🤖', label: 'LLM完成',   color: 'bg-indigo-50 border-indigo-200', barColor: 'bg-indigo-400' },
+            'error':           { icon: '💥', label: '错误',       color: 'bg-red-50 border-red-200',      barColor: 'bg-red-500' },
+            // span-based traces
+            'gateway.handle':  { icon: '🌐', label: 'Gateway',   color: 'bg-blue-50 border-blue-200',    barColor: 'bg-blue-500' },
+            'tcl.iteration':   { icon: '🔄', label: '迭代',      color: 'bg-gray-50 border-gray-200',    barColor: 'bg-gray-400' },
+            'llm.stream':      { icon: '📡', label: 'LLM流',     color: 'bg-yellow-50 border-yellow-200', barColor: 'bg-yellow-500' },
+            'tool.execute':    { icon: '⚙️', label: '工具执行',   color: 'bg-purple-50 border-purple-200', barColor: 'bg-purple-500' },
         };
 
+        function getPhaseConfig(phase) {
+            if (PHASE_CONFIG[phase]) return PHASE_CONFIG[phase];
+            // Match prefix patterns like tcl.iteration.0, tool.execute.checkWeather
+            for (const [key, cfg] of Object.entries(PHASE_CONFIG)) {
+                if (phase.startsWith(key)) return cfg;
+            }
+            return { icon: '📋', label: phase, color: 'bg-gray-50 border-gray-200', barColor: 'bg-gray-400' };
+        }
+
+        function clearTracePanel() {
+            _traceEvents = [];
+            _traceStartTime = 0;
+            document.getElementById('trace-entries').innerHTML = '';
+        }
+
+        function resetTraceForNewRequest() {
+            _traceEvents = [];
+            _traceStartTime = 0;
+            document.getElementById('trace-entries').innerHTML = '';
+        }
+
         function appendTraceEvent(trace) {
+            // trace = { phase, message, timestamp, extra }
+            if (_traceStartTime === 0) _traceStartTime = trace.timestamp;
+            _traceEvents.push(trace);
+            renderTraceTimeline();
+        }
+
+        function renderTraceTimeline() {
             const container = document.getElementById('trace-entries');
-            const t = new Date(trace.timestamp);
-            const ts = t.toLocaleTimeString('zh-CN', {hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit', fractionalSecondDigits:3});
-            const color = PHASE_COLORS[trace.phase] || 'text-gray-600';
-            const div = document.createElement('div');
-            div.className = 'flex gap-2 py-0.5 border-b border-gray-100';
-            div.innerHTML = `<span class="text-gray-400 shrink-0">${ts}</span><span class="${color} font-semibold shrink-0">[${trace.phase}]</span><span class="text-gray-700">${escapeHtml(trace.message)}</span>`;
-            container.appendChild(div);
+            const events = _traceEvents;
+            if (events.length === 0) { container.innerHTML = ''; return; }
+
+            const startTime = _traceStartTime;
+            // Find the latest llm.complete or last event for total duration
+            const completeEvt = events.filter(e => e.phase === 'llm.complete').pop();
+            const totalDuration = completeEvt && completeEvt.extra
+                ? (completeEvt.extra.elapsedMs || (events[events.length-1].timestamp - startTime))
+                : (events[events.length-1].timestamp - startTime);
+            const maxDuration = Math.max(totalDuration, 1);
+
+            let html = '';
+
+            // Header: total duration
+            if (completeEvt) {
+                const tokens = completeEvt.extra || {};
+                html += `<div class="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg mb-2 border border-indigo-100">
+                    <span class="text-indigo-600 font-bold">⏱ ${maxDuration}ms</span>
+                    <span class="text-gray-500">|</span>
+                    ${tokens.inputTokens ? `<span class="text-gray-600">输入 <b>${tokens.inputTokens}</b> tokens</span><span class="text-gray-500">|</span>` : ''}
+                    ${tokens.outputTokens ? `<span class="text-gray-600">输出 <b>${tokens.outputTokens}</b> tokens</span>` : ''}
+                    ${tokens.hasToolCalls ? '<span class="text-purple-600 ml-1">🔧 含工具调用</span>' : ''}
+                </div>`;
+            }
+
+            // Timeline entries
+            for (let i = 0; i < events.length; i++) {
+                const evt = events[i];
+                const cfg = getPhaseConfig(evt.phase);
+                const relativeTime = evt.timestamp - startTime;
+
+                // Determine indent level based on phase
+                let indent = 0;
+                if (evt.phase.startsWith('tcl.iteration') || evt.phase === 'llm.first_token') indent = 1;
+                if (evt.phase.startsWith('tool.') || evt.phase === 'llm.stream') indent = 2;
+                if (evt.phase.startsWith('llm.complete') && events.some(e => e.phase.startsWith('tool.'))) indent = 1;
+
+                // Duration info
+                let durationText = '';
+                const extra = evt.extra || {};
+                if (extra.latencyMs !== undefined) durationText = `${extra.latencyMs}ms`;
+                if (extra.elapsedMs !== undefined) durationText = `${extra.elapsedMs}ms`;
+                if (extra.durationMs !== undefined) durationText = `${extra.durationMs}ms`;
+
+                // Build detail text
+                let detail = '';
+                if (evt.phase === 'user.message') {
+                    detail = truncate(evt.message, 60);
+                } else if (evt.phase === 'llm.first_token') {
+                    detail = `首Token延迟 ${extra.latencyMs || 0}ms`;
+                } else if (evt.phase === 'tool.start') {
+                    const toolName = extra.toolName || '';
+                    const args = extra.arguments ? JSON.stringify(extra.arguments) : '';
+                    detail = `${toolName}(${truncate(args, 40)})`;
+                } else if (evt.phase === 'tool.result') {
+                    const content = extra.content || '';
+                    detail = `${extra.toolName}: ${truncate(content, 50)}`;
+                } else if (evt.phase === 'tool.error') {
+                    detail = `${extra.toolName}: ${extra.errorMessage || 'error'}`;
+                } else if (evt.phase === 'llm.complete') {
+                    const out = extra.output || '';
+                    detail = truncate(out, 50);
+                } else if (extra.traceId) {
+                    // span-based trace
+                    detail = evt.message || '';
+                } else {
+                    detail = evt.message || '';
+                }
+
+                // Timeline bar (waterfall)
+                const barLeft = totalDuration > 0 ? Math.round((relativeTime / maxDuration) * 100) : 0;
+                const barWidth = durationText ? Math.max(Math.round((parseInt(durationText) / maxDuration) * 100), 2) : 2;
+
+                // Connector line
+                const isLast = i === events.length - 1;
+                const connector = indent > 0
+                    ? `<span class="text-gray-300">${'│  '.repeat(indent - 1)}${isLast ? '└─' : '├─'}</span>`
+                    : '';
+
+                html += `<div class="flex items-center gap-1 py-1 px-2 hover:bg-gray-50 rounded group ${i > 0 ? 'border-t border-gray-50' : ''}">
+                    <span class="text-gray-400 w-12 shrink-0 text-right">+${relativeTime}ms</span>
+                    <span class="shrink-0 w-4">${connector}</span>
+                    <span class="shrink-0">${cfg.icon}</span>
+                    <span class="font-semibold text-gray-700 shrink-0">${escapeHtml(evt.phase)}</span>
+                    ${durationText ? `<span class="px-1.5 py-0.5 rounded text-white text-[10px] shrink-0 ${cfg.barColor}">${durationText}</span>` : ''}
+                    <span class="text-gray-500 truncate" title="${escapeHtml(detail)}">${escapeHtml(detail)}</span>
+                </div>`;
+            }
+
+            container.innerHTML = html;
             container.scrollTop = container.scrollHeight;
+        }
+
+        function truncate(str, max) {
+            if (!str) return '';
+            str = String(str);
+            return str.length > max ? str.substring(0, max) + '...' : str;
         }
 
         function updateModelStatus() {
@@ -493,6 +626,7 @@
 
             addMessage('customer', message);
             input.value = '';
+            resetTraceForNewRequest();
 
             const msgId = addMessage('shopkeeper', '<span class="text-gray-400">店长正在输入...</span>');
             const msgElement = document.getElementById(msgId);
