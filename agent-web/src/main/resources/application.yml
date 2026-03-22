@@ -47,6 +47,12 @@ app:
   # 工具调用（function calling）开关
   # 部分自建 LLM 网关不支持 tools 参数，设为 false 关闭
   tools-enabled: ${TOOLS_ENABLED:true}
+  # 工具来源加载模式
+  # legacy = 现有 SPI 扫描流程（默认，零变更）
+  # dynamic = 所有工具通过 ToolSourceProvider 注册
+  # hybrid = legacy 扫描 + ToolSourceProvider 叠加
+  tool-source:
+    mode: ${TOOL_SOURCE_MODE:legacy}
   soul:
     db-path: ${SOUL_DB_PATH:./data/soul_data.db}
     crisis-detection: true

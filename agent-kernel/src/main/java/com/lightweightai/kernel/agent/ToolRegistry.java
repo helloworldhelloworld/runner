@@ -4,6 +4,8 @@ import com.lightweightai.kernel.agent.annotation.AnnotatedToolScanner;
 import com.lightweightai.kernel.agent.annotation.ClientTool;
 import com.lightweightai.kernel.agent.directive.DirectiveDescriptor;
 import com.lightweightai.kernel.agent.directive.DirectiveRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,6 +30,8 @@ import java.util.stream.Collectors;
  */
 public class ToolRegistry {
 
+    private static final Logger logger = LoggerFactory.getLogger(ToolRegistry.class);
+
     private final Map<String, Tool> tools;
     private final Set<String> disabledTools;
     private final DirectiveRegistry directiveRegistry;
@@ -46,6 +50,9 @@ public class ToolRegistry {
     public void register(Tool tool) {
         Objects.requireNonNull(tool, "Tool cannot be null");
         Objects.requireNonNull(tool.getName(), "Tool name cannot be null");
+        if (tools.containsKey(tool.getName())) {
+            logger.warn("Tool '{}' already registered, overwriting", tool.getName());
+        }
         tools.put(tool.getName(), tool);
         registerDirectiveIfPresent(tool);
     }

@@ -66,6 +66,9 @@ public class AgentConfig {
     @Value("${app.tools-enabled:true}")
     private boolean toolsEnabled;
 
+    @Value("${app.tool-source.mode:legacy}")
+    private String toolSourceMode;
+
     @Value("${app.web-search.api-key:}")
     private String webSearchApiKey;
 
@@ -281,12 +284,19 @@ public class AgentConfig {
             return registry;
         }
 
+        // In "dynamic" mode, ToolSourceProviders handle all registration
+        if ("dynamic".equals(toolSourceMode)) {
+            logger.info("Tool source mode: dynamic — skipping legacy scan, providers will register tools");
+            return registry;
+        }
+
+        // Legacy or hybrid mode: run existing scan as before
         // Auto-scan and register all Tool implementations via Java SPI
         // Includes Tool SPI (interface) and ToolSource SPI (annotation-based)
         int scanned = registry.scanAndRegister(tool ->
             !tool.getName().equals("web_search") // Skip default WebTools — needs config injection
         );
-        logger.info("Auto-scanned {} tools via SPI", scanned);
+        logger.info("Auto-scanned {} tools via SPI (mode: {})", scanned, toolSourceMode);
 
         // Manually register tools that require configuration
         registry.registerObject(new WebTools(webSearchApiKey, webSearchMaxResults));
