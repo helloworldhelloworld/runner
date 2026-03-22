@@ -2,6 +2,7 @@ package com.lightweightai.tools.client;
 
 import com.lightweightai.kernel.agent.ClientToolDispatcher;
 import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.directive.Directive;
 import com.lightweightai.kernel.agent.directive.DirectiveDescriptor;
 import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.DisplayName;
@@ -63,7 +64,7 @@ class ClientToolIntegrationTest {
     @Test
     @DisplayName("上行 header.name 不匹配 upAction 时应失败")
     void shouldFailWhenUplinkActionMismatch() {
-        ClientToolDispatcher mismatchDispatcher = (callId, toolName, args) -> CompletableFuture.completedFuture(
+        ClientToolDispatcher mismatchDispatcher = (callId, toolName, directive) -> CompletableFuture.completedFuture(
             ToolResult.success("ok", Map.of(
                 "header", Map.of("namespace", "GeoInformation", "name", "OtherAction"),
                 "payload", Map.of("errorCode", "0")
@@ -77,7 +78,7 @@ class ClientToolIntegrationTest {
     }
 
     private static ClientToolDispatcher successDispatcher() {
-        return (callId, toolName, args) -> CompletableFuture.completedFuture(
+        return (callId, toolName, directive) -> CompletableFuture.completedFuture(
             ToolResult.success("ok", Map.of(
                 "header", Map.of("namespace", "GeoInformation", "name", "PositionInfo"),
                 "payload", Map.of(
@@ -98,10 +99,10 @@ class ClientToolIntegrationTest {
         private Map<String, Object> dispatchedArgs;
 
         @Override
-        public CompletableFuture<ToolResult> dispatch(String callId, String toolName, Map<String, Object> args) {
+        public CompletableFuture<ToolResult> dispatch(String callId, String toolName, Directive directive) {
             this.dispatchedToolName = toolName;
-            this.dispatchedArgs = args;
-            return successDispatcher().dispatch(callId, toolName, args);
+            this.dispatchedArgs = directive.getPayload();
+            return successDispatcher().dispatch(callId, toolName, directive);
         }
     }
 

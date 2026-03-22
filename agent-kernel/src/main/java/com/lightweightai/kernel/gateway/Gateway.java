@@ -189,7 +189,14 @@ public class Gateway {
      * 包含 LLM 文本片段、工具调用进度、工具结果等全链路事件。
      */
     public Flux<StreamEvent> handleStreamReactive(GatewayRequest request) {
-        Flux<StreamEvent> stream = chatHandler.chatStreamReactive(request);
+        // 在流头部注入用户消息 trace
+        StreamEvent userTrace = StreamEvent.trace("user.message", request.getMessage(),
+                Map.of("sessionId", request.getSessionId(),
+                       "requestId", request.getRequestId()));
+        Flux<StreamEvent> stream = Flux.concat(
+                Flux.just(userTrace),
+                chatHandler.chatStreamReactive(request)
+        );
         if (postProcessorPipeline != null) {
             stream = stream.transform(postProcessorPipeline);
         }
