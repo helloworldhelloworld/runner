@@ -223,7 +223,7 @@ public class AgentConfig {
      * MemoryProvider：FileMemoryAdapter（桥接 FileMemoryManager + ConversationMemory）
      */
     @Bean
-    public PromptEngine promptEngine(FileMemoryAdapter fileMemoryAdapter) {
+    public PromptEngine promptEngine(FileMemoryAdapter fileMemoryAdapter, ToolRegistry toolRegistry) {
         PromptEngine engine = PromptEngine.builder()
             .memoryProvider(fileMemoryAdapter)
             .baseSystemPrompt(SOUL_HARBOR_BASE_PROMPT)
@@ -268,7 +268,7 @@ public class AgentConfig {
             .build());
 
         // 天气查询 Skill（触发词匹配后激活，调用端工具 GetPosition + 云工具 checkWeather）
-        engine.registerSkill(com.lightweightai.kernel.prompt.Skill.builder()
+        com.lightweightai.kernel.prompt.Skill.Builder weatherBuilder = com.lightweightai.kernel.prompt.Skill.builder()
             .name("weather")
             .description("天气查询")
             .systemPrompt(
@@ -279,8 +279,11 @@ public class AgentConfig {
                 "如果 GetPosition 失败，请直接询问用户所在城市，然后调用 checkWeather。"
             )
             .triggers(List.of("天气", "weather", "forecast", "预报", "气温", "下雨"))
-            .priority(3)
-            .build());
+            .priority(3);
+        // 从 ToolRegistry 关联工具实例（Skill 激活时 LLM 才可见）
+        toolRegistry.get("GetPosition").ifPresent(weatherBuilder::addTool);
+        toolRegistry.get("checkWeather").ifPresent(weatherBuilder::addTool);
+        engine.registerSkill(weatherBuilder.build());
 
         logger.info("PromptEngine initialized with {} skills: {}",
             engine.getRegisteredSkills().size(), engine.getRegisteredSkills());
