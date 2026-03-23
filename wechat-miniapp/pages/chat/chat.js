@@ -133,6 +133,12 @@ Page({
     this.setData({ inputText: e.detail.value });
   },
 
+  goClientTools() {
+    wx.navigateTo({
+      url: '/pages/client-tools/client-tools'
+    });
+  },
+
   sendMessage() {
     const text = this.data.inputText.trim();
     if (!text || this.data.isSending) return;

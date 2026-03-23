@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/chat/chat",
+    "pages/client-tools/client-tools",
     "pages/checkin/checkin",
     "pages/assessment/assessment",
     "pages/assessment-quiz/assessment-quiz",
