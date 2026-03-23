@@ -189,9 +189,22 @@ public class AgentLoop {
                 .maxIterations(maxToolIterations)
                 .build();
 
+            // 累积完整响应文本，流结束后保存到记忆
+            StringBuilder fullResponse = new StringBuilder();
+
             return loop.executeWithToolsReactive(messages, llmOptions)
+                .doOnNext(event -> {
+                    if (event.getType() == StreamEvent.EventType.TEXT_DELTA) {
+                        fullResponse.append(event.getTextDelta());
+                    }
+                })
                 .doOnComplete(() -> {
-                    // 写入记忆（在完成时做，简化处理）
+                    // 保存助手消息到记忆
+                    String responseText = fullResponse.toString();
+                    if (!responseText.isEmpty()) {
+                        memoryProvider.addMessage(sessionId, Message.assistant(responseText));
+                    }
+                    writeConversationToMemory(input, responseText);
                 });
         }).subscribeOn(Schedulers.boundedElastic());
     }

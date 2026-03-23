@@ -441,18 +441,47 @@
                     <!-- Tool Selector -->
                     <div class="p-4 border-b border-gray-100">
                         <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-sm font-bold text-gray-700">🔧 候选工具</h3>
+                            <h3 class="text-sm font-bold text-gray-700">🔧 运行时工具</h3>
                             <button onclick="loadAvailableTools()" class="text-xs text-purple-600 hover:text-purple-800">🔄 刷新</button>
                         </div>
-                        <div id="sc-tools-list" class="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                        <div id="sc-tools-list" class="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
                             <span class="text-xs text-gray-400">加载中...</span>
+                        </div>
+
+                        <!-- 候选工具 Schema（从 Excel 导入） -->
+                        <div class="mt-3 pt-3 border-t border-gray-100">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-sm font-bold text-gray-700">📋 候选工具 Schema</h3>
+                                <div class="flex gap-1">
+                                    <label class="text-xs text-green-600 hover:text-green-800 cursor-pointer px-1">
+                                        📥 导入 Excel
+                                        <input type="file" accept=".xlsx" onchange="importToolSchemaExcel(this)" class="hidden">
+                                    </label>
+                                    <button onclick="loadCandidateTools()" class="text-xs text-purple-600 hover:text-purple-800">🔄 刷新</button>
+                                </div>
+                            </div>
+                            <div id="sc-candidate-tools" class="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                                <span class="text-xs text-gray-400">暂无，请导入 Excel</span>
+                            </div>
+                            <div id="sc-import-status" class="text-xs text-gray-400 mt-1"></div>
                         </div>
                     </div>
 
                     <!-- Draft Preview -->
                     <div class="flex-1 overflow-y-auto p-4">
-                        <h3 class="text-sm font-bold text-gray-700 mb-2">📝 Skill 定义 (JSON)</h3>
-                        <pre id="sc-draft-preview" class="bg-gray-900 text-green-400 rounded-xl p-4 text-xs font-mono overflow-auto" style="min-height: 200px; white-space: pre-wrap;">{
+                        <div class="flex items-center gap-2 mb-2">
+                            <h3 class="text-sm font-bold text-gray-700">📝 Skill 定义</h3>
+                            <button onclick="toggleDraftView('markdown')" id="sc-view-md-btn"
+                                class="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">Markdown</button>
+                            <button onclick="toggleDraftView('json')" id="sc-view-json-btn"
+                                class="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500">JSON</button>
+                        </div>
+                        <!-- Markdown view -->
+                        <div id="sc-draft-markdown" class="bg-white border border-gray-200 rounded-xl p-4 text-sm overflow-auto prose prose-sm max-w-none" style="min-height: 200px;">
+                            <p class="text-gray-400">等待 Skill 定义...</p>
+                        </div>
+                        <!-- JSON view (hidden by default) -->
+                        <pre id="sc-draft-preview" class="hidden bg-gray-900 text-green-400 rounded-xl p-4 text-xs font-mono overflow-auto" style="min-height: 200px; white-space: pre-wrap;">{
   "name": "",
   "description": "",
   "systemPrompt": "",
@@ -1861,6 +1890,7 @@
             document.getElementById('sc-session-id').textContent = scSessionId;
             if (!scInitialized) {
                 loadAvailableTools();
+                loadCandidateTools();
                 loadSavedSkills();
                 scInitialized = true;
             }
@@ -1953,10 +1983,70 @@
                 .replace(/\n/g, '<br>');
         }
 
+        let scDraftViewMode = 'markdown';
+
+        function toggleDraftView(mode) {
+            scDraftViewMode = mode;
+            const mdView = document.getElementById('sc-draft-markdown');
+            const jsonView = document.getElementById('sc-draft-preview');
+            const mdBtn = document.getElementById('sc-view-md-btn');
+            const jsonBtn = document.getElementById('sc-view-json-btn');
+
+            if (mode === 'markdown') {
+                mdView.classList.remove('hidden');
+                jsonView.classList.add('hidden');
+                mdBtn.className = 'text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700 font-medium';
+                jsonBtn.className = 'text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500';
+            } else {
+                mdView.classList.add('hidden');
+                jsonView.classList.remove('hidden');
+                mdBtn.className = 'text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500';
+                jsonBtn.className = 'text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700 font-medium';
+            }
+            // 刷新当前视图
+            if (scCurrentDraft) updateDraftPreview(scCurrentDraft);
+        }
+
+        function renderMarkdownDraft(draft) {
+            if (!draft) return '<p class="text-gray-400">等待 Skill 定义...</p>';
+            let html = '';
+            if (draft.name) html += `<h2>${escapeHtml(draft.name)}</h2>`;
+            if (draft.description) html += `<p class="text-gray-600"><em>${escapeHtml(draft.description)}</em></p>`;
+            if (draft.triggers && draft.triggers.length > 0) {
+                html += `<p><strong>触发词:</strong> ${draft.triggers.map(t => `<code>${escapeHtml(t)}</code>`).join(', ')}</p>`;
+            }
+            if (draft.toolNames && draft.toolNames.length > 0) {
+                html += `<p><strong>工具:</strong> ${draft.toolNames.map(t => `<code>${escapeHtml(t)}</code>`).join(', ')}</p>`;
+            }
+            html += `<p><strong>优先级:</strong> ${draft.priority || 10}</p>`;
+            html += '<hr>';
+            if (draft.systemPrompt) {
+                html += formatSkillMarkdown(draft.systemPrompt);
+            }
+            return html;
+        }
+
+        function formatSkillMarkdown(text) {
+            if (!text) return '';
+            return text
+                .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+                .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+                .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+                .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="bg-gray-100 rounded p-2 mt-1 mb-1 text-xs overflow-auto"><code>$2</code></pre>')
+                .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded text-xs">$1</code>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/^\- (.+)$/gm, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>\n?)+/g, '<ul class="list-disc pl-4">$&</ul>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>');
+        }
+
         function updateDraftPreview(draft) {
-            const preview = document.getElementById('sc-draft-preview');
+            const jsonPreview = document.getElementById('sc-draft-preview');
+            const mdPreview = document.getElementById('sc-draft-markdown');
             if (draft) {
-                preview.textContent = JSON.stringify(draft, null, 2);
+                jsonPreview.textContent = JSON.stringify(draft, null, 2);
+                mdPreview.innerHTML = renderMarkdownDraft(draft);
             }
             // 高亮选中的工具
             highlightSelectedTools(draft?.toolNames || []);
@@ -1996,17 +2086,95 @@
             input.focus();
         }
 
+        // ===== 候选工具 Schema（从 Excel 导入）=====
+
+        async function importToolSchemaExcel(inputEl) {
+            const file = inputEl.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('sc-import-status');
+            statusEl.textContent = '正在导入...';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const resp = await fetch('/api/tool-schemas/import', { method: 'POST', body: formData });
+                const result = await resp.json();
+                if (resp.ok) {
+                    statusEl.textContent = result.message || `导入成功: ${result.saved} 个`;
+                    statusEl.className = 'text-xs text-green-600 mt-1';
+                    loadCandidateTools();
+                } else {
+                    statusEl.textContent = '导入失败: ' + (result.error || '未知错误');
+                    statusEl.className = 'text-xs text-red-500 mt-1';
+                }
+            } catch (e) {
+                statusEl.textContent = '导入失败: ' + e.message;
+                statusEl.className = 'text-xs text-red-500 mt-1';
+            }
+            // 清空 file input
+            inputEl.value = '';
+        }
+
+        async function loadCandidateTools() {
+            const container = document.getElementById('sc-candidate-tools');
+            try {
+                const resp = await fetch('/api/tool-schemas/enabled');
+                const tools = await resp.json();
+
+                if (!tools || tools.length === 0) {
+                    container.innerHTML = '<span class="text-xs text-gray-400">暂无，请导入 Excel</span>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                let currentCategory = null;
+                tools.forEach(tool => {
+                    // 分类标签
+                    if (tool.category && tool.category !== currentCategory) {
+                        currentCategory = tool.category;
+                        const catLabel = document.createElement('span');
+                        catLabel.className = 'w-full text-xs text-gray-500 font-medium mt-1';
+                        catLabel.textContent = currentCategory;
+                        container.appendChild(catLabel);
+                    }
+
+                    const chip = document.createElement('span');
+                    chip.className = 'sc-tool-chip sc-candidate-chip inline-flex items-center px-2 py-1 rounded-full text-xs cursor-pointer border transition-all ' +
+                        'border-blue-200 bg-blue-50 text-blue-600 hover:border-blue-400 hover:bg-blue-100';
+                    chip.dataset.toolName = tool.name;
+                    chip.title = (tool.description || '') + (tool.inputSchema ? '\nSchema: ' + tool.inputSchema : '');
+                    chip.innerHTML = `📋 ${tool.name}`;
+                    chip.onclick = () => toggleToolSelection(tool.name);
+                    container.appendChild(chip);
+                });
+            } catch (error) {
+                container.innerHTML = `<span class="text-xs text-red-500">加载失败: ${error.message}</span>`;
+            }
+        }
+
         function highlightSelectedTools(selectedNames) {
-            document.querySelectorAll('.sc-tool-chip').forEach(chip => {
+            // 运行时工具
+            document.querySelectorAll('.sc-tool-chip:not(.sc-candidate-chip)').forEach(chip => {
                 const name = chip.dataset.toolName;
                 if (selectedNames.includes(name)) {
-                    chip.className = chip.className
-                        .replace('border-gray-200 bg-gray-50 text-gray-600', '')
-                        .replace('hover:border-purple-300 hover:bg-purple-50', '') +
-                        ' border-purple-500 bg-purple-100 text-purple-700 font-medium';
+                    chip.className = 'sc-tool-chip inline-flex items-center px-2 py-1 rounded-full text-xs cursor-pointer border transition-all ' +
+                        'border-purple-500 bg-purple-100 text-purple-700 font-medium';
                 } else {
                     chip.className = 'sc-tool-chip inline-flex items-center px-2 py-1 rounded-full text-xs cursor-pointer border transition-all ' +
                         'border-gray-200 bg-gray-50 text-gray-600 hover:border-purple-300 hover:bg-purple-50';
+                }
+            });
+            // 候选工具
+            document.querySelectorAll('.sc-candidate-chip').forEach(chip => {
+                const name = chip.dataset.toolName;
+                if (selectedNames.includes(name)) {
+                    chip.className = 'sc-tool-chip sc-candidate-chip inline-flex items-center px-2 py-1 rounded-full text-xs cursor-pointer border transition-all ' +
+                        'border-purple-500 bg-purple-100 text-purple-700 font-medium';
+                } else {
+                    chip.className = 'sc-tool-chip sc-candidate-chip inline-flex items-center px-2 py-1 rounded-full text-xs cursor-pointer border transition-all ' +
+                        'border-blue-200 bg-blue-50 text-blue-600 hover:border-blue-400 hover:bg-blue-100';
                 }
             });
         }
@@ -2090,6 +2258,7 @@
             document.getElementById('sc-draft-preview').textContent = JSON.stringify({
                 name: "", description: "", systemPrompt: "", toolNames: [], triggers: [], priority: 10
             }, null, 2);
+            document.getElementById('sc-draft-markdown').innerHTML = '<p class="text-gray-400">等待 Skill 定义...</p>';
             document.getElementById('sc-save-btn').disabled = true;
         }
     </script>

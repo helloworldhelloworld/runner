@@ -29,6 +29,7 @@ import com.lightweightai.tools.client.GetPositionTool;
 import com.lightweightai.tools.web.WebTools;
 import com.lightweightai.web.skillcreator.SkillCreatorService;
 import com.lightweightai.web.skillcreator.SkillRepository;
+import com.lightweightai.web.skillcreator.ToolSchemaRepository;
 import com.lightweightai.web.websocket.SessionAwareClientToolDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -446,11 +447,24 @@ public class AgentConfig {
     }
 
     @Bean
+    public ToolSchemaRepository toolSchemaRepository() {
+        java.nio.file.Path dbPath = java.nio.file.Path.of(skillCreatorDbPath);
+        try {
+            java.nio.file.Files.createDirectories(dbPath.getParent());
+        } catch (Exception e) {
+            logger.warn("Failed to create tool-schema db directory: {}", e.getMessage());
+        }
+        // 复用同一个 skills.db 数据库文件
+        return new ToolSchemaRepository(skillCreatorDbPath);
+    }
+
+    @Bean
     public SkillCreatorService skillCreatorService(LLMProvider llmProvider,
                                                      ToolRegistry toolRegistry,
                                                      PromptEngine promptEngine,
-                                                     SkillRepository skillRepository) {
-        return new SkillCreatorService(llmProvider, toolRegistry, promptEngine, skillRepository);
+                                                     SkillRepository skillRepository,
+                                                     ToolSchemaRepository toolSchemaRepository) {
+        return new SkillCreatorService(llmProvider, toolRegistry, promptEngine, skillRepository, toolSchemaRepository);
     }
 
     @Bean

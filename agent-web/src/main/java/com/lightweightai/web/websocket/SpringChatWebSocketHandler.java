@@ -29,6 +29,8 @@ import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
 import com.lightweightai.web.skillcreator.SkillCreatorService;
 import com.lightweightai.web.skillcreator.SkillDraft;
+import com.lightweightai.web.skillcreator.ToolSchemaEntry;
+import com.lightweightai.web.skillcreator.ToolSchemaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.CloseStatus;
@@ -64,6 +66,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private final McpConfig.McpToolRegistrar mcpToolRegistrar;
     private final SessionAwareClientToolDispatcher sessionAwareDispatcher;
     private final SkillCreatorService skillCreatorService;
+    private final ToolSchemaRepository toolSchemaRepository;
 
     private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -83,7 +86,8 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                                        LLMProvider llmProvider,
                                        McpConfig.McpToolRegistrar mcpToolRegistrar,
                                        SessionAwareClientToolDispatcher sessionAwareDispatcher,
-                                       SkillCreatorService skillCreatorService) {
+                                       SkillCreatorService skillCreatorService,
+                                       ToolSchemaRepository toolSchemaRepository) {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
         this.toolRegistry = toolRegistry;
@@ -95,6 +99,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         this.mcpToolRegistrar = mcpToolRegistrar;
         this.sessionAwareDispatcher = sessionAwareDispatcher;
         this.skillCreatorService = skillCreatorService;
+        this.toolSchemaRepository = toolSchemaRepository;
         this.clientToolResultRouter = new ClientToolResultRouter(MAPPER, toolRegistry);
     }
 
@@ -236,7 +241,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                         handleSkillCreatorChat(session, payload);
                     } catch (Exception e) {
                         logger.error("handleSkillCreatorChat EXCEPTION", e);
-                        safeSend(session, errorJson("Skill Creator 处理失败: " + e.getMessage()));
+                        safeSend(session, skillCreatorErrorJson("Skill Creator 处理失败: " + e.getMessage()));
                     }
                 });
                 case "skill_creator_save" -> {
@@ -272,6 +277,30 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                     String scSessionId = payload.path("sessionId").asText(session.getId());
                     sendResponse(session, "skill_creator_draft", requestId,
                         skillCreatorService.getDraft(scSessionId).toMap());
+                }
+
+                // ==================== Tool Schema ====================
+                case "tool_schema_list" -> {
+                    if (toolSchemaRepository != null) {
+                        sendResponse(session, "tool_schema_list", requestId,
+                            toolSchemaRepository.findAll().stream().map(ToolSchemaEntry::toMap).toList());
+                    } else {
+                        sendResponse(session, "tool_schema_list", requestId, List.of());
+                    }
+                }
+                case "tool_schema_list_enabled" -> {
+                    if (toolSchemaRepository != null) {
+                        sendResponse(session, "tool_schema_list", requestId,
+                            toolSchemaRepository.findEnabled().stream().map(ToolSchemaEntry::toMap).toList());
+                    } else {
+                        sendResponse(session, "tool_schema_list", requestId, List.of());
+                    }
+                }
+                case "tool_schema_delete" -> {
+                    if (toolSchemaRepository != null) {
+                        boolean ok = toolSchemaRepository.delete(payload.path("id").asText(""));
+                        sendResponse(session, "tool_schema_deleted", requestId, Map.of("success", ok));
+                    }
                 }
 
                 default -> logger.warn("Unknown WS type: {}", type);
@@ -459,7 +488,15 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
             },
             error -> {
                 logger.error("Skill creator stream error session={}", sid, error);
-                safeSend(session, errorJson("Skill Creator 处理失败: " + error.getMessage()));
+                safeSend(session, skillCreatorErrorJson("Skill Creator 处理失败: " + error.getMessage()));
+                // 发送 stream_end 以解除客户端的等待状态
+                try {
+                    ObjectNode endMsg = MAPPER.createObjectNode();
+                    endMsg.put("type", "skill_creator_stream_end");
+                    safeSend(session, MAPPER.writeValueAsString(endMsg));
+                } catch (Exception e) {
+                    logger.error("Failed to send skill_creator_stream_end after error", e);
+                }
                 activeStreams.remove("sc-" + sid);
             },
             () -> {
@@ -534,6 +571,15 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
             msg.put("message", message);
             return MAPPER.writeValueAsString(msg);
         } catch (Exception e) { return "{\"type\":\"error\",\"message\":\"serialize failed\"}"; }
+    }
+
+    private String skillCreatorErrorJson(String message) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "skill_creator_error");
+            msg.put("message", message);
+            return MAPPER.writeValueAsString(msg);
+        } catch (Exception e) { return "{\"type\":\"skill_creator_error\",\"message\":\"serialize failed\"}"; }
     }
 
     private Map<String, Object> buildHealth() {
