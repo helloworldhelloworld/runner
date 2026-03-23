@@ -1938,7 +1938,7 @@
             try {
                 await window.soulComfortAPI.skillCreatorChat(message, {
                     sessionId: scSessionId,
-                    timeout: 20000,
+                    idleTimeout: 20000,
                     onDelta: (delta) => {
                         fullResponse += delta;
                         const displayText = fullResponse.replace(/<skill_draft>[\s\S]*?<\/skill_draft>/g, '').trim();
