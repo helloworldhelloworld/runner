@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "66529098b19f4bda9d1e2d176a7afa23eb084ee3",
+  "trigger_sha": "42f4e39bd38cd107f625d6cf341e90197a221fea",
   "exit_code": 1,
-  "timestamp": "2026-03-23T12:29:32Z",
-  "branch": "claude/fix-skill-creator-issues-yGcKR",
-  "run_id": "23437316469",
-  "test_summary": "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.307 s - in com.lightweightai.user.UserRepositoryTest|[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.204 s - in com.lightweightai.user.UserServiceTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.056 s - in com.lightweightai.user.EmotionRepositoryTest|[INFO] Tests run: 28, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.124 s - in com.lightweightai.assessment.AssessmentReportGeneratorTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.021 s - in com.lightweightai.assessment.ScaleDefinitionTest|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.356 s - in com.lightweightai.assessment.AssessmentServiceTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.033 s - in com.lightweightai.assessment.AssessmentRepositoryTest|[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.022 s - in com.lightweightai.assessment.AssessmentScorerTest|[INFO] Tests run: 57, Failures: 0, Errors: 0, Skipped: 0|"
+  "timestamp": "2026-03-23T12:34:16Z",
+  "branch": "main",
+  "run_id": "23437496636",
+  "test_summary": "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.324 s - in com.lightweightai.user.UserRepositoryTest|[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.207 s - in com.lightweightai.user.UserServiceTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.062 s - in com.lightweightai.user.EmotionRepositoryTest|[INFO] Tests run: 28, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.128 s - in com.lightweightai.assessment.AssessmentReportGeneratorTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.02 s - in com.lightweightai.assessment.ScaleDefinitionTest|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.359 s - in com.lightweightai.assessment.AssessmentServiceTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.046 s - in com.lightweightai.assessment.AssessmentRepositoryTest|[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s - in com.lightweightai.assessment.AssessmentScorerTest|[INFO] Tests run: 57, Failures: 0, Errors: 0, Skipped: 0|"
 }
