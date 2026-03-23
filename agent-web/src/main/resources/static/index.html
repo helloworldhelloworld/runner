@@ -413,7 +413,7 @@
                                 placeholder="描述你想创建的 Skill..."
                                 class="flex-1 px-4 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 onkeypress="if(event.key === 'Enter') sendSkillCreatorMessage()">
-                            <button onclick="sendSkillCreatorMessage()"
+                            <button id="sc-send-btn" onclick="sendSkillCreatorMessage()"
                                 class="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-purple-600 hover:to-purple-700 shadow-md">
                                 📤 发送
                             </button>
@@ -1896,12 +1896,23 @@
             }
         }
 
+        function scResetSendState() {
+            scSending = false;
+            const btn = document.getElementById('sc-send-btn');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '📤 发送';
+            }
+        }
+
         async function sendSkillCreatorMessage() {
             const input = document.getElementById('sc-input');
-            const sendBtn = input.nextElementSibling; // 发送按钮
+            const sendBtn = document.getElementById('sc-send-btn');
             const message = input.value.trim();
 
-            console.log('[SC-UI] sendSkillCreatorMessage called, scSending=', scSending, 'message=', message ? message.substring(0, 30) : '(empty)');
+            console.log('[SC-UI] sendSkillCreatorMessage called, scSending=', scSending,
+                'btnDisabled=', sendBtn ? sendBtn.disabled : 'NO_BTN',
+                'message=', message ? message.substring(0, 30) : '(empty)');
 
             if (!message) return;
             if (scSending) {
@@ -1911,7 +1922,6 @@
 
             scSending = true;
             input.value = '';
-            // 视觉反馈：禁用按钮
             if (sendBtn) {
                 sendBtn.disabled = true;
                 sendBtn.textContent = '⏳ 发送中...';
@@ -1924,20 +1934,38 @@
             const msgId = scAddMessage('assistant', '');
             const contentDiv = document.querySelector('#' + msgId + ' .sc-msg-content');
             let fullResponse = '';
+            let lastActivityTime = Date.now();
+            let idleTimer = null;
+
+            // Idle timeout: 如果持续 15 秒没有收到任何 token，强制完成
+            function startIdleTimer() {
+                if (idleTimer) clearInterval(idleTimer);
+                idleTimer = setInterval(() => {
+                    const idleMs = Date.now() - lastActivityTime;
+                    // 至少收到过一些内容，且 15 秒无活动 → 认为流已结束
+                    if (fullResponse.length > 0 && idleMs > 15000) {
+                        console.warn('[SC-UI] Idle timeout: no activity for 15s after receiving content, force resetting');
+                        clearInterval(idleTimer);
+                        idleTimer = null;
+                        scResetSendState();
+                    }
+                }, 3000);
+            }
+            startIdleTimer();
 
             try {
                 await window.soulComfortAPI.skillCreatorChat(message, {
                     sessionId: scSessionId,
                     onDelta: (delta) => {
+                        lastActivityTime = Date.now();
                         fullResponse += delta;
-                        // 显示时去掉 <skill_draft>...</skill_draft> 块
                         const displayText = fullResponse.replace(/<skill_draft>[\s\S]*?<\/skill_draft>/g, '').trim();
                         if (contentDiv) contentDiv.innerHTML = formatMarkdown(displayText);
                     },
                     onDraft: (draft) => {
+                        lastActivityTime = Date.now();
                         scCurrentDraft = draft;
                         updateDraftPreview(draft);
-                        // 启用保存按钮
                         const saveBtn = document.getElementById('sc-save-btn');
                         if (draft && draft.name && draft.description && draft.systemPrompt) {
                             saveBtn.disabled = false;
@@ -1945,7 +1973,6 @@
                     },
                     onComplete: () => {
                         console.log('[SC-UI] onComplete fired');
-                        // 清理显示文本中的 draft 标签
                         const displayText = fullResponse.replace(/<skill_draft>[\s\S]*?<\/skill_draft>/g, '').trim();
                         if (contentDiv) contentDiv.innerHTML = formatMarkdown(displayText);
                     },
@@ -1960,13 +1987,9 @@
                     contentDiv.innerHTML = `<span class="text-red-500">连接出错: ${error.message}</span>`;
                 }
             } finally {
-                // 无论成功/失败/超时，总是重置发送状态
+                if (idleTimer) { clearInterval(idleTimer); idleTimer = null; }
                 console.log('[SC-UI] finally: resetting scSending');
-                scSending = false;
-                if (sendBtn) {
-                    sendBtn.disabled = false;
-                    sendBtn.textContent = '📤 发送';
-                }
+                scResetSendState();
             }
         }
 
@@ -2268,7 +2291,7 @@
             if (!confirm('确定要重置 Skill Creator 吗？当前的对话和草稿将丢失。')) return;
             scSessionId = 'sc-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
             scCurrentDraft = null;
-            scSending = false;
+            scResetSendState();
             document.getElementById('sc-session-id').textContent = scSessionId;
             document.getElementById('sc-messages').innerHTML = `
                 <div class="text-center">
