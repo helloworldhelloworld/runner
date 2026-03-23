@@ -292,7 +292,7 @@
 
                 <!-- Tools (detailed) -->
                 <div class="border-t border-gray-200 pt-4">
-                    <h3 class="text-lg font-bold mb-3">🛠️ 可用工具（详细）</h3>
+                    <h3 class="text-lg font-bold mb-3">🛠️ 可用工具（列表）</h3>
                     <div id="tools-list" class="space-y-2">
                         <div class="text-gray-400 text-sm">加载中...</div>
                     </div>
@@ -304,8 +304,8 @@
 
                 <!-- Client Tool Simulation -->
                 <div class="border-t border-gray-200 pt-4 mt-4">
-                    <h3 class="text-lg font-bold mb-3">📱 客户端工具模拟（Web）</h3>
-                    <p class="text-xs text-gray-500 mb-3">通过统一结构 <code>{ ok, data, error }</code> 管理端工具模拟结果，支持搜索、选择与执行。</p>
+                    <h3 class="text-lg font-bold mb-3">📱 客户端工具（列表）</h3>
+                    <p class="text-xs text-gray-500 mb-3">工具/技能页仅展示列表，详情统一跳转到「端工具录入」页面维护。</p>
 
                     <div class="mb-3">
                         <input id="client-tool-search" oninput="onClientToolSearch(this.value)" placeholder="搜索 name / description / owner"
@@ -316,41 +316,13 @@
                         <div class="text-gray-400 text-sm">加载中...</div>
                     </div>
 
-                    <div id="client-tool-detail" class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3 hidden">
-                        <div class="font-medium text-gray-700 mb-2">工具详情（metadata）</div>
-                        <div class="text-xs text-gray-600 space-y-1">
-                            <div><span class="font-medium">name:</span> <span id="meta-name">-</span></div>
-                            <div><span class="font-medium">description:</span> <span id="meta-description">-</span></div>
-                            <div><span class="font-medium">owner:</span> <span id="meta-owner">-</span></div>
-                            <div><span class="font-medium">version:</span> <span id="meta-version">-</span></div>
-                            <div class="font-medium">inputSchema:</div>
-                            <pre id="meta-schema" class="text-xs bg-white p-2 rounded border border-gray-200 overflow-auto max-h-40">{}</pre>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2 mb-3">
-                        <div class="text-xs text-gray-600">调试输入参数（JSON）</div>
-                        <textarea id="client-tool-params" oninput="updateClientToolParams(this.value)"
-                            class="w-full text-xs font-mono bg-white border rounded p-2 h-24"></textarea>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 text-sm text-blue-800">
+                        仅展示端工具列表。工具 metadata（如 inputSchema、owner、version、mockResponse）统一在“端工具录入”页面维护。
                     </div>
 
                     <div class="flex gap-2 flex-wrap mb-3">
-                        <button onclick="copyClientToolTemplate()" class="text-sm bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-lg hover:bg-gray-50">📋 复制模板</button>
-                        <button onclick="showClientToolGuide()" class="text-sm bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-lg hover:bg-gray-50">📘 新增工具指引</button>
-                        <button onclick="runSelectedClientTool()" class="text-sm bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">▶️ 执行工具</button>
-                        <button onclick="addClientTool()" class="text-sm bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600">+ 添加工具</button>
+                        <button onclick="switchTab('client-tools-entry')" class="text-sm bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">➡️ 前往端工具页面维护详情</button>
                         <button onclick="loadClientTools()" class="text-sm text-purple-600 hover:text-purple-800">🔄 刷新</button>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                            <div class="text-xs text-gray-600 mb-1">执行结果 data</div>
-                            <pre id="client-tool-result-data" class="text-xs bg-green-50 border border-green-200 p-2 rounded overflow-auto min-h-24">暂无 data</pre>
-                        </div>
-                        <div>
-                            <div class="text-xs text-gray-600 mb-1">执行错误 error</div>
-                            <pre id="client-tool-result-error" class="text-xs bg-red-50 border border-red-200 p-2 rounded overflow-auto min-h-24">暂无 error</pre>
-                        </div>
                     </div>
                 </div>
 
@@ -509,7 +481,7 @@
         <div id="panel-client-tools-entry" class="tab-panel hidden">
             <div class="chat-container rounded-2xl shadow-2xl p-6">
                 <h2 class="text-xl font-bold gradient-text mb-4">📱 端工具录入</h2>
-                <p class="text-gray-500 text-sm mb-4">独立页面管理客户端端工具：录入 namespace/name、描述、启用状态和 Mock 响应 JSON。</p>
+                <p class="text-gray-500 text-sm mb-4">独立页面统一管理端工具 metadata（含 inputSchema）与仿真结果。</p>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div class="bg-gray-50 rounded-xl border border-gray-200 p-4">
@@ -521,14 +493,39 @@
                                 class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
                             <input id="ct-description" type="text" placeholder="描述（可选）"
                                 class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            <div class="grid grid-cols-2 gap-2">
+                                <input id="ct-owner" type="text" placeholder="owner（如 team-web）"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                                <input id="ct-version" type="text" placeholder="version（如 1.0.0）"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            </div>
 
                             <label class="flex items-center gap-2 text-sm text-gray-700">
                                 <input id="ct-enabled" type="checkbox" checked>
                                 默认启用
                             </label>
 
+                            <div>
+                                <div class="text-xs text-gray-600 mb-1">inputSchema（所有工具都有 schema）</div>
+                                <textarea id="ct-input-schema" class="w-full h-36 px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono"
+                                    placeholder='{"type":"object","properties":{},"required":[]}'></textarea>
+                            </div>
+
                             <textarea id="ct-mock-json" class="w-full h-56 px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono"
-                                placeholder='Mock JSON，例如：{"result":"ok"}'></textarea>
+                                placeholder='仿真结果 JSON，例如：{"ok":true,"data":{"result":"ok"},"error":null}'></textarea>
+
+                            <div class="border border-blue-200 bg-blue-50 rounded-lg p-3 space-y-2">
+                                <div class="text-sm font-medium text-blue-800">🧪 仿真调试</div>
+                                <textarea id="ct-sim-params" class="w-full h-24 px-2 py-1 border border-blue-200 rounded text-xs font-mono"
+                                    placeholder='执行参数 JSON，例如：{"scene":"chat"}'></textarea>
+                                <div class="flex gap-2">
+                                    <button onclick="runClientToolSimulation()"
+                                        class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm">▶️ 执行仿真</button>
+                                    <button onclick="clearSimulationResult()"
+                                        class="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded text-sm">清空结果</button>
+                                </div>
+                                <pre id="ct-sim-result" class="text-xs bg-white border border-blue-200 rounded p-2 min-h-20 overflow-auto">暂无仿真结果</pre>
+                            </div>
 
                             <div class="flex gap-2">
                                 <button onclick="saveClientToolEntry()"
@@ -549,7 +546,7 @@
                             <h3 class="text-lg font-bold">📚 已录入端工具</h3>
                             <button onclick="loadClientToolEntries()" class="text-sm text-purple-600 hover:text-purple-800">🔄 刷新</button>
                         </div>
-                        <div id="client-tools-entry-list" class="space-y-2 max-h-[520px] overflow-y-auto">
+                        <div id="client-tools-entry-list" class="space-y-2 max-h-[640px] overflow-y-auto">
                             <div class="text-gray-400 text-sm">加载中...</div>
                         </div>
                     </div>
@@ -611,6 +608,7 @@
         let selectedEmotion = '';
         let currentScaleType = '';
         let currentScaleDefinition = null;
+        let pendingClientToolKey = '';
 
         // ==================== Init ====================
         document.addEventListener('DOMContentLoaded', async () => {
@@ -674,7 +672,12 @@
             if (tabName === 'emotion' && currentUserId) { loadEmotions(); loadStats(); }
             if (tabName === 'tools') { loadSkills(); loadToolsDetail(); loadClientTools(); }
             if (tabName === 'skill-creator') { initSkillCreator(); }
-            if (tabName === 'client-tools-entry') { loadClientToolEntries(); }
+            if (tabName === 'client-tools-entry') {
+                loadClientToolEntries();
+                if (pendingClientToolKey) {
+                    setTimeout(() => focusClientToolEntry(pendingClientToolKey), 0);
+                }
+            }
             if (tabName === 'system') loadHealth();
         }
 
@@ -1327,10 +1330,9 @@
                 }
 
                 container.innerHTML = skills.map(s => `
-                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-200 flex items-center justify-between gap-2">
                         <span class="font-medium text-purple-700">${s.name || '-'}</span>
-                        <span class="text-xs text-gray-400 ml-2">[${s.format || ''}]</span>
-                        <p class="text-sm text-gray-500 mt-1">${s.description || ''}</p>
+                        <span class="text-xs text-gray-400">[${s.format || ''}]</span>
                     </div>`).join('');
             } catch (error) {
                 document.getElementById('skills-list').innerHTML =
@@ -1357,6 +1359,7 @@
                         if (t.readOnly) badges += `<span class="inline-block bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded">只读</span> `;
                         if (t.destructive) badges += `<span class="inline-block bg-red-100 text-red-600 text-xs px-1.5 py-0.5 rounded">危险</span> `;
                         if (t.clientSide) badges += `<span class="inline-block bg-yellow-100 text-yellow-700 text-xs px-1.5 py-0.5 rounded">客户端</span> `;
+                        badges += `<span class="inline-block bg-indigo-100 text-indigo-700 text-xs px-1.5 py-0.5 rounded">${t.input_schema ? 'schema' : 'schema(默认)'}</span> `;
                         if (t.tags && t.tags.length > 0) badges += t.tags.map(tag => `<span class="inline-block bg-purple-100 text-purple-600 text-xs px-1.5 py-0.5 rounded">${tag}</span>`).join(' ');
 
                         return `<div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
@@ -1364,9 +1367,8 @@
                                 <span class="font-medium text-blue-700">${t.name || '-'}</span>
                                 <span class="text-xs ${t.enabled ? 'text-green-500' : 'text-red-400'}">${t.enabled ? '✅ 启用' : '❌ 禁用'}</span>
                             </div>
-                            <p class="text-sm text-gray-500 mt-1">${t.description || ''}</p>
                             <div class="mt-1 flex flex-wrap gap-1">${badges}</div>
-                            ${t.input_schema ? `<details class="mt-2"><summary class="text-xs text-gray-400 cursor-pointer">查看 Schema</summary><pre class="text-xs bg-white p-2 rounded mt-1 overflow-auto max-h-32">${JSON.stringify(t.input_schema, null, 2)}</pre></details>` : ''}
+                            ${t.clientSide ? `<button onclick="goToClientToolEntryByKey(decodeURIComponent('${encodeURIComponent(t.name || '')}'))" class="mt-2 text-xs text-blue-700 hover:text-blue-900">➡️ 去端工具页维护 metadata/仿真</button>` : ''}
                         </div>`;
                     }).join('');
             } catch (error) {
@@ -1405,6 +1407,7 @@
                         version: tool.version || '0.0.0',
                         inputSchema: tool.inputSchema || { type: 'object', properties: {}, required: [] },
                         enabled: tool.enabled !== false,
+                        createdBy: tool.createdBy || '',
                         mockResponse: normalizeToolResult(tool.mockResponse || { ok: true, data: {}, error: null })
                     };
                 }
@@ -1417,6 +1420,7 @@
                     version: entry.version || '0.0.0',
                     inputSchema: entry.inputSchema || { type: 'object', properties: {}, required: [] },
                     enabled: entry.enabled !== false,
+                    createdBy: entry.createdBy || '',
                     mockResponse: normalizeToolResult(entry.mockResponse || { ok: true, data: {}, error: null })
                 };
             });
@@ -1426,12 +1430,69 @@
             tools: [],
             filteredTools: [],
             selectedKey: '',
-            search: '',
-            paramsText: '{}'
+            search: ''
         };
 
-        function loadClientTools() {
-            const tools = normalizeClientTools(window.soulComfortAPI.getClientTools());
+        function getAuthToken() {
+            return localStorage.getItem('soulComfort_authToken') || '';
+        }
+
+        function getAuthHeaders() {
+            const token = getAuthToken();
+            return token ? { 'Authorization': `Bearer ${token}` } : {};
+        }
+
+        async function fetchSharedClientTools() {
+            const resp = await fetch('/client-tools', {
+                headers: {
+                    ...getAuthHeaders()
+                }
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || '加载全局端工具失败');
+            }
+            return resp.json();
+        }
+
+        async function upsertSharedClientTool(key, payload) {
+            const resp = await fetch(`/client-tools/${encodeURIComponent(key)}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders()
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || '保存全局端工具失败');
+            }
+            return resp.json();
+        }
+
+        async function removeSharedClientTool(key) {
+            const resp = await fetch(`/client-tools/${encodeURIComponent(key)}`, {
+                method: 'DELETE',
+                headers: {
+                    ...getAuthHeaders()
+                }
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || '删除全局端工具失败');
+            }
+            return resp.json();
+        }
+
+        async function loadClientTools() {
+            let tools = [];
+            try {
+                const data = await fetchSharedClientTools();
+                tools = normalizeClientTools((data.tools || []).map(t => [t.key, t]));
+            } catch (error) {
+                tools = normalizeClientTools(window.soulComfortAPI.getClientTools());
+            }
             clientToolState.tools = tools;
             clientToolState.filteredTools = filterClientToolsByKeyword(tools, clientToolState.search);
 
@@ -1439,11 +1500,7 @@
                 clientToolState.selectedKey = tools[0] ? tools[0].key : '';
             }
 
-            const selected = getSelectedClientTool();
-            clientToolState.paramsText = selected ? JSON.stringify({}, null, 2) : '{}';
-            document.getElementById('client-tool-params').value = clientToolState.paramsText;
             renderClientTools();
-            renderClientToolDetail();
         }
 
         function filterClientToolsByKeyword(tools, keyword) {
@@ -1458,19 +1515,9 @@
             renderClientTools();
         }
 
-        function getSelectedClientTool() {
-            return clientToolState.tools.find(t => t.key === clientToolState.selectedKey) || null;
-        }
-
         function selectClientTool(key) {
             clientToolState.selectedKey = key;
-            const selected = getSelectedClientTool();
-            clientToolState.paramsText = JSON.stringify({}, null, 2);
-            document.getElementById('client-tool-params').value = clientToolState.paramsText;
-            document.getElementById('client-tool-result-data').textContent = '暂无 data';
-            document.getElementById('client-tool-result-error').textContent = '暂无 error';
             renderClientTools();
-            renderClientToolDetail(selected);
         }
 
         function renderClientTools() {
@@ -1484,176 +1531,58 @@
                 <div class="rounded-lg p-3 border ${t.key === clientToolState.selectedKey ? 'bg-blue-50 border-blue-300' : 'bg-yellow-50 border-yellow-200'}">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-2 flex-wrap">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" ${t.enabled ? 'checked' : ''}
-                                       onchange="toggleClientTool('${t.key}', this.checked)"
-                                       class="sr-only peer">
-                                <div class="w-9 h-5 bg-gray-200 peer-checked:bg-green-500 rounded-full peer-focus:ring-2 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                            </label>
                             <button onclick="selectClientTool('${t.key}')" class="font-medium text-left ${t.key === clientToolState.selectedKey ? 'text-blue-800' : 'text-yellow-800'}">${escapeHtml(t.name)}</button>
                             <span class="bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded">${escapeHtml(t.key)}</span>
+                            <span class="text-xs ${t.enabled ? 'text-green-600' : 'text-red-500'}">${t.enabled ? '启用' : '禁用'}</span>
+                            <span class="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">${t.inputSchema ? 'schema' : 'schema(默认)'}</span>
                         </div>
-                        <button onclick="removeClientTool('${t.key}')" class="text-red-400 hover:text-red-600 text-sm">✕</button>
                     </div>
                     <p class="text-sm text-gray-600 mt-1">${escapeHtml(t.description || '')}</p>
-                    <details class="mt-2">
-                        <summary class="text-xs text-gray-500 cursor-pointer">mockResponse（统一结构）</summary>
-                        <textarea id="mock-${t.key.replace(/\./g,'_')}"
-                            class="w-full mt-1 text-xs font-mono bg-white border rounded p-2 h-32"
-                            onblur="updateClientToolMock('${t.key}', this.value)"
-                        >${JSON.stringify(t.mockResponse, null, 2)}</textarea>
-                    </details>
+                    <p class="text-xs text-gray-500 mt-1">创建者: ${escapeHtml(t.createdBy || '-')}</p>
+                    <button onclick="goToClientToolEntryByKey(decodeURIComponent('${encodeURIComponent(t.key)}'))" class="mt-2 text-xs text-blue-700 hover:text-blue-900">➡️ 去端工具页仿真/维护</button>
                 </div>
             `).join('');
         }
 
-        function renderClientToolDetail(selectedTool) {
-            const detail = selectedTool || getSelectedClientTool();
-            const wrapper = document.getElementById('client-tool-detail');
-            if (!detail) {
-                wrapper.classList.add('hidden');
-                return;
-            }
-            wrapper.classList.remove('hidden');
-            document.getElementById('meta-name').textContent = detail.name || '-';
-            document.getElementById('meta-description').textContent = detail.description || '-';
-            document.getElementById('meta-owner').textContent = detail.owner || '-';
-            document.getElementById('meta-version').textContent = detail.version || '-';
-            document.getElementById('meta-schema').textContent = JSON.stringify(detail.inputSchema || {}, null, 2);
-        }
-
-        function updateClientToolParams(value) {
-            clientToolState.paramsText = value;
-        }
-
-        function runSelectedClientTool() {
-            const selected = getSelectedClientTool();
-            if (!selected) {
-                alert('请先选择工具');
-                return;
-            }
-
-            let params = {};
-            const raw = (clientToolState.paramsText || '').trim();
-            if (raw) {
-                try {
-                    params = JSON.parse(raw);
-                } catch (error) {
-                    alert('参数必须是合法 JSON');
-                    return;
-                }
-            }
-
-            const result = !selected.enabled
-                ? { ok: false, data: null, error: { code: 'TOOL_DISABLED', message: '工具已禁用: ' + selected.key } }
-                : normalizeToolResult(selected.mockResponse || { ok: true, data: {}, error: null });
-
-            const unified = result.ok
-                ? { ok: true, data: { input: params, output: result.data }, error: null }
-                : { ok: false, data: null, error: result.error || { message: '未知错误' } };
-
-            document.getElementById('client-tool-result-data').textContent = unified.ok
-                ? JSON.stringify(unified.data, null, 2)
-                : '暂无 data';
-            document.getElementById('client-tool-result-error').textContent = unified.ok
-                ? '暂无 error'
-                : JSON.stringify(unified.error, null, 2);
-        }
-
-        function copyClientToolTemplate() {
-            const template = `window.soulComfortAPI.setClientTool('GeoInformation.GetPosition', {
-  namespace: 'GeoInformation',
-  name: 'GetPosition',
-  description: '获取定位',
-  owner: 'team-web',
-  version: '1.0.0',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      scene: { type: 'string', description: '调用场景' }
-    },
-    required: []
-  },
-  enabled: true,
-  mockResponse: { ok: true, data: { city: '北京' }, error: null }
-});`;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(template).then(() => alert('模板已复制')).catch(() => prompt('请手动复制', template));
-            } else {
-                prompt('请手动复制', template);
-            }
-        }
-
-        function showClientToolGuide() {
-            const path = 'agent-web/CLIENT_TOOL_CONTRIBUTING.md';
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(path).then(() => alert('已复制文档路径: ' + path)).catch(() => alert('请查看: ' + path));
-            } else {
-                alert('请查看: ' + path);
-            }
-        }
-
-        function toggleClientTool(key, enabled) {
-            window.soulComfortAPI.toggleClientTool(key, enabled);
-            loadClientTools();
-        }
-
-        function removeClientTool(key) {
-            if (confirm('确定删除 ' + key + '？')) {
-                window.soulComfortAPI.removeClientTool(key);
-                loadClientTools();
-            }
-        }
-
-        function updateClientToolMock(key, jsonStr) {
-            let parsed;
-            try {
-                parsed = JSON.parse(jsonStr);
-            } catch (error) {
-                alert('JSON 格式错误，请检查，且需满足 { ok, data, error }');
-                return;
-            }
-            const normalized = normalizeToolResult(parsed);
-            if (!window.soulComfortAPI.updateMockResponse(key, JSON.stringify(normalized))) {
-                alert('保存失败，请重试');
-                return;
-            }
-            loadClientTools();
-        }
-
-        function addClientTool() {
-            const namespace = prompt('Namespace（如 GeoInformation）:');
-            if (!namespace) return;
-            const name = prompt('Name（如 GetPosition）:');
-            if (!name) return;
-            const description = prompt('描述:', '');
-            const owner = prompt('owner（如 team-web）:', 'team-web');
-            const version = prompt('version（如 1.0.0）:', '1.0.0');
-            const key = namespace + '.' + name;
-
-            window.soulComfortAPI.setClientTool(key, {
-                namespace,
-                name,
-                description,
-                owner,
-                version,
-                inputSchema: { type: 'object', properties: {}, required: [] },
-                enabled: true,
-                mockResponse: { ok: true, data: { result: 'mock data' }, error: null }
-            });
-            loadClientTools();
-        }
-
-
         // ==================== Client Tool Entry Page ====================
+
+        function normalizeSimulationResult(result) {
+            if (!result || typeof result !== 'object') {
+                return { ok: false, data: null, error: { code: 'INVALID_RESULT', message: '仿真结果必须是对象' } };
+            }
+            return {
+                ok: !!result.ok,
+                data: Object.prototype.hasOwnProperty.call(result, 'data') ? result.data : null,
+                error: result.error || null
+            };
+        }
+
+        function goToClientToolEntryByKey(key) {
+            pendingClientToolKey = key || '';
+            switchTab('client-tools-entry');
+        }
+
+        function focusClientToolEntry(key) {
+            if (!key) return;
+            const row = document.getElementById(`ct-entry-${key}`);
+            if (!row) return;
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.classList.add('ring-2', 'ring-blue-400');
+            setTimeout(() => row.classList.remove('ring-2', 'ring-blue-400'), 2000);
+            editClientToolEntry(key);
+            pendingClientToolKey = '';
+        }
 
         function getClientToolFormValue() {
             const namespace = document.getElementById('ct-namespace').value.trim();
             const name = document.getElementById('ct-name').value.trim();
             const description = document.getElementById('ct-description').value.trim();
+            const owner = document.getElementById('ct-owner').value.trim();
+            const version = document.getElementById('ct-version').value.trim();
             const enabled = document.getElementById('ct-enabled').checked;
+            const inputSchemaRaw = document.getElementById('ct-input-schema').value.trim();
             const mockJsonRaw = document.getElementById('ct-mock-json').value.trim();
-            return { namespace, name, description, enabled, mockJsonRaw };
+            return { namespace, name, description, owner, version, enabled, inputSchemaRaw, mockJsonRaw };
         }
 
         function setClientToolFormStatus(message, type = 'info') {
@@ -1667,40 +1596,66 @@
             document.getElementById('ct-namespace').value = '';
             document.getElementById('ct-name').value = '';
             document.getElementById('ct-description').value = '';
+            document.getElementById('ct-owner').value = 'team-web';
+            document.getElementById('ct-version').value = '1.0.0';
             document.getElementById('ct-enabled').checked = true;
-            document.getElementById('ct-mock-json').value = `{\n  "result": "mock data"\n}`;
+            document.getElementById('ct-input-schema').value = `{\n  "type": "object",\n  "properties": {},\n  "required": []\n}`;
+            document.getElementById('ct-mock-json').value = `{\n  "ok": true,\n  "data": {\n    "result": "mock data"\n  },\n  "error": null\n}`;
+            document.getElementById('ct-sim-params').value = `{\n  "scene": "chat"\n}`;
+            clearSimulationResult();
             setClientToolFormStatus('已重置表单');
         }
 
-        function saveClientToolEntry() {
-            const { namespace, name, description, enabled, mockJsonRaw } = getClientToolFormValue();
+        async function saveClientToolEntry() {
+            const { namespace, name, description, owner, version, enabled, inputSchemaRaw, mockJsonRaw } = getClientToolFormValue();
             if (!namespace || !name) {
                 setClientToolFormStatus('Namespace 和 Name 为必填项', 'error');
                 return;
             }
 
-            let mockResponse = {};
+            let inputSchema = { type: 'object', properties: {}, required: [] };
+            if (inputSchemaRaw) {
+                try {
+                    inputSchema = JSON.parse(inputSchemaRaw);
+                } catch (error) {
+                    setClientToolFormStatus('inputSchema JSON 格式错误：' + error.message, 'error');
+                    return;
+                }
+            }
+
+            let mockResponse = { ok: true, data: {}, error: null };
             if (mockJsonRaw) {
                 try {
-                    mockResponse = JSON.parse(mockJsonRaw);
+                    mockResponse = normalizeSimulationResult(JSON.parse(mockJsonRaw));
                 } catch (error) {
-                    setClientToolFormStatus('Mock JSON 格式错误：' + error.message, 'error');
+                    setClientToolFormStatus('仿真 JSON 格式错误：' + error.message, 'error');
                     return;
                 }
             }
 
             const key = namespace + '.' + name;
-            window.soulComfortAPI.setClientTool(key, {
+            const payload = {
                 namespace,
                 name,
                 description,
+                owner: owner || 'team-web',
+                version: version || '1.0.0',
+                inputSchema,
                 enabled,
                 mockResponse
-            });
+            };
+
+            window.soulComfortAPI.setClientTool(key, payload);
+            try {
+                await upsertSharedClientTool(key, payload);
+            } catch (error) {
+                setClientToolFormStatus('保存失败：' + error.message, 'error');
+                return;
+            }
 
             setClientToolFormStatus(`已保存 ${key}`, 'success');
-            loadClientToolEntries();
-            loadClientTools();
+            await loadClientToolEntries();
+            await loadClientTools();
         }
 
         function editClientToolEntry(key) {
@@ -1715,55 +1670,129 @@
             document.getElementById('ct-namespace').value = tool.namespace || '';
             document.getElementById('ct-name').value = tool.name || '';
             document.getElementById('ct-description').value = tool.description || '';
+            document.getElementById('ct-owner').value = tool.owner || 'team-web';
+            document.getElementById('ct-version').value = tool.version || '1.0.0';
             document.getElementById('ct-enabled').checked = tool.enabled !== false;
-            document.getElementById('ct-mock-json').value = JSON.stringify(tool.mockResponse || {}, null, 2);
+            document.getElementById('ct-input-schema').value = JSON.stringify(tool.inputSchema || { type: 'object', properties: {}, required: [] }, null, 2);
+            document.getElementById('ct-mock-json').value = JSON.stringify(normalizeSimulationResult(tool.mockResponse || { ok: true, data: {}, error: null }), null, 2);
             setClientToolFormStatus(`已载入 ${key}，可编辑后再次保存`, 'info');
         }
 
-        function removeClientToolEntry(key) {
+        function clearSimulationResult() {
+            const el = document.getElementById('ct-sim-result');
+            if (el) el.textContent = '暂无仿真结果';
+        }
+
+        function runClientToolSimulation() {
+            const { namespace, name } = getClientToolFormValue();
+            const key = namespace && name ? `${namespace}.${name}` : '';
+            if (!key) {
+                setClientToolFormStatus('请先填写 Namespace 和 Name', 'error');
+                return;
+            }
+
+            let params = {};
+            const rawParams = document.getElementById('ct-sim-params').value.trim();
+            if (rawParams) {
+                try {
+                    params = JSON.parse(rawParams);
+                } catch (error) {
+                    setClientToolFormStatus('仿真参数 JSON 格式错误：' + error.message, 'error');
+                    return;
+                }
+            }
+
+            let sim = { ok: true, data: {}, error: null };
+            const rawSimulation = document.getElementById('ct-mock-json').value.trim();
+            if (rawSimulation) {
+                try {
+                    sim = normalizeSimulationResult(JSON.parse(rawSimulation));
+                } catch (error) {
+                    setClientToolFormStatus('仿真结果 JSON 格式错误：' + error.message, 'error');
+                    return;
+                }
+            }
+
+            const result = sim.ok
+                ? { ok: true, data: { input: params, output: sim.data }, error: null }
+                : { ok: false, data: null, error: sim.error || { code: 'SIM_ERROR', message: '仿真失败' } };
+            document.getElementById('ct-sim-result').textContent = JSON.stringify(result, null, 2);
+            setClientToolFormStatus(`仿真执行完成：${key}`, 'success');
+        }
+
+        async function removeClientToolEntry(key) {
             if (!confirm('确定删除端工具：' + key + ' ?')) return;
+            try {
+                await removeSharedClientTool(key);
+            } catch (error) {
+                setClientToolFormStatus('删除失败：' + error.message, 'error');
+                return;
+            }
             window.soulComfortAPI.removeClientTool(key);
-            loadClientToolEntries();
-            loadClientTools();
+            await loadClientToolEntries();
+            await loadClientTools();
             setClientToolFormStatus(`已删除 ${key}`, 'success');
         }
 
-        function loadClientToolEntries() {
+        async function loadClientToolEntries() {
             const container = document.getElementById('client-tools-entry-list');
             if (!container) return;
 
-            const tools = window.soulComfortAPI.getClientTools();
+            let tools = [];
+            try {
+                const data = await fetchSharedClientTools();
+                tools = data.tools || [];
+            } catch (error) {
+                container.innerHTML = `<div class="text-red-500 text-sm">加载全局工具失败：${escapeHtml(error.message)}</div>`;
+                return;
+            }
+
             if (!tools || tools.length === 0) {
                 container.innerHTML = '<div class="text-gray-400 text-sm">暂无已录入端工具，先在左侧表单新增。</div>';
                 return;
             }
 
-            container.innerHTML = tools.map(([key, tool]) => {
+            container.innerHTML = tools.map((tool) => {
+                const key = tool.key || `${tool.namespace || ''}.${tool.name || ''}`;
                 const enabledBadge = tool.enabled ?
                     '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">启用</span>' :
                     '<span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">禁用</span>';
                 const namespace = escapeHtml(tool.namespace || '-');
                 const name = escapeHtml(tool.name || '-');
                 const desc = escapeHtml(tool.description || '无描述');
-                const mockPreview = escapeHtml(JSON.stringify(tool.mockResponse || {}));
+                const createdBy = escapeHtml(tool.createdBy || '-');
+                const schemaPreview = escapeHtml(JSON.stringify(tool.inputSchema || { type: 'object', properties: {}, required: [] }));
+                const mockPreview = escapeHtml(JSON.stringify(normalizeSimulationResult(tool.mockResponse || { ok: true, data: {}, error: null })));
+                window.soulComfortAPI.setClientTool(key, tool);
                 return `
-                    <div class="bg-white rounded-lg border border-gray-200 p-3">
+                    <div id="ct-entry-${key}" class="bg-white rounded-lg border border-gray-200 p-3">
                         <div class="flex items-center justify-between gap-2">
                             <div class="font-medium text-purple-700 break-all">${escapeHtml(key)}</div>
                             ${enabledBadge}
                         </div>
                         <div class="text-xs text-gray-500 mt-1">${namespace}.${name}</div>
                         <div class="text-sm text-gray-600 mt-1">${desc}</div>
+                        <div class="text-xs text-gray-500 mt-1">创建者: ${createdBy}</div>
+                        <div class="text-xs text-gray-500 mt-1">schema: 已配置</div>
                         <details class="mt-2">
-                            <summary class="text-xs text-gray-500 cursor-pointer">查看 Mock JSON</summary>
+                            <summary class="text-xs text-gray-500 cursor-pointer">查看 inputSchema</summary>
+                            <pre class="text-xs bg-gray-50 rounded p-2 mt-1 overflow-auto max-h-40">${schemaPreview}</pre>
+                        </details>
+                        <details class="mt-2">
+                            <summary class="text-xs text-gray-500 cursor-pointer">查看仿真结果 JSON</summary>
                             <pre class="text-xs bg-gray-50 rounded p-2 mt-1 overflow-auto max-h-40">${mockPreview}</pre>
                         </details>
                         <div class="mt-2 flex gap-2">
                             <button onclick="editClientToolEntry('${key}')" class="text-xs bg-blue-500 text-white px-2 py-1 rounded">编辑</button>
+                            <button onclick="goToClientToolEntryByKey(decodeURIComponent('${encodeURIComponent(key)}'))" class="text-xs bg-indigo-500 text-white px-2 py-1 rounded">仿真</button>
                             <button onclick="removeClientToolEntry('${key}')" class="text-xs bg-red-500 text-white px-2 py-1 rounded">删除</button>
                         </div>
                     </div>`;
             }).join('');
+
+            if (pendingClientToolKey) {
+                setTimeout(() => focusClientToolEntry(pendingClientToolKey), 0);
+            }
         }
 
         // 初始化 DIRECTIVE 回调（Chat 中可视化）

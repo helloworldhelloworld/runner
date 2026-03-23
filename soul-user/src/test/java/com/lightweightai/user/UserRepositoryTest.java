@@ -29,7 +29,7 @@ class UserRepositoryTest {
     @DisplayName("保存并查询用户")
     void shouldSaveAndFindUser() {
         long now = System.currentTimeMillis();
-        SoulUser user = new SoulUser("user1", "wx_openid_123", "测试用户", "FREE", now, now);
+        SoulUser user = new SoulUser("user1", null, null, "wx_openid_123", "测试用户", "FREE", now, now);
         repository.save(user);
 
         Optional<SoulUser> found = repository.findById("user1");
@@ -52,11 +52,11 @@ class UserRepositoryTest {
     @DisplayName("Upsert: 更新已存在用户")
     void shouldUpdateExistingUser() {
         long now = System.currentTimeMillis();
-        SoulUser user = new SoulUser("user1", null, "匿名用户", "FREE", now, now);
+        SoulUser user = new SoulUser("user1", null, null, null, "匿名用户", "FREE", now, now);
         repository.save(user);
 
         // Update nickname and member level
-        SoulUser updated = new SoulUser("user1", "wx_123", "注册用户", "VIP", now, now + 1000);
+        SoulUser updated = new SoulUser("user1", null, null, "wx_123", "注册用户", "VIP", now, now + 1000);
         repository.save(updated);
 
         Optional<SoulUser> found = repository.findById("user1");
@@ -70,7 +70,7 @@ class UserRepositoryTest {
     @DisplayName("openid可以为null")
     void shouldHandleNullOpenid() {
         long now = System.currentTimeMillis();
-        SoulUser user = new SoulUser("user1", null, "匿名用户", "FREE", now, now);
+        SoulUser user = new SoulUser("user1", null, null, null, "匿名用户", "FREE", now, now);
         repository.save(user);
 
         Optional<SoulUser> found = repository.findById("user1");
@@ -82,7 +82,7 @@ class UserRepositoryTest {
     @DisplayName("更新最后活跃时间")
     void shouldUpdateLastActive() {
         long now = System.currentTimeMillis();
-        SoulUser user = new SoulUser("user1", null, "匿名用户", "FREE", now, now);
+        SoulUser user = new SoulUser("user1", null, null, null, "匿名用户", "FREE", now, now);
         repository.save(user);
 
         long newTime = now + 60000;
