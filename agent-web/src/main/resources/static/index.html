@@ -15,6 +15,20 @@
     <!-- API Client (WebSocket only) -->
     <script src="/soul-comfort-api.js"></script>
 
+    <!-- Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/javascript.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/java.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/bash.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/json.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/xml.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/sql.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/css.min.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -42,6 +56,41 @@
         .tab-btn.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .modal-overlay { background: rgba(0,0,0,0.5); }
         body.app-mode { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+
+        /* Markdown rendered content styles */
+        .md-body { font-size: 0.95rem; line-height: 1.7; word-break: break-word; }
+        .md-body p { margin: 0.4em 0; }
+        .md-body p:first-child { margin-top: 0; }
+        .md-body p:last-child { margin-bottom: 0; }
+        .md-body h1, .md-body h2, .md-body h3, .md-body h4 { font-weight: 600; margin: 0.8em 0 0.4em; }
+        .md-body h1 { font-size: 1.3em; }
+        .md-body h2 { font-size: 1.15em; }
+        .md-body h3 { font-size: 1.05em; }
+        .md-body ul, .md-body ol { margin: 0.4em 0; padding-left: 1.5em; }
+        .md-body li { margin: 0.2em 0; }
+        .md-body blockquote { border-left: 3px solid #c4b5fd; padding-left: 0.8em; margin: 0.5em 0; color: #6b7280; }
+        .md-body code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.85em; font-family: 'Menlo', 'Consolas', monospace; }
+        .md-body pre { background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.8em; margin: 0.5em 0; overflow-x: auto; position: relative; }
+        .md-body pre code { background: none; padding: 0; font-size: 0.82em; }
+        .md-body table { border-collapse: collapse; width: 100%; margin: 0.5em 0; font-size: 0.9em; }
+        .md-body th, .md-body td { border: 1px solid #e5e7eb; padding: 0.4em 0.6em; text-align: left; }
+        .md-body th { background: #f9fafb; font-weight: 600; }
+        .md-body a { color: #7c3aed; text-decoration: underline; }
+        .md-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 0.8em 0; }
+        .md-body img { max-width: 100%; border-radius: 8px; }
+        .md-body strong { font-weight: 600; }
+
+        /* Code block copy button */
+        .code-block-wrapper { position: relative; }
+        .code-copy-btn { position: absolute; top: 4px; right: 4px; background: #e5e7eb; border: none; border-radius: 4px; padding: 2px 8px; font-size: 0.7em; cursor: pointer; opacity: 0; transition: opacity 0.2s; color: #374151; }
+        .code-block-wrapper:hover .code-copy-btn { opacity: 1; }
+        .code-copy-btn:hover { background: #d1d5db; }
+
+        /* Message action buttons */
+        .msg-actions { display: flex; gap: 4px; margin-top: 6px; opacity: 0; transition: opacity 0.2s; }
+        .msg-wrapper:hover .msg-actions { opacity: 1; }
+        .msg-action-btn { background: none; border: 1px solid #e5e7eb; border-radius: 6px; padding: 2px 10px; font-size: 0.75em; cursor: pointer; color: #6b7280; display: flex; align-items: center; gap: 3px; }
+        .msg-action-btn:hover { background: #f3f4f6; color: #374151; }
     </style>
 </head>
 <body>
@@ -54,8 +103,8 @@
             <!-- Navigation Tabs -->
             <div class="flex justify-center gap-2 mt-4 flex-wrap">
                 <button onclick="switchTab('chat')" id="tab-chat" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium">💬 对话</button>
-                <button onclick="switchTab('assessment')" id="tab-assessment" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">📋 心理测评</button>
-                <button onclick="switchTab('emotion')" id="tab-emotion" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">💝 情绪记录</button>
+                <button onclick="switchTab('assessment')" id="tab-assessment" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100" style="display:none">📋 心理测评</button>
+                <button onclick="switchTab('emotion')" id="tab-emotion" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100" style="display:none">💝 情绪记录</button>
                 <button onclick="switchTab('memory')" id="tab-memory" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">🧠 记忆</button>
                 <button onclick="switchTab('tools')" id="tab-tools" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">🔧 工具/技能</button>
                 <button onclick="switchTab('skill-creator')" id="tab-skill-creator" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">🧩 Skill Creator</button>
@@ -122,9 +171,8 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-            <!-- Trace Panel (调用链追踪) -->
+            <!-- Trace Panel (调用链追踪) - inside panel-chat so it hides with tab -->
             <div id="trace-panel" class="mt-4 chat-container rounded-2xl shadow-lg p-4 hidden">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="text-sm font-bold text-indigo-700">🔗 调用链追踪</h3>
@@ -869,12 +917,15 @@
                     onDelta: (delta) => {
                         if (delta) {
                             fullResponse += delta;
-                            contentDiv.innerHTML = fullResponse;
+                            contentDiv.innerHTML = renderMarkdown(fullResponse);
                             document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
                         }
                     },
                     onComplete: (meta) => {
-                        if (fullResponse) contentDiv.innerHTML = fullResponse;
+                        if (fullResponse) {
+                            rawMarkdownStore[msgId] = fullResponse;
+                            contentDiv.innerHTML = renderMarkdown(fullResponse);
+                        }
                     },
                     onError: (error) => {
                         contentDiv.innerHTML = `<span class="text-red-500">出错了：${error.message}</span>`;
@@ -891,8 +942,8 @@
                     },
                     onToolCallStart: (data) => {
                         console.log('[Tool] Start:', data.toolName);
-                        fullResponse += `<div class="text-xs text-blue-500 mt-1">🔧 调用工具: ${data.toolName}</div>`;
-                        contentDiv.innerHTML = fullResponse;
+                        fullResponse += `\n\n<div class="text-xs text-blue-500 mt-1">🔧 调用工具: ${data.toolName}</div>`;
+                        contentDiv.innerHTML = renderMarkdown(fullResponse);
                     },
                     onToolProgress: (data) => {
                         console.log('[Tool] Progress:', data.toolName, data.message);
@@ -902,8 +953,8 @@
                     },
                     onToolError: (data) => {
                         console.log('[Tool] Error:', data.toolName, data.message);
-                        fullResponse += `<div class="text-xs text-red-500 mt-1">⚠️ 工具错误: ${data.toolName} - ${data.message}</div>`;
-                        contentDiv.innerHTML = fullResponse;
+                        fullResponse += `\n\n<div class="text-xs text-red-500 mt-1">⚠️ 工具错误: ${data.toolName} - ${data.message}</div>`;
+                        contentDiv.innerHTML = renderMarkdown(fullResponse);
                     },
                     onPostProcess: (category, data) => {
                         console.log('[PostProcess]', category, data);
@@ -925,7 +976,7 @@
                             }
                             if (ppHtml) {
                                 fullResponse += ppHtml;
-                                contentDiv.innerHTML = fullResponse;
+                                contentDiv.innerHTML = renderMarkdown(fullResponse);
                             }
                         }
                     },
@@ -940,6 +991,10 @@
                     contentDiv.innerHTML = `<span class="text-red-500">连接出错：${error.message}</span>`;
                 }
             }
+            // Ensure raw markdown is stored even if onComplete wasn't called
+            if (fullResponse && !rawMarkdownStore[msgId]) {
+                rawMarkdownStore[msgId] = fullResponse;
+            }
         }
 
         async function loadSessionHistory() {
@@ -951,8 +1006,12 @@
                 messagesDiv.innerHTML = '';
 
                 history.forEach(msg => {
-                    if (msg.role === 'user') addMessage('customer', msg.content);
-                    else if (msg.role === 'assistant') addMessage('shopkeeper', msg.content);
+                    if (msg.role === 'user') {
+                        addMessage('customer', msg.content);
+                    } else if (msg.role === 'assistant') {
+                        const id = addMessage('shopkeeper', renderMarkdown(msg.content));
+                        rawMarkdownStore[id] = msg.content;
+                    }
                 });
 
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -1011,10 +1070,14 @@
                         ${escapeHtml(content)}
                     </div></div></div>`;
             } else if (role === 'shopkeeper') {
-                div.innerHTML = `<div class="flex justify-start"><div class="max-w-[80%]">
-                    <div class="msg-content bg-white text-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow-md border border-gray-100">
+                div.innerHTML = `<div class="flex justify-start"><div class="max-w-[80%] msg-wrapper">
+                    <div class="msg-content md-body bg-white text-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow-md border border-gray-100">
                         ${content}
-                    </div></div></div>`;
+                    </div>
+                    <div class="msg-actions">
+                        <button class="msg-action-btn copy-raw-btn" onclick="copyRawMarkdown('${id}')">📋 复制原文</button>
+                    </div>
+                </div></div>`;
             } else if (role === 'system') {
                 div.innerHTML = `<div class="flex justify-center">
                     <div class="bg-blue-50 text-blue-800 px-4 py-2 rounded-xl text-sm max-w-2xl border border-blue-100">${content}</div></div>`;
@@ -1032,6 +1095,61 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // Markdown rendering setup
+        (function initMarked() {
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({
+                    breaks: true,
+                    gfm: true,
+                    highlight: function(code, lang) {
+                        if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                            try { return hljs.highlight(code, { language: lang }).value; } catch(e) {}
+                        }
+                        return code;
+                    }
+                });
+            }
+        })();
+
+        // Store raw markdown for each message, keyed by msg element id
+        const rawMarkdownStore = {};
+
+        function renderMarkdown(text) {
+            if (typeof marked !== 'undefined') {
+                try {
+                    let html = marked.parse(text);
+                    // Wrap <pre> blocks with a copy button
+                    html = html.replace(/<pre><code(.*?)>([\s\S]*?)<\/code><\/pre>/g,
+                        '<div class="code-block-wrapper"><pre><code$1>$2</code></pre><button class="code-copy-btn" onclick="copyCodeBlock(this)">复制</button></div>');
+                    return html;
+                } catch(e) {
+                    console.warn('Markdown parse error:', e);
+                }
+            }
+            return escapeHtml(text);
+        }
+
+        function copyCodeBlock(btn) {
+            const pre = btn.parentElement.querySelector('pre');
+            const text = pre.textContent || pre.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = '已复制';
+                setTimeout(() => { btn.textContent = '复制'; }, 1500);
+            });
+        }
+
+        function copyRawMarkdown(msgId) {
+            const raw = rawMarkdownStore[msgId];
+            if (!raw) return;
+            navigator.clipboard.writeText(raw).then(() => {
+                const btn = document.querySelector(`#${msgId} .copy-raw-btn`);
+                if (btn) {
+                    btn.innerHTML = '✓ 已复制';
+                    setTimeout(() => { btn.innerHTML = '📋 复制原文'; }, 1500);
+                }
+            });
         }
 
         // ==================== Assessment ====================
