@@ -72,7 +72,7 @@ class UserServiceTest {
     @DisplayName("getOrCreate: 返回已存在用户")
     void shouldReturnExistingUserOnGetOrCreate() {
         long now = System.currentTimeMillis();
-        userRepo.save(new SoulUser("existing", "wx_1", "已注册", "VIP", now, now));
+        userRepo.save(new SoulUser("existing", null, null, "wx_1", "已注册", "VIP", now, now));
 
         SoulUser user = service.getOrCreate("existing");
         assertEquals("已注册", user.getNickname());

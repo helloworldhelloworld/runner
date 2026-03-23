@@ -37,6 +37,8 @@ public class UserRepository {
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS soul_users (
                   id TEXT PRIMARY KEY,
+                  username TEXT,
+                  password_hash TEXT,
                   openid TEXT,
                   nickname TEXT DEFAULT '匿名用户',
                   member_level TEXT DEFAULT 'FREE',
@@ -44,17 +46,30 @@ public class UserRepository {
                   last_active INTEGER
                 )
                 """);
+            ensureColumn(stmt, "soul_users", "username", "TEXT");
+            ensureColumn(stmt, "soul_users", "password_hash", "TEXT");
+            stmt.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_soul_users_username ON soul_users(username)");
         } catch (SQLException e) {
             logger.error("Failed to init soul_users schema", e);
             throw new RuntimeException(e);
         }
     }
 
+    private void ensureColumn(Statement stmt, String table, String column, String type) {
+        try {
+            stmt.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type);
+        } catch (SQLException ignore) {
+            // Already exists
+        }
+    }
+
     public void save(SoulUser user) {
         String sql = """
-            INSERT INTO soul_users (id, openid, nickname, member_level, created_at, last_active)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO soul_users (id, username, password_hash, openid, nickname, member_level, created_at, last_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
+              username=excluded.username,
+              password_hash=excluded.password_hash,
               openid=excluded.openid,
               nickname=excluded.nickname,
               member_level=excluded.member_level,
@@ -63,11 +78,13 @@ public class UserRepository {
         try (Connection conn = DriverManager.getConnection(dbUrl);
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getId());
-            ps.setString(2, user.getOpenid());
-            ps.setString(3, user.getNickname());
-            ps.setString(4, user.getMemberLevel());
-            ps.setLong(5, user.getCreatedAt());
-            ps.setLong(6, user.getLastActive());
+            ps.setString(2, user.getUsername());
+            ps.setString(3, user.getPasswordHash());
+            ps.setString(4, user.getOpenid());
+            ps.setString(5, user.getNickname());
+            ps.setString(6, user.getMemberLevel());
+            ps.setLong(7, user.getCreatedAt());
+            ps.setLong(8, user.getLastActive());
             ps.executeUpdate();
         } catch (SQLException e) {
             logger.error("Failed to save user: {}", user.getId(), e);
@@ -91,6 +108,22 @@ public class UserRepository {
         }
     }
 
+    public Optional<SoulUser> findByUsername(String username) {
+        String sql = "SELECT * FROM soul_users WHERE username = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                return Optional.of(mapRow(rs));
+            }
+            return Optional.empty();
+        } catch (SQLException e) {
+            logger.error("Failed to find user by username: {}", username, e);
+            throw new RuntimeException(e);
+        }
+    }
+
     public void updateLastActive(String userId, long timestamp) {
         String sql = "UPDATE soul_users SET last_active = ? WHERE id = ?";
         try (Connection conn = DriverManager.getConnection(dbUrl);
@@ -107,6 +140,8 @@ public class UserRepository {
     private SoulUser mapRow(ResultSet rs) throws SQLException {
         return new SoulUser(
             rs.getString("id"),
+            rs.getString("username"),
+            rs.getString("password_hash"),
             rs.getString("openid"),
             rs.getString("nickname"),
             rs.getString("member_level"),

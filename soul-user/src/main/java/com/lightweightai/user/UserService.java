@@ -34,7 +34,7 @@ public class UserService {
     public SoulUser createAnonymousUser() {
         String id = "anon-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         long now = System.currentTimeMillis();
-        SoulUser user = new SoulUser(id, null, "匿名用户", "FREE", now, now);
+        SoulUser user = new SoulUser(id, null, null, null, "匿名用户", "FREE", now, now);
         userRepository.save(user);
         logger.info("Created anonymous user: {}", id);
         return user;
@@ -46,10 +46,27 @@ public class UserService {
     public SoulUser getOrCreate(String userId) {
         return userRepository.findById(userId).orElseGet(() -> {
             long now = System.currentTimeMillis();
-            SoulUser user = new SoulUser(userId, null, "匿名用户", "FREE", now, now);
+            SoulUser user = new SoulUser(userId, null, null, null, "匿名用户", "FREE", now, now);
             userRepository.save(user);
             return user;
         });
+    }
+
+    public SoulUser register(String username, String passwordHash, String nickname) {
+        if (userRepository.findByUsername(username).isPresent()) {
+            throw new IllegalArgumentException("用户名已存在");
+        }
+        String id = "usr-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        long now = System.currentTimeMillis();
+        SoulUser user = new SoulUser(id, username, passwordHash, null,
+            (nickname == null || nickname.isBlank()) ? username : nickname,
+            "FREE", now, now);
+        userRepository.save(user);
+        return user;
+    }
+
+    public Optional<SoulUser> findByUsername(String username) {
+        return userRepository.findByUsername(username);
     }
 
     /**
