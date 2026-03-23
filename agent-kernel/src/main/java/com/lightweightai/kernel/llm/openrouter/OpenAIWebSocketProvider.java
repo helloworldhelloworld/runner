@@ -264,14 +264,10 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                             if (firstChoice.has("finish_reason") && !firstChoice.get("finish_reason").isNull()) {
                                 String fr = firstChoice.get("finish_reason").asText();
                                 finishReason[0] = fr;
-                                // GLM-5 等模型发送 finish_reason 后可能不发 [DONE]，主动关闭连接
-                                if ("tool_calls".equals(fr) || "function_call".equals(fr)) {
-                                    logger.info("WS: finish_reason={}, closing connection", fr);
-                                    webSocket.close(1000, "tool_calls");
-                                } else if ("stop".equals(fr)) {
-                                    logger.info("WS: finish_reason=stop, closing connection");
-                                    webSocket.close(1000, "stop");
-                                }
+                                // 部分模型(如GLM-5)发送 finish_reason 后不发 [DONE] 也不关闭连接，
+                                // 主动关闭以确保 handler.onComplete() 能触发，UI 不会卡在"发送中"
+                                logger.info("WS: finish_reason={}, closing connection", fr);
+                                webSocket.close(1000, fr);
                             }
 
                         } catch (Exception e) {
