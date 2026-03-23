@@ -1190,6 +1190,51 @@
 
         // ==================== Client Tool Simulation ====================
 
+        function normalizeToolResult(result) {
+            if (!result || typeof result !== 'object') {
+                return {
+                    ok: false,
+                    data: null,
+                    error: { code: 'INVALID_RESULT', message: '工具返回结构无效' }
+                };
+            }
+            return {
+                ok: !!result.ok,
+                data: Object.prototype.hasOwnProperty.call(result, 'data') ? result.data : null,
+                error: result.error || null
+            };
+        }
+
+        function normalizeClientTools(rawTools) {
+            return (rawTools || []).map((entry) => {
+                if (Array.isArray(entry)) {
+                    const key = entry[0];
+                    const tool = entry[1] || {};
+                    return {
+                        key,
+                        name: tool.name || key,
+                        description: tool.description || '',
+                        owner: tool.owner || 'unknown',
+                        version: tool.version || '0.0.0',
+                        inputSchema: tool.inputSchema || { type: 'object', properties: {}, required: [] },
+                        enabled: tool.enabled !== false,
+                        mockResponse: normalizeToolResult(tool.mockResponse || { ok: true, data: {}, error: null })
+                    };
+                }
+                const key = entry.key || entry.id || '';
+                return {
+                    key,
+                    name: entry.name || key,
+                    description: entry.description || '',
+                    owner: entry.owner || 'unknown',
+                    version: entry.version || '0.0.0',
+                    inputSchema: entry.inputSchema || { type: 'object', properties: {}, required: [] },
+                    enabled: entry.enabled !== false,
+                    mockResponse: normalizeToolResult(entry.mockResponse || { ok: true, data: {}, error: null })
+                };
+            });
+        }
+
         const clientToolState = {
             tools: [],
             filteredTools: [],
@@ -1199,7 +1244,7 @@
         };
 
         function loadClientTools() {
-            const tools = window.soulComfortAPI.getClientTools();
+            const tools = normalizeClientTools(window.soulComfortAPI.getClientTools());
             clientToolState.tools = tools;
             clientToolState.filteredTools = filterClientToolsByKeyword(tools, clientToolState.search);
 
@@ -1312,13 +1357,20 @@
                 }
             }
 
-            const result = window.soulComfortAPI.runClientTool(selected.key, params);
-            document.getElementById('client-tool-result-data').textContent = result.ok
-                ? JSON.stringify(result.data, null, 2)
+            const result = !selected.enabled
+                ? { ok: false, data: null, error: { code: 'TOOL_DISABLED', message: '工具已禁用: ' + selected.key } }
+                : normalizeToolResult(selected.mockResponse || { ok: true, data: {}, error: null });
+
+            const unified = result.ok
+                ? { ok: true, data: { input: params, output: result.data }, error: null }
+                : { ok: false, data: null, error: result.error || { message: '未知错误' } };
+
+            document.getElementById('client-tool-result-data').textContent = unified.ok
+                ? JSON.stringify(unified.data, null, 2)
                 : '暂无 data';
-            document.getElementById('client-tool-result-error').textContent = result.ok
+            document.getElementById('client-tool-result-error').textContent = unified.ok
                 ? '暂无 error'
-                : JSON.stringify(result.error || { message: '未知错误' }, null, 2);
+                : JSON.stringify(unified.error, null, 2);
         }
 
         function copyClientToolTemplate() {
@@ -1367,8 +1419,16 @@
         }
 
         function updateClientToolMock(key, jsonStr) {
-            if (!window.soulComfortAPI.updateMockResponse(key, jsonStr)) {
+            let parsed;
+            try {
+                parsed = JSON.parse(jsonStr);
+            } catch (error) {
                 alert('JSON 格式错误，请检查，且需满足 { ok, data, error }');
+                return;
+            }
+            const normalized = normalizeToolResult(parsed);
+            if (!window.soulComfortAPI.updateMockResponse(key, JSON.stringify(normalized))) {
+                alert('保存失败，请重试');
                 return;
             }
             loadClientTools();

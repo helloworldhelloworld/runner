@@ -23,27 +23,14 @@ class SoulComfortAPI {
                 namespace: 'GeoInformation',
                 name: 'GetPosition',
                 description: '获取设备GPS定位和城市名',
-                owner: 'team-web',
-                version: '1.0.0',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        scene: { type: 'string', description: '调用场景' }
-                    },
-                    required: []
-                },
                 enabled: true,
                 mockResponse: {
-                    ok: true,
-                    data: {
-                        header: { namespace: 'GeoInformation', name: 'PositionInfo' },
-                        payload: {
-                            errorCode: '0',
-                            position: { longitude: '116.397', latitude: '39.909', locationSystem: 'WGS84' },
-                            city: '北京'
-                        }
-                    },
-                    error: null
+                    header: { namespace: 'GeoInformation', name: 'PositionInfo' },
+                    payload: {
+                        errorCode: '0',
+                        position: { longitude: '116.397', latitude: '39.909', locationSystem: 'WGS84' },
+                        city: '北京'
+                    }
                 }
             });
             this._saveClientToolsToStorage();
@@ -359,25 +346,6 @@ class SoulComfortAPI {
         return this._sendRequest('get_tool_definitions');
     }
 
-
-    _normalizeToolResult(result) {
-        if (!result || typeof result !== 'object') {
-            return {
-                ok: false,
-                data: null,
-                error: {
-                    code: 'INVALID_RESULT',
-                    message: '工具返回结构无效'
-                }
-            };
-        }
-        return {
-            ok: !!result.ok,
-            data: Object.prototype.hasOwnProperty.call(result, 'data') ? result.data : null,
-            error: result.error || null
-        };
-    }
-
     // ========== Client Tool Simulation ==========
 
     _handleDirective(msg) {
@@ -408,29 +376,20 @@ class SoulComfortAPI {
             let response;
 
             if (tool && tool.enabled && tool.mockResponse) {
-                const normalized = this._normalizeToolResult(tool.mockResponse);
                 response = {
                     type: 'directive_result',
                     directiveId: directiveId,
-                    success: normalized.ok,
-                    content: JSON.stringify(normalized.ok ? normalized.data : normalized.error),
-                    metadata: { elapsed_ms: elapsed, simulated: true, unifiedResult: normalized }
+                    success: true,
+                    content: JSON.stringify(tool.mockResponse),
+                    metadata: { elapsed_ms: elapsed, simulated: true }
                 };
             } else {
-                const failResult = {
-                    ok: false,
-                    data: null,
-                    error: {
-                        code: tool ? 'TOOL_DISABLED' : 'TOOL_NOT_FOUND',
-                        message: tool ? ('Tool disabled: ' + toolKey) : ('No mock configured for ' + toolKey)
-                    }
-                };
                 response = {
                     type: 'directive_result',
                     directiveId: directiveId,
                     success: false,
-                    content: JSON.stringify(failResult.error),
-                    metadata: { elapsed_ms: elapsed, simulated: true, unifiedResult: failResult }
+                    content: tool ? 'Tool disabled: ' + toolKey : 'No mock configured for ' + toolKey,
+                    metadata: { elapsed_ms: elapsed, simulated: true }
                 };
             }
 
@@ -447,58 +406,11 @@ class SoulComfortAPI {
     }
 
     getClientTools() {
-        return Array.from(this._clientTools.entries()).map(([key, tool]) => ({
-            key,
-            id: key,
-            name: tool.name || key,
-            description: tool.description || '',
-            owner: tool.owner || 'unknown',
-            version: tool.version || '0.0.0',
-            inputSchema: tool.inputSchema || { type: 'object', properties: {}, required: [] },
-            enabled: tool.enabled !== false,
-            mockResponse: this._normalizeToolResult(tool.mockResponse || { ok: true, data: {}, error: null })
-        }));
-    }
-
-    runClientTool(key, input = {}) {
-        const tool = this._clientTools.get(key);
-        if (!tool) {
-            return {
-                ok: false,
-                data: null,
-                error: { code: 'TOOL_NOT_FOUND', message: '未找到工具: ' + key }
-            };
-        }
-        if (tool.enabled === false) {
-            return {
-                ok: false,
-                data: null,
-                error: { code: 'TOOL_DISABLED', message: '工具已禁用: ' + key }
-            };
-        }
-
-        const base = this._normalizeToolResult(tool.mockResponse || { ok: true, data: {}, error: null });
-        if (!base.ok) return base;
-        return {
-            ok: true,
-            data: {
-                input,
-                output: base.data
-            },
-            error: null
-        };
+        return Array.from(this._clientTools.entries());
     }
 
     setClientTool(key, config) {
-        const normalized = Object.assign({
-            owner: 'team-web',
-            version: '1.0.0',
-            inputSchema: { type: 'object', properties: {}, required: [] },
-            enabled: true,
-            mockResponse: { ok: true, data: { result: 'mock data' }, error: null }
-        }, config || {});
-        normalized.mockResponse = this._normalizeToolResult(normalized.mockResponse);
-        this._clientTools.set(key, normalized);
+        this._clientTools.set(key, config);
         this._saveClientToolsToStorage();
     }
 
@@ -548,7 +460,7 @@ class SoulComfortAPI {
             const saved = localStorage.getItem('clientToolSimulations');
             if (saved) {
                 const data = JSON.parse(saved);
-                Object.entries(data).forEach(([k, v]) => this.setClientTool(k, v));
+                Object.entries(data).forEach(([k, v]) => this._clientTools.set(k, v));
             }
         } catch (e) { /* ignore */ }
     }
