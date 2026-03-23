@@ -40,6 +40,12 @@
     </view>
   </scroll-view>
 
+
+
+  <!-- 客户端工具模拟入口（独立页面） -->
+  <view class="tool-entry-wrap">
+    <button class="tool-entry-btn" bindtap="goClientTools">客户端工具模拟</button>
+  </view>
   <!-- 底部输入区 -->
   <view class="input-bar">
     <input
