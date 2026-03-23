@@ -8,6 +8,7 @@ import com.lightweightai.safety.CrisisDetector;
 import com.lightweightai.user.UserService;
 import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
+import com.lightweightai.web.skillcreator.SkillCreatorService;
 import com.lightweightai.web.websocket.VertxChatWebSocketHandler;
 import com.lightweightai.web.websocket.VertxWebSocketServer;
 import io.vertx.core.Vertx;
@@ -49,12 +50,13 @@ public class VertxWebSocketConfig {
             ToolRegistry toolRegistry,
             ChatService chatService,
             SoulComfortChatService soulComfortChatService,
+            SkillCreatorService skillCreatorService,
             AssessmentService assessmentService,
             UserService userService,
             LLMProvider llmProvider,
             @Autowired(required = false) McpConfig.McpToolRegistrar mcpToolRegistrar) {
         return new VertxChatWebSocketHandler(gateway, crisisDetector, toolRegistry,
-            chatService, soulComfortChatService, assessmentService, userService,
+            chatService, soulComfortChatService, skillCreatorService, assessmentService, userService,
             llmProvider, mcpToolRegistrar);
     }
 

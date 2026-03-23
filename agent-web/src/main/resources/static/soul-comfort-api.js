@@ -378,34 +378,66 @@ class SoulComfortAPI {
      * @param {object} options { sessionId, onDelta, onDraft, onComplete, onError }
      */
     async skillCreatorChat(message, options = {}) {
-        const timeoutMs = options.timeout || 60000; // 默认 1 分钟超时
+        const hardTimeoutMs = options.timeout || 180000; // 总超时（默认 3 分钟）
+        const idleTimeoutMs = options.idleTimeout || 20000; // 空闲超时（默认 20 秒无增量）
         try {
             const ws = await this.ensureWebSocket();
             const requestId = this._nextRequestId();
 
             return new Promise((resolve, reject) => {
                 let settled = false;
+                let hardTimer = null;
+                let idleTimer = null;
 
-                // 超时保护：防止 Promise 永远挂起
-                const timer = setTimeout(() => {
-                    if (!settled) {
-                        settled = true;
-                        console.warn('[SC] skillCreatorChat timeout after', timeoutMs, 'ms');
-                        this._skillCreatorCallbacks = null;
-                        const err = new Error('Skill Creator 响应超时');
-                        if (options.onError) options.onError(err);
-                        reject(err);
-                    }
-                }, timeoutMs);
+                const clearTimers = () => {
+                    if (hardTimer) clearTimeout(hardTimer);
+                    if (idleTimer) clearTimeout(idleTimer);
+                    hardTimer = null;
+                    idleTimer = null;
+                };
+
+                const failWithTimeout = (message) => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimers();
+                    this._skillCreatorCallbacks = null;
+                    const err = new Error(message);
+                    if (options.onError) options.onError(err);
+                    reject(err);
+                };
+
+                const refreshIdleTimeout = () => {
+                    if (idleTimer) clearTimeout(idleTimer);
+                    idleTimer = setTimeout(() => {
+                        console.warn('[SC] skillCreatorChat idle timeout after', idleTimeoutMs, 'ms');
+                        failWithTimeout(`Skill Creator 空闲超时（${idleTimeoutMs}ms 无数据）`);
+                    }, idleTimeoutMs);
+                };
+
+                hardTimer = setTimeout(() => {
+                    console.warn('[SC] skillCreatorChat hard timeout after', hardTimeoutMs, 'ms');
+                    failWithTimeout(`Skill Creator 总超时（${hardTimeoutMs}ms）`);
+                }, hardTimeoutMs);
+
+                // 建立请求后立即启动空闲计时；后续有 token/draft 会续期
+                refreshIdleTimeout();
 
                 this._skillCreatorCallbacks = {
                     requestId: requestId,
-                    onDelta: options.onDelta,
-                    onDraft: options.onDraft,
+                    onDelta: (delta) => {
+                        if (settled) return;
+                        refreshIdleTimeout();
+                        if (options.onDelta) options.onDelta(delta);
+                    },
+                    onDraft: (draft) => {
+                        if (settled) return;
+                        refreshIdleTimeout();
+                        if (options.onDraft) options.onDraft(draft);
+                    },
                     onComplete: () => {
                         if (settled) return;
                         settled = true;
-                        clearTimeout(timer);
+                        clearTimers();
                         console.log('[SC] stream complete');
                         try {
                             if (options.onComplete) options.onComplete();
@@ -417,7 +449,7 @@ class SoulComfortAPI {
                     onError: (err) => {
                         if (settled) return;
                         settled = true;
-                        clearTimeout(timer);
+                        clearTimers();
                         console.error('[SC] stream error:', err);
                         try {
                             if (options.onError) options.onError(err);
