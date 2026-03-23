@@ -32,6 +32,8 @@ import com.lightweightai.user.model.SoulUser;
 import com.lightweightai.web.config.McpConfig.McpToolRegistrar;
 import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
+import com.lightweightai.web.skillcreator.SkillCreatorService;
+import com.lightweightai.web.skillcreator.model.SkillDraft;
 import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,6 +94,7 @@ public class VertxChatWebSocketHandler {
     private final ToolRegistry toolRegistry;
     private final ChatService chatService;
     private final SoulComfortChatService soulComfortChatService;
+    private final SkillCreatorService skillCreatorService;
     private final AssessmentService assessmentService;
     private final UserService userService;
     private final LLMProvider llmProvider;
@@ -111,6 +114,7 @@ public class VertxChatWebSocketHandler {
                                      ToolRegistry toolRegistry,
                                      ChatService chatService,
                                      SoulComfortChatService soulComfortChatService,
+                                     SkillCreatorService skillCreatorService,
                                      AssessmentService assessmentService,
                                      UserService userService,
                                      LLMProvider llmProvider,
@@ -120,6 +124,7 @@ public class VertxChatWebSocketHandler {
         this.toolRegistry = toolRegistry;
         this.chatService = chatService;
         this.soulComfortChatService = soulComfortChatService;
+        this.skillCreatorService = skillCreatorService;
         this.assessmentService = assessmentService;
         this.userService = userService;
         this.llmProvider = llmProvider;
@@ -206,6 +211,13 @@ public class VertxChatWebSocketHandler {
                 case "get_tool_detail" -> handleGetToolDetail(ws, payload, requestId);
                 case "get_mcp_servers" -> handleGetMcpServers(ws, requestId);
                 case "get_tool_definitions" -> handleGetToolDefinitions(ws, requestId);
+                // Skill Creator
+                case "skill_creator_chat" -> handleSkillCreatorChat(ws, payload, requestId);
+                case "skill_creator_save" -> handleSkillCreatorSave(ws, payload, requestId);
+                case "skill_creator_list" -> handleSkillCreatorList(ws, requestId);
+                case "skill_creator_delete" -> handleSkillCreatorDelete(ws, payload, requestId);
+                case "skill_creator_load" -> handleSkillCreatorLoad(ws, payload, requestId);
+                case "skill_creator_get_draft" -> handleSkillCreatorGetDraft(ws, payload, requestId);
                 default -> logger.warn("Unknown WS message type: {}", type);
             }
         } catch (Exception e) {
@@ -737,6 +749,100 @@ public class VertxChatWebSocketHandler {
         sendResponse(ws, "tool_definitions", requestId, Map.of("count", definitions.size(), "tools", definitions));
     }
 
+    // ==================== Skill Creator ====================
+
+    private void handleSkillCreatorChat(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String wsSessionId = ws.textHandlerID();
+        String sessionId = payload.path("sessionId").asText(wsSessionId);
+        String message = payload.path("message").asText("").trim();
+
+        if (message.isEmpty()) {
+            sendSkillCreatorError(ws, "消息不能为空", requestId);
+            return;
+        }
+
+        // 取消同一连接上已有的 Skill Creator 流
+        Disposable prev = activeStreams.remove("sc-" + wsSessionId);
+        if (prev != null && !prev.isDisposed()) {
+            prev.dispose();
+        }
+
+        var flux = skillCreatorService.chat(sessionId, message);
+        Disposable sub = flux.subscribe(
+            event -> {
+                try {
+                    switch (event.getType()) {
+                        case TEXT_DELTA -> sendSkillCreatorToken(ws, event.getTextDelta(), requestId);
+                        case POST_PROCESS_DATA -> {
+                            if ("skill_draft".equals(event.getCategory()) && event.getData() != null) {
+                                sendSkillCreatorDraft(ws, event.getData(), requestId);
+                            }
+                        }
+                        default -> {
+                            // ignore other events
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.error("Failed to process skill creator stream event", e);
+                }
+            },
+            error -> {
+                logger.error("Skill creator stream error, wsSessionId={}", wsSessionId, error);
+                sendSkillCreatorError(ws, "Skill Creator 处理失败: " + error.getMessage(), requestId);
+                sendSkillCreatorStreamEnd(ws, requestId);
+                activeStreams.remove("sc-" + wsSessionId);
+            },
+            () -> {
+                sendSkillCreatorStreamEnd(ws, requestId);
+                activeStreams.remove("sc-" + wsSessionId);
+            }
+        );
+
+        activeStreams.put("sc-" + wsSessionId, sub);
+    }
+
+    private void handleSkillCreatorSave(ServerWebSocket ws, JsonNode payload, String requestId) {
+        try {
+            String sessionId = payload.path("sessionId").asText(ws.textHandlerID());
+            SkillDraft saved = skillCreatorService.save(sessionId);
+            sendResponse(ws, "skill_creator_saved", requestId, saved.toMap());
+        } catch (Exception e) {
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
+    }
+
+    private void handleSkillCreatorList(ServerWebSocket ws, String requestId) {
+        List<Map<String, Object>> skills = skillCreatorService.listSkills().stream()
+            .map(SkillDraft::toMap)
+            .toList();
+        sendResponse(ws, "skill_creator_skills", requestId, skills);
+    }
+
+    private void handleSkillCreatorDelete(ServerWebSocket ws, JsonNode payload, String requestId) {
+        try {
+            boolean ok = skillCreatorService.deleteSkill(payload.path("skillId").asText(""));
+            sendResponse(ws, "skill_creator_deleted", requestId, Map.of("success", ok));
+        } catch (Exception e) {
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
+    }
+
+    private void handleSkillCreatorLoad(ServerWebSocket ws, JsonNode payload, String requestId) {
+        try {
+            String skillId = payload.path("skillId").asText("");
+            String sessionId = payload.path("sessionId").asText(ws.textHandlerID());
+            SkillDraft draft = skillCreatorService.loadSkill(skillId, sessionId);
+            sendResponse(ws, "skill_creator_draft", requestId, draft.toMap());
+        } catch (Exception e) {
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
+    }
+
+    private void handleSkillCreatorGetDraft(ServerWebSocket ws, JsonNode payload, String requestId) {
+        String sessionId = payload.path("sessionId").asText(ws.textHandlerID());
+        sendResponse(ws, "skill_creator_draft", requestId, skillCreatorService.getDraft(sessionId).toMap());
+    }
+
     // ==================== WebSocket 消息发送（线程安全） ====================
 
     /**
@@ -789,6 +895,53 @@ public class VertxChatWebSocketHandler {
             safeSend(ws, MAPPER.writeValueAsString(msg));
         } catch (Exception e) {
             logger.error("Failed to serialize crisis_alert message", e);
+        }
+    }
+
+    private void sendSkillCreatorToken(ServerWebSocket ws, String token, String requestId) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "skill_creator_token");
+            if (requestId != null) msg.put("requestId", requestId);
+            msg.put("data", token);
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize skill_creator_token", e);
+        }
+    }
+
+    private void sendSkillCreatorDraft(ServerWebSocket ws, Object draftData, String requestId) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "skill_creator_draft");
+            if (requestId != null) msg.put("requestId", requestId);
+            msg.set("data", MAPPER.valueToTree(draftData));
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize skill_creator_draft", e);
+        }
+    }
+
+    private void sendSkillCreatorStreamEnd(ServerWebSocket ws, String requestId) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "skill_creator_stream_end");
+            if (requestId != null) msg.put("requestId", requestId);
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize skill_creator_stream_end", e);
+        }
+    }
+
+    private void sendSkillCreatorError(ServerWebSocket ws, String errorMessage, String requestId) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", "skill_creator_error");
+            if (requestId != null) msg.put("requestId", requestId);
+            msg.put("message", errorMessage);
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize skill_creator_error", e);
         }
     }
 

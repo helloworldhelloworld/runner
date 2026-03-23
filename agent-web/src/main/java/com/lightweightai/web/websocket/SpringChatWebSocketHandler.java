@@ -444,6 +444,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     // ==================== Skill Creator Streaming ====================
 
     private void handleSkillCreatorChat(WebSocketSession session, JsonNode payload) {
+        String requestId = payload.path("requestId").asText(null);
         String sessionId = payload.path("sessionId").asText(session.getId());
         String message = payload.path("message").asText("").trim();
 
@@ -451,7 +452,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
             message.length() > 30 ? message.substring(0, 30) + "..." : message);
 
         if (message.isEmpty()) {
-            safeSend(session, skillCreatorErrorJson("消息不能为空"));
+            safeSend(session, skillCreatorErrorJson("消息不能为空", requestId));
             return;
         }
 
@@ -472,6 +473,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                         case TEXT_DELTA -> {
                             ObjectNode msg = MAPPER.createObjectNode();
                             msg.put("type", "skill_creator_token");
+                            if (requestId != null) msg.put("requestId", requestId);
                             msg.put("data", event.getTextDelta());
                             safeSend(session, MAPPER.writeValueAsString(msg));
                         }
@@ -480,6 +482,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                             if ("skill_draft".equals(event.getCategory())) {
                                 ObjectNode msg = MAPPER.createObjectNode();
                                 msg.put("type", "skill_creator_draft");
+                                if (requestId != null) msg.put("requestId", requestId);
                                 if (event.getData() != null) {
                                     msg.set("data", MAPPER.valueToTree(event.getData()));
                                 }
@@ -494,11 +497,12 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
             },
             error -> {
                 logger.error("[SC] Stream error session={}: {}", sid, error.getMessage(), error);
-                safeSend(session, skillCreatorErrorJson("Skill Creator 处理失败: " + error.getMessage()));
+                safeSend(session, skillCreatorErrorJson("Skill Creator 处理失败: " + error.getMessage(), requestId));
                 // 发送 stream_end 以解除客户端的等待状态
                 try {
                     ObjectNode endMsg = MAPPER.createObjectNode();
                     endMsg.put("type", "skill_creator_stream_end");
+                    if (requestId != null) endMsg.put("requestId", requestId);
                     safeSend(session, MAPPER.writeValueAsString(endMsg));
                 } catch (Exception e) {
                     logger.error("Failed to send skill_creator_stream_end after error", e);
@@ -510,6 +514,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                 try {
                     ObjectNode msg = MAPPER.createObjectNode();
                     msg.put("type", "skill_creator_stream_end");
+                    if (requestId != null) msg.put("requestId", requestId);
                     safeSend(session, MAPPER.writeValueAsString(msg));
                 } catch (Exception e) {
                     logger.error("Failed to send skill_creator_stream_end", e);
@@ -582,9 +587,14 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     private String skillCreatorErrorJson(String message) {
+        return skillCreatorErrorJson(message, null);
+    }
+
+    private String skillCreatorErrorJson(String message, String requestId) {
         try {
             ObjectNode msg = MAPPER.createObjectNode();
             msg.put("type", "skill_creator_error");
+            if (requestId != null) msg.put("requestId", requestId);
             msg.put("message", message);
             return MAPPER.writeValueAsString(msg);
         } catch (Exception e) { return "{\"type\":\"skill_creator_error\",\"message\":\"serialize failed\"}"; }
