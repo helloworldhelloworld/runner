@@ -25,10 +25,7 @@ public class SharedClientToolController {
 
     @GetMapping
     public ResponseEntity<?> list(@RequestHeader(name = "Authorization", required = false) String authorization) {
-        String userId = resolveUserId(authorization);
-        if (userId == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "请先登录"));
-        }
+        String userId = resolveUserIdOrAnonymous(authorization);
         List<SharedClientTool> tools = sharedClientToolService.list();
         return ResponseEntity.ok(Map.of("viewer", userId, "tools", tools));
     }
@@ -37,10 +34,7 @@ public class SharedClientToolController {
     public ResponseEntity<?> upsert(@PathVariable("key") String key,
                                     @RequestBody SharedClientTool payload,
                                     @RequestHeader(name = "Authorization", required = false) String authorization) {
-        String userId = resolveUserId(authorization);
-        if (userId == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "请先登录"));
-        }
+        String userId = resolveUserIdOrAnonymous(authorization);
         SharedClientTool saved = sharedClientToolService.upsert(key, payload, userId);
         return ResponseEntity.ok(saved);
     }
@@ -48,19 +42,16 @@ public class SharedClientToolController {
     @DeleteMapping("/{key}")
     public ResponseEntity<?> remove(@PathVariable("key") String key,
                                     @RequestHeader(name = "Authorization", required = false) String authorization) {
-        String userId = resolveUserId(authorization);
-        if (userId == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "请先登录"));
-        }
+        String userId = resolveUserIdOrAnonymous(authorization);
         boolean removed = sharedClientToolService.remove(key);
         return ResponseEntity.ok(Map.of("removed", removed, "operator", userId));
     }
 
-    private String resolveUserId(String authorization) {
+    private String resolveUserIdOrAnonymous(String authorization) {
         if (authorization == null || !authorization.startsWith("Bearer ")) {
-            return null;
+            return "anonymous";
         }
         String token = authorization.substring("Bearer ".length());
-        return authSessionService.resolveUserId(token).orElse(null);
+        return authSessionService.resolveUserId(token).orElse("anonymous");
     }
 }

@@ -1324,7 +1324,7 @@
             });
             if (!resp.ok) {
                 const body = await resp.json().catch(() => ({}));
-                throw new Error(body.error || '加载共享端工具失败');
+                throw new Error(body.error || '加载全局端工具失败');
             }
             return resp.json();
         }
@@ -1340,7 +1340,7 @@
             });
             if (!resp.ok) {
                 const body = await resp.json().catch(() => ({}));
-                throw new Error(body.error || '保存共享端工具失败');
+                throw new Error(body.error || '保存全局端工具失败');
             }
             return resp.json();
         }
@@ -1354,7 +1354,7 @@
             });
             if (!resp.ok) {
                 const body = await resp.json().catch(() => ({}));
-                throw new Error(body.error || '删除共享端工具失败');
+                throw new Error(body.error || '删除全局端工具失败');
             }
             return resp.json();
         }
@@ -1523,7 +1523,7 @@
             try {
                 await upsertSharedClientTool(key, payload);
             } catch (error) {
-                setClientToolFormStatus('共享保存失败：' + error.message, 'error');
+                setClientToolFormStatus('保存失败：' + error.message, 'error');
                 return;
             }
 
@@ -1617,7 +1617,7 @@
                 const data = await fetchSharedClientTools();
                 tools = data.tools || [];
             } catch (error) {
-                container.innerHTML = `<div class="text-red-500 text-sm">加载共享工具失败：${escapeHtml(error.message)}</div>`;
+                container.innerHTML = `<div class="text-red-500 text-sm">加载全局工具失败：${escapeHtml(error.message)}</div>`;
                 return;
             }
 
