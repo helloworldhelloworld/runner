@@ -1,7 +1,6 @@
 package com.lightweightai.kernel.core;
 
 import com.lightweightai.kernel.agent.Tool;
-import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.ToolSchema;
 import com.lightweightai.kernel.llm.ToolCall;
