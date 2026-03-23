@@ -67,10 +67,15 @@ class SoulComfortAPI {
                 console.log(`[WS] Closed: code=${event.code} reason=${event.reason}`);
                 this._ws = null;
                 this._wsConnecting = null;
-                // 通知流式回调
+                // 通知聊天流式回调
                 if (this._wsCallbacks && this._wsCallbacks.onError) {
                     this._wsCallbacks.onError(new Error('WebSocket 连接断开'));
                     this._wsCallbacks = null;
+                }
+                // 通知 Skill Creator 流式回调（之前遗漏！导致 Promise 永远挂起）
+                if (this._skillCreatorCallbacks && this._skillCreatorCallbacks.onError) {
+                    this._skillCreatorCallbacks.onError(new Error('WebSocket 连接断开'));
+                    this._skillCreatorCallbacks = null;
                 }
                 // 拒绝所有 pending 请求
                 this._pendingRequests.forEach(({ reject }) => {
@@ -368,7 +373,7 @@ class SoulComfortAPI {
      * @param {object} options { sessionId, onDelta, onDraft, onComplete, onError }
      */
     async skillCreatorChat(message, options = {}) {
-        const timeoutMs = options.timeout || 120000; // 默认 2 分钟超时
+        const timeoutMs = options.timeout || 60000; // 默认 1 分钟超时
         try {
             const ws = await this.ensureWebSocket();
 
