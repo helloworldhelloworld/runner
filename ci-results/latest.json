@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "aa040b6138e2918eaed376770b298366e6f7d140",
-  "exit_code": 0,
-  "timestamp": "2026-03-23T10:47:21Z",
-  "branch": "main",
-  "run_id": "23433472133",
-  "test_summary": "[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s - in com.lightweightai.web.postprocess.DeeplinkProcessorTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s - in com.lightweightai.web.postprocess.RiskControlProcessorTest|[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.149 s - in com.lightweightai.web.websocket.ClientToolSessionBinderTest|[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.079 s - in com.lightweightai.web.websocket.ClientToolResultRouterTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.082 s - in com.lightweightai.web.websocket.VertxWebSocketClientToolDispatcherTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.068 s - in com.lightweightai.web.websocket.SpringWebSocketClientToolDispatcherTest|[WARNING] Tests run: 20, Failures: 0, Errors: 0, Skipped: 20, Time elapsed: 0.051 s - in com.lightweightai.web.e2e.WebSocketE2ETest|[WARNING] Tests run: 128, Failures: 0, Errors: 0, Skipped: 20|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.051 s - in com.lightweightai.plugin.example.PluginToolTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0|"
+  "trigger_sha": "66529098b19f4bda9d1e2d176a7afa23eb084ee3",
+  "exit_code": 1,
+  "timestamp": "2026-03-23T12:29:32Z",
+  "branch": "claude/fix-skill-creator-issues-yGcKR",
+  "run_id": "23437316469",
+  "test_summary": "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.307 s - in com.lightweightai.user.UserRepositoryTest|[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.204 s - in com.lightweightai.user.UserServiceTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.056 s - in com.lightweightai.user.EmotionRepositoryTest|[INFO] Tests run: 28, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.124 s - in com.lightweightai.assessment.AssessmentReportGeneratorTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.021 s - in com.lightweightai.assessment.ScaleDefinitionTest|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.356 s - in com.lightweightai.assessment.AssessmentServiceTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.033 s - in com.lightweightai.assessment.AssessmentRepositoryTest|[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.022 s - in com.lightweightai.assessment.AssessmentScorerTest|[INFO] Tests run: 57, Failures: 0, Errors: 0, Skipped: 0|"
 }
