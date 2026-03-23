@@ -12,29 +12,11 @@ class SoulComfortAPI {
         this._pendingRequests = new Map();
         this._requestIdCounter = 0;
 
-        /** 客户端工具模拟配置 */
-        this._clientTools = new Map();
+        /** 客户端工具配置 */
+        this._clientToolRegistry = window.clientToolRegistry;
         this._onDirective = null;
         this._onDirectiveResult = null;
         this._loadClientToolsFromStorage();
-        if (this._clientTools.size === 0) {
-            // 预配置 GetPosition 端工具
-            this._clientTools.set('GeoInformation.GetPosition', {
-                namespace: 'GeoInformation',
-                name: 'GetPosition',
-                description: '获取设备GPS定位和城市名',
-                enabled: true,
-                mockResponse: {
-                    header: { namespace: 'GeoInformation', name: 'PositionInfo' },
-                    payload: {
-                        errorCode: '0',
-                        position: { longitude: '116.397', latitude: '39.909', locationSystem: 'WGS84' },
-                        city: '北京'
-                    }
-                }
-            });
-            this._saveClientToolsToStorage();
-        }
     }
 
     /**
@@ -110,9 +92,9 @@ class SoulComfortAPI {
         try {
             const msg = JSON.parse(raw);
 
-            // 0. 处理 DIRECTIVE 消息（端工具调用）
-            if (msg.type === 'DIRECTIVE') {
-                this._handleDirective(msg);
+            // 0. 处理服务端请求客户端工具执行的消息
+            if (['directive', 'DIRECTIVE', 'tool_call', 'client_tool_call'].includes(msg.type)) {
+                this._handleServerToolRequest(msg);
                 return;
             }
 
@@ -348,79 +330,132 @@ class SoulComfortAPI {
 
     // ========== Client Tool Simulation ==========
 
-    _handleDirective(msg) {
-        const data = msg.data;
-        const directiveId = data.directive_id;
+    async _handleServerToolRequest(msg) {
+        if (!this._clientToolRegistry) {
+            console.error('[WS] clientToolRegistry is not initialized');
+            return;
+        }
+
+        if (msg.type === 'directive' || msg.type === 'DIRECTIVE') {
+            await this._handleDirective(msg);
+            return;
+        }
+
+        await this._handleToolCall(msg);
+    }
+
+    async _handleDirective(msg) {
+        const data = msg.data || {};
+        const directiveId = data.directive_id || data.directiveId || '';
         const directives = data.directives || [];
 
         console.log('[WS] Received DIRECTIVE:', directiveId, directives);
 
         const primaryDirective = directives[0];
-        if (!primaryDirective) return;
+        if (!directiveId || !primaryDirective || !primaryDirective.header) {
+            console.warn('[WS] Invalid directive payload:', msg);
+            return;
+        }
 
         const namespace = primaryDirective.header.namespace;
         const name = primaryDirective.header.name;
         const toolKey = namespace + '.' + name;
-        const tool = this._clientTools.get(toolKey);
+        const args = primaryDirective.payload || {};
+        const tool = this._clientToolRegistry.getTool(toolKey);
 
-        // 通知 UI
         if (this._onDirective) {
-            this._onDirective(directiveId, toolKey, primaryDirective.payload, tool);
+            this._onDirective(directiveId, toolKey, args, tool);
         }
 
         const startTime = Date.now();
+        const result = await this._clientToolRegistry.invokeTool(toolKey, args);
+        const elapsed = Date.now() - startTime;
 
-        // 模拟异步执行（200ms 延迟）
-        setTimeout(() => {
-            const elapsed = Date.now() - startTime;
-            let response;
-
-            if (tool && tool.enabled && tool.mockResponse) {
-                response = {
-                    type: 'directive_result',
-                    directiveId: directiveId,
-                    success: true,
-                    content: JSON.stringify(tool.mockResponse),
-                    metadata: { elapsed_ms: elapsed, simulated: true }
-                };
-            } else {
-                response = {
-                    type: 'directive_result',
-                    directiveId: directiveId,
-                    success: false,
-                    content: tool ? 'Tool disabled: ' + toolKey : 'No mock configured for ' + toolKey,
-                    metadata: { elapsed_ms: elapsed, simulated: true }
-                };
+        const response = {
+            type: 'directive_result',
+            directiveId: directiveId,
+            success: result.ok,
+            content: result.ok ? JSON.stringify(result.data || {}) : (result.error?.message || 'Tool execution failed'),
+            metadata: {
+                elapsed_ms: elapsed,
+                toolId: toolKey,
+                code: result.error?.code || null
             }
+        };
 
-            if (this._ws && this._ws.readyState === WebSocket.OPEN) {
-                this._ws.send(JSON.stringify(response));
-                console.log('[WS] Sent directive_result for', directiveId, `(${elapsed}ms)`);
-            }
+        this._sendWsPayload(response);
 
-            // 通知 UI 结果
-            if (this._onDirectiveResult) {
-                this._onDirectiveResult(directiveId, response, elapsed);
+        if (this._onDirectiveResult) {
+            this._onDirectiveResult(directiveId, response, elapsed);
+        }
+    }
+
+    async _handleToolCall(msg) {
+        const data = msg.data || {};
+        const callId = msg.callId || data.callId || '';
+        const toolId = msg.toolId || msg.tool || data.toolId || data.tool || data.name || '';
+        const args = msg.args || data.args || data.input || {};
+
+        if (!callId || !toolId) {
+            console.warn('[WS] Invalid tool_call payload:', msg);
+            return;
+        }
+
+        const result = await this._clientToolRegistry.invokeTool(toolId, args);
+        const response = {
+            type: 'client_tool_result',
+            callId,
+            isError: !result.ok,
+            content: result.ok ? JSON.stringify(result.data || {}) : (result.error?.message || 'Tool execution failed'),
+            meta: {
+                toolId,
+                code: result.error?.code || null
             }
-        }, 200);
+        };
+
+        this._sendWsPayload(response);
+    }
+
+    _sendWsPayload(payload) {
+        if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+            this._ws.send(JSON.stringify(payload));
+        }
     }
 
     getClientTools() {
-        return Array.from(this._clientTools.entries());
+        return this._clientToolRegistry ? this._clientToolRegistry.entries() : [];
     }
 
     setClientTool(key, config) {
-        this._clientTools.set(key, config);
+        if (!this._clientToolRegistry) return;
+        const existing = this._clientToolRegistry.getTool(key);
+        if (existing) {
+            Object.assign(existing, config);
+        } else {
+            this._clientToolRegistry.registerTool({
+                id: key,
+                name: config.name || key,
+                description: config.description || '',
+                inputSchema: config.inputSchema || { type: 'object' },
+                handler: typeof config.handler === 'function' ? config.handler : () => config.mockResponse || {},
+                ...config
+            });
+        }
         this._saveClientToolsToStorage();
     }
 
     removeClientTool(key) {
-        this._clientTools.delete(key);
+        if (!this._clientToolRegistry) return;
+        const tool = this._clientToolRegistry.getTool(key);
+        if (tool) {
+            tool.enabled = false;
+        }
         this._saveClientToolsToStorage();
     }
 
     toggleClientTool(key, enabled) {
-        const tool = this._clientTools.get(key);
+        if (!this._clientToolRegistry) return;
+        const tool = this._clientToolRegistry.getTool(key);
         if (tool) {
             tool.enabled = enabled;
             this._saveClientToolsToStorage();
@@ -428,7 +463,8 @@ class SoulComfortAPI {
     }
 
     updateMockResponse(key, jsonStr) {
-        const tool = this._clientTools.get(key);
+        if (!this._clientToolRegistry) return false;
+        const tool = this._clientToolRegistry.getTool(key);
         if (tool) {
             try {
                 tool.mockResponse = JSON.parse(jsonStr);
@@ -448,20 +484,36 @@ class SoulComfortAPI {
     }
 
     _saveClientToolsToStorage() {
+        if (!this._clientToolRegistry) return;
         try {
             const data = {};
-            this._clientTools.forEach((v, k) => { data[k] = v; });
+            this._clientToolRegistry.entries().forEach(([key, tool]) => {
+                data[key] = {
+                    enabled: tool.enabled !== false,
+                    mockResponse: tool.mockResponse || null
+                };
+            });
             localStorage.setItem('clientToolSimulations', JSON.stringify(data));
         } catch (e) { /* ignore */ }
     }
 
     _loadClientToolsFromStorage() {
+        if (!this._clientToolRegistry) return;
         try {
             const saved = localStorage.getItem('clientToolSimulations');
-            if (saved) {
-                const data = JSON.parse(saved);
-                Object.entries(data).forEach(([k, v]) => this._clientTools.set(k, v));
-            }
+            if (!saved) return;
+
+            const data = JSON.parse(saved);
+            Object.entries(data).forEach(([key, value]) => {
+                const tool = this._clientToolRegistry.getTool(key);
+                if (!tool) return;
+                if (typeof value.enabled === 'boolean') {
+                    tool.enabled = value.enabled;
+                }
+                if (value.mockResponse) {
+                    tool.mockResponse = value.mockResponse;
+                }
+            });
         } catch (e) { /* ignore */ }
     }
 
