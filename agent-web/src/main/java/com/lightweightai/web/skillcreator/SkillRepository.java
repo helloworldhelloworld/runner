@@ -68,6 +68,23 @@ public class SkillRepository {
         }
 
         String now = Instant.now().toString();
+
+        // Check if a skill with the same name but different ID already exists
+        try (PreparedStatement check = getConnection().prepareStatement(
+                "SELECT id FROM skills WHERE name = ? AND id != ?")) {
+            check.setString(1, draft.getName());
+            check.setString(2, draft.getId());
+            ResultSet rs = check.executeQuery();
+            if (rs.next()) {
+                // Reuse the existing ID to perform an update instead of failing on UNIQUE(name)
+                String existingId = rs.getString("id");
+                logger.info("Skill name '{}' already exists with id={}, reusing id for update", draft.getName(), existingId);
+                draft.setId(existingId);
+            }
+        } catch (SQLException e) {
+            logger.warn("Failed to check existing skill name: {}", e.getMessage());
+        }
+
         String sql = """
             INSERT INTO skills (id, name, description, system_prompt, tools_json, triggers_json, priority, metadata_json, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

@@ -253,8 +253,15 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                         sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
                     }
                 }
-                case "skill_creator_list" -> sendResponse(session, "skill_creator_skills", requestId,
-                    skillCreatorService.listSkills().stream().map(SkillDraft::toMap).toList());
+                case "skill_creator_list" -> {
+                    try {
+                        sendResponse(session, "skill_creator_skills", requestId,
+                            skillCreatorService.listSkills().stream().map(SkillDraft::toMap).toList());
+                    } catch (Exception e) {
+                        logger.error("Failed to list skills", e);
+                        sendResponse(session, "error_response", requestId, Map.of("error", "获取 Skill 列表失败: " + e.getMessage()));
+                    }
+                }
                 case "skill_creator_delete" -> {
                     try {
                         boolean ok = skillCreatorService.deleteSkill(payload.path("skillId").asText(""));
@@ -274,9 +281,14 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                     }
                 }
                 case "skill_creator_get_draft" -> {
-                    String scSessionId = payload.path("sessionId").asText(session.getId());
-                    sendResponse(session, "skill_creator_draft", requestId,
-                        skillCreatorService.getDraft(scSessionId).toMap());
+                    try {
+                        String scSessionId = payload.path("sessionId").asText(session.getId());
+                        sendResponse(session, "skill_creator_draft", requestId,
+                            skillCreatorService.getDraft(scSessionId).toMap());
+                    } catch (Exception e) {
+                        logger.error("Failed to get draft", e);
+                        sendResponse(session, "error_response", requestId, Map.of("error", "获取草稿失败: " + e.getMessage()));
+                    }
                 }
 
                 // ==================== Tool Schema ====================

@@ -78,15 +78,15 @@ public class SkillDraft {
      */
     public Map<String, Object> toMap() {
         Map<String, Object> map = new HashMap<>();
-        if (id != null) map.put("id", id);
-        if (name != null) map.put("name", name);
-        if (description != null) map.put("description", description);
+        map.put("id", id != null ? id : "");
+        map.put("name", name != null ? name : "");
+        map.put("description", description != null ? description : "");
         if (systemPrompt != null) map.put("systemPrompt", systemPrompt);
-        if (!toolNames.isEmpty()) map.put("toolNames", toolNames);
-        if (!triggers.isEmpty()) map.put("triggers", triggers);
+        map.put("toolNames", toolNames);
+        map.put("triggers", triggers);
         map.put("priority", priority);
         if (!metadata.isEmpty()) map.put("metadata", metadata);
-        map.put("status", status);
+        map.put("status", status != null ? status : "draft");
         return map;
     }
 }

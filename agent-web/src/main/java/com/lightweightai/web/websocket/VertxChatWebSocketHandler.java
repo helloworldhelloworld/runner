@@ -34,6 +34,8 @@ import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
 import com.lightweightai.web.skillcreator.SkillCreatorService;
 import com.lightweightai.web.skillcreator.SkillDraft;
+import com.lightweightai.web.skillcreator.ToolSchemaEntry;
+import com.lightweightai.web.skillcreator.ToolSchemaRepository;
 import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,6 +97,7 @@ public class VertxChatWebSocketHandler {
     private final ChatService chatService;
     private final SoulComfortChatService soulComfortChatService;
     private final SkillCreatorService skillCreatorService;
+    private final ToolSchemaRepository toolSchemaRepository;
     private final AssessmentService assessmentService;
     private final UserService userService;
     private final LLMProvider llmProvider;
@@ -115,6 +118,7 @@ public class VertxChatWebSocketHandler {
                                      ChatService chatService,
                                      SoulComfortChatService soulComfortChatService,
                                      SkillCreatorService skillCreatorService,
+                                     ToolSchemaRepository toolSchemaRepository,
                                      AssessmentService assessmentService,
                                      UserService userService,
                                      LLMProvider llmProvider,
@@ -125,6 +129,7 @@ public class VertxChatWebSocketHandler {
         this.chatService = chatService;
         this.soulComfortChatService = soulComfortChatService;
         this.skillCreatorService = skillCreatorService;
+        this.toolSchemaRepository = toolSchemaRepository;
         this.assessmentService = assessmentService;
         this.userService = userService;
         this.llmProvider = llmProvider;
@@ -218,6 +223,10 @@ public class VertxChatWebSocketHandler {
                 case "skill_creator_delete" -> handleSkillCreatorDelete(ws, payload, requestId);
                 case "skill_creator_load" -> handleSkillCreatorLoad(ws, payload, requestId);
                 case "skill_creator_get_draft" -> handleSkillCreatorGetDraft(ws, payload, requestId);
+                // Tool Schema
+                case "tool_schema_list" -> handleToolSchemaList(ws, requestId);
+                case "tool_schema_list_enabled" -> handleToolSchemaListEnabled(ws, requestId);
+                case "tool_schema_delete" -> handleToolSchemaDelete(ws, payload, requestId);
                 default -> logger.warn("Unknown WS message type: {}", type);
             }
         } catch (Exception e) {
@@ -812,10 +821,15 @@ public class VertxChatWebSocketHandler {
     }
 
     private void handleSkillCreatorList(ServerWebSocket ws, String requestId) {
-        List<Map<String, Object>> skills = skillCreatorService.listSkills().stream()
-            .map(SkillDraft::toMap)
-            .toList();
-        sendResponse(ws, "skill_creator_skills", requestId, skills);
+        try {
+            List<Map<String, Object>> skills = skillCreatorService.listSkills().stream()
+                .map(SkillDraft::toMap)
+                .toList();
+            sendResponse(ws, "skill_creator_skills", requestId, skills);
+        } catch (Exception e) {
+            logger.error("Failed to list skills", e);
+            sendResponse(ws, "error_response", requestId, Map.of("error", "获取 Skill 列表失败: " + e.getMessage()));
+        }
     }
 
     private void handleSkillCreatorDelete(ServerWebSocket ws, JsonNode payload, String requestId) {
@@ -839,8 +853,57 @@ public class VertxChatWebSocketHandler {
     }
 
     private void handleSkillCreatorGetDraft(ServerWebSocket ws, JsonNode payload, String requestId) {
-        String sessionId = payload.path("sessionId").asText(ws.textHandlerID());
-        sendResponse(ws, "skill_creator_draft", requestId, skillCreatorService.getDraft(sessionId).toMap());
+        try {
+            String sessionId = payload.path("sessionId").asText(ws.textHandlerID());
+            sendResponse(ws, "skill_creator_draft", requestId, skillCreatorService.getDraft(sessionId).toMap());
+        } catch (Exception e) {
+            logger.error("Failed to get draft", e);
+            sendResponse(ws, "error_response", requestId, Map.of("error", "获取草稿失败: " + e.getMessage()));
+        }
+    }
+
+    // ==================== Tool Schema ====================
+
+    private void handleToolSchemaList(ServerWebSocket ws, String requestId) {
+        try {
+            if (toolSchemaRepository != null) {
+                sendResponse(ws, "tool_schema_list", requestId,
+                    toolSchemaRepository.findAll().stream().map(ToolSchemaEntry::toMap).toList());
+            } else {
+                sendResponse(ws, "tool_schema_list", requestId, List.of());
+            }
+        } catch (Exception e) {
+            logger.error("Failed to list tool schemas", e);
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
+    }
+
+    private void handleToolSchemaListEnabled(ServerWebSocket ws, String requestId) {
+        try {
+            if (toolSchemaRepository != null) {
+                sendResponse(ws, "tool_schema_list", requestId,
+                    toolSchemaRepository.findEnabled().stream().map(ToolSchemaEntry::toMap).toList());
+            } else {
+                sendResponse(ws, "tool_schema_list", requestId, List.of());
+            }
+        } catch (Exception e) {
+            logger.error("Failed to list enabled tool schemas", e);
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
+    }
+
+    private void handleToolSchemaDelete(ServerWebSocket ws, JsonNode payload, String requestId) {
+        try {
+            if (toolSchemaRepository != null) {
+                boolean ok = toolSchemaRepository.delete(payload.path("id").asText(""));
+                sendResponse(ws, "tool_schema_deleted", requestId, Map.of("success", ok));
+            } else {
+                sendResponse(ws, "error_response", requestId, Map.of("error", "ToolSchemaRepository not available"));
+            }
+        } catch (Exception e) {
+            logger.error("Failed to delete tool schema", e);
+            sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));
+        }
     }
 
     // ==================== WebSocket 消息发送（线程安全） ====================
