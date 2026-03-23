@@ -1,28 +1,28 @@
-const clientToolRegistry = require('../../utils/clientToolRegistry');
-
-function formatObject(value) {
-  return JSON.stringify(value, null, 2);
-}
-
 Page({
   data: {
     userModeText: '匿名模式（无需登录）',
     userId: '',
-    tools: [],
-    filteredTools: [],
-    selectedToolId: '',
-    selectedToolMeta: null,
-    searchKeyword: '',
-    paramsText: '{}',
+    tools: [
+      {
+        id: 'getDeviceInfo',
+        name: '获取设备信息',
+        description: '模拟读取设备型号、系统版本、语言等信息。'
+      },
+      {
+        id: 'openSetting',
+        name: '打开设置页',
+        description: '模拟打开客户端设置页面。'
+      },
+      {
+        id: 'scanCode',
+        name: '扫码工具',
+        description: '模拟扫码并返回 code 与 type。'
+      }
+    ],
+    selectedToolId: 'getDeviceInfo',
+    paramsText: '{"scene":"chat"}',
     isRunning: false,
-    resultDataText: '',
-    resultErrorText: '',
-    selectedToolSchemaText: '{}'
-  },
-
-
-  onLoad() {
-    this._loadTools();
+    resultText: ''
   },
 
   onShow() {
@@ -31,50 +31,11 @@ Page({
     this.setData({ userId });
   },
 
-  _loadTools() {
-    const tools = clientToolRegistry.listTools();
-    const firstTool = tools[0] || null;
-    const selectedToolId = this.data.selectedToolId || (firstTool ? firstTool.id : '');
-    const selectedToolMeta = tools.find((item) => item.id === selectedToolId) || firstTool;
-
-    this.setData({
-      tools,
-      filteredTools: tools,
-      selectedToolId: selectedToolMeta ? selectedToolMeta.id : '',
-      selectedToolMeta: selectedToolMeta || null,
-      paramsText: selectedToolMeta ? formatObject(selectedToolMeta.defaultInput || {}) : '{}',
-      resultDataText: '',
-      resultErrorText: '',
-      selectedToolSchemaText: selectedToolMeta ? formatObject(selectedToolMeta.inputSchema || {}) : '{}'
-    });
-  },
-
-  onSearchInput(e) {
-    const searchKeyword = (e.detail.value || '').trim();
-    const filteredTools = this.data.tools.filter((tool) => {
-      if (!searchKeyword) {
-        return true;
-      }
-      const target = `${tool.name} ${tool.description} ${tool.owner}`.toLowerCase();
-      return target.includes(searchKeyword.toLowerCase());
-    });
-
-    this.setData({
-      searchKeyword,
-      filteredTools
-    });
-  },
-
   onSelectTool(e) {
     const selectedToolId = e.currentTarget.dataset.id;
-    const selectedToolMeta = this.data.tools.find((item) => item.id === selectedToolId) || null;
     this.setData({
       selectedToolId,
-      selectedToolMeta,
-      paramsText: selectedToolMeta ? formatObject(selectedToolMeta.defaultInput || {}) : '{}',
-      resultDataText: '',
-      resultErrorText: '',
-      selectedToolSchemaText: selectedToolMeta ? formatObject(selectedToolMeta.inputSchema || {}) : '{}'
+      resultText: ''
     });
   },
 
@@ -84,34 +45,8 @@ Page({
     });
   },
 
-  onCopyTemplate() {
-    const template = `module.exports = {\n  id: 'demo.echo',\n  metadata: {\n    name: '演示回声',\n    description: '返回输入内容，便于联调。',\n    owner: 'team-frontend',\n    version: '1.0.0',\n    inputSchema: {\n      type: 'object',\n      properties: {\n        text: { type: 'string', description: '要回显的文本' }\n      },\n      required: ['text']\n    }\n  },\n  run(input) {\n    return { ok: true, data: { echo: input.text }, error: null };\n  }\n};`;
-
-    wx.setClipboardData({
-      data: template,
-      success: () => {
-        wx.showToast({ title: '模板已复制', icon: 'success' });
-      }
-    });
-  },
-
-  onShowGuide() {
-    wx.showModal({
-      title: '新增工具指引',
-      content: '请查看 wechat-miniapp/CLIENT_TOOL_CONTRIBUTING.md\n包含命名、目录、Schema、错误码与示例。',
-      confirmText: '复制路径',
-      success: (res) => {
-        if (res.confirm) {
-          wx.setClipboardData({
-            data: 'wechat-miniapp/CLIENT_TOOL_CONTRIBUTING.md'
-          });
-        }
-      }
-    });
-  },
-
   onRunTool() {
-    if (this.data.isRunning || !this.data.selectedToolId) {
+    if (this.data.isRunning) {
       return;
     }
 
@@ -132,16 +67,55 @@ Page({
 
     this.setData({ isRunning: true });
 
+    const now = new Date();
     setTimeout(() => {
-      const result = clientToolRegistry.runTool(this.data.selectedToolId, parsedParams, {
-        userId: this.data.userId || 'anonymous'
-      });
+      const mockPayload = this._buildMockResult(this.data.selectedToolId, parsedParams);
+      const result = {
+        ok: true,
+        mock: true,
+        tool: this.data.selectedToolId,
+        auth: {
+          loginRequired: false,
+          mode: 'anonymous',
+          userId: this.data.userId || 'anonymous'
+        },
+        executedAt: now.toISOString(),
+        input: parsedParams,
+        output: mockPayload
+      };
 
       this.setData({
         isRunning: false,
-        resultDataText: result.ok ? formatObject(result.data) : '',
-        resultErrorText: result.ok ? '' : formatObject(result.error || { message: '未知错误' })
+        resultText: JSON.stringify(result, null, 2)
       });
-    }, 300);
+    }, 500);
+  },
+
+  _buildMockResult(toolId, params) {
+    if (toolId === 'getDeviceInfo') {
+      return {
+        platform: 'ios',
+        brand: 'Apple',
+        model: 'iPhone 15 Pro (Mock)',
+        language: 'zh_CN',
+        extra: params
+      };
+    }
+
+    if (toolId === 'openSetting') {
+      return {
+        opened: true,
+        page: 'setting',
+        tips: '这是 mock 结果，未真实调用客户端设置。',
+        extra: params
+      };
+    }
+
+    return {
+      code: 'mock-qrcode-content',
+      scanType: 'QR_CODE',
+      charSet: 'utf8',
+      extra: params
+    };
   }
 });
