@@ -199,12 +199,16 @@ public class AgentLoop {
                     }
                 })
                 .doOnComplete(() -> {
-                    // 保存助手消息到记忆
-                    String responseText = fullResponse.toString();
-                    if (!responseText.isEmpty()) {
-                        memoryProvider.addMessage(sessionId, Message.assistant(responseText));
+                    // 保存助手消息到记忆（包裹 try-catch 防止异常转换 complete→error 信号）
+                    try {
+                        String responseText = fullResponse.toString();
+                        if (!responseText.isEmpty()) {
+                            memoryProvider.addMessage(sessionId, Message.assistant(responseText));
+                        }
+                        writeConversationToMemory(input, responseText);
+                    } catch (Exception e) {
+                        // 记忆保存失败不应阻断流的正常完成
                     }
-                    writeConversationToMemory(input, responseText);
                 });
         }).subscribeOn(Schedulers.boundedElastic());
     }

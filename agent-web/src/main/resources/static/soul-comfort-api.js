@@ -116,7 +116,13 @@ class SoulComfortAPI {
             // 2. Skill Creator 流式消息
             if (msg.type && msg.type.startsWith('skill_creator_')) {
                 const scCb = this._skillCreatorCallbacks;
-                if (!scCb) return;
+                if (msg.type !== 'skill_creator_token') {
+                    console.log('[SC-WS] received:', msg.type, 'callbacks exist:', !!scCb);
+                }
+                if (!scCb) {
+                    console.warn('[SC-WS] no callbacks for:', msg.type);
+                    return;
+                }
 
                 switch (msg.type) {
                     case 'skill_creator_token':
@@ -362,23 +368,55 @@ class SoulComfortAPI {
      * @param {object} options { sessionId, onDelta, onDraft, onComplete, onError }
      */
     async skillCreatorChat(message, options = {}) {
+        const timeoutMs = options.timeout || 120000; // 默认 2 分钟超时
         try {
             const ws = await this.ensureWebSocket();
 
             return new Promise((resolve, reject) => {
+                let settled = false;
+
+                // 超时保护：防止 Promise 永远挂起
+                const timer = setTimeout(() => {
+                    if (!settled) {
+                        settled = true;
+                        console.warn('[SC] skillCreatorChat timeout after', timeoutMs, 'ms');
+                        this._skillCreatorCallbacks = null;
+                        const err = new Error('Skill Creator 响应超时');
+                        if (options.onError) options.onError(err);
+                        reject(err);
+                    }
+                }, timeoutMs);
+
                 this._skillCreatorCallbacks = {
                     onDelta: options.onDelta,
                     onDraft: options.onDraft,
                     onComplete: () => {
-                        if (options.onComplete) options.onComplete();
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timer);
+                        console.log('[SC] stream complete');
+                        try {
+                            if (options.onComplete) options.onComplete();
+                        } catch (e) {
+                            console.error('[SC] onComplete callback error:', e);
+                        }
                         resolve();
                     },
                     onError: (err) => {
-                        if (options.onError) options.onError(err);
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timer);
+                        console.error('[SC] stream error:', err);
+                        try {
+                            if (options.onError) options.onError(err);
+                        } catch (e) {
+                            console.error('[SC] onError callback error:', e);
+                        }
                         reject(err);
                     }
                 };
 
+                console.log('[SC] sending message, sessionId:', options.sessionId);
                 ws.send(JSON.stringify({
                     type: 'skill_creator_chat',
                     sessionId: options.sessionId || 'skill-creator-default',
