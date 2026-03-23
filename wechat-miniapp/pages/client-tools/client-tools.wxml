@@ -1,0 +1,50 @@
+<view class="page">
+  <view class="section auth-card">
+    <view class="section-title">登录状态</view>
+    <view class="auth-line">{{userModeText}}</view>
+    <view class="auth-line">userId: {{userId || 'anonymous'}}</view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">工具列表</view>
+    <view class="tool-list">
+      <view
+        wx:for="{{tools}}"
+        wx:key="id"
+        class="tool-item {{item.id === selectedToolId ? 'selected' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="onSelectTool"
+      >
+        <view class="tool-name">{{item.name}}</view>
+        <view class="tool-desc">{{item.description}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">参数输入区</view>
+    <textarea
+      class="param-input"
+      placeholder="请输入 JSON 参数，例如：{\"query\":\"hello\"}"
+      value="{{paramsText}}"
+      bindinput="onParamsInput"
+      maxlength="-1"
+    />
+  </view>
+
+  <view class="section action-section">
+    <button
+      class="run-btn"
+      loading="{{isRunning}}"
+      disabled="{{isRunning}}"
+      bindtap="onRunTool"
+    >执行（Mock）</button>
+  </view>
+
+  <view class="section result-section">
+    <view class="section-title">结果展示区</view>
+    <view class="result-box">
+      <text selectable>{{resultText || '尚未执行工具'}}</text>
+    </view>
+  </view>
+</view>

@@ -156,3 +156,21 @@
 }
 .send-btn::after { border: none; }
 .send-btn.disabled { background-color: #C7C7CC; }
+
+
+/* ── 客户端工具入口 ── */
+.tool-entry-wrap {
+  padding: 12rpx 24rpx 0;
+  background-color: #FFFFFF;
+  border-top: 1rpx solid #E5E5EA;
+}
+.tool-entry-btn {
+  height: 64rpx;
+  line-height: 64rpx;
+  border-radius: 32rpx;
+  background-color: rgba(91,138,240,0.12);
+  color: #3E6FDE;
+  font-size: 24rpx;
+  border: none;
+}
+.tool-entry-btn::after { border: none; }

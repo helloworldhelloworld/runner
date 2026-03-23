@@ -55,6 +55,7 @@
                 <button onclick="switchTab('emotion')" id="tab-emotion" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">💝 情绪记录</button>
                 <button onclick="switchTab('memory')" id="tab-memory" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">🧠 记忆</button>
                 <button onclick="switchTab('tools')" id="tab-tools" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">🔧 工具/技能</button>
+                <button onclick="switchTab('client-tools-entry')" id="tab-client-tools-entry" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">📱 端工具录入</button>
                 <button onclick="switchTab('system')" id="tab-system" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100">⚙️ 系统</button>
             </div>
         </div>
@@ -336,6 +337,59 @@
             </div>
         </div>
 
+
+        <!-- ==================== Tab: Client Tools Entry ==================== -->
+        <div id="panel-client-tools-entry" class="tab-panel hidden">
+            <div class="chat-container rounded-2xl shadow-2xl p-6">
+                <h2 class="text-xl font-bold gradient-text mb-4">📱 端工具录入</h2>
+                <p class="text-gray-500 text-sm mb-4">独立页面管理客户端端工具：录入 namespace/name、描述、启用状态和 Mock 响应 JSON。</p>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                        <h3 class="text-lg font-bold mb-3">📝 工具配置</h3>
+                        <div class="space-y-3">
+                            <input id="ct-namespace" type="text" placeholder="Namespace，例如 GeoInformation"
+                                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            <input id="ct-name" type="text" placeholder="Name，例如 GetPosition"
+                                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            <input id="ct-description" type="text" placeholder="描述（可选）"
+                                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+
+                            <label class="flex items-center gap-2 text-sm text-gray-700">
+                                <input id="ct-enabled" type="checkbox" checked>
+                                默认启用
+                            </label>
+
+                            <textarea id="ct-mock-json" class="w-full h-56 px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono"
+                                placeholder='Mock JSON，例如：{"result":"ok"}'></textarea>
+
+                            <div class="flex gap-2">
+                                <button onclick="saveClientToolEntry()"
+                                    class="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg text-sm shadow-md">
+                                    💾 保存工具
+                                </button>
+                                <button onclick="resetClientToolForm()"
+                                    class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm">
+                                    重置
+                                </button>
+                            </div>
+                            <div id="ct-form-status" class="text-xs text-gray-500"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-bold">📚 已录入端工具</h3>
+                            <button onclick="loadClientToolEntries()" class="text-sm text-purple-600 hover:text-purple-800">🔄 刷新</button>
+                        </div>
+                        <div id="client-tools-entry-list" class="space-y-2 max-h-[520px] overflow-y-auto">
+                            <div class="text-gray-400 text-sm">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- ==================== Tab: System ==================== -->
         <div id="panel-system" class="tab-panel hidden">
             <div class="chat-container rounded-2xl shadow-2xl p-6">
@@ -399,6 +453,9 @@
                 document.getElementById('user-id').textContent = currentUserId;
             }
 
+            // 初始化端工具录入表单
+            resetClientToolForm();
+
             // 连接 WebSocket
             try {
                 await window.soulComfortAPI.ensureWebSocket();
@@ -449,6 +506,7 @@
             if (tabName === 'assessment') loadScales();
             if (tabName === 'emotion' && currentUserId) { loadEmotions(); loadStats(); }
             if (tabName === 'tools') { loadSkills(); loadToolsDetail(); loadClientTools(); }
+            if (tabName === 'client-tools-entry') { loadClientToolEntries(); }
             if (tabName === 'system') loadHealth();
         }
 
@@ -1216,6 +1274,128 @@
                 mockResponse: { result: 'mock data' }
             });
             loadClientTools();
+        }
+
+
+        // ==================== Client Tool Entry Page ====================
+
+        function getClientToolFormValue() {
+            const namespace = document.getElementById('ct-namespace').value.trim();
+            const name = document.getElementById('ct-name').value.trim();
+            const description = document.getElementById('ct-description').value.trim();
+            const enabled = document.getElementById('ct-enabled').checked;
+            const mockJsonRaw = document.getElementById('ct-mock-json').value.trim();
+            return { namespace, name, description, enabled, mockJsonRaw };
+        }
+
+        function setClientToolFormStatus(message, type = 'info') {
+            const el = document.getElementById('ct-form-status');
+            const colorClass = type === 'error' ? 'text-red-500' : (type === 'success' ? 'text-green-600' : 'text-gray-500');
+            el.className = `text-xs ${colorClass}`;
+            el.textContent = message;
+        }
+
+        function resetClientToolForm() {
+            document.getElementById('ct-namespace').value = '';
+            document.getElementById('ct-name').value = '';
+            document.getElementById('ct-description').value = '';
+            document.getElementById('ct-enabled').checked = true;
+            document.getElementById('ct-mock-json').value = `{\n  "result": "mock data"\n}`;
+            setClientToolFormStatus('已重置表单');
+        }
+
+        function saveClientToolEntry() {
+            const { namespace, name, description, enabled, mockJsonRaw } = getClientToolFormValue();
+            if (!namespace || !name) {
+                setClientToolFormStatus('Namespace 和 Name 为必填项', 'error');
+                return;
+            }
+
+            let mockResponse = {};
+            if (mockJsonRaw) {
+                try {
+                    mockResponse = JSON.parse(mockJsonRaw);
+                } catch (error) {
+                    setClientToolFormStatus('Mock JSON 格式错误：' + error.message, 'error');
+                    return;
+                }
+            }
+
+            const key = namespace + '.' + name;
+            window.soulComfortAPI.setClientTool(key, {
+                namespace,
+                name,
+                description,
+                enabled,
+                mockResponse
+            });
+
+            setClientToolFormStatus(`已保存 ${key}`, 'success');
+            loadClientToolEntries();
+            loadClientTools();
+        }
+
+        function editClientToolEntry(key) {
+            const tools = window.soulComfortAPI.getClientTools();
+            const item = tools.find(([k]) => k === key);
+            if (!item) {
+                setClientToolFormStatus(`未找到工具 ${key}`, 'error');
+                return;
+            }
+
+            const [, tool] = item;
+            document.getElementById('ct-namespace').value = tool.namespace || '';
+            document.getElementById('ct-name').value = tool.name || '';
+            document.getElementById('ct-description').value = tool.description || '';
+            document.getElementById('ct-enabled').checked = tool.enabled !== false;
+            document.getElementById('ct-mock-json').value = JSON.stringify(tool.mockResponse || {}, null, 2);
+            setClientToolFormStatus(`已载入 ${key}，可编辑后再次保存`, 'info');
+        }
+
+        function removeClientToolEntry(key) {
+            if (!confirm('确定删除端工具：' + key + ' ?')) return;
+            window.soulComfortAPI.removeClientTool(key);
+            loadClientToolEntries();
+            loadClientTools();
+            setClientToolFormStatus(`已删除 ${key}`, 'success');
+        }
+
+        function loadClientToolEntries() {
+            const container = document.getElementById('client-tools-entry-list');
+            if (!container) return;
+
+            const tools = window.soulComfortAPI.getClientTools();
+            if (!tools || tools.length === 0) {
+                container.innerHTML = '<div class="text-gray-400 text-sm">暂无已录入端工具，先在左侧表单新增。</div>';
+                return;
+            }
+
+            container.innerHTML = tools.map(([key, tool]) => {
+                const enabledBadge = tool.enabled ?
+                    '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">启用</span>' :
+                    '<span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">禁用</span>';
+                const namespace = escapeHtml(tool.namespace || '-');
+                const name = escapeHtml(tool.name || '-');
+                const desc = escapeHtml(tool.description || '无描述');
+                const mockPreview = escapeHtml(JSON.stringify(tool.mockResponse || {}));
+                return `
+                    <div class="bg-white rounded-lg border border-gray-200 p-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="font-medium text-purple-700 break-all">${escapeHtml(key)}</div>
+                            ${enabledBadge}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">${namespace}.${name}</div>
+                        <div class="text-sm text-gray-600 mt-1">${desc}</div>
+                        <details class="mt-2">
+                            <summary class="text-xs text-gray-500 cursor-pointer">查看 Mock JSON</summary>
+                            <pre class="text-xs bg-gray-50 rounded p-2 mt-1 overflow-auto max-h-40">${mockPreview}</pre>
+                        </details>
+                        <div class="mt-2 flex gap-2">
+                            <button onclick="editClientToolEntry('${key}')" class="text-xs bg-blue-500 text-white px-2 py-1 rounded">编辑</button>
+                            <button onclick="removeClientToolEntry('${key}')" class="text-xs bg-red-500 text-white px-2 py-1 rounded">删除</button>
+                        </div>
+                    </div>`;
+            }).join('');
         }
 
         // 初始化 DIRECTIVE 回调（Chat 中可视化）
