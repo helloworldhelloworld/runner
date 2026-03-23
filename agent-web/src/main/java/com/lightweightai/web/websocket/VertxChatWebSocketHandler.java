@@ -33,7 +33,7 @@ import com.lightweightai.web.config.McpConfig.McpToolRegistrar;
 import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
 import com.lightweightai.web.skillcreator.SkillCreatorService;
-import com.lightweightai.web.skillcreator.model.SkillDraft;
+import com.lightweightai.web.skillcreator.SkillDraft;
 import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
