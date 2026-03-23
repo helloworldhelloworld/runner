@@ -34,7 +34,7 @@ public class UserService {
     public SoulUser createAnonymousUser() {
         String id = "anon-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         long now = System.currentTimeMillis();
-        SoulUser user = new SoulUser(id, null, null, null, "匿名用户", "FREE", now, now);
+        SoulUser user = new SoulUser(id, null, null, null, "匿名用户", "FREE", "USER", true, now, now);
         userRepository.save(user);
         logger.info("Created anonymous user: {}", id);
         return user;
@@ -46,7 +46,7 @@ public class UserService {
     public SoulUser getOrCreate(String userId) {
         return userRepository.findById(userId).orElseGet(() -> {
             long now = System.currentTimeMillis();
-            SoulUser user = new SoulUser(userId, null, null, null, "匿名用户", "FREE", now, now);
+            SoulUser user = new SoulUser(userId, null, null, null, "匿名用户", "FREE", "USER", true, now, now);
             userRepository.save(user);
             return user;
         });
@@ -60,13 +60,53 @@ public class UserService {
         long now = System.currentTimeMillis();
         SoulUser user = new SoulUser(id, username, passwordHash, null,
             (nickname == null || nickname.isBlank()) ? username : nickname,
-            "FREE", now, now);
+            "FREE", "USER", true, now, now);
         userRepository.save(user);
         return user;
     }
 
     public Optional<SoulUser> findByUsername(String username) {
         return userRepository.findByUsername(username);
+    }
+
+    public Optional<SoulUser> findById(String userId) {
+        return userRepository.findById(userId);
+    }
+
+    public List<SoulUser> listAllUsers() {
+        return userRepository.findAll();
+    }
+
+    public void updateUserRole(String userId, String role) {
+        if (!"ADMIN".equals(role) && !"USER".equals(role)) {
+            throw new IllegalArgumentException("无效角色: " + role);
+        }
+        userRepository.updateRole(userId, role);
+    }
+
+    public void enableUser(String userId) {
+        userRepository.updateEnabled(userId, true);
+    }
+
+    public void disableUser(String userId) {
+        userRepository.updateEnabled(userId, false);
+    }
+
+    /**
+     * Seed a default admin account if no admin exists.
+     * Call this on application startup.
+     */
+    public void seedAdminIfNeeded(String encodedPassword) {
+        List<SoulUser> all = userRepository.findAll();
+        boolean hasAdmin = all.stream().anyMatch(u -> "ADMIN".equals(u.getRole()));
+        if (!hasAdmin) {
+            String id = "usr-admin-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+            long now = System.currentTimeMillis();
+            SoulUser admin = new SoulUser(id, "admin", encodedPassword, null,
+                "管理员", "FREE", "ADMIN", true, now, now);
+            userRepository.save(admin);
+            logger.info("Seeded default admin user: admin (id={})", id);
+        }
     }
 
     /**

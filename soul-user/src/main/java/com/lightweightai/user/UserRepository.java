@@ -48,6 +48,8 @@ public class UserRepository {
                 """);
             ensureColumn(stmt, "soul_users", "username", "TEXT");
             ensureColumn(stmt, "soul_users", "password_hash", "TEXT");
+            ensureColumn(stmt, "soul_users", "role", "TEXT DEFAULT 'USER'");
+            ensureColumn(stmt, "soul_users", "enabled", "INTEGER DEFAULT 1");
             stmt.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_soul_users_username ON soul_users(username)");
         } catch (SQLException e) {
             logger.error("Failed to init soul_users schema", e);
@@ -65,14 +67,16 @@ public class UserRepository {
 
     public void save(SoulUser user) {
         String sql = """
-            INSERT INTO soul_users (id, username, password_hash, openid, nickname, member_level, created_at, last_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO soul_users (id, username, password_hash, openid, nickname, member_level, role, enabled, created_at, last_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               username=excluded.username,
               password_hash=excluded.password_hash,
               openid=excluded.openid,
               nickname=excluded.nickname,
               member_level=excluded.member_level,
+              role=excluded.role,
+              enabled=excluded.enabled,
               last_active=excluded.last_active
             """;
         try (Connection conn = DriverManager.getConnection(dbUrl);
@@ -83,8 +87,10 @@ public class UserRepository {
             ps.setString(4, user.getOpenid());
             ps.setString(5, user.getNickname());
             ps.setString(6, user.getMemberLevel());
-            ps.setLong(7, user.getCreatedAt());
-            ps.setLong(8, user.getLastActive());
+            ps.setString(7, user.getRole() != null ? user.getRole() : "USER");
+            ps.setInt(8, user.isEnabled() ? 1 : 0);
+            ps.setLong(9, user.getCreatedAt());
+            ps.setLong(10, user.getLastActive());
             ps.executeUpdate();
         } catch (SQLException e) {
             logger.error("Failed to save user: {}", user.getId(), e);
@@ -137,7 +143,62 @@ public class UserRepository {
         }
     }
 
+    public List<SoulUser> findAll() {
+        String sql = "SELECT * FROM soul_users ORDER BY created_at DESC";
+        List<SoulUser> users = new ArrayList<>();
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                users.add(mapRow(rs));
+            }
+        } catch (SQLException e) {
+            logger.error("Failed to list users", e);
+            throw new RuntimeException(e);
+        }
+        return users;
+    }
+
+    public void updateRole(String userId, String role) {
+        String sql = "UPDATE soul_users SET role = ? WHERE id = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, role);
+            ps.setString(2, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            logger.error("Failed to update role for user: {}", userId, e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void updateEnabled(String userId, boolean enabled) {
+        String sql = "UPDATE soul_users SET enabled = ? WHERE id = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, enabled ? 1 : 0);
+            ps.setString(2, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            logger.error("Failed to update enabled for user: {}", userId, e);
+            throw new RuntimeException(e);
+        }
+    }
+
     private SoulUser mapRow(ResultSet rs) throws SQLException {
+        String role;
+        boolean enabled;
+        try {
+            role = rs.getString("role");
+            if (role == null) role = "USER";
+        } catch (SQLException e) {
+            role = "USER";
+        }
+        try {
+            enabled = rs.getInt("enabled") != 0;
+        } catch (SQLException e) {
+            enabled = true;
+        }
         return new SoulUser(
             rs.getString("id"),
             rs.getString("username"),
@@ -145,6 +206,8 @@ public class UserRepository {
             rs.getString("openid"),
             rs.getString("nickname"),
             rs.getString("member_level"),
+            role,
+            enabled,
             rs.getLong("created_at"),
             rs.getLong("last_active")
         );

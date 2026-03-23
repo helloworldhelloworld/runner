@@ -13,10 +13,15 @@ public class SoulUser {
     private String openid;
     private String nickname;
     private String memberLevel;
+    private String role;       // "ADMIN" or "USER", default "USER"
+    private boolean enabled;   // account enabled flag, default true
     private long createdAt;
     private long lastActive;
 
-    public SoulUser() {}
+    public SoulUser() {
+        this.role = "USER";
+        this.enabled = true;
+    }
 
     public SoulUser(String id, String username, String passwordHash, String openid, String nickname, String memberLevel, long createdAt, long lastActive) {
         this.id = id;
@@ -25,6 +30,21 @@ public class SoulUser {
         this.openid = openid;
         this.nickname = nickname;
         this.memberLevel = memberLevel;
+        this.role = "USER";
+        this.enabled = true;
+        this.createdAt = createdAt;
+        this.lastActive = lastActive;
+    }
+
+    public SoulUser(String id, String username, String passwordHash, String openid, String nickname, String memberLevel, String role, boolean enabled, long createdAt, long lastActive) {
+        this.id = id;
+        this.username = username;
+        this.passwordHash = passwordHash;
+        this.openid = openid;
+        this.nickname = nickname;
+        this.memberLevel = memberLevel;
+        this.role = role != null ? role : "USER";
+        this.enabled = enabled;
         this.createdAt = createdAt;
         this.lastActive = lastActive;
     }
@@ -45,4 +65,8 @@ public class SoulUser {
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
     public long getLastActive() { return lastActive; }
     public void setLastActive(long lastActive) { this.lastActive = lastActive; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+    public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
 }
