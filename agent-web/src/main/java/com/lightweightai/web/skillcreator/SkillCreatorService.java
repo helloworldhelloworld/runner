@@ -37,6 +37,7 @@ public class SkillCreatorService {
     private final ToolRegistry toolRegistry;
     private final PromptEngine promptEngine;
     private final SkillRepository skillRepository;
+    private final ToolSchemaRepository toolSchemaRepository;
 
     /** per-session AgentLoop + draft state */
     private final Map<String, AgentLoop> agentLoops = new ConcurrentHashMap<>();
@@ -46,11 +47,13 @@ public class SkillCreatorService {
     public SkillCreatorService(LLMProvider llmProvider,
                                 ToolRegistry toolRegistry,
                                 PromptEngine promptEngine,
-                                SkillRepository skillRepository) {
+                                SkillRepository skillRepository,
+                                ToolSchemaRepository toolSchemaRepository) {
         this.llmProvider = llmProvider;
         this.toolRegistry = toolRegistry;
         this.promptEngine = promptEngine;
         this.skillRepository = skillRepository;
+        this.toolSchemaRepository = toolSchemaRepository;
 
         // 启动时加载 active skills 到 PromptEngine
         loadActiveSkills();
@@ -170,21 +173,47 @@ public class SkillCreatorService {
         sb.append("一个 Skill 包含以下要素：\n");
         sb.append("- name: 唯一标识名（英文，snake_case，如 weather_query）\n");
         sb.append("- description: 简短的中文描述说明\n");
-        sb.append("- systemPrompt: 当 Skill 激活时注入给 LLM 的系统提示词（指导 LLM 如何使用工具、如何回复用户）\n");
+        sb.append("- systemPrompt: 当 Skill 激活时注入给 LLM 的系统提示词，**必须使用 Markdown 格式**\n");
+        sb.append("  - 使用 # 标题组织结构（如 ## 使命、## 风格、## 工具使用指南）\n");
+        sb.append("  - 使用列表和粗体强调重点\n");
+        sb.append("  - 参考示例格式编写清晰的 Markdown 文档\n");
         sb.append("- toolNames: 关联的工具列表（从下方可用工具中选择，填写工具名称）\n");
         sb.append("- triggers: 触发词列表（用户消息包含这些词时自动激活此 Skill）\n");
         sb.append("- priority: 优先级（1-100，越小越高，默认 10）\n\n");
 
-        // 可用工具列表
-        sb.append("## 可用工具列表\n\n");
+        // 可用工具列表（来自 ToolRegistry - 已注册的运行时工具）
+        sb.append("## 已注册的运行时工具\n\n");
         Collection<Tool> tools = toolRegistry.getEnabled();
         if (tools.isEmpty()) {
-            sb.append("（暂无可用工具）\n");
+            sb.append("（暂无已注册工具）\n");
         } else {
             for (Tool tool : tools) {
                 sb.append("- **").append(tool.getName()).append("**: ").append(tool.getDescription());
                 if (tool instanceof ToolMetadata meta) {
                     if (meta.getCategory() != null) sb.append(" [分类: ").append(meta.getCategory()).append("]");
+                }
+                sb.append("\n");
+            }
+        }
+
+        // 候选工具 Schema（从 Excel 导入，存储在数据库中）
+        sb.append("\n## 候选工具 Schema（从 Excel 导入）\n\n");
+        sb.append("以下工具 Schema 是从 Excel 导入的候选工具定义，创建 Skill 时可以将这些工具关联进去。\n");
+        sb.append("这些工具的 toolNames 应直接使用下面列出的 name。\n\n");
+        List<ToolSchemaEntry> candidateTools = toolSchemaRepository.findEnabled();
+        if (candidateTools.isEmpty()) {
+            sb.append("（暂无候选工具 Schema，请先通过 Excel 导入）\n");
+        } else {
+            String currentCategory = null;
+            for (ToolSchemaEntry entry : candidateTools) {
+                // 按分类分组
+                if (entry.getCategory() != null && !entry.getCategory().equals(currentCategory)) {
+                    currentCategory = entry.getCategory();
+                    sb.append("\n### ").append(currentCategory).append("\n\n");
+                }
+                sb.append("- **").append(entry.getName()).append("**: ").append(entry.getDescription() != null ? entry.getDescription() : "");
+                if (entry.getInputSchemaJson() != null && !entry.getInputSchemaJson().isBlank()) {
+                    sb.append("\n  - Schema: `").append(entry.getInputSchemaJson()).append("`");
                 }
                 sb.append("\n");
             }
@@ -203,13 +232,14 @@ public class SkillCreatorService {
         sb.append("{\n");
         sb.append("  \"name\": \"...\",\n");
         sb.append("  \"description\": \"...\",\n");
-        sb.append("  \"systemPrompt\": \"...\",\n");
+        sb.append("  \"systemPrompt\": \"# Skill 名称\\n\\n## 使命\\n\\n- ...\\n\\n## 风格\\n\\n- ...\\n\\n## 工具使用指南\\n\\n...\",\n");
         sb.append("  \"toolNames\": [\"...\"],\n");
         sb.append("  \"triggers\": [\"...\"],\n");
         sb.append("  \"priority\": 10\n");
         sb.append("}\n");
         sb.append("</skill_draft>\n\n");
 
+        sb.append("**重要**: systemPrompt 字段必须使用 Markdown 格式，用 # 标题分层，用列表和粗体来组织内容。\n\n");
         sb.append("请用中文与用户对话，保持友好和专业。");
 
         return sb.toString();
@@ -242,9 +272,26 @@ public class SkillCreatorService {
                 .triggers(draft.getTriggers())
                 .priority(draft.getPriority());
 
-        // 从 ToolRegistry 关联工具实例
+        // 从 ToolRegistry 关联运行时工具实例
         for (String toolName : draft.getToolNames()) {
-            toolRegistry.get(toolName).ifPresent(builder::addTool);
+            // 先从运行时 ToolRegistry 查找
+            Optional<Tool> runtimeTool = toolRegistry.get(toolName);
+            if (runtimeTool.isPresent()) {
+                builder.addTool(runtimeTool.get());
+            } else {
+                // 从候选工具 Schema 数据库查找，作为 ToolDefinition 加入
+                toolSchemaRepository.findByName(toolName).ifPresent(entry -> {
+                    Map<String, Object> params = new HashMap<>();
+                    if (entry.getInputSchemaJson() != null && !entry.getInputSchemaJson().isBlank()) {
+                        try {
+                            params = MAPPER.readValue(entry.getInputSchemaJson(), Map.class);
+                        } catch (Exception e) {
+                            logger.warn("Failed to parse input schema for tool '{}': {}", toolName, e.getMessage());
+                        }
+                    }
+                    builder.addTool(toolName, entry.getDescription() != null ? entry.getDescription() : "", params);
+                });
+            }
         }
 
         promptEngine.registerSkill(builder.build());

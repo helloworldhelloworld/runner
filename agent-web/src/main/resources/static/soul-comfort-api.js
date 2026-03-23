@@ -125,6 +125,10 @@ class SoulComfortAPI {
                     case 'skill_creator_draft':
                         if (scCb.onDraft) scCb.onDraft(msg.data);
                         break;
+                    case 'skill_creator_error':
+                        if (scCb.onError) scCb.onError(new Error(msg.message || 'Skill Creator 错误'));
+                        this._skillCreatorCallbacks = null;
+                        break;
                     case 'skill_creator_stream_end':
                         if (scCb.onComplete) scCb.onComplete();
                         this._skillCreatorCallbacks = null;

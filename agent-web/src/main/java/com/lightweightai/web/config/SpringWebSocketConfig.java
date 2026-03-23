@@ -9,6 +9,7 @@ import com.lightweightai.user.UserService;
 import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
 import com.lightweightai.web.skillcreator.SkillCreatorService;
+import com.lightweightai.web.skillcreator.ToolSchemaRepository;
 import com.lightweightai.web.websocket.SessionAwareClientToolDispatcher;
 import com.lightweightai.web.websocket.SpringChatWebSocketHandler;
 import org.slf4j.Logger;
@@ -44,6 +45,7 @@ public class SpringWebSocketConfig implements WebSocketConfigurer {
     private final McpConfig.McpToolRegistrar mcpToolRegistrar;
     private final SessionAwareClientToolDispatcher sessionAwareDispatcher;
     private final SkillCreatorService skillCreatorService;
+    private final ToolSchemaRepository toolSchemaRepository;
 
     public SpringWebSocketConfig(Gateway gateway,
                                   CrisisDetector crisisDetector,
@@ -55,7 +57,8 @@ public class SpringWebSocketConfig implements WebSocketConfigurer {
                                   LLMProvider llmProvider,
                                   @Autowired(required = false) McpConfig.McpToolRegistrar mcpToolRegistrar,
                                   SessionAwareClientToolDispatcher sessionAwareDispatcher,
-                                  SkillCreatorService skillCreatorService) {
+                                  SkillCreatorService skillCreatorService,
+                                  ToolSchemaRepository toolSchemaRepository) {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
         this.toolRegistry = toolRegistry;
@@ -67,6 +70,7 @@ public class SpringWebSocketConfig implements WebSocketConfigurer {
         this.mcpToolRegistrar = mcpToolRegistrar;
         this.sessionAwareDispatcher = sessionAwareDispatcher;
         this.skillCreatorService = skillCreatorService;
+        this.toolSchemaRepository = toolSchemaRepository;
     }
 
     @Override
@@ -76,7 +80,7 @@ public class SpringWebSocketConfig implements WebSocketConfigurer {
                 new SpringChatWebSocketHandler(gateway, crisisDetector, toolRegistry,
                     chatService, soulComfortChatService, assessmentService,
                     userService, llmProvider, mcpToolRegistrar, sessionAwareDispatcher,
-                    skillCreatorService),
+                    skillCreatorService, toolSchemaRepository),
                 "/ws/chat")
             .setAllowedOrigins("*");
     }
