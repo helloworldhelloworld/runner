@@ -303,14 +303,53 @@
 
                 <!-- Client Tool Simulation -->
                 <div class="border-t border-gray-200 pt-4 mt-4">
-                    <h3 class="text-lg font-bold mb-3">📱 客户端工具模拟</h3>
-                    <p class="text-xs text-gray-500 mb-3">配置模拟的客户端工具 — 服务端调用端工具时，前端自动返回预设的 Mock 数据</p>
-                    <div id="client-tools-list" class="space-y-3">
+                    <h3 class="text-lg font-bold mb-3">📱 客户端工具模拟（Web）</h3>
+                    <p class="text-xs text-gray-500 mb-3">通过统一结构 <code>{ ok, data, error }</code> 管理端工具模拟结果，支持搜索、选择与执行。</p>
+
+                    <div class="mb-3">
+                        <input id="client-tool-search" oninput="onClientToolSearch(this.value)" placeholder="搜索 name / description / owner"
+                            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                    </div>
+
+                    <div id="client-tools-list" class="space-y-2 mb-4">
                         <div class="text-gray-400 text-sm">加载中...</div>
                     </div>
-                    <div class="mt-3 flex gap-2">
+
+                    <div id="client-tool-detail" class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3 hidden">
+                        <div class="font-medium text-gray-700 mb-2">工具详情（metadata）</div>
+                        <div class="text-xs text-gray-600 space-y-1">
+                            <div><span class="font-medium">name:</span> <span id="meta-name">-</span></div>
+                            <div><span class="font-medium">description:</span> <span id="meta-description">-</span></div>
+                            <div><span class="font-medium">owner:</span> <span id="meta-owner">-</span></div>
+                            <div><span class="font-medium">version:</span> <span id="meta-version">-</span></div>
+                            <div class="font-medium">inputSchema:</div>
+                            <pre id="meta-schema" class="text-xs bg-white p-2 rounded border border-gray-200 overflow-auto max-h-40">{}</pre>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 mb-3">
+                        <div class="text-xs text-gray-600">调试输入参数（JSON）</div>
+                        <textarea id="client-tool-params" oninput="updateClientToolParams(this.value)"
+                            class="w-full text-xs font-mono bg-white border rounded p-2 h-24"></textarea>
+                    </div>
+
+                    <div class="flex gap-2 flex-wrap mb-3">
+                        <button onclick="copyClientToolTemplate()" class="text-sm bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-lg hover:bg-gray-50">📋 复制模板</button>
+                        <button onclick="showClientToolGuide()" class="text-sm bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-lg hover:bg-gray-50">📘 新增工具指引</button>
+                        <button onclick="runSelectedClientTool()" class="text-sm bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">▶️ 执行工具</button>
                         <button onclick="addClientTool()" class="text-sm bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600">+ 添加工具</button>
                         <button onclick="loadClientTools()" class="text-sm text-purple-600 hover:text-purple-800">🔄 刷新</button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <div class="text-xs text-gray-600 mb-1">执行结果 data</div>
+                            <pre id="client-tool-result-data" class="text-xs bg-green-50 border border-green-200 p-2 rounded overflow-auto min-h-24">暂无 data</pre>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-600 mb-1">执行错误 error</div>
+                            <pre id="client-tool-result-error" class="text-xs bg-red-50 border border-red-200 p-2 rounded overflow-auto min-h-24">暂无 error</pre>
+                        </div>
                     </div>
                 </div>
 
@@ -1212,42 +1251,225 @@
 
         // ==================== Client Tool Simulation ====================
 
+        function normalizeToolResult(result) {
+            if (!result || typeof result !== 'object') {
+                return {
+                    ok: false,
+                    data: null,
+                    error: { code: 'INVALID_RESULT', message: '工具返回结构无效' }
+                };
+            }
+            return {
+                ok: !!result.ok,
+                data: Object.prototype.hasOwnProperty.call(result, 'data') ? result.data : null,
+                error: result.error || null
+            };
+        }
+
+        function normalizeClientTools(rawTools) {
+            return (rawTools || []).map((entry) => {
+                if (Array.isArray(entry)) {
+                    const key = entry[0];
+                    const tool = entry[1] || {};
+                    return {
+                        key,
+                        name: tool.name || key,
+                        description: tool.description || '',
+                        owner: tool.owner || 'unknown',
+                        version: tool.version || '0.0.0',
+                        inputSchema: tool.inputSchema || { type: 'object', properties: {}, required: [] },
+                        enabled: tool.enabled !== false,
+                        mockResponse: normalizeToolResult(tool.mockResponse || { ok: true, data: {}, error: null })
+                    };
+                }
+                const key = entry.key || entry.id || '';
+                return {
+                    key,
+                    name: entry.name || key,
+                    description: entry.description || '',
+                    owner: entry.owner || 'unknown',
+                    version: entry.version || '0.0.0',
+                    inputSchema: entry.inputSchema || { type: 'object', properties: {}, required: [] },
+                    enabled: entry.enabled !== false,
+                    mockResponse: normalizeToolResult(entry.mockResponse || { ok: true, data: {}, error: null })
+                };
+            });
+        }
+
+        const clientToolState = {
+            tools: [],
+            filteredTools: [],
+            selectedKey: '',
+            search: '',
+            paramsText: '{}'
+        };
+
         function loadClientTools() {
+            const tools = normalizeClientTools(window.soulComfortAPI.getClientTools());
+            clientToolState.tools = tools;
+            clientToolState.filteredTools = filterClientToolsByKeyword(tools, clientToolState.search);
+
+            if (!clientToolState.selectedKey || !tools.some(t => t.key === clientToolState.selectedKey)) {
+                clientToolState.selectedKey = tools[0] ? tools[0].key : '';
+            }
+
+            const selected = getSelectedClientTool();
+            clientToolState.paramsText = selected ? JSON.stringify({}, null, 2) : '{}';
+            document.getElementById('client-tool-params').value = clientToolState.paramsText;
+            renderClientTools();
+            renderClientToolDetail();
+        }
+
+        function filterClientToolsByKeyword(tools, keyword) {
+            if (!keyword) return tools;
+            const lower = keyword.toLowerCase();
+            return tools.filter(t => (`${t.name} ${t.description} ${t.owner}`).toLowerCase().includes(lower));
+        }
+
+        function onClientToolSearch(keyword) {
+            clientToolState.search = (keyword || '').trim();
+            clientToolState.filteredTools = filterClientToolsByKeyword(clientToolState.tools, clientToolState.search);
+            renderClientTools();
+        }
+
+        function getSelectedClientTool() {
+            return clientToolState.tools.find(t => t.key === clientToolState.selectedKey) || null;
+        }
+
+        function selectClientTool(key) {
+            clientToolState.selectedKey = key;
+            const selected = getSelectedClientTool();
+            clientToolState.paramsText = JSON.stringify({}, null, 2);
+            document.getElementById('client-tool-params').value = clientToolState.paramsText;
+            document.getElementById('client-tool-result-data').textContent = '暂无 data';
+            document.getElementById('client-tool-result-error').textContent = '暂无 error';
+            renderClientTools();
+            renderClientToolDetail(selected);
+        }
+
+        function renderClientTools() {
             const container = document.getElementById('client-tools-list');
-            const tools = window.soulComfortAPI.getClientTools();
+            const tools = clientToolState.filteredTools;
             if (tools.length === 0) {
-                container.innerHTML = '<div class="text-gray-400 text-sm">暂无配置的客户端工具</div>';
+                container.innerHTML = '<div class="text-gray-400 text-sm">未命中工具，请调整搜索词</div>';
                 return;
             }
-            container.innerHTML = tools.map(([key, t]) => `
-                <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+            container.innerHTML = tools.map((t) => `
+                <div class="rounded-lg p-3 border ${t.key === clientToolState.selectedKey ? 'bg-blue-50 border-blue-300' : 'bg-yellow-50 border-yellow-200'}">
                     <div class="flex justify-between items-center">
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 flex-wrap">
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" ${t.enabled ? 'checked' : ''}
-                                       onchange="toggleClientTool('${key}', this.checked)"
+                                       onchange="toggleClientTool('${t.key}', this.checked)"
                                        class="sr-only peer">
                                 <div class="w-9 h-5 bg-gray-200 peer-checked:bg-green-500 rounded-full peer-focus:ring-2 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
                             </label>
-                            <span class="font-medium text-yellow-800">${key}</span>
-                            <span class="bg-yellow-200 text-yellow-800 text-xs px-1.5 py-0.5 rounded">端工具</span>
+                            <button onclick="selectClientTool('${t.key}')" class="font-medium text-left ${t.key === clientToolState.selectedKey ? 'text-blue-800' : 'text-yellow-800'}">${escapeHtml(t.name)}</button>
+                            <span class="bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded">${escapeHtml(t.key)}</span>
                         </div>
-                        <button onclick="removeClientTool('${key}')" class="text-red-400 hover:text-red-600 text-sm">✕</button>
+                        <button onclick="removeClientTool('${t.key}')" class="text-red-400 hover:text-red-600 text-sm">✕</button>
                     </div>
                     <p class="text-sm text-gray-600 mt-1">${escapeHtml(t.description || '')}</p>
                     <details class="mt-2">
-                        <summary class="text-xs text-gray-500 cursor-pointer">Mock 响应数据</summary>
-                        <textarea id="mock-${key.replace(/\./g,'_')}"
+                        <summary class="text-xs text-gray-500 cursor-pointer">mockResponse（统一结构）</summary>
+                        <textarea id="mock-${t.key.replace(/\./g,'_')}"
                             class="w-full mt-1 text-xs font-mono bg-white border rounded p-2 h-32"
-                            onblur="updateClientToolMock('${key}', this.value)"
+                            onblur="updateClientToolMock('${t.key}', this.value)"
                         >${JSON.stringify(t.mockResponse, null, 2)}</textarea>
                     </details>
                 </div>
             `).join('');
         }
 
+        function renderClientToolDetail(selectedTool) {
+            const detail = selectedTool || getSelectedClientTool();
+            const wrapper = document.getElementById('client-tool-detail');
+            if (!detail) {
+                wrapper.classList.add('hidden');
+                return;
+            }
+            wrapper.classList.remove('hidden');
+            document.getElementById('meta-name').textContent = detail.name || '-';
+            document.getElementById('meta-description').textContent = detail.description || '-';
+            document.getElementById('meta-owner').textContent = detail.owner || '-';
+            document.getElementById('meta-version').textContent = detail.version || '-';
+            document.getElementById('meta-schema').textContent = JSON.stringify(detail.inputSchema || {}, null, 2);
+        }
+
+        function updateClientToolParams(value) {
+            clientToolState.paramsText = value;
+        }
+
+        function runSelectedClientTool() {
+            const selected = getSelectedClientTool();
+            if (!selected) {
+                alert('请先选择工具');
+                return;
+            }
+
+            let params = {};
+            const raw = (clientToolState.paramsText || '').trim();
+            if (raw) {
+                try {
+                    params = JSON.parse(raw);
+                } catch (error) {
+                    alert('参数必须是合法 JSON');
+                    return;
+                }
+            }
+
+            const result = !selected.enabled
+                ? { ok: false, data: null, error: { code: 'TOOL_DISABLED', message: '工具已禁用: ' + selected.key } }
+                : normalizeToolResult(selected.mockResponse || { ok: true, data: {}, error: null });
+
+            const unified = result.ok
+                ? { ok: true, data: { input: params, output: result.data }, error: null }
+                : { ok: false, data: null, error: result.error || { message: '未知错误' } };
+
+            document.getElementById('client-tool-result-data').textContent = unified.ok
+                ? JSON.stringify(unified.data, null, 2)
+                : '暂无 data';
+            document.getElementById('client-tool-result-error').textContent = unified.ok
+                ? '暂无 error'
+                : JSON.stringify(unified.error, null, 2);
+        }
+
+        function copyClientToolTemplate() {
+            const template = `window.soulComfortAPI.setClientTool('GeoInformation.GetPosition', {
+  namespace: 'GeoInformation',
+  name: 'GetPosition',
+  description: '获取定位',
+  owner: 'team-web',
+  version: '1.0.0',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      scene: { type: 'string', description: '调用场景' }
+    },
+    required: []
+  },
+  enabled: true,
+  mockResponse: { ok: true, data: { city: '北京' }, error: null }
+});`;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(template).then(() => alert('模板已复制')).catch(() => prompt('请手动复制', template));
+            } else {
+                prompt('请手动复制', template);
+            }
+        }
+
+        function showClientToolGuide() {
+            const path = 'agent-web/CLIENT_TOOL_CONTRIBUTING.md';
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(path).then(() => alert('已复制文档路径: ' + path)).catch(() => alert('请查看: ' + path));
+            } else {
+                alert('请查看: ' + path);
+            }
+        }
+
         function toggleClientTool(key, enabled) {
             window.soulComfortAPI.toggleClientTool(key, enabled);
+            loadClientTools();
         }
 
         function removeClientTool(key) {
@@ -1258,9 +1480,19 @@
         }
 
         function updateClientToolMock(key, jsonStr) {
-            if (!window.soulComfortAPI.updateMockResponse(key, jsonStr)) {
-                alert('JSON 格式错误，请检查');
+            let parsed;
+            try {
+                parsed = JSON.parse(jsonStr);
+            } catch (error) {
+                alert('JSON 格式错误，请检查，且需满足 { ok, data, error }');
+                return;
             }
+            const normalized = normalizeToolResult(parsed);
+            if (!window.soulComfortAPI.updateMockResponse(key, JSON.stringify(normalized))) {
+                alert('保存失败，请重试');
+                return;
+            }
+            loadClientTools();
         }
 
         function addClientTool() {
@@ -1269,12 +1501,19 @@
             const name = prompt('Name（如 GetPosition）:');
             if (!name) return;
             const description = prompt('描述:', '');
+            const owner = prompt('owner（如 team-web）:', 'team-web');
+            const version = prompt('version（如 1.0.0）:', '1.0.0');
             const key = namespace + '.' + name;
 
             window.soulComfortAPI.setClientTool(key, {
-                namespace, name, description,
+                namespace,
+                name,
+                description,
+                owner,
+                version,
+                inputSchema: { type: 'object', properties: {}, required: [] },
                 enabled: true,
-                mockResponse: { result: 'mock data' }
+                mockResponse: { ok: true, data: { result: 'mock data' }, error: null }
             });
             loadClientTools();
         }
