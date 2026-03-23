@@ -8,6 +8,8 @@ class SoulComfortAPI {
         this._ws = null;
         this._wsConnecting = null;
         this._wsCallbacks = null;
+        /** Skill Creator 流式回调 */
+        this._skillCreatorCallbacks = null;
         /** 请求-响应式回调映射 (requestId → {resolve, reject}) */
         this._pendingRequests = new Map();
         this._requestIdCounter = 0;
@@ -111,7 +113,27 @@ class SoulComfortAPI {
                 return;
             }
 
-            // 2. 流式消息（chat 相关）
+            // 2. Skill Creator 流式消息
+            if (msg.type && msg.type.startsWith('skill_creator_')) {
+                const scCb = this._skillCreatorCallbacks;
+                if (!scCb) return;
+
+                switch (msg.type) {
+                    case 'skill_creator_token':
+                        if (scCb.onDelta) scCb.onDelta(msg.data);
+                        break;
+                    case 'skill_creator_draft':
+                        if (scCb.onDraft) scCb.onDraft(msg.data);
+                        break;
+                    case 'skill_creator_stream_end':
+                        if (scCb.onComplete) scCb.onComplete();
+                        this._skillCreatorCallbacks = null;
+                        break;
+                }
+                return;
+            }
+
+            // 3. 流式消息（chat 相关）
             const cb = this._wsCallbacks;
             if (!cb) return;
 
@@ -326,6 +348,79 @@ class SoulComfortAPI {
 
     async getToolDefinitions() {
         return this._sendRequest('get_tool_definitions');
+    }
+
+    // ========== Skill Creator ==========
+
+    /**
+     * Skill Creator 流式对话
+     * @param {string} message 用户消息
+     * @param {object} options { sessionId, onDelta, onDraft, onComplete, onError }
+     */
+    async skillCreatorChat(message, options = {}) {
+        try {
+            const ws = await this.ensureWebSocket();
+
+            return new Promise((resolve, reject) => {
+                this._skillCreatorCallbacks = {
+                    onDelta: options.onDelta,
+                    onDraft: options.onDraft,
+                    onComplete: () => {
+                        if (options.onComplete) options.onComplete();
+                        resolve();
+                    },
+                    onError: (err) => {
+                        if (options.onError) options.onError(err);
+                        reject(err);
+                    }
+                };
+
+                ws.send(JSON.stringify({
+                    type: 'skill_creator_chat',
+                    sessionId: options.sessionId || 'skill-creator-default',
+                    message: message
+                }));
+            });
+        } catch (error) {
+            console.error('[WS] Skill Creator send failed:', error);
+            if (options.onError) options.onError(error);
+            throw error;
+        }
+    }
+
+    /**
+     * 保存当前 Skill 草稿
+     */
+    async skillCreatorSave(sessionId) {
+        return this._sendRequest('skill_creator_save', { sessionId });
+    }
+
+    /**
+     * 获取已保存的 Skills 列表
+     */
+    async skillCreatorList() {
+        return this._sendRequest('skill_creator_list');
+    }
+
+    /**
+     * 删除 Skill
+     */
+    async skillCreatorDelete(skillId) {
+        return this._sendRequest('skill_creator_delete', { skillId });
+    }
+
+    /**
+     * 加载 Skill 到编辑器
+     */
+    async skillCreatorLoad(skillId, sessionId) {
+        return this._sendRequest('skill_creator_load', { skillId, sessionId });
+    }
+
+    /**
+     * 获取当前 draft
+     */
+    async skillCreatorGetDraft(sessionId) {
+        return this._sendRequest('skill_creator_get_draft', { sessionId });
     }
 
     // ========== Client Tool Simulation ==========
