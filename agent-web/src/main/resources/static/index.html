@@ -1281,6 +1281,7 @@
                         version: tool.version || '0.0.0',
                         inputSchema: tool.inputSchema || { type: 'object', properties: {}, required: [] },
                         enabled: tool.enabled !== false,
+                        createdBy: tool.createdBy || '',
                         mockResponse: normalizeToolResult(tool.mockResponse || { ok: true, data: {}, error: null })
                     };
                 }
@@ -1293,6 +1294,7 @@
                     version: entry.version || '0.0.0',
                     inputSchema: entry.inputSchema || { type: 'object', properties: {}, required: [] },
                     enabled: entry.enabled !== false,
+                    createdBy: entry.createdBy || '',
                     mockResponse: normalizeToolResult(entry.mockResponse || { ok: true, data: {}, error: null })
                 };
             });
@@ -1305,8 +1307,66 @@
             search: ''
         };
 
-        function loadClientTools() {
-            const tools = normalizeClientTools(window.soulComfortAPI.getClientTools());
+        function getAuthToken() {
+            return localStorage.getItem('soulComfort_authToken') || '';
+        }
+
+        function getAuthHeaders() {
+            const token = getAuthToken();
+            return token ? { 'Authorization': `Bearer ${token}` } : {};
+        }
+
+        async function fetchSharedClientTools() {
+            const resp = await fetch('/client-tools', {
+                headers: {
+                    ...getAuthHeaders()
+                }
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || '加载共享端工具失败');
+            }
+            return resp.json();
+        }
+
+        async function upsertSharedClientTool(key, payload) {
+            const resp = await fetch(`/client-tools/${encodeURIComponent(key)}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders()
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || '保存共享端工具失败');
+            }
+            return resp.json();
+        }
+
+        async function removeSharedClientTool(key) {
+            const resp = await fetch(`/client-tools/${encodeURIComponent(key)}`, {
+                method: 'DELETE',
+                headers: {
+                    ...getAuthHeaders()
+                }
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || '删除共享端工具失败');
+            }
+            return resp.json();
+        }
+
+        async function loadClientTools() {
+            let tools = [];
+            try {
+                const data = await fetchSharedClientTools();
+                tools = normalizeClientTools((data.tools || []).map(t => [t.key, t]));
+            } catch (error) {
+                tools = normalizeClientTools(window.soulComfortAPI.getClientTools());
+            }
             clientToolState.tools = tools;
             clientToolState.filteredTools = filterClientToolsByKeyword(tools, clientToolState.search);
 
@@ -1352,6 +1412,7 @@
                         </div>
                     </div>
                     <p class="text-sm text-gray-600 mt-1">${escapeHtml(t.description || '')}</p>
+                    <p class="text-xs text-gray-500 mt-1">创建者: ${escapeHtml(t.createdBy || '-')}</p>
                     <button onclick="goToClientToolEntryByKey(decodeURIComponent('${encodeURIComponent(t.key)}'))" class="mt-2 text-xs text-blue-700 hover:text-blue-900">➡️ 去端工具页仿真/维护</button>
                 </div>
             `).join('');
@@ -1419,7 +1480,7 @@
             setClientToolFormStatus('已重置表单');
         }
 
-        function saveClientToolEntry() {
+        async function saveClientToolEntry() {
             const { namespace, name, description, owner, version, enabled, inputSchemaRaw, mockJsonRaw } = getClientToolFormValue();
             if (!namespace || !name) {
                 setClientToolFormStatus('Namespace 和 Name 为必填项', 'error');
@@ -1447,7 +1508,7 @@
             }
 
             const key = namespace + '.' + name;
-            window.soulComfortAPI.setClientTool(key, {
+            const payload = {
                 namespace,
                 name,
                 description,
@@ -1456,11 +1517,19 @@
                 inputSchema,
                 enabled,
                 mockResponse
-            });
+            };
+
+            window.soulComfortAPI.setClientTool(key, payload);
+            try {
+                await upsertSharedClientTool(key, payload);
+            } catch (error) {
+                setClientToolFormStatus('共享保存失败：' + error.message, 'error');
+                return;
+            }
 
             setClientToolFormStatus(`已保存 ${key}`, 'success');
-            loadClientToolEntries();
-            loadClientTools();
+            await loadClientToolEntries();
+            await loadClientTools();
         }
 
         function editClientToolEntry(key) {
@@ -1525,33 +1594,50 @@
             setClientToolFormStatus(`仿真执行完成：${key}`, 'success');
         }
 
-        function removeClientToolEntry(key) {
+        async function removeClientToolEntry(key) {
             if (!confirm('确定删除端工具：' + key + ' ?')) return;
+            try {
+                await removeSharedClientTool(key);
+            } catch (error) {
+                setClientToolFormStatus('删除失败：' + error.message, 'error');
+                return;
+            }
             window.soulComfortAPI.removeClientTool(key);
-            loadClientToolEntries();
-            loadClientTools();
+            await loadClientToolEntries();
+            await loadClientTools();
             setClientToolFormStatus(`已删除 ${key}`, 'success');
         }
 
-        function loadClientToolEntries() {
+        async function loadClientToolEntries() {
             const container = document.getElementById('client-tools-entry-list');
             if (!container) return;
 
-            const tools = window.soulComfortAPI.getClientTools();
+            let tools = [];
+            try {
+                const data = await fetchSharedClientTools();
+                tools = data.tools || [];
+            } catch (error) {
+                container.innerHTML = `<div class="text-red-500 text-sm">加载共享工具失败：${escapeHtml(error.message)}</div>`;
+                return;
+            }
+
             if (!tools || tools.length === 0) {
                 container.innerHTML = '<div class="text-gray-400 text-sm">暂无已录入端工具，先在左侧表单新增。</div>';
                 return;
             }
 
-            container.innerHTML = tools.map(([key, tool]) => {
+            container.innerHTML = tools.map((tool) => {
+                const key = tool.key || `${tool.namespace || ''}.${tool.name || ''}`;
                 const enabledBadge = tool.enabled ?
                     '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">启用</span>' :
                     '<span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">禁用</span>';
                 const namespace = escapeHtml(tool.namespace || '-');
                 const name = escapeHtml(tool.name || '-');
                 const desc = escapeHtml(tool.description || '无描述');
+                const createdBy = escapeHtml(tool.createdBy || '-');
                 const schemaPreview = escapeHtml(JSON.stringify(tool.inputSchema || { type: 'object', properties: {}, required: [] }));
                 const mockPreview = escapeHtml(JSON.stringify(normalizeSimulationResult(tool.mockResponse || { ok: true, data: {}, error: null })));
+                window.soulComfortAPI.setClientTool(key, tool);
                 return `
                     <div id="ct-entry-${key}" class="bg-white rounded-lg border border-gray-200 p-3">
                         <div class="flex items-center justify-between gap-2">
@@ -1560,6 +1646,7 @@
                         </div>
                         <div class="text-xs text-gray-500 mt-1">${namespace}.${name}</div>
                         <div class="text-sm text-gray-600 mt-1">${desc}</div>
+                        <div class="text-xs text-gray-500 mt-1">创建者: ${createdBy}</div>
                         <div class="text-xs text-gray-500 mt-1">schema: 已配置</div>
                         <details class="mt-2">
                             <summary class="text-xs text-gray-500 cursor-pointer">查看 inputSchema</summary>
