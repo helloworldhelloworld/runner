@@ -27,6 +27,8 @@ import com.lightweightai.user.model.SoulUser;
 import com.lightweightai.web.config.McpConfig;
 import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
+import com.lightweightai.web.skillcreator.SkillCreatorService;
+import com.lightweightai.web.skillcreator.SkillDraft;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.CloseStatus;
@@ -61,6 +63,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private final LLMProvider llmProvider;
     private final McpConfig.McpToolRegistrar mcpToolRegistrar;
     private final SessionAwareClientToolDispatcher sessionAwareDispatcher;
+    private final SkillCreatorService skillCreatorService;
 
     private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -79,7 +82,8 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                                        UserService userService,
                                        LLMProvider llmProvider,
                                        McpConfig.McpToolRegistrar mcpToolRegistrar,
-                                       SessionAwareClientToolDispatcher sessionAwareDispatcher) {
+                                       SessionAwareClientToolDispatcher sessionAwareDispatcher,
+                                       SkillCreatorService skillCreatorService) {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
         this.toolRegistry = toolRegistry;
@@ -90,6 +94,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         this.llmProvider = llmProvider;
         this.mcpToolRegistrar = mcpToolRegistrar;
         this.sessionAwareDispatcher = sessionAwareDispatcher;
+        this.skillCreatorService = skillCreatorService;
         this.clientToolResultRouter = new ClientToolResultRouter(MAPPER, toolRegistry);
     }
 
@@ -224,6 +229,51 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                 }
                 case "get_mcp_servers" -> sendResponse(session, "mcp_servers", requestId, buildMcpServers());
                 case "directive_result", "client_tool_result" -> handleClientToolResponse(session, type, payload);
+
+                // ==================== Skill Creator ====================
+                case "skill_creator_chat" -> chatExecutor.submit(() -> {
+                    try {
+                        handleSkillCreatorChat(session, payload);
+                    } catch (Exception e) {
+                        logger.error("handleSkillCreatorChat EXCEPTION", e);
+                        safeSend(session, errorJson("Skill Creator 处理失败: " + e.getMessage()));
+                    }
+                });
+                case "skill_creator_save" -> {
+                    try {
+                        String scSessionId = payload.path("sessionId").asText(session.getId());
+                        SkillDraft saved = skillCreatorService.save(scSessionId);
+                        sendResponse(session, "skill_creator_saved", requestId, saved.toMap());
+                    } catch (Exception e) {
+                        sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                    }
+                }
+                case "skill_creator_list" -> sendResponse(session, "skill_creator_skills", requestId,
+                    skillCreatorService.listSkills().stream().map(SkillDraft::toMap).toList());
+                case "skill_creator_delete" -> {
+                    try {
+                        boolean ok = skillCreatorService.deleteSkill(payload.path("skillId").asText(""));
+                        sendResponse(session, "skill_creator_deleted", requestId, Map.of("success", ok));
+                    } catch (Exception e) {
+                        sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                    }
+                }
+                case "skill_creator_load" -> {
+                    try {
+                        String scSessionId = payload.path("sessionId").asText(session.getId());
+                        SkillDraft draft = skillCreatorService.loadSkill(
+                            payload.path("skillId").asText(""), scSessionId);
+                        sendResponse(session, "skill_creator_draft", requestId, draft.toMap());
+                    } catch (Exception e) {
+                        sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                    }
+                }
+                case "skill_creator_get_draft" -> {
+                    String scSessionId = payload.path("sessionId").asText(session.getId());
+                    sendResponse(session, "skill_creator_draft", requestId,
+                        skillCreatorService.getDraft(scSessionId).toMap());
+                }
+
                 default -> logger.warn("Unknown WS type: {}", type);
             }
         } catch (Exception e) {
@@ -360,6 +410,70 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         } catch (Exception e) {
             logger.error("Failed to handle stream event", e);
         }
+    }
+
+    // ==================== Skill Creator Streaming ====================
+
+    private void handleSkillCreatorChat(WebSocketSession session, JsonNode payload) {
+        String sessionId = payload.path("sessionId").asText(session.getId());
+        String message = payload.path("message").asText("").trim();
+
+        if (message.isEmpty()) {
+            safeSend(session, errorJson("消息不能为空"));
+            return;
+        }
+
+        String sid = session.getId();
+        // Cancel any existing skill creator stream for this session
+        Disposable prev = activeStreams.remove("sc-" + sid);
+        if (prev != null && !prev.isDisposed()) prev.dispose();
+
+        reactor.core.publisher.Flux<StreamEvent> flux = skillCreatorService.chat(sessionId, message);
+
+        Disposable sub = flux.subscribe(
+            event -> {
+                try {
+                    switch (event.getType()) {
+                        case TEXT_DELTA -> {
+                            ObjectNode msg = MAPPER.createObjectNode();
+                            msg.put("type", "skill_creator_token");
+                            msg.put("data", event.getTextDelta());
+                            safeSend(session, MAPPER.writeValueAsString(msg));
+                        }
+                        case POST_PROCESS_DATA -> {
+                            // draft 更新事件
+                            if ("skill_draft".equals(event.getCategory())) {
+                                ObjectNode msg = MAPPER.createObjectNode();
+                                msg.put("type", "skill_creator_draft");
+                                if (event.getData() != null) {
+                                    msg.set("data", MAPPER.valueToTree(event.getData()));
+                                }
+                                safeSend(session, MAPPER.writeValueAsString(msg));
+                            }
+                        }
+                        default -> {} // ignore other events
+                    }
+                } catch (Exception e) {
+                    logger.error("Failed to handle skill creator stream event", e);
+                }
+            },
+            error -> {
+                logger.error("Skill creator stream error session={}", sid, error);
+                safeSend(session, errorJson("Skill Creator 处理失败: " + error.getMessage()));
+                activeStreams.remove("sc-" + sid);
+            },
+            () -> {
+                try {
+                    ObjectNode msg = MAPPER.createObjectNode();
+                    msg.put("type", "skill_creator_stream_end");
+                    safeSend(session, MAPPER.writeValueAsString(msg));
+                } catch (Exception e) {
+                    logger.error("Failed to send skill_creator_stream_end", e);
+                }
+                activeStreams.remove("sc-" + sid);
+            }
+        );
+        activeStreams.put("sc-" + sid, sub);
     }
 
     // ==================== Client Tool Result ====================

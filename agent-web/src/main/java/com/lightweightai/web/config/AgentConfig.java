@@ -27,6 +27,8 @@ import com.lightweightai.kernel.speech.AzureSpeechProvider;
 import com.lightweightai.kernel.speech.OpenAISpeechProvider;
 import com.lightweightai.tools.client.GetPositionTool;
 import com.lightweightai.tools.web.WebTools;
+import com.lightweightai.web.skillcreator.SkillCreatorService;
+import com.lightweightai.web.skillcreator.SkillRepository;
 import com.lightweightai.web.websocket.SessionAwareClientToolDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,6 +110,9 @@ public class AgentConfig {
 
     @Value("${app.speech.openai.voice:nova}")
     private String openaiSpeechVoice;
+
+    @Value("${app.skill-creator.db-path:./data/skills.db}")
+    private String skillCreatorDbPath;
 
     @Bean
     public LLMProvider llmProvider() {
@@ -426,6 +431,26 @@ public class AgentConfig {
 
         registry.registerPackage(new ClaudeSkillAdapter(demoSkill));
         logger.info("Created demo skill");
+    }
+
+    @Bean
+    public SkillRepository skillRepository() {
+        // 确保数据目录存在
+        java.nio.file.Path dbPath = java.nio.file.Path.of(skillCreatorDbPath);
+        try {
+            java.nio.file.Files.createDirectories(dbPath.getParent());
+        } catch (Exception e) {
+            logger.warn("Failed to create skill-creator db directory: {}", e.getMessage());
+        }
+        return new SkillRepository(skillCreatorDbPath);
+    }
+
+    @Bean
+    public SkillCreatorService skillCreatorService(LLMProvider llmProvider,
+                                                     ToolRegistry toolRegistry,
+                                                     PromptEngine promptEngine,
+                                                     SkillRepository skillRepository) {
+        return new SkillCreatorService(llmProvider, toolRegistry, promptEngine, skillRepository);
     }
 
     @Bean

@@ -93,6 +93,9 @@ app:
       #   url: http://auth-server:8080/mcp
       #   timeout: 30
 
+  # Skill Creator 配置
+  skill-creator:
+    db-path: ${SKILL_CREATOR_DB_PATH:./data/skills.db}
   speech:
     # 语音服务配置
     provider: ${SPEECH_PROVIDER:openai}  # 可选: azure, openai, mock
