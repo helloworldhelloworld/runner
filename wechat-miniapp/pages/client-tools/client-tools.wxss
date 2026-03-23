@@ -20,6 +20,16 @@
   margin-bottom: 16rpx;
 }
 
+.search-input {
+  width: 100%;
+  border: 1rpx solid #E5E5EA;
+  border-radius: 12rpx;
+  padding: 12rpx 14rpx;
+  margin-bottom: 14rpx;
+  box-sizing: border-box;
+  font-size: 24rpx;
+}
+
 .tool-list {
   display: flex;
   flex-direction: column;
@@ -48,6 +58,35 @@
   color: #666;
 }
 
+.empty-tip {
+  font-size: 24rpx;
+  color: #8A8A8E;
+}
+
+.meta-line {
+  font-size: 24rpx;
+  color: #3C3C43;
+  line-height: 1.7;
+}
+
+.meta-label {
+  color: #1C1C1E;
+  font-weight: 600;
+}
+
+.schema-box {
+  margin-top: 8rpx;
+  min-height: 120rpx;
+  border: 1rpx solid #E5E5EA;
+  border-radius: 12rpx;
+  background: #FAFAFC;
+  padding: 14rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .param-input {
   width: 100%;
   min-height: 220rpx;
@@ -61,20 +100,37 @@
 
 .action-section {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
   justify-content: flex-end;
 }
 
+.guide-btn,
 .run-btn {
-  width: 220rpx;
-  height: 80rpx;
-  line-height: 80rpx;
-  border-radius: 40rpx;
-  background: #5B8AF0;
-  color: #FFFFFF;
-  font-size: 28rpx;
+  height: 76rpx;
+  line-height: 76rpx;
+  border-radius: 38rpx;
+  font-size: 24rpx;
+  padding: 0 28rpx;
 }
 
-.run-btn::after {
+.guide-btn {
+  border: 1rpx solid #D0D7EA;
+  background: #FFFFFF;
+  color: #3B5CB8;
+}
+
+.guide-btn.secondary {
+  color: #1C1C1E;
+}
+
+.run-btn {
+  background: #5B8AF0;
+  color: #FFFFFF;
+}
+
+.run-btn::after,
+.guide-btn::after {
   border: none;
 }
 
@@ -82,8 +138,14 @@
   margin-bottom: 0;
 }
 
+.result-subtitle {
+  font-size: 24rpx;
+  color: #6A6A6A;
+  margin-bottom: 8rpx;
+}
+
 .result-box {
-  min-height: 220rpx;
+  min-height: 120rpx;
   border: 1rpx solid #E5E5EA;
   border-radius: 12rpx;
   background: #FAFAFC;
@@ -94,8 +156,15 @@
   color: #333;
   white-space: pre-wrap;
   word-break: break-all;
+  margin-bottom: 14rpx;
 }
 
+.error-box {
+  color: #B42318;
+  border-color: #F5C6C6;
+  background: #FFF6F6;
+  margin-bottom: 0;
+}
 
 .auth-card {
   border: 1rpx solid rgba(91, 138, 240, 0.2);

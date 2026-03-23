@@ -7,9 +7,15 @@
 
   <view class="section">
     <view class="section-title">工具列表</view>
+    <input
+      class="search-input"
+      placeholder="搜索工具名称 / 描述 / owner"
+      value="{{searchKeyword}}"
+      bindinput="onSearchInput"
+    />
     <view class="tool-list">
       <view
-        wx:for="{{tools}}"
+        wx:for="{{filteredTools}}"
         wx:key="id"
         class="tool-item {{item.id === selectedToolId ? 'selected' : ''}}"
         data-id="{{item.id}}"
@@ -18,7 +24,18 @@
         <view class="tool-name">{{item.name}}</view>
         <view class="tool-desc">{{item.description}}</view>
       </view>
+      <view wx:if="{{!filteredTools.length}}" class="empty-tip">未命中工具，请调整搜索词。</view>
     </view>
+  </view>
+
+  <view class="section" wx:if="{{selectedToolMeta}}">
+    <view class="section-title">工具详情（metadata）</view>
+    <view class="meta-line"><text class="meta-label">name：</text>{{selectedToolMeta.name}}</view>
+    <view class="meta-line"><text class="meta-label">description：</text>{{selectedToolMeta.description}}</view>
+    <view class="meta-line"><text class="meta-label">owner：</text>{{selectedToolMeta.owner}}</view>
+    <view class="meta-line"><text class="meta-label">version：</text>{{selectedToolMeta.version}}</view>
+    <view class="meta-line"><text class="meta-label">inputSchema：</text></view>
+    <view class="schema-box"><text selectable>{{selectedToolSchemaText}}</text></view>
   </view>
 
   <view class="section">
@@ -33,18 +50,21 @@
   </view>
 
   <view class="section action-section">
+    <button class="guide-btn" bindtap="onCopyTemplate">复制模板</button>
+    <button class="guide-btn secondary" bindtap="onShowGuide">新增工具指引</button>
     <button
       class="run-btn"
       loading="{{isRunning}}"
       disabled="{{isRunning}}"
       bindtap="onRunTool"
-    >执行（Mock）</button>
+    >执行（统一结果）</button>
   </view>
 
   <view class="section result-section">
-    <view class="section-title">结果展示区</view>
-    <view class="result-box">
-      <text selectable>{{resultText || '尚未执行工具'}}</text>
-    </view>
+    <view class="section-title">结果展示区（ok / data / error）</view>
+    <view class="result-subtitle">data</view>
+    <view class="result-box"><text selectable>{{resultDataText || '暂无 data'}}</text></view>
+    <view class="result-subtitle">error</view>
+    <view class="result-box error-box"><text selectable>{{resultErrorText || '暂无 error'}}</text></view>
   </view>
 </view>
