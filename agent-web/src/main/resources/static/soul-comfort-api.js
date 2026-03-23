@@ -128,6 +128,11 @@ class SoulComfortAPI {
                     console.warn('[SC-WS] no callbacks for:', msg.type);
                     return;
                 }
+                if (msg.requestId && scCb.requestId && msg.requestId !== scCb.requestId) {
+                    console.log('[SC-WS] ignore stale skill_creator event',
+                        'type=', msg.type, 'requestId=', msg.requestId, 'active=', scCb.requestId);
+                    return;
+                }
 
                 switch (msg.type) {
                     case 'skill_creator_token':
@@ -376,6 +381,7 @@ class SoulComfortAPI {
         const timeoutMs = options.timeout || 60000; // 默认 1 分钟超时
         try {
             const ws = await this.ensureWebSocket();
+            const requestId = this._nextRequestId();
 
             return new Promise((resolve, reject) => {
                 let settled = false;
@@ -393,6 +399,7 @@ class SoulComfortAPI {
                 }, timeoutMs);
 
                 this._skillCreatorCallbacks = {
+                    requestId: requestId,
                     onDelta: options.onDelta,
                     onDraft: options.onDraft,
                     onComplete: () => {
@@ -424,6 +431,7 @@ class SoulComfortAPI {
                 console.log('[SC] sending message, sessionId:', options.sessionId);
                 ws.send(JSON.stringify({
                     type: 'skill_creator_chat',
+                    requestId: requestId,
                     sessionId: options.sessionId || 'skill-creator-default',
                     message: message
                 }));
