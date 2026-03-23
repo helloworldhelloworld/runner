@@ -1898,11 +1898,24 @@
 
         async function sendSkillCreatorMessage() {
             const input = document.getElementById('sc-input');
+            const sendBtn = input.nextElementSibling; // 发送按钮
             const message = input.value.trim();
-            if (!message || scSending) return;
+
+            console.log('[SC-UI] sendSkillCreatorMessage called, scSending=', scSending, 'message=', message ? message.substring(0, 30) : '(empty)');
+
+            if (!message) return;
+            if (scSending) {
+                console.warn('[SC-UI] Already sending, ignoring click');
+                return;
+            }
 
             scSending = true;
             input.value = '';
+            // 视觉反馈：禁用按钮
+            if (sendBtn) {
+                sendBtn.disabled = true;
+                sendBtn.textContent = '⏳ 发送中...';
+            }
 
             // Add user message
             scAddMessage('user', message);
@@ -1919,7 +1932,7 @@
                         fullResponse += delta;
                         // 显示时去掉 <skill_draft>...</skill_draft> 块
                         const displayText = fullResponse.replace(/<skill_draft>[\s\S]*?<\/skill_draft>/g, '').trim();
-                        contentDiv.innerHTML = formatMarkdown(displayText);
+                        if (contentDiv) contentDiv.innerHTML = formatMarkdown(displayText);
                     },
                     onDraft: (draft) => {
                         scCurrentDraft = draft;
@@ -1931,20 +1944,28 @@
                         }
                     },
                     onComplete: () => {
-                        scSending = false;
+                        console.log('[SC-UI] onComplete fired');
                         // 清理显示文本中的 draft 标签
                         const displayText = fullResponse.replace(/<skill_draft>[\s\S]*?<\/skill_draft>/g, '').trim();
-                        contentDiv.innerHTML = formatMarkdown(displayText);
+                        if (contentDiv) contentDiv.innerHTML = formatMarkdown(displayText);
                     },
                     onError: (err) => {
-                        scSending = false;
-                        contentDiv.innerHTML = `<span class="text-red-500">出错了: ${err.message}</span>`;
+                        console.error('[SC-UI] onError fired:', err);
+                        if (contentDiv) contentDiv.innerHTML = `<span class="text-red-500">出错了: ${err.message}</span>`;
                     }
                 });
             } catch (error) {
-                scSending = false;
-                if (!fullResponse) {
+                console.error('[SC-UI] catch block:', error);
+                if (contentDiv && !fullResponse) {
                     contentDiv.innerHTML = `<span class="text-red-500">连接出错: ${error.message}</span>`;
+                }
+            } finally {
+                // 无论成功/失败/超时，总是重置发送状态
+                console.log('[SC-UI] finally: resetting scSending');
+                scSending = false;
+                if (sendBtn) {
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = '📤 发送';
                 }
             }
         }

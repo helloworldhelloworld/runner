@@ -447,15 +447,21 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         String sessionId = payload.path("sessionId").asText(session.getId());
         String message = payload.path("message").asText("").trim();
 
+        logger.info("[SC] handleSkillCreatorChat: sessionId={}, message={}", sessionId,
+            message.length() > 30 ? message.substring(0, 30) + "..." : message);
+
         if (message.isEmpty()) {
-            safeSend(session, errorJson("消息不能为空"));
+            safeSend(session, skillCreatorErrorJson("消息不能为空"));
             return;
         }
 
         String sid = session.getId();
         // Cancel any existing skill creator stream for this session
         Disposable prev = activeStreams.remove("sc-" + sid);
-        if (prev != null && !prev.isDisposed()) prev.dispose();
+        if (prev != null && !prev.isDisposed()) {
+            logger.info("[SC] Cancelling previous stream for session={}", sid);
+            prev.dispose();
+        }
 
         reactor.core.publisher.Flux<StreamEvent> flux = skillCreatorService.chat(sessionId, message);
 
@@ -487,7 +493,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                 }
             },
             error -> {
-                logger.error("Skill creator stream error session={}", sid, error);
+                logger.error("[SC] Stream error session={}: {}", sid, error.getMessage(), error);
                 safeSend(session, skillCreatorErrorJson("Skill Creator 处理失败: " + error.getMessage()));
                 // 发送 stream_end 以解除客户端的等待状态
                 try {
@@ -500,6 +506,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                 activeStreams.remove("sc-" + sid);
             },
             () -> {
+                logger.info("[SC] Stream complete, sending stream_end for session={}", sid);
                 try {
                     ObjectNode msg = MAPPER.createObjectNode();
                     msg.put("type", "skill_creator_stream_end");
@@ -511,6 +518,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
             }
         );
         activeStreams.put("sc-" + sid, sub);
+        logger.info("[SC] Subscribed to skill creator flux, session={}", sid);
     }
 
     // ==================== Client Tool Result ====================
