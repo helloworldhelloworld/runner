@@ -79,6 +79,7 @@ export class ChatService {
     // 监听流式数据
     let buffer = '';
     let fullText = '';
+    let completed = false;
 
     httpRequest.on('dataReceive', (data: ArrayBuffer) => {
       const chunk = ChatService.arrayBufferToString(data);
@@ -96,26 +97,37 @@ export class ChatService {
         if (!jsonStr || jsonStr === '[DONE]') continue;
 
         try {
-          const event = JSON.parse(jsonStr) as Record<string, string>;
-          if (event['type'] === 'delta') {
-            const delta = event['delta'] ?? '';
-            const emotion = event['emotion'] ?? '温柔';
+          const event = JSON.parse(jsonStr) as Record<string, string | Record<string, string>>;
+          const eventType = ((event['type'] as string) ?? '').toLowerCase();
+
+          if (eventType === 'delta') {
+            const delta = (event['delta'] as string) ?? (event['content'] as string) ?? '';
+            const metadata = event['metadata'] as Record<string, string> | undefined;
+            const emotion = (event['emotion'] as string) ?? metadata?.['emotion'] ?? '温柔';
             if (delta) {
               fullText += delta;
               onDelta(delta, emotion);
             }
-          } else if (event['type'] === 'complete') {
-            onComplete(fullText || event['response'] ?? '');
+          } else if (eventType === 'complete') {
+            const finalText = (event['response'] as string) ?? (event['content'] as string) ?? '';
+            completed = true;
+            onComplete(fullText || finalText);
+            httpRequest.destroy();
+          } else if (eventType === 'error') {
+            const errorMessage = (event['error'] as string) ?? (event['content'] as string) ?? '服务器错误';
+            completed = true;
+            onError(errorMessage);
             httpRequest.destroy();
           }
-        } catch (e) {
+        } catch (_) {
           // 跳过非 JSON 行
         }
       }
     });
 
     httpRequest.on('dataEnd', () => {
-      if (fullText) {
+      // 某些后端仅通过断开连接结束流，不显式发送 COMPLETE 事件
+      if (!completed) {
         onComplete(fullText);
       }
       httpRequest.destroy();

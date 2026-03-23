@@ -135,6 +135,7 @@ export class ChatViewModel {
           this.messages[lastIndex] = msg;
         }
         this.isSending = false;
+        this.onMessagesUpdate();
         console.error('[ChatViewModel] stream error:', error);
       }
     );
