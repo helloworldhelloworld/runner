@@ -8,24 +8,45 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Simple in-memory token session service.
+ * In-memory token session service with role information.
  */
 @Service
 public class AuthSessionService {
 
-    private final Map<String, String> tokenToUserId = new ConcurrentHashMap<>();
+    public static class SessionInfo {
+        private final String userId;
+        private final String role;
+
+        public SessionInfo(String userId, String role) {
+            this.userId = userId;
+            this.role = role != null ? role : "USER";
+        }
+
+        public String getUserId() { return userId; }
+        public String getRole() { return role; }
+    }
+
+    private final Map<String, SessionInfo> tokenToSession = new ConcurrentHashMap<>();
 
     public String createSessionToken(String userId) {
+        return createSessionToken(userId, "USER");
+    }
+
+    public String createSessionToken(String userId, String role) {
         String token = "tk-" + UUID.randomUUID().toString().replace("-", "");
-        tokenToUserId.put(token, userId);
+        tokenToSession.put(token, new SessionInfo(userId, role));
         return token;
     }
 
     public Optional<String> resolveUserId(String token) {
-        return Optional.ofNullable(tokenToUserId.get(token));
+        return Optional.ofNullable(tokenToSession.get(token)).map(SessionInfo::getUserId);
+    }
+
+    public Optional<SessionInfo> resolveSession(String token) {
+        return Optional.ofNullable(tokenToSession.get(token));
     }
 
     public void invalidate(String token) {
-        tokenToUserId.remove(token);
+        tokenToSession.remove(token);
     }
 }

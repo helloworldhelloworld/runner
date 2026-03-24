@@ -25,6 +25,7 @@ import com.lightweightai.user.UserService;
 import com.lightweightai.user.model.EmotionRecord;
 import com.lightweightai.user.model.SoulUser;
 import com.lightweightai.web.config.McpConfig;
+import com.lightweightai.web.service.AuthSessionService;
 import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
 import com.lightweightai.web.skillcreator.SkillCreatorService;
@@ -67,6 +68,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private final SessionAwareClientToolDispatcher sessionAwareDispatcher;
     private final SkillCreatorService skillCreatorService;
     private final ToolSchemaRepository toolSchemaRepository;
+    private final AuthSessionService authSessionService;
 
     private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -87,7 +89,8 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                                        McpConfig.McpToolRegistrar mcpToolRegistrar,
                                        SessionAwareClientToolDispatcher sessionAwareDispatcher,
                                        SkillCreatorService skillCreatorService,
-                                       ToolSchemaRepository toolSchemaRepository) {
+                                       ToolSchemaRepository toolSchemaRepository,
+                                       AuthSessionService authSessionService) {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
         this.toolRegistry = toolRegistry;
@@ -100,6 +103,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         this.sessionAwareDispatcher = sessionAwareDispatcher;
         this.skillCreatorService = skillCreatorService;
         this.toolSchemaRepository = toolSchemaRepository;
+        this.authSessionService = authSessionService;
         this.clientToolResultRouter = new ClientToolResultRouter(MAPPER, toolRegistry);
     }
 
@@ -115,6 +119,21 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession rawSession) {
+        // Validate token from query param: /ws/chat?token=xxx
+        String query = rawSession.getUri() != null ? rawSession.getUri().getQuery() : null;
+        String token = extractQueryParam(query, "token");
+        if (token != null && !token.isEmpty() && authSessionService != null) {
+            var session_info = authSessionService.resolveSession(token);
+            if (session_info.isEmpty()) {
+                logger.warn("WS connection rejected: invalid token");
+                try { rawSession.close(CloseStatus.POLICY_VIOLATION); } catch (Exception e) { /* ignore */ }
+                return;
+            }
+            // Store userId in session attributes for downstream use
+            rawSession.getAttributes().put("userId", session_info.get().getUserId());
+            rawSession.getAttributes().put("userRole", session_info.get().getRole());
+        }
+
         // 包装为线程安全的 session（DIRECTIVE 从非 Tomcat 线程发送）
         WebSocketSession session = new ConcurrentWebSocketSessionDecorator(rawSession, 10000, 512 * 1024);
         sessions.put(session.getId(), session);
@@ -126,6 +145,17 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         sessionAwareDispatcher.setDelegate(dispatcher);
 
         logger.info("Spring WS connected: {} (active: {})", session.getId(), activeConnections.get());
+    }
+
+    private String extractQueryParam(String query, String key) {
+        if (query == null) return null;
+        for (String param : query.split("&")) {
+            String[] kv = param.split("=", 2);
+            if (kv.length == 2 && kv[0].equals(key)) {
+                return kv[1];
+            }
+        }
+        return null;
     }
 
     @Override

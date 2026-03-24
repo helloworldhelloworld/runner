@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* Markdown rendered content */
+.md-body { font-size: 0.95rem; line-height: 1.7; word-break: break-word; }
+.md-body p { margin: 0.4em 0; }
+.md-body p:first-child { margin-top: 0; }
+.md-body p:last-child { margin-bottom: 0; }
+.md-body h1, .md-body h2, .md-body h3, .md-body h4 { font-weight: 600; margin: 0.8em 0 0.4em; }
+.md-body h1 { font-size: 1.3em; }
+.md-body h2 { font-size: 1.15em; }
+.md-body h3 { font-size: 1.05em; }
+.md-body ul, .md-body ol { margin: 0.4em 0; padding-left: 1.5em; }
+.md-body li { margin: 0.2em 0; }
+.md-body blockquote { border-left: 3px solid #c4b5fd; padding-left: 0.8em; margin: 0.5em 0; color: #6b7280; }
+.md-body code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.85em; font-family: 'Menlo', 'Consolas', monospace; }
+.md-body pre { background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.8em; margin: 0.5em 0; overflow-x: auto; position: relative; }
+.md-body pre code { background: none; padding: 0; font-size: 0.82em; }
+.md-body table { border-collapse: collapse; width: 100%; margin: 0.5em 0; font-size: 0.9em; }
+.md-body th, .md-body td { border: 1px solid #e5e7eb; padding: 0.4em 0.6em; text-align: left; }
+.md-body th { background: #f9fafb; font-weight: 600; }
+.md-body a { color: #7c3aed; text-decoration: underline; }
+.md-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 0.8em 0; }
+.md-body img { max-width: 100%; border-radius: 8px; }
+
+/* Code copy button */
+.code-block-wrapper { position: relative; }
+.code-copy-btn { position: absolute; top: 4px; right: 4px; background: #e5e7eb; border: none; border-radius: 4px; padding: 2px 8px; font-size: 0.7em; cursor: pointer; opacity: 0; transition: opacity 0.2s; color: #374151; }
+.code-block-wrapper:hover .code-copy-btn { opacity: 1; }
+
+/* Message animations */
+.message-enter-active { animation: fadeIn 0.3s ease-in-out; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading spinner */
+.loading-spin {
+  display: inline-block; width: 16px; height: 16px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-top: 3px solid white; border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
