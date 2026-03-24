@@ -77,6 +77,10 @@ class GatewayReactiveTest {
 
         gw.handleStream(request, new GatewayStreamHandler() {
             @Override
+            public void onDelta(String delta) {
+                // default - not used when metadata variant is called
+            }
+            @Override
             public void onDelta(String delta, Map<String, Object> metadata) {
                 deltas.add(delta);
             }
@@ -120,6 +124,7 @@ class GatewayReactiveTest {
         List<String> eventLog = new ArrayList<>();
 
         gw.handleStream(request, new GatewayStreamHandler() {
+            @Override public void onDelta(String delta) {}
             @Override public void onToolCallStart(ToolCall tc) { eventLog.add("START:" + tc.getName()); }
             @Override public void onToolProgress(ToolResultChunk chunk) { eventLog.add("PROGRESS"); }
             @Override public void onToolResult(ToolResultChunk chunk) { eventLog.add("RESULT"); }
@@ -225,6 +230,7 @@ class GatewayReactiveTest {
         List<String> categories = new ArrayList<>();
 
         gw.handleStream(request, new GatewayStreamHandler() {
+            @Override public void onDelta(String delta) {}
             @Override
             public void onPostProcessData(String category, Map<String, Object> data) {
                 categories.add(category);
@@ -253,9 +259,9 @@ class GatewayReactiveTest {
         List<Throwable> errors = new ArrayList<>();
 
         gw.handleStream(request, new GatewayStreamHandler() {
+            @Override public void onDelta(String delta) {}
             @Override public void onError(Throwable error) {
                 errors.add(error);
-                // Don't count down here - the stream may still complete
             }
             @Override public void onComplete(GatewayResponse resp) { latch.countDown(); }
         });
@@ -282,6 +288,7 @@ class GatewayReactiveTest {
         List<String> deltas = new ArrayList<>();
 
         gw.handleStream(request, new GatewayStreamHandler() {
+            @Override public void onDelta(String delta) {}
             @Override public void onDelta(String delta, Map<String, Object> metadata) {
                 deltas.add(delta);
             }
