@@ -20,6 +20,7 @@ const routes = [
       { path: 'memory', name: 'Memory', component: () => import('../views/Memory.vue') },
       { path: 'assessment', name: 'Assessment', component: () => import('../views/Assessment.vue') },
       { path: 'emotion', name: 'Emotion', component: () => import('../views/Emotion.vue') },
+      { path: 'model-config', name: 'ModelConfig', component: () => import('../views/ModelConfig.vue'), meta: { requiresAdmin: true } },
       { path: 'system', name: 'System', component: () => import('../views/System.vue') },
       { path: 'admin', name: 'Admin', component: () => import('../views/Admin.vue'), meta: { requiresAdmin: true } }
     ]

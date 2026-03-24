@@ -116,7 +116,7 @@ public class AgentConfig {
     private String skillCreatorDbPath;
 
     @Bean
-    public LLMProvider llmProvider() {
+    public DynamicLLMProvider llmProvider() {
         String type = providerType.toLowerCase();
 
         // auto模式：按优先级自动检测可用的API Key
@@ -125,16 +125,55 @@ public class AgentConfig {
             logger.info("Auto-detected provider type: {}", type);
         }
 
+        LLMProvider inner;
         // mock 模式不需要包裹 ResilientLLMProvider
         if ("mock".equals(type)) {
             logger.warn("Using Mock LLM Provider — frontend will receive fake responses. " +
                 "Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY for real LLM responses.");
-            return new MockLLMProvider();
+            inner = new MockLLMProvider();
+        } else {
+            LLMProvider rawProvider = createProvider(type);
+            // 包裹弹性层：自动重试 + 健康状态跟踪
+            inner = new ResilientLLMProvider(rawProvider, 2, 1000);
         }
+        return new DynamicLLMProvider(inner);
+    }
 
-        LLMProvider rawProvider = createProvider(type);
-        // 包裹弹性层：自动重试 + 健康状态跟踪
-        return new ResilientLLMProvider(rawProvider, 2, 1000);
+    /**
+     * Build a new LLMProvider from explicit configuration parameters.
+     * Used by ModelConfigController for runtime reconfiguration.
+     */
+    public LLMProvider buildProvider(String type, String apiKey, String model, String baseUrl) {
+        try {
+            switch (type.toLowerCase()) {
+                case "openrouter":
+                    if ((apiKey == null || apiKey.isBlank()) && (baseUrl == null || baseUrl.isBlank())) {
+                        throw new IllegalArgumentException("OpenRouter 需要 API Key 或 Base URL");
+                    }
+                    return new ResilientLLMProvider(
+                        new OpenRouterProvider(apiKey, model, baseUrl), 2, 1000);
+                case "api":
+                    if (apiKey == null || apiKey.isBlank()) {
+                        throw new IllegalArgumentException("Claude API 需要 API Key");
+                    }
+                    return new ResilientLLMProvider(
+                        new ClaudeProvider(apiKey, model != null && !model.isBlank() ? model : "claude-3-5-sonnet-20241022"), 2, 1000);
+                case "ws":
+                    if (baseUrl == null || baseUrl.isBlank()) {
+                        throw new IllegalArgumentException("WebSocket 模式需要填写 WS 地址");
+                    }
+                    return new ResilientLLMProvider(
+                        new OpenAIWebSocketProvider(baseUrl, model, apiKey), 2, 1000);
+                case "mock":
+                    return new MockLLMProvider();
+                default:
+                    throw new IllegalArgumentException("不支持的 Provider 类型: " + type);
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("创建 Provider 失败: " + e.getMessage(), e);
+        }
     }
 
     /**
