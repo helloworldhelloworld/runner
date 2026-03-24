@@ -9,6 +9,7 @@ import com.lightweightai.assessment.model.AssessmentResult;
 import com.lightweightai.assessment.model.AssessmentSubmission;
 import com.lightweightai.assessment.model.ScaleDefinition;
 import com.lightweightai.assessment.model.ScaleType;
+import com.lightweightai.kernel.agent.DeviceContext;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.directive.ClientCapability;
 import com.lightweightai.kernel.agent.directive.ClientManifest;
@@ -272,6 +273,11 @@ public class VertxChatWebSocketHandler {
             .metadata("protocol", "websocket");
         if (model != null && !model.isEmpty()) {
             builder.metadata("model", model);
+        }
+        // 注入设备上下文（从端侧 Manifest 提取）
+        VertxWebSocketClientToolDispatcher dispatcher = dispatchers.get(ws.textHandlerID());
+        if (dispatcher != null && dispatcher.hasManifest()) {
+            builder.deviceContext(DeviceContext.fromManifest(dispatcher.getManifest()));
         }
         GatewayRequest request = builder.build();
 

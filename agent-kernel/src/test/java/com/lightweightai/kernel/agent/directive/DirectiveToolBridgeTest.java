@@ -56,8 +56,16 @@ class DirectiveToolBridgeTest {
 
         Tool tool = registry.get("NFC.ReadTag").orElse(null);
         assertNotNull(tool);
-        assertInstanceOf(ToolMetadata.class, tool);
-        assertTrue(((ToolMetadata) tool).isClientSide());
+        // 设备注册后 tool 是 DispatchingTool，resolve 得到原始 ClientToolWrapper
+        if (tool instanceof com.lightweightai.kernel.agent.DispatchingTool dt) {
+            Tool resolved = dt.resolve(com.lightweightai.kernel.agent.DeviceContext.of("ios", "1.0"));
+            assertNotNull(resolved);
+            assertInstanceOf(ToolMetadata.class, resolved);
+            assertTrue(((ToolMetadata) resolved).isClientSide());
+        } else {
+            assertInstanceOf(ToolMetadata.class, tool);
+            assertTrue(((ToolMetadata) tool).isClientSide());
+        }
     }
 
     @Test

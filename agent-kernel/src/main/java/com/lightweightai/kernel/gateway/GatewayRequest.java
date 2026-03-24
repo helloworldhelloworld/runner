@@ -1,5 +1,7 @@
 package com.lightweightai.kernel.gateway;
 
+import com.lightweightai.kernel.agent.DeviceContext;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -31,6 +33,14 @@ public class GatewayRequest {
     public String getMessage() { return message; }
     public Map<String, Object> getMetadata() { return new HashMap<>(metadata); }
     public long getTimestamp() { return timestamp; }
+
+    /**
+     * 获取设备上下文（从 metadata 读取）
+     */
+    public DeviceContext getDeviceContext() {
+        Object ctx = metadata.get("deviceContext");
+        return ctx instanceof DeviceContext ? (DeviceContext) ctx : DeviceContext.DEFAULT;
+    }
 
     public static Builder builder() {
         return new Builder();
@@ -64,6 +74,11 @@ public class GatewayRequest {
 
         public Builder metadata(Map<String, Object> metadata) {
             this.metadata.putAll(metadata);
+            return this;
+        }
+
+        public Builder deviceContext(DeviceContext deviceContext) {
+            this.metadata.put("deviceContext", deviceContext);
             return this;
         }
 

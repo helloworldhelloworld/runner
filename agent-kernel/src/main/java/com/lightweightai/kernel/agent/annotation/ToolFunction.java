@@ -77,4 +77,24 @@ public @interface ToolFunction {
      * 设为 true 时，工具不在服务端执行，而是通过 WebSocket 派发到客户端。
      */
     boolean clientSide() default false;
+
+    /**
+     * 适用的设备类型（如 "car", "phone", "android"）
+     *
+     * 空字符串表示不限设备（通用默认实现），与现有行为兼容。
+     * 当多个类声明同名工具但绑定不同 deviceType 时，
+     * ToolRegistry 自动汇聚为 DispatchingTool 按设备分发。
+     */
+    String deviceType() default "";
+
+    /**
+     * 适用的版本范围
+     *
+     * 支持语义版本表达式：
+     * - "*"                匹配所有版本（默认）
+     * - ">=2.0.0"          大于等于
+     * - ">=2.0.0,<3.0.0"   范围约束
+     * - "=2.1.0"           精确匹配
+     */
+    String versionRange() default "*";
 }

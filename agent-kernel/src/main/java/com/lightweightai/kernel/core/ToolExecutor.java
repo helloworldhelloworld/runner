@@ -1,5 +1,7 @@
 package com.lightweightai.kernel.core;
 
+import com.lightweightai.kernel.agent.DeviceContext;
+import com.lightweightai.kernel.agent.DispatchingTool;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
@@ -197,14 +199,31 @@ public class ToolExecutor {
         try {
             // Check if this tool should be dispatched to client
             if (context != null && context.hasClientDispatcher()) {
-                Tool tool = toolRegistry.get(toolCall.getName()).orElse(null);
+                Tool tool = resolveTool(toolCall.getName(), context);
                 if (tool != null && isClientSideTool(tool)) {
                     return executeOnClient(toolCall, context);
                 }
             }
 
-            // Fall through to normal server-side execution
-            return executeToolCall(toolCall);
+            // Resolve tool with device context if available
+            Tool tool = resolveTool(toolCall.getName(), context);
+            if (tool != null && toolRegistry.isEnabled(toolCall.getName())) {
+                return tool.execute(toolCall.getArguments())
+                    .withToolUseId(toolCall.getId());
+            }
+
+            // Fall back to legacy function registry
+            PluginFunction function = functionRegistry.get(toolCall.getName());
+            if (function == null) {
+                return ToolResult.error(toolCall.getId(),
+                    "Tool not found: " + toolCall.getName());
+            }
+            FunctionResult result = function.execute(toolCall.getArguments());
+            if (result.isSuccess()) {
+                return ToolResult.success(toolCall.getId(), result.getValue());
+            } else {
+                return ToolResult.error(toolCall.getId(), result.getError());
+            }
 
         } catch (Exception e) {
             return ToolResult.error(toolCall.getId(),
@@ -239,6 +258,20 @@ public class ToolExecutor {
             .thenApply(v -> futures.stream()
                 .map(CompletableFuture::join)
                 .collect(Collectors.toList()));
+    }
+
+    /**
+     * 解析工具实例，支持 DispatchingTool 设备分发
+     *
+     * 如果注册表中是 DispatchingTool 且上下文有设备信息，
+     * 则 resolve 到具体的设备实现；否则直接返回注册表中的 Tool。
+     */
+    private Tool resolveTool(String toolName, ToolExecutionContext context) {
+        Tool tool = toolRegistry.get(toolName).orElse(null);
+        if (tool instanceof DispatchingTool dt && context != null) {
+            return dt.resolve(context.getDeviceContext());
+        }
+        return tool;
     }
 
     /**
@@ -351,6 +384,36 @@ public class ToolExecutor {
         }
         List<Flux<ToolResultChunk>> fluxes = toolCalls.stream()
             .map(this::executeToolCallReactive)
+            .toList();
+        return Flux.merge(fluxes);
+    }
+
+    /**
+     * 单工具 reactive 调用（带设备上下文），支持 DispatchingTool 分发
+     */
+    public Flux<ToolResultChunk> executeToolCallReactive(ToolCall toolCall, ToolExecutionContext context) {
+        if (toolCall == null) {
+            return Flux.error(new IllegalArgumentException("ToolCall cannot be null"));
+        }
+        Tool tool = resolveTool(toolCall.getName(), context);
+        if (tool == null || !toolRegistry.isEnabled(toolCall.getName())) {
+            return Flux.just(ToolResultChunk.error(toolCall.getName(),
+                    "Tool not found: " + toolCall.getName())
+                .withToolCallId(toolCall.getId()));
+        }
+        return tool.executeReactive(toolCall.getArguments())
+            .map(chunk -> chunk.withToolCallId(toolCall.getId()));
+    }
+
+    /**
+     * 多工具并行 reactive 调用（带设备上下文）
+     */
+    public Flux<ToolResultChunk> executeToolCallsReactive(List<ToolCall> toolCalls, ToolExecutionContext context) {
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            return Flux.empty();
+        }
+        List<Flux<ToolResultChunk>> fluxes = toolCalls.stream()
+            .map(tc -> executeToolCallReactive(tc, context))
             .toList();
         return Flux.merge(fluxes);
     }
