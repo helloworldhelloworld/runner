@@ -269,7 +269,7 @@ public class ToolCallingLoop {
 
                     // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
                     Flux<ToolResultChunk> sharedToolExec = toolExecutor
-                        .executeToolCallsReactive(toolCalls)
+                        .executeToolCallsReactive(toolCalls, executionContext)
                         .cache();
 
                     // 流式发出 TOOL_PROGRESS / TOOL_LOG / TOOL_RESULT 事件

@@ -149,6 +149,29 @@ public class AnnotatedToolWrapper implements Tool, ToolMetadata {
         return annotation.clientSide();
     }
 
+    // ==================== 设备绑定信息 ====================
+
+    /**
+     * 获取工具绑定的设备类型
+     */
+    public String getDeviceType() {
+        return annotation.deviceType();
+    }
+
+    /**
+     * 获取工具绑定的版本范围表达式
+     */
+    public String getVersionRange() {
+        return annotation.versionRange();
+    }
+
+    /**
+     * 是否声明了设备绑定（deviceType 非空）
+     */
+    public boolean hasDeviceBinding() {
+        return !annotation.deviceType().isEmpty();
+    }
+
     // ==================== 内部逻辑 ====================
 
     /**

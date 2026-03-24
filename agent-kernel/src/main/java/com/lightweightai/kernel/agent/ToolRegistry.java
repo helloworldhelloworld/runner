@@ -1,6 +1,7 @@
 package com.lightweightai.kernel.agent;
 
 import com.lightweightai.kernel.agent.annotation.AnnotatedToolScanner;
+import com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapper;
 import com.lightweightai.kernel.agent.annotation.ClientTool;
 import com.lightweightai.kernel.agent.directive.DirectiveDescriptor;
 import com.lightweightai.kernel.agent.directive.DirectiveRegistry;
@@ -42,11 +43,99 @@ public class ToolRegistry {
 
     /**
      * 注册工具
+     *
+     * 如果工具是 AnnotatedToolWrapper 且声明了 deviceType，自动走设备感知注册。
+     * 如果目标位已是 DispatchingTool，则设为其 default。
      */
     public void register(Tool tool) {
         Objects.requireNonNull(tool, "Tool cannot be null");
         Objects.requireNonNull(tool.getName(), "Tool name cannot be null");
-        tools.put(tool.getName(), tool);
+
+        // 注解声明了 deviceType 的工具，走设备感知注册
+        if (tool instanceof AnnotatedToolWrapper atw && atw.hasDeviceBinding()) {
+            registerWithDevice(tool, atw.getDeviceType(),
+                VersionRange.parse(atw.getVersionRange()), 0);
+            return;
+        }
+
+        // 普通注册：如果目标位已是 DispatchingTool，设为 default
+        tools.compute(tool.getName(), (name, existing) -> {
+            if (existing instanceof DispatchingTool dt) {
+                dt.setDefaultTool(tool);
+                return dt;
+            }
+            return tool;
+        });
+        registerDirectiveIfPresent(tool);
+    }
+
+    /**
+     * 注册设备专用工具变体
+     *
+     * @param tool         工具实现
+     * @param deviceType   设备类型（如 "car", "phone"）
+     * @param versionRange 版本范围
+     */
+    public void register(Tool tool, String deviceType, VersionRange versionRange) {
+        registerWithDevice(tool, deviceType, versionRange, 0);
+    }
+
+    /**
+     * 注册设备专用工具变体（带优先级）
+     *
+     * @param tool         工具实现
+     * @param deviceType   设备类型
+     * @param versionRange 版本范围
+     * @param priority     优先级（高优先级优先匹配）
+     */
+    public void register(Tool tool, String deviceType, VersionRange versionRange, int priority) {
+        registerWithDevice(tool, deviceType, versionRange, priority);
+    }
+
+    /**
+     * 注销指定设备类型在某工具名下的所有绑定
+     *
+     * 如果 DispatchingTool 变空，则整体移除。
+     */
+    public void unregisterDevice(String toolName, String deviceType) {
+        tools.computeIfPresent(toolName, (name, existing) -> {
+            if (existing instanceof DispatchingTool dt) {
+                dt.removeBindingsForDevice(deviceType);
+                if (dt.isEmpty()) {
+                    disabledTools.remove(name);
+                    directiveRegistry.unregister(name);
+                    return null; // 移除
+                }
+                return dt;
+            }
+            return existing;
+        });
+    }
+
+    private void registerWithDevice(Tool tool, String deviceType, VersionRange versionRange, int priority) {
+        Objects.requireNonNull(tool, "Tool cannot be null");
+        Objects.requireNonNull(tool.getName(), "Tool name cannot be null");
+        Objects.requireNonNull(deviceType, "deviceType cannot be null");
+        Objects.requireNonNull(versionRange, "versionRange cannot be null");
+
+        DeviceToolBinding binding = new DeviceToolBinding(deviceType, versionRange, tool, priority);
+
+        tools.compute(tool.getName(), (name, existing) -> {
+            if (existing instanceof DispatchingTool dt) {
+                dt.addBinding(binding);
+                return dt;
+            } else if (existing != null) {
+                // 升级已有普通 Tool 为 DispatchingTool，旧 tool 变 default
+                DispatchingTool dt = new DispatchingTool(name, existing);
+                dt.addBinding(binding);
+                return dt;
+            } else {
+                // 首次注册
+                DispatchingTool dt = new DispatchingTool(name);
+                dt.addBinding(binding);
+                return dt;
+            }
+        });
         registerDirectiveIfPresent(tool);
     }
 

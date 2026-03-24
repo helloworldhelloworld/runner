@@ -4,6 +4,7 @@ import com.lightweightai.kernel.agent.ClientToolDispatcher;
 import com.lightweightai.kernel.agent.ClientToolWrapper;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.ToolSchema;
+import com.lightweightai.kernel.agent.VersionRange;
 import com.lightweightai.kernel.llm.ToolResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,7 +74,8 @@ public class DirectiveToolBridge {
                     cap.getDefaultTimeoutMs()
                 );
 
-                toolRegistry.register(wrapper);
+                toolRegistry.register(wrapper, manifest.getClientType(),
+                    VersionRange.exact(manifest.getClientVersion()));
                 registered.add(toolName);
                 logger.info("Registered directive tool: {} (from {} {})",
                     toolName, manifest.getClientType(), manifest.getClientVersion());
@@ -100,8 +102,8 @@ public class DirectiveToolBridge {
 
         for (ClientCapability cap : manifest.getCapabilities()) {
             String toolName = cap.toToolName();
-            toolRegistry.unregister(toolName);
-            logger.info("Unregistered directive tool: {}", toolName);
+            toolRegistry.unregisterDevice(toolName, manifest.getClientType());
+            logger.info("Unregistered directive tool: {} (device={})", toolName, manifest.getClientType());
         }
     }
 
