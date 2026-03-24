@@ -158,6 +158,12 @@ public class AgentConfig {
                     }
                     return new ResilientLLMProvider(
                         new ClaudeProvider(apiKey, model != null && !model.isBlank() ? model : "claude-3-5-sonnet-20241022"), 2, 1000);
+                case "ws":
+                    if (baseUrl == null || baseUrl.isBlank()) {
+                        throw new IllegalArgumentException("WebSocket 模式需要填写 WS 地址");
+                    }
+                    return new ResilientLLMProvider(
+                        new OpenAIWebSocketProvider(baseUrl, model, apiKey), 2, 1000);
                 case "mock":
                     return new MockLLMProvider();
                 default:

@@ -22,19 +22,29 @@
         <label class="block text-sm font-medium text-gray-700 mb-1.5">Provider 类型</label>
         <select v-model="form.providerType"
           class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white">
-          <option value="openrouter">OpenRouter / OpenAI 兼容</option>
+          <option value="openrouter">OpenRouter / OpenAI 兼容 (HTTP)</option>
+          <option value="ws">WebSocket 网关 (OpenAI 兼容)</option>
           <option value="api">Claude API (Anthropic 官方)</option>
           <option value="mock">Mock (测试模式)</option>
         </select>
-        <p class="text-xs text-gray-400 mt-1">OpenRouter 兼容 OpenAI 格式，可用于自建 LLM 网关</p>
+        <p class="text-xs text-gray-400 mt-1">
+          {{ form.providerType === 'ws' ? 'WebSocket 模式适用于自建的 WS LLM 网关' : 'OpenRouter 兼容 OpenAI 格式，可用于自建 HTTP LLM 网关' }}
+        </p>
       </div>
 
-      <!-- Base URL -->
-      <div v-if="form.providerType === 'openrouter'">
-        <label class="block text-sm font-medium text-gray-700 mb-1.5">API 地址 (Base URL)</label>
-        <input v-model="form.baseUrl" type="text" placeholder="留空使用 OpenRouter 默认地址，或输入自建网关地址"
+      <!-- Base URL / WS URL -->
+      <div v-if="form.providerType === 'openrouter' || form.providerType === 'ws'">
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">
+          {{ form.providerType === 'ws' ? 'WebSocket 地址' : 'API 地址 (Base URL)' }}
+        </label>
+        <input v-model="form.baseUrl" type="text"
+          :placeholder="form.providerType === 'ws' ? 'ws://10.32.101.24:8086/ws/chat' : '留空使用 OpenRouter 默认地址，或输入自建网关地址'"
           class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-        <p class="text-xs text-gray-400 mt-1">示例: https://openrouter.ai/api/v1 或 http://10.32.101.24:8086/llm/openai</p>
+        <p class="text-xs text-gray-400 mt-1">
+          {{ form.providerType === 'ws'
+            ? '示例: ws://10.32.101.24:8086/ws/chat 或 wss://llm-gateway.example.com/ws'
+            : '示例: https://openrouter.ai/api/v1 或 http://10.32.101.24:8086/llm/openai' }}
+        </p>
       </div>
 
       <!-- API Key -->
