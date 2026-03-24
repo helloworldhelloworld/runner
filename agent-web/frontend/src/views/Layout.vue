@@ -65,8 +65,8 @@ const navItems = [
   { path: '/client-tools', icon: '📱', label: '端工具', adminOnly: false },
   { path: '/skill-creator', icon: '🧩', label: 'Skill Creator', adminOnly: false },
   { path: '/memory', icon: '🧠', label: '记忆', adminOnly: false },
-  { path: '/assessment', icon: '📋', label: '心理测评', adminOnly: false },
-  { path: '/emotion', icon: '💝', label: '情绪记录', adminOnly: false },
+  // { path: '/assessment', icon: '📋', label: '心理测评', adminOnly: false },
+  // { path: '/emotion', icon: '💝', label: '情绪记录', adminOnly: false },
   { path: '/model-config', icon: '🤖', label: '模型配置', adminOnly: true },
   { path: '/system', icon: '⚙️', label: '系统', adminOnly: false },
   { path: '/admin', icon: '👤', label: '用户管理', adminOnly: true }
