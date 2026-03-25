@@ -4,9 +4,8 @@ import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import reactor.test.StepVerifier;
 
-import java.time.Duration;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,12 +28,11 @@ class ProgressNotificationRouterTest {
     @DisplayName("register 返回 Flux，complete 后正常结束")
     void registerAndComplete() {
         var flux = router.register("token-1");
-
         router.complete("token-1");
 
-        StepVerifier.create(flux)
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        List<McpSchema.ProgressNotification> results = flux.collectList().block();
+        assertNotNull(results);
+        assertTrue(results.isEmpty());
     }
 
     @Test
@@ -47,13 +45,11 @@ class ProgressNotificationRouterTest {
         router.route(notification);
         router.complete("token-A");
 
-        StepVerifier.create(flux)
-                .assertNext(n -> {
-                    assertEquals("token-A", n.progressToken().toString());
-                    assertEquals(0.5, n.progress());
-                })
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        List<McpSchema.ProgressNotification> results = flux.collectList().block();
+        assertNotNull(results);
+        assertEquals(1, results.size());
+        assertEquals("token-A", results.get(0).progressToken().toString());
+        assertEquals(0.5, results.get(0).progress());
     }
 
     @Test
@@ -68,14 +64,15 @@ class ProgressNotificationRouterTest {
         router.complete("A");
         router.complete("B");
 
-        StepVerifier.create(fluxA)
-                .assertNext(n -> assertEquals(0.3, n.progress()))
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        List<McpSchema.ProgressNotification> resultsA = fluxA.collectList().block();
+        List<McpSchema.ProgressNotification> resultsB = fluxB.collectList().block();
 
-        StepVerifier.create(fluxB)
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        assertNotNull(resultsA);
+        assertEquals(1, resultsA.size());
+        assertEquals(0.3, resultsA.get(0).progress());
+
+        assertNotNull(resultsB);
+        assertTrue(resultsB.isEmpty());
     }
 
     @Test
@@ -110,9 +107,8 @@ class ProgressNotificationRouterTest {
         }
         router.complete("multi");
 
-        StepVerifier.create(flux)
-                .expectNextCount(3)
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        List<McpSchema.ProgressNotification> results = flux.collectList().block();
+        assertNotNull(results);
+        assertEquals(3, results.size());
     }
 }

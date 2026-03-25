@@ -4,9 +4,8 @@ import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import reactor.test.StepVerifier;
 
-import java.time.Duration;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -31,9 +30,9 @@ class LoggingNotificationRouterTest {
         var flux = router.register("log-1");
         router.complete("log-1");
 
-        StepVerifier.create(flux)
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        List<McpSchema.LoggingMessageNotification> results = flux.collectList().block();
+        assertNotNull(results);
+        assertTrue(results.isEmpty());
     }
 
     @Test
@@ -48,15 +47,14 @@ class LoggingNotificationRouterTest {
         router.complete("A");
         router.complete("B");
 
-        StepVerifier.create(fluxA)
-                .assertNext(n -> assertNotNull(n))
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        List<McpSchema.LoggingMessageNotification> resultsA = fluxA.collectList().block();
+        List<McpSchema.LoggingMessageNotification> resultsB = fluxB.collectList().block();
 
-        StepVerifier.create(fluxB)
-                .assertNext(n -> assertNotNull(n))
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        assertNotNull(resultsA);
+        assertEquals(1, resultsA.size());
+
+        assertNotNull(resultsB);
+        assertEquals(1, resultsB.size());
     }
 
     @Test
@@ -71,14 +69,14 @@ class LoggingNotificationRouterTest {
         router.complete("A");
         router.complete("B");
 
-        StepVerifier.create(fluxA)
-                .assertNext(n -> assertNotNull(n))
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        List<McpSchema.LoggingMessageNotification> resultsA = fluxA.collectList().block();
+        List<McpSchema.LoggingMessageNotification> resultsB = fluxB.collectList().block();
 
-        StepVerifier.create(fluxB)
-                .expectComplete()
-                .verify(Duration.ofSeconds(2));
+        assertNotNull(resultsA);
+        assertEquals(1, resultsA.size());
+
+        assertNotNull(resultsB);
+        assertTrue(resultsB.isEmpty());
     }
 
     @Test
