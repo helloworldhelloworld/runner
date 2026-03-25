@@ -77,9 +77,7 @@ class GatewayReactiveTest {
 
         gw.handleStream(request, new GatewayStreamHandler() {
             @Override
-            public void onDelta(String delta) {
-                // default - not used when metadata variant is called
-            }
+            public void onDelta(String delta) {}
             @Override
             public void onDelta(String delta, Map<String, Object> metadata) {
                 deltas.add(delta);
