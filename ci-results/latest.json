@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "3a191288969e7da96ac95a3c31e8a45b1cf3e89b",
-  "exit_code": 0,
-  "timestamp": "2026-04-03T19:31:28Z",
+  "trigger_sha": "5c1cbf2e54cbfcb1dfe374112207693822b0e64a",
+  "exit_code": 1,
+  "timestamp": "2026-03-25T19:19:53Z",
   "branch": "claude/add-critical-path-unit-tests",
-  "run_id": "23959307283",
-  "test_summary": "[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.036 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s - in com.lightweightai.web.agent.ReflectionServiceTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.1 s - in com.lightweightai.web.gateway.GatewayServiceTest|[WARNING] Tests run: 218, Failures: 0, Errors: 0, Skipped: 20|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.052 s - in com.lightweightai.plugin.example.PluginToolTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0|"
+  "run_id": "23559637581",
+  "test_summary": "[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.gateway.GatewayResponseTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.016 s - in com.lightweightai.kernel.skill.SkillRegistryTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s - in com.lightweightai.kernel.skill.SkillLoaderTest|[INFO] Tests run: 607, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.066 s - in com.lightweightai.tools.time.TimeToolsTest|[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.141 s - in com.lightweightai.tools.ToolRegistryIntegrationTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.tools.weather.CheckWeatherToolTest|[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.018 s - in com.lightweightai.tools.math.MathToolsTest|[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.027 s - in com.lightweightai.tools.client.ClientToolIntegrationTest|[INFO] Tests run: 42, Failures: 0, Errors: 0, Skipped: 0|"
 }
