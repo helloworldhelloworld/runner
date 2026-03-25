@@ -17,6 +17,7 @@ const routes = [
       { path: 'tools', name: 'Tools', component: () => import('../views/Tools.vue') },
       { path: 'client-tools', name: 'ClientTools', component: () => import('../views/ClientTools.vue') },
       { path: 'skill-creator', name: 'SkillCreator', component: () => import('../views/SkillCreator.vue') },
+      { path: 'skill-tester', name: 'SkillTester', component: () => import('../views/SkillTester.vue') },
       { path: 'memory', name: 'Memory', component: () => import('../views/Memory.vue') },
       // { path: 'assessment', name: 'Assessment', component: () => import('../views/Assessment.vue') },
       // { path: 'emotion', name: 'Emotion', component: () => import('../views/Emotion.vue') },

@@ -39,7 +39,7 @@ public class AssessmentController {
     }
 
     @GetMapping("/scales/{type}")
-    public ResponseEntity<ScaleDefinition> getScale(@PathVariable String type) {
+    public ResponseEntity<ScaleDefinition> getScale(@PathVariable("type") String type) {
         try {
             ScaleType scaleType = ScaleType.valueOf(type.toUpperCase());
             return ResponseEntity.ok(assessmentService.getScale(scaleType));
@@ -66,7 +66,7 @@ public class AssessmentController {
     }
 
     @GetMapping("/{userId}/history")
-    public ResponseEntity<List<AssessmentResult>> getHistory(@PathVariable String userId) {
+    public ResponseEntity<List<AssessmentResult>> getHistory(@PathVariable("userId") String userId) {
         return ResponseEntity.ok(assessmentService.getHistory(userId));
     }
 

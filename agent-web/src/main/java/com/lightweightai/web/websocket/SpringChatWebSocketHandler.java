@@ -29,6 +29,8 @@ import com.lightweightai.web.service.AuthSessionService;
 import com.lightweightai.web.service.ChatService;
 import com.lightweightai.web.service.SoulComfortChatService;
 import com.lightweightai.web.skillcreator.SkillCreatorService;
+import com.lightweightai.web.skillcreator.SkillTestCase;
+import com.lightweightai.web.skillcreator.SkillTestCaseRepository;
 import com.lightweightai.web.skillcreator.SkillDraft;
 import com.lightweightai.web.skillcreator.ToolSchemaEntry;
 import com.lightweightai.web.skillcreator.ToolSchemaRepository;
@@ -68,6 +70,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private final SessionAwareClientToolDispatcher sessionAwareDispatcher;
     private final SkillCreatorService skillCreatorService;
     private final ToolSchemaRepository toolSchemaRepository;
+    private final SkillTestCaseRepository skillTestCaseRepository;
     private final AuthSessionService authSessionService;
 
     private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
@@ -90,6 +93,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                                        SessionAwareClientToolDispatcher sessionAwareDispatcher,
                                        SkillCreatorService skillCreatorService,
                                        ToolSchemaRepository toolSchemaRepository,
+                                       SkillTestCaseRepository skillTestCaseRepository,
                                        AuthSessionService authSessionService) {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
@@ -103,6 +107,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         this.sessionAwareDispatcher = sessionAwareDispatcher;
         this.skillCreatorService = skillCreatorService;
         this.toolSchemaRepository = toolSchemaRepository;
+        this.skillTestCaseRepository = skillTestCaseRepository;
         this.authSessionService = authSessionService;
         this.clientToolResultRouter = new ClientToolResultRouter(MAPPER, toolRegistry);
     }
@@ -307,6 +312,43 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                     String scSessionId = payload.path("sessionId").asText(session.getId());
                     sendResponse(session, "skill_creator_draft", requestId,
                         skillCreatorService.getDraft(scSessionId).toMap());
+                }
+
+                // ==================== Skill Test Cases ====================
+                case "skill_test_list" -> {
+                    String skillId = payload.path("skillId").asText("");
+                    sendResponse(session, "skill_test_cases", requestId,
+                        skillTestCaseRepository.findBySkillId(skillId));
+                }
+                case "skill_test_save" -> {
+                    try {
+                        SkillTestCase tc = MAPPER.treeToValue(payload.get("testCase"), SkillTestCase.class);
+                        SkillTestCase saved = skillTestCaseRepository.save(tc);
+                        sendResponse(session, "skill_test_saved", requestId, Map.of("id", saved.getId()));
+                    } catch (Exception e) {
+                        sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                    }
+                }
+                case "skill_test_save_batch" -> {
+                    try {
+                        List<SkillTestCase> cases = MAPPER.treeToValue(
+                            payload.get("testCases"),
+                            MAPPER.getTypeFactory().constructCollectionType(List.class, SkillTestCase.class));
+                        skillTestCaseRepository.saveAll(cases);
+                        sendResponse(session, "skill_test_batch_saved", requestId, Map.of("count", cases.size()));
+                    } catch (Exception e) {
+                        sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                    }
+                }
+                case "skill_test_delete" -> {
+                    String tcId = payload.path("testCaseId").asText("");
+                    boolean ok = skillTestCaseRepository.delete(tcId);
+                    sendResponse(session, "skill_test_deleted", requestId, Map.of("success", ok));
+                }
+                case "skill_test_delete_all" -> {
+                    String skillId = payload.path("skillId").asText("");
+                    int count = skillTestCaseRepository.deleteBySkillId(skillId);
+                    sendResponse(session, "skill_test_all_deleted", requestId, Map.of("deleted", count));
                 }
 
                 // ==================== Tool Schema ====================

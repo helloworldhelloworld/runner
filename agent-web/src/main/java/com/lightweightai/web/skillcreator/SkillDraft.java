@@ -17,6 +17,9 @@ public class SkillDraft {
     private String id;
     private String name;
     private String description;
+    private String version = "1.0.0";
+    private String category;  // 工具类 | 对话类 | 分析类
+    private String scope = "对话内可用";
 
     @JsonProperty("systemPrompt")
     private String systemPrompt;
@@ -45,6 +48,15 @@ public class SkillDraft {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public String getVersion() { return version; }
+    public void setVersion(String version) { this.version = version != null ? version : "1.0.0"; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+
+    public String getScope() { return scope; }
+    public void setScope(String scope) { this.scope = scope; }
 
     public String getSystemPrompt() { return systemPrompt; }
     public void setSystemPrompt(String systemPrompt) { this.systemPrompt = systemPrompt; }
@@ -81,6 +93,9 @@ public class SkillDraft {
         if (id != null) map.put("id", id);
         if (name != null) map.put("name", name);
         if (description != null) map.put("description", description);
+        if (version != null) map.put("version", version);
+        if (category != null) map.put("category", category);
+        if (scope != null) map.put("scope", scope);
         if (systemPrompt != null) map.put("systemPrompt", systemPrompt);
         if (!toolNames.isEmpty()) map.put("toolNames", toolNames);
         if (!triggers.isEmpty()) map.put("triggers", triggers);

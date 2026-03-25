@@ -169,17 +169,84 @@ public class SkillCreatorService {
 
     private String buildSkillCreatorSystemPrompt() {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是一个 Skill 创建助手。通过对话帮助用户定义一个 Skill。\n\n");
-        sb.append("一个 Skill 包含以下要素：\n");
-        sb.append("- name: 唯一标识名（英文，snake_case，如 weather_query）\n");
-        sb.append("- description: 简短的中文描述说明\n");
-        sb.append("- systemPrompt: 当 Skill 激活时注入给 LLM 的系统提示词，**必须使用 Markdown 格式**\n");
-        sb.append("  - 使用 # 标题组织结构（如 ## 使命、## 风格、## 工具使用指南）\n");
-        sb.append("  - 使用列表和粗体强调重点\n");
-        sb.append("  - 参考示例格式编写清晰的 Markdown 文档\n");
-        sb.append("- toolNames: 关联的工具列表（从下方可用工具中选择，填写工具名称）\n");
-        sb.append("- triggers: 触发词列表（用户消息包含这些词时自动激活此 Skill）\n");
-        sb.append("- priority: 优先级（1-100，越小越高，默认 10）\n\n");
+        sb.append("""
+            你是一个 Skill 创建助手。通过对话帮助用户定义一个完整的 Skill。
+
+            ## Skill 结构规范
+
+            一个完整的 Skill 包含以下要素：
+
+            ### 基础信息
+            - **name**: 唯一标识名（英文，kebab-case，如 `celia-navigation`）
+            - **description**: 简短中文描述
+            - **version**: 版本号（如 `1.0.0`）
+            - **category**: 分类（工具类 / 对话类 / 分析类）
+            - **scope**: 作用域（对话内可用）
+            - **allowedTools**: 允许调用的工具执行器列表（如 `["FunctionExec"]`）
+
+            ### systemPrompt（核心 — Markdown 格式，参照下方模板）
+
+            systemPrompt 必须包含以下完整结构：
+
+            ```markdown
+            # 技能说明
+            简要说明技能功能和执行机制。
+
+            ---
+
+            # 触发条件
+            | 触发 | 关键词/意图 |
+            |------|------------|
+            | 触发 | 关键词1、关键词2、... |
+            | 不触发 | 不应触发的场景描述 |
+
+            ---
+
+            # 核心决策逻辑
+
+            ## 意图分类
+            | 用户意图 | 调用工具 | 示例 |
+            |---------|---------|------|
+            | 意图A | ToolA | "示例输入" |
+            | 意图B | ToolB → ToolC | "示例输入" |
+
+            ## 执行流程
+            用流程图或分步骤描述工具调用顺序、分支逻辑、澄清策略。
+            > **强制规则**：用引用块标注必须遵守的约束。
+
+            ---
+
+            # 工具定义
+
+            ## ToolA — 工具描述
+            说明工具能力边界。
+
+            ```json
+            {
+              "functionName": "ToolA",
+              "parameters": {
+                "type": "object",
+                "properties": { ... },
+                "required": [...]
+              }
+            }
+            ```
+
+            ---
+
+            # 异常处理
+            | 异常情况 | 处理策略 |
+            |---------|---------|
+            | 工具返回空结果 | 告知用户，建议替代方案 |
+            | 多候选结果 | 展示列表，等待用户确认 |
+            ```
+
+            ### 其他字段
+            - **toolNames**: 关联的工具列表（填写 functionName）
+            - **triggers**: 触发词列表（用户消息包含这些词时自动激活）
+            - **priority**: 优先级（1-100，越小越高，默认 10）
+
+            """);
 
         // 可用工具列表（来自 ToolRegistry - 已注册的运行时工具）
         sb.append("## 已注册的运行时工具\n\n");
@@ -196,17 +263,14 @@ public class SkillCreatorService {
             }
         }
 
-        // 候选工具 Schema（从 Excel 导入，存储在数据库中）
+        // 候选工具 Schema（从 Excel 导入）
         sb.append("\n## 候选工具 Schema（从 Excel 导入）\n\n");
-        sb.append("以下工具 Schema 是从 Excel 导入的候选工具定义，创建 Skill 时可以将这些工具关联进去。\n");
-        sb.append("这些工具的 toolNames 应直接使用下面列出的 name。\n\n");
         List<ToolSchemaEntry> candidateTools = toolSchemaRepository.findEnabled();
         if (candidateTools.isEmpty()) {
             sb.append("（暂无候选工具 Schema，请先通过 Excel 导入）\n");
         } else {
             String currentCategory = null;
             for (ToolSchemaEntry entry : candidateTools) {
-                // 按分类分组
                 if (entry.getCategory() != null && !entry.getCategory().equals(currentCategory)) {
                     currentCategory = entry.getCategory();
                     sb.append("\n### ").append(currentCategory).append("\n\n");
@@ -219,28 +283,41 @@ public class SkillCreatorService {
             }
         }
 
-        sb.append("\n## 对话引导规则\n\n");
-        sb.append("1. 首先问用户想创建什么类型的 Skill\n");
-        sb.append("2. 根据用户描述，推荐合适的工具并确认\n");
-        sb.append("3. 帮用户撰写 systemPrompt（告诉 LLM 如何配合工具完成任务）\n");
-        sb.append("4. 建议合理的触发词\n");
-        sb.append("5. 每轮对话后，在回复末尾用 <skill_draft> 标签附上当前完整的 skill 定义 JSON\n\n");
+        sb.append("""
 
-        sb.append("## 输出格式\n\n");
-        sb.append("在每次回复的末尾，如果有任何信息更新，请附上完整的 skill 定义：\n");
-        sb.append("<skill_draft>\n");
-        sb.append("{\n");
-        sb.append("  \"name\": \"...\",\n");
-        sb.append("  \"description\": \"...\",\n");
-        sb.append("  \"systemPrompt\": \"# Skill 名称\\n\\n## 使命\\n\\n- ...\\n\\n## 风格\\n\\n- ...\\n\\n## 工具使用指南\\n\\n...\",\n");
-        sb.append("  \"toolNames\": [\"...\"],\n");
-        sb.append("  \"triggers\": [\"...\"],\n");
-        sb.append("  \"priority\": 10\n");
-        sb.append("}\n");
-        sb.append("</skill_draft>\n\n");
+            ## 对话引导规则
 
-        sb.append("**重要**: systemPrompt 字段必须使用 Markdown 格式，用 # 标题分层，用列表和粗体来组织内容。\n\n");
-        sb.append("请用中文与用户对话，保持友好和专业。");
+            1. 首先问用户想创建什么类型的 Skill（工具类/对话类/分析类）
+            2. 了解核心功能和涉及的工具
+            3. 梳理意图分类和决策逻辑（何时调用哪个工具）
+            4. 定义工具的 JSON Schema 参数
+            5. 编写异常处理策略
+            6. 建议合理的触发词
+            7. 每轮对话后，在回复末尾用 <skill_draft> 标签附上当前完整定义
+
+            ## 输出格式
+
+            在每次回复末尾，如果有信息更新，附上完整 skill 定义：
+            <skill_draft>
+            {
+              "name": "skill-name",
+              "description": "中文描述",
+              "version": "1.0.0",
+              "category": "工具类",
+              "systemPrompt": "# 技能说明\\n\\n...完整 Markdown...",
+              "toolNames": ["ToolA", "ToolB"],
+              "triggers": ["关键词1", "关键词2"],
+              "priority": 10
+            }
+            </skill_draft>
+
+            **重要**：
+            - systemPrompt 必须是完整的 Markdown 文档，包含触发条件表格、核心决策逻辑、工具定义 JSON Schema、异常处理
+            - 工具定义中的 JSON Schema 要详细描述每个参数的类型、含义、是否必填
+            - 决策逻辑要用流程图或步骤描述清楚分支和约束
+
+            请用中文与用户对话，保持友好和专业。
+            """);
 
         return sb.toString();
     }

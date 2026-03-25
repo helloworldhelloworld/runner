@@ -29,6 +29,7 @@ import com.lightweightai.tools.client.GetPositionTool;
 import com.lightweightai.tools.web.WebTools;
 import com.lightweightai.web.skillcreator.SkillCreatorService;
 import com.lightweightai.web.skillcreator.SkillRepository;
+import com.lightweightai.web.skillcreator.SkillTestCaseRepository;
 import com.lightweightai.web.skillcreator.ToolSchemaRepository;
 import com.lightweightai.web.websocket.SessionAwareClientToolDispatcher;
 import org.slf4j.Logger;
@@ -483,6 +484,11 @@ public class AgentConfig {
             logger.warn("Failed to create skill-creator db directory: {}", e.getMessage());
         }
         return new SkillRepository(skillCreatorDbPath);
+    }
+
+    @Bean
+    public SkillTestCaseRepository skillTestCaseRepository() {
+        return new SkillTestCaseRepository(skillCreatorDbPath);
     }
 
     @Bean

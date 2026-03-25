@@ -225,6 +225,13 @@ export const skillCreatorDelete = (skillId) => _sendRequest('skill_creator_delet
 export const skillCreatorLoad = (skillId, sessionId) => _sendRequest('skill_creator_load', { skillId, sessionId })
 export const skillCreatorGetDraft = (sessionId) => _sendRequest('skill_creator_get_draft', { sessionId })
 
+// ========== Skill Test Cases ==========
+export const skillTestList = (skillId) => _sendRequest('skill_test_list', { skillId })
+export const skillTestSave = (testCase) => _sendRequest('skill_test_save', { testCase })
+export const skillTestSaveBatch = (testCases) => _sendRequest('skill_test_save_batch', { testCases })
+export const skillTestDelete = (testCaseId) => _sendRequest('skill_test_delete', { testCaseId })
+export const skillTestDeleteAll = (skillId) => _sendRequest('skill_test_delete_all', { skillId })
+
 // ========== Client Tool Simulation ==========
 
 async function _handleServerToolRequest(msg) {

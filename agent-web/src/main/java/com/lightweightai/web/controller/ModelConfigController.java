@@ -148,7 +148,7 @@ public class ModelConfigController {
      * PUT /api/model-config/presets/{name}/apply - Load and apply a saved preset
      */
     @PutMapping("/presets/{name}/apply")
-    public Map<String, Object> applyPreset(@PathVariable String name,
+    public Map<String, Object> applyPreset(@PathVariable("name") String name,
                                             HttpServletRequest request) {
         if (!isAdmin(request)) {
             throw new ForbiddenException("权限不足，需要管理员权限");
@@ -185,7 +185,7 @@ public class ModelConfigController {
      * DELETE /api/model-config/presets/{name} - Delete a saved preset
      */
     @DeleteMapping("/presets/{name}")
-    public Map<String, Object> deletePreset(@PathVariable String name,
+    public Map<String, Object> deletePreset(@PathVariable("name") String name,
                                              HttpServletRequest request) {
         if (!isAdmin(request)) {
             throw new ForbiddenException("权限不足，需要管理员权限");

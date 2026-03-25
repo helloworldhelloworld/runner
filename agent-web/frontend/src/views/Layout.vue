@@ -64,6 +64,7 @@ const navItems = [
   { path: '/tools', icon: '🔧', label: '工具/技能', adminOnly: false },
   { path: '/client-tools', icon: '📱', label: '端工具', adminOnly: false },
   { path: '/skill-creator', icon: '🧩', label: 'Skill Creator', adminOnly: false },
+  { path: '/skill-tester', icon: '🧪', label: 'Skill Tester', adminOnly: false },
   { path: '/memory', icon: '🧠', label: '记忆', adminOnly: false },
   // { path: '/assessment', icon: '📋', label: '心理测评', adminOnly: false },
   // { path: '/emotion', icon: '💝', label: '情绪记录', adminOnly: false },

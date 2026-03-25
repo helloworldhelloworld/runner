@@ -82,7 +82,7 @@ public class ToolSchemaController {
      * 删除工具 Schema
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> delete(@PathVariable String id) {
+    public ResponseEntity<Map<String, Object>> delete(@PathVariable("id") String id) {
         boolean ok = toolSchemaRepository.delete(id);
         return ResponseEntity.ok(Map.of("success", ok));
     }

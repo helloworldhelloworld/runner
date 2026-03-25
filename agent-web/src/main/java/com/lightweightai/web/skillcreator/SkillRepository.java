@@ -44,6 +44,13 @@ public class SkillRepository {
                         updated_at TEXT
                     )
                     """);
+                // 增量迁移：新增列（SQLite ALTER TABLE 不报错如果列已存在则忽略）
+                for (String col : List.of(
+                        "ALTER TABLE skills ADD COLUMN version TEXT DEFAULT '1.0.0'",
+                        "ALTER TABLE skills ADD COLUMN category TEXT",
+                        "ALTER TABLE skills ADD COLUMN scope TEXT DEFAULT '对话内可用'")) {
+                    try { stmt.execute(col); } catch (SQLException ignored) { /* 列已存在 */ }
+                }
             }
             logger.info("SkillRepository initialized: {}", dbPath);
         } catch (SQLException e) {
@@ -69,11 +76,14 @@ public class SkillRepository {
 
         String now = Instant.now().toString();
         String sql = """
-            INSERT INTO skills (id, name, description, system_prompt, tools_json, triggers_json, priority, metadata_json, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO skills (id, name, description, version, category, scope, system_prompt, tools_json, triggers_json, priority, metadata_json, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 description = excluded.description,
+                version = excluded.version,
+                category = excluded.category,
+                scope = excluded.scope,
                 system_prompt = excluded.system_prompt,
                 tools_json = excluded.tools_json,
                 triggers_json = excluded.triggers_json,
@@ -87,14 +97,17 @@ public class SkillRepository {
             ps.setString(1, draft.getId());
             ps.setString(2, draft.getName());
             ps.setString(3, draft.getDescription());
-            ps.setString(4, draft.getSystemPrompt());
-            ps.setString(5, MAPPER.writeValueAsString(draft.getToolNames()));
-            ps.setString(6, MAPPER.writeValueAsString(draft.getTriggers()));
-            ps.setInt(7, draft.getPriority());
-            ps.setString(8, MAPPER.writeValueAsString(draft.getMetadata()));
-            ps.setString(9, draft.getStatus());
-            ps.setString(10, now);
-            ps.setString(11, now);
+            ps.setString(4, draft.getVersion());
+            ps.setString(5, draft.getCategory());
+            ps.setString(6, draft.getScope());
+            ps.setString(7, draft.getSystemPrompt());
+            ps.setString(8, MAPPER.writeValueAsString(draft.getToolNames()));
+            ps.setString(9, MAPPER.writeValueAsString(draft.getTriggers()));
+            ps.setInt(10, draft.getPriority());
+            ps.setString(11, MAPPER.writeValueAsString(draft.getMetadata()));
+            ps.setString(12, draft.getStatus());
+            ps.setString(13, now);
+            ps.setString(14, now);
             ps.executeUpdate();
             logger.info("Skill saved: id={}, name={}", draft.getId(), draft.getName());
         } catch (Exception e) {
@@ -188,6 +201,9 @@ public class SkillRepository {
         draft.setId(rs.getString("id"));
         draft.setName(rs.getString("name"));
         draft.setDescription(rs.getString("description"));
+        draft.setVersion(rs.getString("version"));
+        draft.setCategory(rs.getString("category"));
+        draft.setScope(rs.getString("scope"));
         draft.setSystemPrompt(rs.getString("system_prompt"));
         draft.setStatus(rs.getString("status"));
         draft.setPriority(rs.getInt("priority"));

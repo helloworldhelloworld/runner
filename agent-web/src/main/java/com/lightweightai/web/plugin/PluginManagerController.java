@@ -60,8 +60,8 @@ public class PluginManagerController {
      */
     @PostMapping("/load")
     public Map<String, Object> loadFromUrl(
-            @RequestParam String url,
-            @RequestParam(required = false) String name) {
+            @RequestParam("url") String url,
+            @RequestParam(value = "name", required = false) String name) {
 
         // 从 URL 推断文件名
         if (name == null || name.isBlank()) {
