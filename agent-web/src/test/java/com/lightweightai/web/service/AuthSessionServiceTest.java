@@ -102,10 +102,9 @@ class AuthSessionServiceTest {
         }
 
         @Test
-        @DisplayName("null令牌返回空")
-        void shouldReturnEmptyForNullToken() {
-            Optional<String> userId = service.resolveUserId(null);
-            assertFalse(userId.isPresent());
+        @DisplayName("null令牌抛出 NullPointerException（ConcurrentHashMap 不允许 null key）")
+        void shouldThrowForNullToken() {
+            assertThrows(NullPointerException.class, () -> service.resolveUserId(null));
         }
 
         @Test
