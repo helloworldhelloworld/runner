@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "d71971d316516e69d02a138d3bbbd13e421c0a8f",
-  "exit_code": 1,
-  "timestamp": "2026-03-28T19:23:10Z",
+  "trigger_sha": "96afbc85eecd7cdbfd1f151116f15c5dfcc093e7",
+  "exit_code": 0,
+  "timestamp": "2026-03-28T19:28:16Z",
   "branch": "claude/add-critical-path-tests",
-  "run_id": "23692529833",
-  "test_summary": ""
+  "run_id": "23692610941",
+  "test_summary": "[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.058 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.web.agent.ReflectionServiceTest|[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.web.gateway.GatewayServiceTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.web.gateway.UnifiedChatResponseTest|[WARNING] Tests run: 173, Failures: 0, Errors: 0, Skipped: 20|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.058 s - in com.lightweightai.plugin.example.PluginToolTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0|"
 }
