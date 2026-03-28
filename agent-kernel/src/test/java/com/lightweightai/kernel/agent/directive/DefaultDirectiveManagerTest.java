@@ -35,7 +35,7 @@ class DefaultDirectiveManagerTest {
         assertNotNull(json);
         JsonNode root = MAPPER.readTree(json);
         assertEquals("DIRECTIVE", root.path("type").asText());
-        assertEquals("req-1", root.path("requestId").asText());
+        assertEquals("req-1", root.path("request_id").asText());
 
         JsonNode directives = root.path("data").path("directives");
         assertTrue(directives.isArray());
