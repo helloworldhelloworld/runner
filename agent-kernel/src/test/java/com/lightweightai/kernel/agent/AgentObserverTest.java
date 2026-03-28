@@ -27,7 +27,10 @@ class AgentObserverTest {
             .build();
 
         LLMResponse response = LLMResponse.builder()
-            .message(ConversationMessage.assistant("reply"))
+            .message(ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.ASSISTANT)
+                .textContent("reply")
+                .build())
             .build();
 
         assertDoesNotThrow(() -> observer.onPromptBuilt(ctx));
@@ -88,11 +91,17 @@ class AgentObserverTest {
         observer.onPromptBuilt(ctx);
 
         observer.onLLMRequest(List.of(
-            ConversationMessage.user("hello")
+            ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.USER)
+                .textContent("hello")
+                .build()
         ));
 
         LLMResponse resp = LLMResponse.builder()
-            .message(ConversationMessage.assistant("Hi there"))
+            .message(ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.ASSISTANT)
+                .textContent("Hi there")
+                .build())
             .stopReason("end_turn")
             .build();
         observer.onLLMResponse(resp);

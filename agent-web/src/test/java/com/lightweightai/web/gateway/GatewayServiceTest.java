@@ -187,8 +187,7 @@ class GatewayServiceTest {
         }
 
         @Override
-        public CompletableFuture<String> chat(String message, String sessionId,
-                java.util.function.Consumer<com.lightweightai.web.model.ChatResponse.StreamChunk> chunkConsumer) {
+        public CompletableFuture<String> chat(String message, String sessionId, StreamCallback callback) {
             return CompletableFuture.completedFuture("streamed");
         }
 
