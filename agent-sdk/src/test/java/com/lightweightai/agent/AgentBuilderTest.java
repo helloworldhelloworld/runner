@@ -210,14 +210,6 @@ class AgentBuilderTest {
             public String getName() { return name; }
             @Override
             public String getDescription() { return "Mock plugin: " + name; }
-            @Override
-            public List<com.lightweightai.kernel.plugin.PluginFunction> getFunctions() {
-                return Collections.emptyList();
-            }
-            @Override
-            public List<Map<String, Object>> toClaudeTools() {
-                return Collections.emptyList();
-            }
         };
     }
 
