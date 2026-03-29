@@ -1,6 +1,7 @@
 package com.lightweightai.web.config;
 
 import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,7 +17,7 @@ class DynamicLLMProviderTest {
 
     @Test
     void delegatesComplete() {
-        LLMResponse expected = LLMResponse.builder().content("hello").model("test").build();
+        LLMResponse expected = createResponse("hello");
         MockLLMProvider mock = new MockLLMProvider("mock-1", expected);
         DynamicLLMProvider dynamic = new DynamicLLMProvider(mock);
 
@@ -54,7 +55,7 @@ class DynamicLLMProviderTest {
 
     @Test
     void delegatesCompleteAsync() {
-        LLMResponse expected = LLMResponse.builder().content("async").model("test").build();
+        LLMResponse expected = createResponse("async");
         MockLLMProvider mock = new MockLLMProvider("mock", expected);
         DynamicLLMProvider dynamic = new DynamicLLMProvider(mock);
 
@@ -78,6 +79,14 @@ class DynamicLLMProviderTest {
         DynamicLLMProvider dynamic = new DynamicLLMProvider(mock);
 
         assertNotNull(dynamic.getModelCapability());
+    }
+
+    private static LLMResponse createResponse(String text) {
+        ConversationMessage msg = ConversationMessage.builder()
+            .role(ConversationMessage.MessageRole.ASSISTANT)
+            .textContent(text)
+            .build();
+        return LLMResponse.builder().message(msg).build();
     }
 
     // === Mock ===
