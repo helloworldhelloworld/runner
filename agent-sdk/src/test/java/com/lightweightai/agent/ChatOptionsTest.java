@@ -6,85 +6,79 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * ChatOptions - 聊天选项配置测试
- */
-@DisplayName("ChatOptions - 聊天选项")
+@DisplayName("ChatOptions - chat configuration")
 class ChatOptionsTest {
 
     @Nested
-    @DisplayName("Builder 构建")
+    @DisplayName("Builder")
     class BuilderTests {
 
         @Test
-        @DisplayName("构建完整配置")
-        void shouldBuildFullOptions() {
-            ChatOptions options = ChatOptions.builder()
+        void defaultBuild_hasNullFields() {
+            ChatOptions opts = ChatOptions.builder().build();
+            assertNull(opts.getTemperature());
+            assertNull(opts.getMaxTokens());
+            assertNull(opts.getSystemPrompt());
+        }
+
+        @Test
+        void allFieldsSet() {
+            ChatOptions opts = ChatOptions.builder()
                 .temperature(0.7)
-                .maxTokens(2048)
-                .systemPrompt("You are a helpful assistant.")
+                .maxTokens(1024)
+                .systemPrompt("You are helpful")
                 .build();
 
-            assertEquals(0.7, options.getTemperature());
-            assertEquals(2048, options.getMaxTokens());
-            assertEquals("You are a helpful assistant.", options.getSystemPrompt());
+            assertEquals(0.7, opts.getTemperature());
+            assertEquals(1024, opts.getMaxTokens());
+            assertEquals("You are helpful", opts.getSystemPrompt());
         }
 
         @Test
-        @DisplayName("所有字段可选，默认为 null")
-        void shouldAllowEmptyBuild() {
-            ChatOptions options = ChatOptions.builder().build();
-
-            assertNull(options.getTemperature());
-            assertNull(options.getMaxTokens());
-            assertNull(options.getSystemPrompt());
+        void temperature_zeroIsValid() {
+            ChatOptions opts = ChatOptions.builder().temperature(0.0).build();
+            assertEquals(0.0, opts.getTemperature());
         }
 
         @Test
-        @DisplayName("temperature 边界值 0")
-        void shouldAcceptZeroTemperature() {
-            ChatOptions options = ChatOptions.builder().temperature(0).build();
-            assertEquals(0.0, options.getTemperature());
+        void temperature_oneIsValid() {
+            ChatOptions opts = ChatOptions.builder().temperature(1.0).build();
+            assertEquals(1.0, opts.getTemperature());
         }
 
         @Test
-        @DisplayName("temperature 边界值 1")
-        void shouldAcceptOneTemperature() {
-            ChatOptions options = ChatOptions.builder().temperature(1).build();
-            assertEquals(1.0, options.getTemperature());
+        void maxTokens_oneIsValid() {
+            ChatOptions opts = ChatOptions.builder().maxTokens(1).build();
+            assertEquals(1, opts.getMaxTokens());
         }
     }
 
     @Nested
-    @DisplayName("参数校验")
+    @DisplayName("Validation")
     class ValidationTests {
 
         @Test
-        @DisplayName("temperature 小于 0 抛异常")
-        void shouldRejectNegativeTemperature() {
+        void temperature_belowZero_throws() {
             assertThrows(IllegalArgumentException.class,
                 () -> ChatOptions.builder().temperature(-0.1));
         }
 
         @Test
-        @DisplayName("temperature 大于 1 抛异常")
-        void shouldRejectTemperatureAboveOne() {
+        void temperature_aboveOne_throws() {
             assertThrows(IllegalArgumentException.class,
                 () -> ChatOptions.builder().temperature(1.1));
         }
 
         @Test
-        @DisplayName("maxTokens 为 0 抛异常")
-        void shouldRejectZeroMaxTokens() {
+        void maxTokens_zero_throws() {
             assertThrows(IllegalArgumentException.class,
                 () -> ChatOptions.builder().maxTokens(0));
         }
 
         @Test
-        @DisplayName("maxTokens 为负数抛异常")
-        void shouldRejectNegativeMaxTokens() {
+        void maxTokens_negative_throws() {
             assertThrows(IllegalArgumentException.class,
-                () -> ChatOptions.builder().maxTokens(-100));
+                () -> ChatOptions.builder().maxTokens(-1));
         }
     }
 }
