@@ -106,9 +106,31 @@ public class SkillCreatorService {
     // ==================== CRUD ====================
 
     /**
-     * 保存当前 draft 到数据库并注册到 PromptEngine
+     * 保存当前 draft 到数据库（仅保存，不激活）
+     * 用于 Pipeline 流程：Creator → Test → Publish → Activate
      */
     public SkillDraft save(String sessionId) {
+        SkillDraft draft = sessionDrafts.get(sessionId);
+        if (draft == null) {
+            throw new IllegalStateException("No draft found for session: " + sessionId);
+        }
+        if (!draft.isValid()) {
+            throw new IllegalStateException("Draft is incomplete. Need at least: name, description, systemPrompt");
+        }
+
+        if (draft.getStatus() == null || draft.getStatus().isBlank()) {
+            draft.setStatus("draft");
+        }
+        SkillDraft saved = skillRepository.save(draft);
+
+        logger.info("Skill draft saved: {}", saved.getName());
+        return saved;
+    }
+
+    /**
+     * 保存并立即激活（向后兼容，跳过 Pipeline 流程）
+     */
+    public SkillDraft saveAndActivate(String sessionId) {
         SkillDraft draft = sessionDrafts.get(sessionId);
         if (draft == null) {
             throw new IllegalStateException("No draft found for session: " + sessionId);

@@ -35,6 +35,12 @@ export function ensureWebSocket() {
     ws.onerror = (err) => { _wsConnecting = null; reject(new Error('WebSocket 连接失败')) }
     ws.onclose = (event) => {
       _ws = null; _wsConnecting = null
+      // 1008 = POLICY_VIOLATION — token invalid/expired, redirect to login
+      if (event.code === 1008) {
+        localStorage.removeItem('auth_token')
+        window.location.hash = '#/login'
+        return
+      }
       if (_wsCallbacks?.onError) { _wsCallbacks.onError(new Error('WebSocket 连接断开')); _wsCallbacks = null }
       if (_skillCreatorCallbacks?.onError) { _skillCreatorCallbacks.onError(new Error('WebSocket 连接断开')); _skillCreatorCallbacks = null }
       _pendingRequests.forEach(({ reject }) => reject(new Error('WebSocket 连接断开')))
