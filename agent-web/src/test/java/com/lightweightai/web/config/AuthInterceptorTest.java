@@ -1,29 +1,36 @@
 package com.lightweightai.web.config;
 
 import com.lightweightai.web.service.AuthSessionService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @DisplayName("AuthInterceptor - Bearer token authentication")
 class AuthInterceptorTest {
 
     private AuthSessionService authService;
     private AuthInterceptor interceptor;
-    private MockHttpServletRequest request;
-    private MockHttpServletResponse response;
+    private HttpServletRequest request;
+    private HttpServletResponse response;
+    private StringWriter responseBody;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         authService = new AuthSessionService();
         interceptor = new AuthInterceptor(authService);
-        request = new MockHttpServletRequest();
-        response = new MockHttpServletResponse();
+        request = mock(HttpServletRequest.class);
+        response = mock(HttpServletResponse.class);
+        responseBody = new StringWriter();
+        when(response.getWriter()).thenReturn(new PrintWriter(responseBody));
     }
 
     @Nested
@@ -32,61 +39,61 @@ class AuthInterceptorTest {
 
         @Test
         void loginPath_passesThrough() throws Exception {
-            request.setRequestURI("/user/login");
+            when(request.getRequestURI()).thenReturn("/user/login");
             assertTrue(interceptor.preHandle(request, response, null));
         }
 
         @Test
         void registerPath_passesThrough() throws Exception {
-            request.setRequestURI("/user/register");
+            when(request.getRequestURI()).thenReturn("/user/register");
             assertTrue(interceptor.preHandle(request, response, null));
         }
 
         @Test
         void staticAssets_passThrough() throws Exception {
-            request.setRequestURI("/assets/style.css");
+            when(request.getRequestURI()).thenReturn("/assets/style.css");
             assertTrue(interceptor.preHandle(request, response, null));
         }
 
         @Test
         void indexHtml_passesThrough() throws Exception {
-            request.setRequestURI("/index.html");
+            when(request.getRequestURI()).thenReturn("/index.html");
             assertTrue(interceptor.preHandle(request, response, null));
         }
 
         @Test
         void rootPath_passesThrough() throws Exception {
-            request.setRequestURI("/");
+            when(request.getRequestURI()).thenReturn("/");
             assertTrue(interceptor.preHandle(request, response, null));
         }
 
         @Test
         void favicon_passesThrough() throws Exception {
-            request.setRequestURI("/favicon.ico");
+            when(request.getRequestURI()).thenReturn("/favicon.ico");
             assertTrue(interceptor.preHandle(request, response, null));
         }
 
         @Test
         void webSocketPath_passesThrough() throws Exception {
-            request.setRequestURI("/ws/chat");
+            when(request.getRequestURI()).thenReturn("/ws/chat");
             assertTrue(interceptor.preHandle(request, response, null));
         }
 
         @Test
         void jsFile_passesThrough() throws Exception {
-            request.setRequestURI("/app.js");
+            when(request.getRequestURI()).thenReturn("/app.js");
             assertTrue(interceptor.preHandle(request, response, null));
         }
 
         @Test
         void cssFile_passesThrough() throws Exception {
-            request.setRequestURI("/style.css");
+            when(request.getRequestURI()).thenReturn("/style.css");
             assertTrue(interceptor.preHandle(request, response, null));
         }
 
         @Test
         void fontFile_passesThrough() throws Exception {
-            request.setRequestURI("/fonts/roboto.woff2");
+            when(request.getRequestURI()).thenReturn("/fonts/roboto.woff2");
             assertTrue(interceptor.preHandle(request, response, null));
         }
     }
@@ -97,8 +104,8 @@ class AuthInterceptorTest {
 
         @Test
         void optionsRequest_passesThrough() throws Exception {
-            request.setRequestURI("/api/chat");
-            request.setMethod("OPTIONS");
+            when(request.getRequestURI()).thenReturn("/api/chat");
+            when(request.getMethod()).thenReturn("OPTIONS");
             assertTrue(interceptor.preHandle(request, response, null));
         }
     }
@@ -109,33 +116,42 @@ class AuthInterceptorTest {
 
         @Test
         void noAuthorizationHeader_returns401() throws Exception {
-            request.setRequestURI("/api/chat");
+            when(request.getRequestURI()).thenReturn("/api/chat");
+            when(request.getMethod()).thenReturn("POST");
+            when(request.getHeader("Authorization")).thenReturn(null);
+
             assertFalse(interceptor.preHandle(request, response, null));
-            assertEquals(401, response.getStatus());
+            verify(response).setStatus(401);
         }
 
         @Test
         void nonBearerToken_returns401() throws Exception {
-            request.setRequestURI("/api/chat");
-            request.addHeader("Authorization", "Basic abc123");
+            when(request.getRequestURI()).thenReturn("/api/chat");
+            when(request.getMethod()).thenReturn("POST");
+            when(request.getHeader("Authorization")).thenReturn("Basic abc123");
+
             assertFalse(interceptor.preHandle(request, response, null));
-            assertEquals(401, response.getStatus());
+            verify(response).setStatus(401);
         }
 
         @Test
         void invalidBearerToken_returns401() throws Exception {
-            request.setRequestURI("/api/chat");
-            request.addHeader("Authorization", "Bearer invalid-token-xyz");
+            when(request.getRequestURI()).thenReturn("/api/chat");
+            when(request.getMethod()).thenReturn("POST");
+            when(request.getHeader("Authorization")).thenReturn("Bearer invalid-token-xyz");
+
             assertFalse(interceptor.preHandle(request, response, null));
-            assertEquals(401, response.getStatus());
+            verify(response).setStatus(401);
         }
 
         @Test
         void responseBody_containsErrorMessage() throws Exception {
-            request.setRequestURI("/api/chat");
+            when(request.getRequestURI()).thenReturn("/api/chat");
+            when(request.getMethod()).thenReturn("POST");
+            when(request.getHeader("Authorization")).thenReturn(null);
+
             interceptor.preHandle(request, response, null);
-            String body = response.getContentAsString();
-            assertTrue(body.contains("error"));
+            assertTrue(responseBody.toString().contains("error"));
         }
     }
 
@@ -146,9 +162,9 @@ class AuthInterceptorTest {
         @Test
         void validToken_passesThrough() throws Exception {
             String token = authService.createSessionToken("user123");
-
-            request.setRequestURI("/api/chat");
-            request.addHeader("Authorization", "Bearer " + token);
+            when(request.getRequestURI()).thenReturn("/api/chat");
+            when(request.getMethod()).thenReturn("POST");
+            when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
 
             assertTrue(interceptor.preHandle(request, response, null));
         }
@@ -156,37 +172,35 @@ class AuthInterceptorTest {
         @Test
         void validToken_setsUserIdAttribute() throws Exception {
             String token = authService.createSessionToken("user456");
-
-            request.setRequestURI("/api/chat");
-            request.addHeader("Authorization", "Bearer " + token);
+            when(request.getRequestURI()).thenReturn("/api/chat");
+            when(request.getMethod()).thenReturn("POST");
+            when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
 
             interceptor.preHandle(request, response, null);
-
-            assertEquals("user456", request.getAttribute("userId"));
+            verify(request).setAttribute("userId", "user456");
         }
 
         @Test
         void validToken_setsUserRoleAttribute() throws Exception {
             String token = authService.createSessionToken("admin1", "ADMIN");
-
-            request.setRequestURI("/api/chat");
-            request.addHeader("Authorization", "Bearer " + token);
+            when(request.getRequestURI()).thenReturn("/api/chat");
+            when(request.getMethod()).thenReturn("POST");
+            when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
 
             interceptor.preHandle(request, response, null);
-
-            assertEquals("ADMIN", request.getAttribute("userRole"));
+            verify(request).setAttribute("userRole", "ADMIN");
         }
 
         @Test
         void invalidatedToken_returns401() throws Exception {
             String token = authService.createSessionToken("user789");
             authService.invalidate(token);
-
-            request.setRequestURI("/api/chat");
-            request.addHeader("Authorization", "Bearer " + token);
+            when(request.getRequestURI()).thenReturn("/api/chat");
+            when(request.getMethod()).thenReturn("POST");
+            when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
 
             assertFalse(interceptor.preHandle(request, response, null));
-            assertEquals(401, response.getStatus());
+            verify(response).setStatus(401);
         }
     }
 }
