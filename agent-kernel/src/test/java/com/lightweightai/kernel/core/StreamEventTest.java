@@ -1,7 +1,9 @@
 package com.lightweightai.kernel.core;
 
+import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolCall;
+import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -48,7 +50,7 @@ class StreamEventTest {
 
         @Test
         void toolCallStart_createsCorrectEvent() {
-            ToolCall call = new ToolCall("id1", "calculator", "{\"a\":1}");
+            ToolCall call = new ToolCall("id1", "calculator", Map.of("a", 1));
             StreamEvent event = StreamEvent.toolCallStart(call);
 
             assertEquals(StreamEvent.EventType.TOOL_CALL_START, event.getType());
@@ -58,7 +60,7 @@ class StreamEventTest {
 
         @Test
         void toolProgress_createsCorrectEvent() {
-            ToolResultChunk chunk = ToolResultChunk.progress("calc", 50, "halfway");
+            ToolResultChunk chunk = ToolResultChunk.progress("calc", "halfway", 50, 100);
             StreamEvent event = StreamEvent.toolProgress(chunk);
 
             assertEquals(StreamEvent.EventType.TOOL_PROGRESS, event.getType());
@@ -76,7 +78,7 @@ class StreamEventTest {
 
         @Test
         void toolResult_createsCorrectEvent() {
-            ToolResultChunk chunk = ToolResultChunk.finalResult("calc", "42");
+            ToolResultChunk chunk = ToolResultChunk.complete("calc", ToolResult.success("42"));
             StreamEvent event = StreamEvent.toolResult(chunk);
 
             assertEquals(StreamEvent.EventType.TOOL_RESULT, event.getType());
@@ -95,8 +97,11 @@ class StreamEventTest {
         @Test
         void llmComplete_createsCorrectEvent() {
             LLMResponse response = LLMResponse.builder()
-                .content("Final answer")
-                .model("claude-3")
+                .message(ConversationMessage.builder()
+                    .role(ConversationMessage.MessageRole.ASSISTANT)
+                    .textContent("Final answer")
+                    .build())
+                .stopReason("end_turn")
                 .build();
             StreamEvent event = StreamEvent.llmComplete(response);
 
