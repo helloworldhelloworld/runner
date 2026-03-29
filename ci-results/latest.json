@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "b79af4988ead613fde1d9d7c6c05acbcb3371c00",
+  "trigger_sha": "ddd565690bb10a6b0ea67295bb904fe3d307a87a",
   "exit_code": 1,
-  "timestamp": "2026-03-29T19:24:06Z",
+  "timestamp": "2026-03-29T19:26:16Z",
   "branch": "claude/add-critical-path-tests",
-  "run_id": "23717093118",
-  "test_summary": ""
+  "run_id": "23717130867",
+  "test_summary": "[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.117 s - in com.lightweightai.kernel.memory.tools.WriteMemoryToolTest|[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.128 s - in com.lightweightai.kernel.memory.tools.MemoryToolsTest|[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.121 s - in com.lightweightai.kernel.memory.tools.MemoryToolkitTest|[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.memory.chunk.MarkdownChunkerTest|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.365 s - in com.lightweightai.kernel.memory.queue.LaneQueueTest|[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.663 s - in com.lightweightai.kernel.memory.queue.LaneQueueManagerTest|[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.078 s - in com.lightweightai.kernel.memory.index.MemoryIndexTest|[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.087 s - in com.lightweightai.kernel.memory.index.HybridSearchTest|[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.memory.index.VectorIndexTest|[INFO] Tests run: 189, Failures: 0, Errors: 0, Skipped: 0|"
 }
