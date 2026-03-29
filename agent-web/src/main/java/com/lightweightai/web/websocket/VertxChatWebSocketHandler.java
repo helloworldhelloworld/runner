@@ -810,7 +810,7 @@ public class VertxChatWebSocketHandler {
     private void handleSkillCreatorSave(ServerWebSocket ws, JsonNode payload, String requestId) {
         try {
             String sessionId = payload.path("sessionId").asText(ws.textHandlerID());
-            SkillDraft saved = skillCreatorService.save(sessionId);
+            SkillDraft saved = skillCreatorService.saveAndActivate(sessionId);
             sendResponse(ws, "skill_creator_saved", requestId, saved.toMap());
         } catch (Exception e) {
             sendResponse(ws, "error_response", requestId, Map.of("error", e.getMessage()));

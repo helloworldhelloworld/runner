@@ -73,6 +73,15 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private final SkillTestCaseRepository skillTestCaseRepository;
     private final AuthSessionService authSessionService;
 
+    // Pipeline services (optional, set via setter)
+    private com.lightweightai.web.skillcreator.SkillTestExecutionService skillTestExecutionService;
+    private com.lightweightai.web.skillcreator.SkillPublishService skillPublishService;
+    private com.lightweightai.web.skillcreator.SkillSimulationService skillSimulationService;
+
+    public void setSkillTestExecutionService(com.lightweightai.web.skillcreator.SkillTestExecutionService svc) { this.skillTestExecutionService = svc; }
+    public void setSkillPublishService(com.lightweightai.web.skillcreator.SkillPublishService svc) { this.skillPublishService = svc; }
+    public void setSkillSimulationService(com.lightweightai.web.skillcreator.SkillSimulationService svc) { this.skillSimulationService = svc; }
+
     private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
     private final Map<String, SpringWebSocketClientToolDispatcher> dispatchers = new ConcurrentHashMap<>();
@@ -282,7 +291,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                 case "skill_creator_save" -> {
                     try {
                         String scSessionId = payload.path("sessionId").asText(session.getId());
-                        SkillDraft saved = skillCreatorService.save(scSessionId);
+                        SkillDraft saved = skillCreatorService.saveAndActivate(scSessionId);
                         sendResponse(session, "skill_creator_saved", requestId, saved.toMap());
                     } catch (Exception e) {
                         sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
@@ -372,6 +381,109 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                     if (toolSchemaRepository != null) {
                         boolean ok = toolSchemaRepository.delete(payload.path("id").asText(""));
                         sendResponse(session, "tool_schema_deleted", requestId, Map.of("success", ok));
+                    }
+                }
+
+                // ==================== Skill Pipeline ====================
+                case "skill_test_execute" -> {
+                    if (skillTestExecutionService != null) {
+                        String skillId = payload.path("skillId").asText("");
+                        handlePipelineStream(session, requestId, "skill_test",
+                            skillTestExecutionService.executeAll(skillId));
+                    } else {
+                        sendResponse(session, "error_response", requestId, Map.of("error", "Test execution service not configured"));
+                    }
+                }
+                case "skill_test_execute_single" -> {
+                    if (skillTestExecutionService != null) {
+                        String skillId = payload.path("skillId").asText("");
+                        String testCaseId = payload.path("testCaseId").asText("");
+                        handlePipelineStream(session, requestId, "skill_test",
+                            skillTestExecutionService.executeSingle(skillId, testCaseId));
+                    } else {
+                        sendResponse(session, "error_response", requestId, Map.of("error", "Test execution service not configured"));
+                    }
+                }
+                case "skill_test_run_history" -> {
+                    if (skillTestExecutionService != null) {
+                        String skillId = payload.path("skillId").asText("");
+                        sendResponse(session, "skill_test_runs", requestId,
+                            skillTestExecutionService.getLatestReport(skillId).map(r -> {
+                                Map<String, Object> m = new LinkedHashMap<>();
+                                m.put("id", r.getId()); m.put("skillId", r.getSkillId());
+                                m.put("total", r.getTotal()); m.put("passed", r.getPassed());
+                                m.put("failed", r.getFailed()); m.put("passRate", r.getPassRate());
+                                m.put("status", r.getStatus());
+                                return m;
+                            }).orElse(null));
+                    }
+                }
+                case "skill_publish_stage" -> {
+                    if (skillPublishService != null) {
+                        try {
+                            String skillId = payload.path("skillId").asText("");
+                            double threshold = payload.path("threshold").asDouble(0.9);
+                            var version = skillPublishService.stage(skillId, threshold);
+                            sendResponse(session, "skill_version_staged", requestId, Map.of(
+                                "id", version.getId(), "versionTag", version.getVersionTag(), "status", version.getStatus()));
+                        } catch (Exception e) {
+                            sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                        }
+                    }
+                }
+                case "skill_publish_activate" -> {
+                    if (skillPublishService != null) {
+                        try {
+                            String versionId = payload.path("versionId").asText("");
+                            var version = skillPublishService.activate(versionId);
+                            sendResponse(session, "skill_version_activated", requestId, Map.of(
+                                "id", version.getId(), "versionTag", version.getVersionTag(), "status", version.getStatus()));
+                        } catch (Exception e) {
+                            sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                        }
+                    }
+                }
+                case "skill_publish_rollback" -> {
+                    if (skillPublishService != null) {
+                        try {
+                            String skillId = payload.path("skillId").asText("");
+                            String versionId = payload.path("versionId").asText("");
+                            var version = skillPublishService.rollback(skillId, versionId);
+                            sendResponse(session, "skill_version_rolled_back", requestId, Map.of(
+                                "id", version.getId(), "versionTag", version.getVersionTag(), "status", version.getStatus()));
+                        } catch (Exception e) {
+                            sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                        }
+                    }
+                }
+                case "skill_version_history" -> {
+                    if (skillPublishService != null) {
+                        String skillId = payload.path("skillId").asText("");
+                        sendResponse(session, "skill_versions", requestId,
+                            skillPublishService.getVersionHistory(skillId).stream().map(v -> {
+                                Map<String, Object> m = new LinkedHashMap<>();
+                                m.put("id", v.getId()); m.put("versionTag", v.getVersionTag());
+                                m.put("status", v.getStatus());
+                                m.put("createdAt", v.getCreatedAt() != null ? v.getCreatedAt().toString() : null);
+                                return m;
+                            }).toList());
+                    }
+                }
+                case "skill_simulate" -> {
+                    if (skillSimulationService != null) {
+                        try {
+                            String versionId = payload.path("versionId").asText("");
+                            @SuppressWarnings("unchecked")
+                            List<com.lightweightai.web.skillcreator.SimulationScenario> scenarios =
+                                (List<com.lightweightai.web.skillcreator.SimulationScenario>) MAPPER.treeToValue(
+                                    payload.get("scenarios"),
+                                    MAPPER.getTypeFactory().constructCollectionType(List.class,
+                                        com.lightweightai.web.skillcreator.SimulationScenario.class));
+                            handlePipelineStream(session, requestId, "skill_simulation",
+                                skillSimulationService.simulate(versionId, scenarios));
+                        } catch (Exception e) {
+                            sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                        }
                     }
                 }
 
@@ -514,6 +626,53 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     // ==================== Skill Creator Streaming ====================
+
+    // ==================== Pipeline Streaming ====================
+
+    private void handlePipelineStream(WebSocketSession session, String requestId,
+                                       String prefix, reactor.core.publisher.Flux<StreamEvent> flux) {
+        String sid = session.getId();
+        String streamKey = prefix + "-" + sid;
+        Disposable prev = activeStreams.remove(streamKey);
+        if (prev != null && !prev.isDisposed()) prev.dispose();
+
+        Disposable sub = flux.subscribe(
+            event -> {
+                try {
+                    if (event.getType() == StreamEvent.EventType.POST_PROCESS_DATA) {
+                        ObjectNode msg = MAPPER.createObjectNode();
+                        msg.put("type", prefix + "_" + event.getCategory());
+                        if (requestId != null) msg.put("requestId", requestId);
+                        if (event.getData() != null) msg.set("data", MAPPER.valueToTree(event.getData()));
+                        safeSend(session, MAPPER.writeValueAsString(msg));
+                    }
+                } catch (Exception e) {
+                    logger.error("[Pipeline] Error sending event", e);
+                }
+            },
+            error -> {
+                logger.error("[Pipeline] Stream error", error);
+                try {
+                    ObjectNode msg = MAPPER.createObjectNode();
+                    msg.put("type", prefix + "_error");
+                    if (requestId != null) msg.put("requestId", requestId);
+                    msg.put("message", error.getMessage());
+                    safeSend(session, MAPPER.writeValueAsString(msg));
+                } catch (Exception e) { logger.error("[Pipeline] Error sending error", e); }
+                activeStreams.remove(streamKey);
+            },
+            () -> {
+                try {
+                    ObjectNode msg = MAPPER.createObjectNode();
+                    msg.put("type", prefix + "_stream_end");
+                    if (requestId != null) msg.put("requestId", requestId);
+                    safeSend(session, MAPPER.writeValueAsString(msg));
+                } catch (Exception e) { logger.error("[Pipeline] Error sending stream end", e); }
+                activeStreams.remove(streamKey);
+            }
+        );
+        activeStreams.put(streamKey, sub);
+    }
 
     private void handleSkillCreatorChat(WebSocketSession session, JsonNode payload) {
         String requestId = payload.path("requestId").asText(null);
