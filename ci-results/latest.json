@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "b2706b663114462bd2f37b1cbe2149050803bc64",
-  "exit_code": 0,
-  "timestamp": "2026-03-29T17:25:58Z",
-  "branch": "main",
-  "run_id": "23714738484",
-  "test_summary": "[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.043 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.016 s - in com.lightweightai.web.agent.ReflectionServiceTest|[WARNING] Tests run: 174, Failures: 0, Errors: 0, Skipped: 20|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.066 s - in com.lightweightai.plugin.example.PluginToolTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0|"
+  "trigger_sha": "6c0f67c1250e96149996bbe46405935e9cfe2dd8",
+  "exit_code": 1,
+  "timestamp": "2026-03-30T06:34:37Z",
+  "branch": "claude/task-orchestration-architecture-8tjri",
+  "run_id": "23731260638",
+  "test_summary": ""
 }
