@@ -1,6 +1,8 @@
 package com.lightweightai.mcp;
 
+import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.ToolRegistryListener;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpAsyncServer;
@@ -19,8 +21,9 @@ import java.util.concurrent.CountDownLatch;
  * 将 ToolRegistry 暴露为 MCP 服务端（Async 版本）
  *
  * 使用 McpAsyncServer 支持异步工具执行和进度/日志通知转发。
+ * 实现 ToolRegistryListener，自动同步 ToolRegistry 的动态变更到 MCP 客户端。
  */
-public class McpToolServer {
+public class McpToolServer implements ToolRegistryListener {
 
     private static final Logger logger = LoggerFactory.getLogger(McpToolServer.class);
 
@@ -43,6 +46,7 @@ public class McpToolServer {
      *
      * 将 ToolRegistry 中所有启用的工具暴露为 MCP 异步工具。
      * 支持进度通知（ProgressNotification）和日志通知（LoggingNotification）。
+     * 启动后自动监听 ToolRegistry 变更，动态同步工具列表。
      */
     public void start() {
         List<McpServerFeatures.AsyncToolSpecification> toolSpecs =
@@ -56,6 +60,8 @@ public class McpToolServer {
                 .build())
             .tools(toolSpecs)
             .build();
+
+        toolRegistry.addListener(this);
 
         logger.info("MCP async server '{}' v{} started with {} tools",
             serverName, serverVersion, toolSpecs.size());
@@ -85,10 +91,74 @@ public class McpToolServer {
     /**
      * 动态添加工具到运行中的 MCP 服务端
      */
-    public void addTool(com.lightweightai.kernel.agent.Tool tool) {
+    public void addTool(Tool tool) {
         if (asyncServer != null) {
             asyncServer.addTool(McpToolAdapter.toAsyncMcpTool(tool)).block();
+            notifyToolsChanged();
             logger.info("Added tool '{}' to MCP server '{}'", tool.getName(), serverName);
+        }
+    }
+
+    /**
+     * 动态移除工具
+     */
+    public void removeTool(String toolName) {
+        if (asyncServer != null) {
+            asyncServer.removeTool(toolName).block();
+            notifyToolsChanged();
+            logger.info("Removed tool '{}' from MCP server '{}'", toolName, serverName);
+        }
+    }
+
+    /**
+     * 通知 MCP 客户端工具列表已变更（tools/list_changed）
+     */
+    private void notifyToolsChanged() {
+        if (asyncServer != null) {
+            asyncServer.notifyToolsListChanged().subscribe(
+                unused -> {},
+                e -> logger.debug("No active MCP clients to notify: {}", e.getMessage())
+            );
+        }
+    }
+
+    // ==================== ToolRegistryListener 回调 ====================
+
+    @Override
+    public void onToolRegistered(Tool tool) {
+        if (asyncServer != null) {
+            asyncServer.addTool(McpToolAdapter.toAsyncMcpTool(tool)).block();
+            notifyToolsChanged();
+            logger.info("Auto-synced new tool '{}' to MCP server '{}'", tool.getName(), serverName);
+        }
+    }
+
+    @Override
+    public void onToolUnregistered(String toolName) {
+        if (asyncServer != null) {
+            asyncServer.removeTool(toolName).block();
+            notifyToolsChanged();
+            logger.info("Auto-removed tool '{}' from MCP server '{}'", toolName, serverName);
+        }
+    }
+
+    @Override
+    public void onToolEnabled(String toolName) {
+        if (asyncServer != null) {
+            toolRegistry.get(toolName).ifPresent(tool -> {
+                asyncServer.addTool(McpToolAdapter.toAsyncMcpTool(tool)).block();
+                notifyToolsChanged();
+                logger.info("Re-enabled tool '{}' on MCP server '{}'", toolName, serverName);
+            });
+        }
+    }
+
+    @Override
+    public void onToolDisabled(String toolName) {
+        if (asyncServer != null) {
+            asyncServer.removeTool(toolName).block();
+            notifyToolsChanged();
+            logger.info("Disabled tool '{}' on MCP server '{}'", toolName, serverName);
         }
     }
 
@@ -96,6 +166,7 @@ public class McpToolServer {
      * 关闭 MCP 服务端
      */
     public void close() {
+        toolRegistry.removeListener(this);
         if (asyncServer != null) {
             asyncServer.closeGracefully().block();
             logger.info("MCP server '{}' closed", serverName);

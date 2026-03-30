@@ -15,6 +15,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -32,11 +33,29 @@ public class ToolRegistry {
     private final Map<String, Tool> tools;
     private final Set<String> disabledTools;
     private final DirectiveRegistry directiveRegistry;
+    private final List<ToolRegistryListener> listeners = new CopyOnWriteArrayList<>();
 
     public ToolRegistry() {
         this.tools = new ConcurrentHashMap<>();
         this.disabledTools = ConcurrentHashMap.newKeySet();
         this.directiveRegistry = new DirectiveRegistry();
+    }
+
+    // ==================== 监听器 ====================
+
+    /**
+     * 添加工具变更监听器
+     */
+    public void addListener(ToolRegistryListener listener) {
+        Objects.requireNonNull(listener, "Listener cannot be null");
+        listeners.add(listener);
+    }
+
+    /**
+     * 移除工具变更监听器
+     */
+    public void removeListener(ToolRegistryListener listener) {
+        listeners.remove(listener);
     }
 
     // ==================== 注册/注销 ====================
@@ -67,6 +86,7 @@ public class ToolRegistry {
             return tool;
         });
         registerDirectiveIfPresent(tool);
+        fireToolRegistered(tool);
     }
 
     /**
@@ -137,6 +157,7 @@ public class ToolRegistry {
             }
         });
         registerDirectiveIfPresent(tool);
+        fireToolRegistered(tool);
     }
 
     /**
@@ -150,9 +171,12 @@ public class ToolRegistry {
      * 注销工具
      */
     public void unregister(String name) {
-        tools.remove(name);
+        Tool removed = tools.remove(name);
         disabledTools.remove(name);
         directiveRegistry.unregister(name);
+        if (removed != null) {
+            fireToolUnregistered(name);
+        }
     }
 
     // ==================== 查询 ====================
@@ -223,6 +247,7 @@ public class ToolRegistry {
     public void disable(String name) {
         if (tools.containsKey(name)) {
             disabledTools.add(name);
+            fireToolDisabled(name);
         }
     }
 
@@ -230,7 +255,9 @@ public class ToolRegistry {
      * 启用工具
      */
     public void enable(String name) {
-        disabledTools.remove(name);
+        if (disabledTools.remove(name) && tools.containsKey(name)) {
+            fireToolEnabled(name);
+        }
     }
 
     /**
@@ -353,6 +380,32 @@ public class ToolRegistry {
         return ToolScanner.scanAndRegister(this, classLoader);
     }
 
+
+    // ==================== 监听器触发 ====================
+
+    private void fireToolRegistered(Tool tool) {
+        for (ToolRegistryListener l : listeners) {
+            l.onToolRegistered(tool);
+        }
+    }
+
+    private void fireToolUnregistered(String toolName) {
+        for (ToolRegistryListener l : listeners) {
+            l.onToolUnregistered(toolName);
+        }
+    }
+
+    private void fireToolEnabled(String toolName) {
+        for (ToolRegistryListener l : listeners) {
+            l.onToolEnabled(toolName);
+        }
+    }
+
+    private void fireToolDisabled(String toolName) {
+        for (ToolRegistryListener l : listeners) {
+            l.onToolDisabled(toolName);
+        }
+    }
 
     private void registerDirectiveIfPresent(Tool tool) {
         ClientTool directive = tool.getClass().getAnnotation(ClientTool.class);
