@@ -73,7 +73,7 @@ class GatewayStreamHandlerTest {
         handler.onError(new RuntimeException("network error"));
 
         assertNotNull(errored.get());
-        assertEquals("network error", errored.get().getText());
+        assertEquals("network error", errored.get().getMessage());
     }
 
     // ==================== Default Method Behaviors ====================
