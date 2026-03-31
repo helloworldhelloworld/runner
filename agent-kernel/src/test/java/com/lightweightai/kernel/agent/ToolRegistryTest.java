@@ -199,6 +199,156 @@ class ToolRegistryTest {
         assertNotNull(def.get("input_schema"));
     }
 
+    // ==================== 监听器测试 ====================
+
+    @Test
+    @DisplayName("注册工具时触发监听器")
+    void shouldFireListenerOnRegister() {
+        // Given
+        Tool tool = createSimpleTool("new_tool", "新工具");
+        TestListener listener = new TestListener();
+        registry.addListener(listener);
+
+        // When
+        registry.register(tool);
+
+        // Then
+        assertEquals(1, listener.registeredCount);
+        assertEquals("new_tool", listener.lastRegisteredName);
+    }
+
+    @Test
+    @DisplayName("注销工具时触发监听器")
+    void shouldFireListenerOnUnregister() {
+        // Given
+        Tool tool = createSimpleTool("old_tool", "旧工具");
+        registry.register(tool);
+        TestListener listener = new TestListener();
+        registry.addListener(listener);
+
+        // When
+        registry.unregister("old_tool");
+
+        // Then
+        assertEquals(1, listener.unregisteredCount);
+        assertEquals("old_tool", listener.lastUnregisteredName);
+    }
+
+    @Test
+    @DisplayName("注销不存在的工具不触发监听器")
+    void shouldNotFireListenerOnUnregisterNonexistent() {
+        // Given
+        TestListener listener = new TestListener();
+        registry.addListener(listener);
+
+        // When
+        registry.unregister("nonexistent");
+
+        // Then
+        assertEquals(0, listener.unregisteredCount);
+    }
+
+    @Test
+    @DisplayName("禁用工具时触发监听器")
+    void shouldFireListenerOnDisable() {
+        // Given
+        Tool tool = createSimpleTool("tool1", "工具1");
+        registry.register(tool);
+        TestListener listener = new TestListener();
+        registry.addListener(listener);
+
+        // When
+        registry.disable("tool1");
+
+        // Then
+        assertEquals(1, listener.disabledCount);
+        assertEquals("tool1", listener.lastDisabledName);
+    }
+
+    @Test
+    @DisplayName("启用工具时触发监听器")
+    void shouldFireListenerOnEnable() {
+        // Given
+        Tool tool = createSimpleTool("tool1", "工具1");
+        registry.register(tool);
+        registry.disable("tool1");
+        TestListener listener = new TestListener();
+        registry.addListener(listener);
+
+        // When
+        registry.enable("tool1");
+
+        // Then
+        assertEquals(1, listener.enabledCount);
+        assertEquals("tool1", listener.lastEnabledName);
+    }
+
+    @Test
+    @DisplayName("启用已启用的工具不触发监听器")
+    void shouldNotFireListenerOnEnableAlreadyEnabled() {
+        // Given
+        Tool tool = createSimpleTool("tool1", "工具1");
+        registry.register(tool);
+        TestListener listener = new TestListener();
+        registry.addListener(listener);
+
+        // When
+        registry.enable("tool1");
+
+        // Then
+        assertEquals(0, listener.enabledCount);
+    }
+
+    @Test
+    @DisplayName("移除监听器后不再触发")
+    void shouldNotFireAfterRemoveListener() {
+        // Given
+        TestListener listener = new TestListener();
+        registry.addListener(listener);
+        registry.removeListener(listener);
+
+        // When
+        registry.register(createSimpleTool("tool1", "工具1"));
+
+        // Then
+        assertEquals(0, listener.registeredCount);
+    }
+
+    private static class TestListener implements ToolRegistryListener {
+        int registeredCount = 0;
+        int unregisteredCount = 0;
+        int enabledCount = 0;
+        int disabledCount = 0;
+        String lastRegisteredName;
+        String lastUnregisteredName;
+        String lastEnabledName;
+        String lastDisabledName;
+
+        @Override
+        public void onToolRegistered(Tool tool) {
+            registeredCount++;
+            lastRegisteredName = tool.getName();
+        }
+
+        @Override
+        public void onToolUnregistered(String toolName) {
+            unregisteredCount++;
+            lastUnregisteredName = toolName;
+        }
+
+        @Override
+        public void onToolEnabled(String toolName) {
+            enabledCount++;
+            lastEnabledName = toolName;
+        }
+
+        @Override
+        public void onToolDisabled(String toolName) {
+            disabledCount++;
+            lastDisabledName = toolName;
+        }
+    }
+
     // ==================== 辅助方法 ====================
 
     private Tool createSimpleTool(String name, String description) {
