@@ -267,13 +267,18 @@ public class ToolCallingLoop {
                     Flux<StreamEvent> toolStartEvents = Flux.fromIterable(toolCalls)
                         .map(StreamEvent::toolCallStart);
 
-                    // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
-                    Flux<ToolResultChunk> sharedToolExec = toolExecutor
-                        .executeToolCallsReactive(toolCalls, executionContext)
-                        .cache();
+                    // Step 3b: 并行执行工具，用 doOnNext 收集结果（替代 .cache() 避免无界内存缓存）
+                    List<ToolResult> collectedResults = new ArrayList<>();
 
-                    // 流式发出 TOOL_PROGRESS / TOOL_LOG / TOOL_RESULT 事件
-                    Flux<StreamEvent> toolExecEvents = sharedToolExec
+                    Flux<StreamEvent> toolExecEvents = toolExecutor
+                        .executeToolCallsReactive(toolCalls, executionContext)
+                        .doOnNext(chunk -> {
+                            if (chunk.getType() == ToolResultChunk.ChunkType.COMPLETE) {
+                                collectedResults.add(chunk.getResult().withToolUseId(chunk.getToolCallId()));
+                            } else if (chunk.getType() == ToolResultChunk.ChunkType.ERROR) {
+                                collectedResults.add(ToolResult.error(chunk.getToolCallId(), chunk.getMessage()));
+                            }
+                        })
                         .map(chunk -> switch (chunk.getType()) {
                             case PROGRESS -> StreamEvent.toolProgress(chunk);
                             case LOG -> StreamEvent.toolLog(chunk);
@@ -281,24 +286,15 @@ public class ToolCallingLoop {
                             case ERROR -> StreamEvent.toolError(chunk);
                         });
 
-                    // Step 3c: 收集工具结果，加入对话，递归下一轮
-                    Flux<StreamEvent> nextRound = sharedToolExec
-                        .filter(c -> c.getType() == ToolResultChunk.ChunkType.COMPLETE
-                                  || c.getType() == ToolResultChunk.ChunkType.ERROR)
-                        .map(c -> {
-                            if (c.getType() == ToolResultChunk.ChunkType.COMPLETE) {
-                                return c.getResult().withToolUseId(c.getToolCallId());
-                            }
-                            return ToolResult.error(c.getToolCallId(), c.getMessage());
-                        })
-                        .collectList()
-                        .flatMapMany(results -> {
-                            for (ToolResult result : results) {
-                                conversation.add(createToolResultMessage(result));
-                            }
-                            tracer.endSpan(iterationSpan);
-                            return executeReactiveLoop(conversation, options, iteration + 1);
-                        });
+                    // Step 3c: concat 保证 nextRound 在 toolExecEvents 完成后才订阅，
+                    // 此时 collectedResults 已完全填充，线程安全。
+                    Flux<StreamEvent> nextRound = Flux.defer(() -> {
+                        for (ToolResult result : collectedResults) {
+                            conversation.add(createToolResultMessage(result));
+                        }
+                        tracer.endSpan(iterationSpan);
+                        return executeReactiveLoop(conversation, options, iteration + 1);
+                    });
 
                     return Flux.concat(toolStartEvents, toolExecEvents, nextRound);
                 }));

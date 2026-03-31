@@ -138,7 +138,7 @@ public class McpConfiguration {
         private boolean enabled = true;
 
         /** 请求超时（秒） */
-        private long timeoutSeconds = 30;
+        private long timeoutSeconds = 120;
 
         /** HTTP 自定义 Header（SSE / Streamable HTTP 生效，STDIO 忽略） */
         private Map<String, String> headers = new HashMap<>();
