@@ -49,6 +49,12 @@ public class McpToolServer implements ToolRegistryListener {
      * 启动后自动监听 ToolRegistry 变更，动态同步工具列表。
      */
     public void start() {
+        if (asyncServer != null) {
+            toolRegistry.removeListener(this);
+            asyncServer.closeGracefully().block();
+            logger.info("MCP server '{}' restarting — previous instance closed", serverName);
+        }
+
         List<McpServerFeatures.AsyncToolSpecification> toolSpecs =
                 McpToolAdapter.toAsyncMcpTools(toolRegistry);
 
