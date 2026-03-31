@@ -161,7 +161,7 @@ public class McpToolClient implements ToolSource, AutoCloseable {
     public static class Builder {
         private String serverName = "mcp-server";
         private McpClientTransport transport;
-        private Duration timeout = Duration.ofSeconds(30);
+        private Duration timeout = Duration.ofSeconds(120);
 
         public Builder serverName(String serverName) {
             this.serverName = serverName;

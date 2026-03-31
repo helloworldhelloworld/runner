@@ -12,12 +12,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -84,9 +86,10 @@ public class McpToolWrapper implements Tool, ToolMetadata {
         String progressToken = UUID.randomUUID().toString();
         String toolName = getName();
 
-        // 1. 注册进度监听
+        // 1. 注册进度监听 — publishOn 解耦 MCP 传输 IO 线程，防止下游处理阻塞传输
         Flux<ToolResultChunk> progressFlux = toolClient.getProgressRouter()
             .register(progressToken)
+            .publishOn(Schedulers.boundedElastic())
             .map(pn -> ToolResultChunk.progress(
                 toolName,
                 pn.message() != null ? pn.message() : "",
@@ -95,9 +98,10 @@ public class McpToolWrapper implements Tool, ToolMetadata {
                 pn.meta()
             ));
 
-        // 2. 注册日志监听
+        // 2. 注册日志监听 — 同样 publishOn 隔离调度
         Flux<ToolResultChunk> loggingFlux = toolClient.getLoggingRouter()
             .register(progressToken)
+            .publishOn(Schedulers.boundedElastic())
             .map(ln -> ToolResultChunk.log(
                 toolName,
                 ln.level() != null ? ln.level().name() : "INFO",
@@ -138,8 +142,15 @@ public class McpToolWrapper implements Tool, ToolMetadata {
             })
             .doFinally(signal -> {
                 McpHeaderContext.unbind();
-                toolClient.getProgressRouter().complete(progressToken);
-                toolClient.getLoggingRouter().complete(progressToken);
+                // 延迟 1 秒关闭 sink，为在途通知留出 drain window
+                // 防止 Streamable HTTP 等传输下 result 先于通知到达导致丢帧
+                logger.debug("[MCP-TOOL] {} resultFlux completed (signal={}), scheduling sink drain for token={}",
+                    toolName, signal, progressToken);
+                Schedulers.boundedElastic().schedule(() -> {
+                    logger.debug("[MCP-TOOL] {} draining sinks for token={}", toolName, progressToken);
+                    toolClient.getProgressRouter().complete(progressToken);
+                    toolClient.getLoggingRouter().complete(progressToken);
+                }, 1, TimeUnit.SECONDS);
             });
 
         // 4. 合并：progress + logging 与 result 并行
