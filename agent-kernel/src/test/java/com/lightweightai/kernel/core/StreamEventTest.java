@@ -1,5 +1,6 @@
 package com.lightweightai.kernel.core;
 
+import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
@@ -104,8 +105,12 @@ class StreamEventTest {
     @Test
     @DisplayName("llmComplete 事件")
     void llmComplete() {
+        ConversationMessage msg = ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.ASSISTANT)
+                .textContent("final answer")
+                .build();
         LLMResponse response = LLMResponse.builder()
-                .content("final answer")
+                .message(msg)
                 .build();
         StreamEvent event = StreamEvent.llmComplete(response);
 
