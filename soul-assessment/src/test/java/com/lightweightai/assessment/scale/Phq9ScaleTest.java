@@ -14,10 +14,10 @@ class Phq9ScaleTest {
     @DisplayName("量表定义正确")
     void definition() {
         ScaleDefinition def = Phq9Scale.definition();
-        assertEquals(ScaleType.PHQ9, def.scaleType());
+        assertEquals(ScaleType.PHQ9, def.type());
         assertEquals(9, def.questions().size());
-        assertEquals(4, def.optionLabels().size());
-        assertEquals(4, def.optionValues().size());
+        assertEquals(4, def.options().size());
+        assertEquals(4, def.optionScores().size());
     }
 
     @Test

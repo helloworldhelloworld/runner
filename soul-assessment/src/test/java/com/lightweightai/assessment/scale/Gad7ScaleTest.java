@@ -14,9 +14,9 @@ class Gad7ScaleTest {
     @DisplayName("量表定义正确")
     void definition() {
         ScaleDefinition def = Gad7Scale.definition();
-        assertEquals(ScaleType.GAD7, def.scaleType());
+        assertEquals(ScaleType.GAD7, def.type());
         assertEquals(7, def.questions().size());
-        assertEquals(4, def.optionLabels().size());
+        assertEquals(4, def.options().size());
     }
 
     @Test

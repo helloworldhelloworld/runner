@@ -14,10 +14,10 @@ class Pss10ScaleTest {
     @DisplayName("量表定义正确")
     void definition() {
         ScaleDefinition def = Pss10Scale.definition();
-        assertEquals(ScaleType.PSS10, def.scaleType());
+        assertEquals(ScaleType.PSS10, def.type());
         assertEquals(10, def.questions().size());
-        assertEquals(5, def.optionLabels().size());
-        assertEquals(5, def.optionValues().size());
+        assertEquals(5, def.options().size());
+        assertEquals(5, def.optionScores().size());
     }
 
     @Test
