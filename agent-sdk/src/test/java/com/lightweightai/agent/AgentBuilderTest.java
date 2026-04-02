@@ -137,7 +137,7 @@ class AgentBuilderTest {
 
         ToolRegistry registry = builder.getToolRegistry();
         assertNotNull(registry);
-        assertTrue(registry.hasTool("my-tool"));
+        assertTrue(registry.get("my-tool").isPresent());
     }
 
     @Test
@@ -159,8 +159,8 @@ class AgentBuilderTest {
             .tool(createDummyTool("t2"));
 
         ToolRegistry registry = builder.getToolRegistry();
-        assertTrue(registry.hasTool("t1"));
-        assertTrue(registry.hasTool("t2"));
+        assertTrue(registry.get("t1").isPresent());
+        assertTrue(registry.get("t2").isPresent());
     }
 
     // ==================== 插件测试 ====================
