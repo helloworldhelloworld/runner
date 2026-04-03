@@ -109,11 +109,28 @@ public class McpToolWrapper implements Tool, ToolMetadata {
         // 3. 调用工具（Mono）— 桥接 Reactor Context 中的 per-request headers 到 ThreadLocal
         //    McpHeaderContext.bind() 将 contextWrite() 写入的 header 注入 ThreadLocal，
         //    transport 的 customizeRequest 回调通过 McpHeaderContext.current() 读取。
-        Flux<ToolResultChunk> resultFlux = Mono
+        //
+        //    使用 .cache() 确保 MCP 调用只执行一次，callTrigger + resultFlux 共享结果。
+        //    doOnTerminate 关闭 router → sink complete → 已 buffer 的通知帧排空 → progressFlux/loggingFlux 完成。
+        Mono<McpSchema.CallToolResult> callMono = Mono
             .deferContextual(ctx -> {
                 McpHeaderContext.bind(ctx);
                 return toolClient.callToolReactive(mcpTool.name(), args, progressToken);
             })
+            .doOnTerminate(() -> {
+                toolClient.getProgressRouter().complete(progressToken);
+                toolClient.getLoggingRouter().complete(progressToken);
+            })
+            .cache();
+
+        // callTrigger: 触发 MCP 调用，不发射任何 chunk，吞掉 error（由 resultFlux 处理）
+        Flux<ToolResultChunk> callTrigger = callMono
+            .then(Mono.<ToolResultChunk>empty())
+            .onErrorResume(e -> Mono.empty())
+            .flux();
+
+        // resultFlux: 从 cached callMono 构建 COMPLETE/ERROR chunk
+        Flux<ToolResultChunk> resultFlux = callMono
             .flatMapMany(mcpResult -> {
                 String content = extractContent(mcpResult);
                 boolean isError = mcpResult.isError() != null && mcpResult.isError();
@@ -125,7 +142,7 @@ public class McpToolWrapper implements Tool, ToolMetadata {
                 ToolResultChunk completeChunk = ToolResultChunk.complete(toolName, toolResult);
 
                 // 如果上游把 streaming/content 片段汇总在结果中（如 params.directives[].payload.stepInfo），
-                // 在最终 COMPLETE 前转为 LOG 事件，便于 demo 观察“中间过程”。
+                // 在最终 COMPLETE 前转为 LOG 事件，便于 demo 观察"中间过程"。
                 List<ToolResultChunk> synthesizedLogs = extractStreamingStepLogs(toolName, mcpResult, structuredContent);
                 if (synthesizedLogs.isEmpty()) {
                     return Flux.just(completeChunk);
@@ -135,17 +152,14 @@ public class McpToolWrapper implements Tool, ToolMetadata {
             .onErrorResume(e -> {
                 logger.error("MCP tool call failed: {} - {}", toolName, e.getMessage());
                 return Flux.just(ToolResultChunk.error(toolName, "MCP call failed: " + e.getMessage()));
-            })
-            .doFinally(signal -> {
-                McpHeaderContext.unbind();
-                toolClient.getProgressRouter().complete(progressToken);
-                toolClient.getLoggingRouter().complete(progressToken);
             });
 
-        // 4. 合并：progress + logging 与 result 并行
-        // resultFlux 完成时 router 关闭，progress/logging flux 自然终止
-        return Flux.merge(progressFlux, loggingFlux)
-            .mergeWith(resultFlux);
+        // 4. Phase 1: callTrigger 启动调用 + progress/logging 并行流入
+        //    doOnTerminate 关闭 router → 通知帧排空 → merge 完成
+        //    Phase 2: concatWith → resultFlux 发射 COMPLETE（结构性保证在所有通知帧之后）
+        return Flux.merge(callTrigger, progressFlux, loggingFlux)
+            .concatWith(resultFlux)
+            .doFinally(signal -> McpHeaderContext.unbind());
     }
 
     @Override
