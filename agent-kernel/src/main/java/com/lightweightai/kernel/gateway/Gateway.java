@@ -5,6 +5,8 @@ import com.lightweightai.kernel.agent.AgentResponse;
 import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.core.postprocess.StreamPostProcessor;
 import com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipeline;
+import com.lightweightai.kernel.harness.AgentHarness;
+import com.lightweightai.kernel.harness.HarnessContext;
 import com.lightweightai.kernel.trace.SpanContext;
 import com.lightweightai.kernel.trace.TraceContext;
 import com.lightweightai.kernel.trace.Tracer;
@@ -37,6 +39,7 @@ public class Gateway {
     private final SessionManager sessionManager;
     private final StreamPostProcessorPipeline postProcessorPipeline;
     private final Tracer tracer;
+    private final AgentHarness harness;
 
     private Gateway(Builder builder) {
         if (builder.chatHandler != null) {
@@ -47,7 +50,9 @@ public class Gateway {
             throw new IllegalArgumentException("Either chatHandler or agentLoop is required");
         }
         this.sessionManager = builder.sessionManager;
-        this.tracer = builder.tracer != null ? builder.tracer : Tracer.NOOP;
+        this.harness = builder.harness;
+        this.tracer = builder.tracer != null ? builder.tracer
+            : (harness != null ? harness.getTracer() : Tracer.NOOP);
         if (!builder.postProcessors.isEmpty()) {
             this.postProcessorPipeline = StreamPostProcessorPipeline.builder()
                     .addAll(builder.postProcessors)
@@ -194,10 +199,31 @@ public class Gateway {
      * 包含 LLM 文本片段、工具调用进度、工具结果等全链路事件。
      */
     public Flux<StreamEvent> handleStreamReactive(GatewayRequest request) {
-        // 创建根 span
-        SpanContext rootSpan = tracer.startTrace("gateway.handle");
-        rootSpan.setAttribute("sessionId", request.getSessionId());
-        rootSpan.setAttribute("requestId", request.getRequestId());
+        // 通过 Harness 创建 HarnessContext（含 root span + baggage + trace 传播）
+        // 如果无 harness 则 fallback 到直接创建 span
+        final SpanContext rootSpan;
+        final HarnessContext harnessCtx;
+
+        if (harness != null) {
+            Map<String, String> headers = null;
+            if (request.getMetadata() != null) {
+                // 从请求 metadata 中尝试提取 HTTP headers (用于 W3C traceparent 传播)
+                Object rawHeaders = request.getMetadata().get("headers");
+                if (rawHeaders instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> h = (Map<String, String>) rawHeaders;
+                    headers = h;
+                }
+            }
+            harnessCtx = harness.createContext(
+                request.getSessionId(), request.getRequestId(), headers);
+            rootSpan = harnessCtx.getRootSpan();
+        } else {
+            harnessCtx = null;
+            rootSpan = tracer.startTrace("gateway.handle");
+            rootSpan.setAttribute("sessionId", request.getSessionId());
+            rootSpan.setAttribute("requestId", request.getRequestId());
+        }
 
         // 在流头部注入用户消息 trace
         StreamEvent userTrace = StreamEvent.trace("user.message", request.getMessage(),
@@ -210,10 +236,18 @@ public class Gateway {
         if (postProcessorPipeline != null) {
             stream = stream.transform(postProcessorPipeline);
         }
-        return stream
+
+        stream = stream
             .doOnComplete(() -> tracer.endSpan(rootSpan))
             .doOnError(e -> tracer.endSpanWithError(rootSpan, e))
             .contextWrite(TraceContext.put(rootSpan));
+
+        // 如果有 HarnessContext，绑定到 Reactor Context
+        if (harnessCtx != null) {
+            stream = stream.contextWrite(harnessCtx.toReactorContext());
+        }
+
+        return stream;
     }
 
     /**
@@ -252,6 +286,7 @@ public class Gateway {
         private StreamPostProcessorPipeline postProcessorPipeline;
         private final List<StreamPostProcessor> postProcessors = new ArrayList<>();
         private Tracer tracer;
+        private AgentHarness harness;
 
         public Builder chatHandler(ChatHandler chatHandler) {
             this.chatHandler = chatHandler;
@@ -286,6 +321,14 @@ public class Gateway {
 
         public Builder tracer(Tracer tracer) {
             this.tracer = tracer;
+            return this;
+        }
+
+        /**
+         * 设置 AgentHarness（推荐，提供完整的 Harness Engineering 能力）
+         */
+        public Builder harness(AgentHarness harness) {
+            this.harness = harness;
             return this;
         }
 

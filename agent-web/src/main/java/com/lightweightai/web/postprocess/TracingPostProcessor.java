@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -48,6 +49,11 @@ public class TracingPostProcessor implements StreamPostProcessor {
         AtomicBoolean firstToken = new AtomicBoolean(false);
         AtomicLong subscribeTime = new AtomicLong(0);
         StringBuilder outputAccumulator = new StringBuilder();
+        // Cost tracking accumulators (Harness Engineering)
+        AtomicInteger totalInputTokens = new AtomicInteger(0);
+        AtomicInteger totalOutputTokens = new AtomicInteger(0);
+        AtomicInteger toolCallCount = new AtomicInteger(0);
+        AtomicLong totalToolLatencyMs = new AtomicLong(0);
 
         return source
             .doOnSubscribe(s -> subscribeTime.set(System.currentTimeMillis()))
@@ -67,6 +73,7 @@ public class TracingPostProcessor implements StreamPostProcessor {
                         }
                     }
                     case TOOL_CALL_START -> {
+                        toolCallCount.incrementAndGet();
                         ToolCall tc = event.getToolCall();
                         String toolName = tc != null ? tc.getName() : "unknown";
                         Map<String, Object> data = new LinkedHashMap<>();
@@ -111,8 +118,12 @@ public class TracingPostProcessor implements StreamPostProcessor {
                         data.put("hasToolCalls", hasToolCalls);
                         data.put("elapsedMs", elapsed);
                         if (resp != null && resp.getUsage() != null) {
-                            data.put("inputTokens", resp.getUsage().getInputTokens());
-                            data.put("outputTokens", resp.getUsage().getOutputTokens());
+                            int inTok = resp.getUsage().getInputTokens();
+                            int outTok = resp.getUsage().getOutputTokens();
+                            data.put("inputTokens", inTok);
+                            data.put("outputTokens", outTok);
+                            totalInputTokens.addAndGet(inTok);
+                            totalOutputTokens.addAndGet(outTok);
                         }
                         if (resp != null && resp.getStopReason() != null) {
                             data.put("stopReason", resp.getStopReason());
