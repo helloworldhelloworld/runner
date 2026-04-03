@@ -14,15 +14,9 @@ const routes = [
     children: [
       { path: '', redirect: '/chat' },
       { path: 'chat', name: 'Chat', component: () => import('../views/Chat.vue') },
-      { path: 'tools', name: 'Tools', component: () => import('../views/Tools.vue') },
-      { path: 'client-tools', name: 'ClientTools', component: () => import('../views/ClientTools.vue') },
-      { path: 'skill-creator', name: 'SkillCreator', component: () => import('../views/SkillCreator.vue') },
-      { path: 'skill-tester', name: 'SkillTester', component: () => import('../views/SkillTester.vue') },
+      { path: 'skills', name: 'Skills', component: () => import('../views/Skills.vue') },
       { path: 'memory', name: 'Memory', component: () => import('../views/Memory.vue') },
-      // { path: 'assessment', name: 'Assessment', component: () => import('../views/Assessment.vue') },
-      // { path: 'emotion', name: 'Emotion', component: () => import('../views/Emotion.vue') },
-      { path: 'model-config', name: 'ModelConfig', component: () => import('../views/ModelConfig.vue'), meta: { requiresAdmin: true } },
-      { path: 'system', name: 'System', component: () => import('../views/System.vue') },
+      { path: 'settings', name: 'Settings', component: () => import('../views/Settings.vue') },
       { path: 'admin', name: 'Admin', component: () => import('../views/Admin.vue'), meta: { requiresAdmin: true } }
     ]
   }
