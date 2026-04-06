@@ -1,0 +1,46 @@
+name: Architecture Guardrails
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dependency-check:
+    name: Check Dependency Rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check module dependencies
+        run: |
+          chmod +x scripts/check-dependencies.sh
+          ./scripts/check-dependencies.sh
+
+  doc-freshness:
+    name: Check Doc Freshness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check documentation freshness
+        run: |
+          chmod +x scripts/check-doc-freshness.sh
+          ./scripts/check-doc-freshness.sh
+
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: maven
+      - name: Build and test all modules
+        run: mvn clean test -B
+      - name: Save CI results
+        if: always()
+        run: |
+          mkdir -p ci-results
+          echo '{"status":"${{ job.status }}","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","sha":"${{ github.sha }}"}' > ci-results/latest.json
