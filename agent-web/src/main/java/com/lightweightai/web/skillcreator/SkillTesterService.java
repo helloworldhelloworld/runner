@@ -95,12 +95,12 @@ public class SkillTesterService {
                 && names.indexOf("GetPoi") < names.indexOf("Navigate");
         }
 
-        // "不调用 X"
+        // "不调用 X" — 通用匹配
         if (al.contains("不调用")) {
-            for (String tool : List.of("Navigate", "SearchRoute", "SearchLocation", "GetPoi", "ExitNavigation")) {
-                if (al.contains(tool.toLowerCase())) {
-                    return !names.contains(tool);
-                }
+            java.util.regex.Matcher noCallMatcher = Pattern.compile("不调用\\s*(\\S+)").matcher(assertion);
+            if (noCallMatcher.find()) {
+                String toolName = noCallMatcher.group(1);
+                return names.stream().noneMatch(n -> n.equalsIgnoreCase(toolName));
             }
         }
 
@@ -109,11 +109,13 @@ public class SkillTesterService {
             return names.isEmpty();
         }
 
-        // "调用 X"
-        for (String tool : List.of("Navigate", "SearchRoute", "SearchLocation", "GetPoi", "ExitNavigation")) {
-            if (al.contains("调用 " + tool.toLowerCase()) || al.contains("调用 " + tool)) {
-                if (al.contains("不")) continue; // 已在上面处理
-                return names.contains(tool);
+        // "调用 X" — 通用匹配，不限定工具名
+        {
+            java.util.regex.Matcher callMatcher = Pattern.compile("调用\\s*(\\S+)").matcher(assertion);
+            if (callMatcher.find() && !al.contains("不") && !al.contains("先")) {
+                String toolName = callMatcher.group(1);
+                // 大小写不敏感匹配
+                return names.stream().anyMatch(n -> n.equalsIgnoreCase(toolName));
             }
         }
 

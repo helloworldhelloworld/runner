@@ -512,6 +512,65 @@ public class AgentConfig {
         return new SkillCreatorService(llmProvider, toolRegistry, promptEngine, skillRepository, toolSchemaRepository);
     }
 
+    // ==================== Skill Pipeline Beans ====================
+
+    @Bean
+    public com.lightweightai.web.skillcreator.TestRunRepository testRunRepository() {
+        return new com.lightweightai.web.skillcreator.TestRunRepository(skillCreatorDbPath);
+    }
+
+    @Bean
+    public com.lightweightai.web.skillcreator.SkillVersionRepository skillVersionRepository() {
+        return new com.lightweightai.web.skillcreator.SkillVersionRepository(skillCreatorDbPath);
+    }
+
+    @Bean
+    public com.lightweightai.web.skillcreator.SimulationRepository simulationRepository() {
+        return new com.lightweightai.web.skillcreator.SimulationRepository(skillCreatorDbPath);
+    }
+
+    @Bean
+    public com.lightweightai.web.skillcreator.SkillTestExecutionService skillTestExecutionService(
+            LLMProvider llmProvider,
+            SkillRepository skillRepository,
+            SkillTestCaseRepository skillTestCaseRepository,
+            com.lightweightai.web.skillcreator.TestRunRepository testRunRepository) {
+        com.lightweightai.kernel.core.TestExecutor testExecutor =
+            new com.lightweightai.kernel.core.DefaultTestExecutor(llmProvider);
+        return new com.lightweightai.web.skillcreator.SkillTestExecutionService(
+            testExecutor, skillRepository, skillTestCaseRepository, testRunRepository);
+    }
+
+    @Bean
+    public com.lightweightai.web.skillcreator.SkillPublishService skillPublishService(
+            SkillRepository skillRepository,
+            com.lightweightai.web.skillcreator.SkillVersionRepository skillVersionRepository,
+            com.lightweightai.web.skillcreator.TestRunRepository testRunRepository,
+            PromptEngine promptEngine,
+            ToolRegistry toolRegistry,
+            com.lightweightai.kernel.instruction.InstructionRegistry instructionRegistry) {
+        return new com.lightweightai.web.skillcreator.SkillPublishService(
+            skillRepository, skillVersionRepository, testRunRepository, promptEngine, toolRegistry, instructionRegistry);
+    }
+
+    @Bean
+    public com.lightweightai.web.skillcreator.SkillSimulationService skillSimulationService(
+            LLMProvider llmProvider,
+            com.lightweightai.web.skillcreator.SkillVersionRepository skillVersionRepository,
+            com.lightweightai.web.skillcreator.SimulationRepository simulationRepository) {
+        return new com.lightweightai.web.skillcreator.SkillSimulationService(
+            llmProvider, skillVersionRepository, simulationRepository);
+    }
+
+    @Bean
+    public com.lightweightai.web.skillcreator.SkillTestCaseGenerationService skillTestCaseGenerationService(
+            LLMProvider llmProvider,
+            SkillRepository skillRepository,
+            SkillTestCaseRepository skillTestCaseRepository) {
+        return new com.lightweightai.web.skillcreator.SkillTestCaseGenerationService(
+            llmProvider, skillRepository, skillTestCaseRepository);
+    }
+
     @Bean
     public SpeechProvider speechProvider() {
         String provider = speechProviderType.toLowerCase();

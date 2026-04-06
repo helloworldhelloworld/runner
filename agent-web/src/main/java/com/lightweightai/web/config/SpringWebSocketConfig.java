@@ -50,6 +50,10 @@ public class SpringWebSocketConfig implements WebSocketConfigurer {
     private final ToolSchemaRepository toolSchemaRepository;
     private final SkillTestCaseRepository skillTestCaseRepository;
     private final AuthSessionService authSessionService;
+    private final com.lightweightai.web.skillcreator.SkillTestExecutionService skillTestExecutionService;
+    private final com.lightweightai.web.skillcreator.SkillPublishService skillPublishService;
+    private final com.lightweightai.web.skillcreator.SkillSimulationService skillSimulationService;
+    private final com.lightweightai.web.skillcreator.SkillTestCaseGenerationService skillTestCaseGenerationService;
 
     public SpringWebSocketConfig(Gateway gateway,
                                   CrisisDetector crisisDetector,
@@ -64,7 +68,11 @@ public class SpringWebSocketConfig implements WebSocketConfigurer {
                                   SkillCreatorService skillCreatorService,
                                   ToolSchemaRepository toolSchemaRepository,
                                   SkillTestCaseRepository skillTestCaseRepository,
-                                  AuthSessionService authSessionService) {
+                                  AuthSessionService authSessionService,
+                                  com.lightweightai.web.skillcreator.SkillTestExecutionService skillTestExecutionService,
+                                  com.lightweightai.web.skillcreator.SkillPublishService skillPublishService,
+                                  com.lightweightai.web.skillcreator.SkillSimulationService skillSimulationService,
+                                  com.lightweightai.web.skillcreator.SkillTestCaseGenerationService skillTestCaseGenerationService) {
         this.gateway = gateway;
         this.crisisDetector = crisisDetector;
         this.toolRegistry = toolRegistry;
@@ -79,18 +87,25 @@ public class SpringWebSocketConfig implements WebSocketConfigurer {
         this.toolSchemaRepository = toolSchemaRepository;
         this.skillTestCaseRepository = skillTestCaseRepository;
         this.authSessionService = authSessionService;
+        this.skillTestExecutionService = skillTestExecutionService;
+        this.skillPublishService = skillPublishService;
+        this.skillSimulationService = skillSimulationService;
+        this.skillTestCaseGenerationService = skillTestCaseGenerationService;
     }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         logger.info("Using Spring WebSocket on Tomcat (same port as HTTP)");
-        registry.addHandler(
-                new SpringChatWebSocketHandler(gateway, crisisDetector, toolRegistry,
+        var handler = new SpringChatWebSocketHandler(gateway, crisisDetector, toolRegistry,
                     chatService, soulComfortChatService, assessmentService,
                     userService, llmProvider, mcpToolRegistrar, sessionAwareDispatcher,
                     skillCreatorService, toolSchemaRepository, skillTestCaseRepository,
-                    authSessionService),
-                "/ws/chat")
+                    authSessionService);
+        handler.setSkillTestExecutionService(skillTestExecutionService);
+        handler.setSkillPublishService(skillPublishService);
+        handler.setSkillSimulationService(skillSimulationService);
+        handler.setSkillTestCaseGenerationService(skillTestCaseGenerationService);
+        registry.addHandler(handler, "/ws/chat")
             .setAllowedOrigins("*");
     }
 

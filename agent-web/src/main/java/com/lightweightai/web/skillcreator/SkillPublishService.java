@@ -26,17 +26,20 @@ public class SkillPublishService {
     private final TestRunRepository testRunRepository;
     private final PromptEngine promptEngine;
     private final ToolRegistry toolRegistry;
+    private final com.lightweightai.kernel.instruction.InstructionRegistry instructionRegistry;
 
     public SkillPublishService(SkillRepository skillRepository,
                                SkillVersionRepository versionRepository,
                                TestRunRepository testRunRepository,
                                PromptEngine promptEngine,
-                               ToolRegistry toolRegistry) {
+                               ToolRegistry toolRegistry,
+                               com.lightweightai.kernel.instruction.InstructionRegistry instructionRegistry) {
         this.skillRepository = skillRepository;
         this.versionRepository = versionRepository;
         this.testRunRepository = testRunRepository;
         this.promptEngine = promptEngine;
         this.toolRegistry = toolRegistry;
+        this.instructionRegistry = instructionRegistry;
     }
 
     /**
@@ -157,7 +160,24 @@ public class SkillPublishService {
                 runtimeTool.ifPresent(builder::addTool);
             }
 
-            promptEngine.registerSkill(builder.build());
+            Skill skill = builder.build();
+            promptEngine.registerSkill(skill);
+
+            // 同时注册到 InstructionRegistry（技能列表页面可见）
+            if (instructionRegistry != null) {
+                final String sName = name;
+                final String sDesc = description;
+                final String sPrompt = systemPrompt;
+                try {
+                    if (instructionRegistry.getPackage(sName) != null) {
+                        instructionRegistry.deactivatePackage(sName);
+                    }
+                    instructionRegistry.registerPackage(new SimpleInstructionPackage(sName, sDesc, sPrompt));
+                    instructionRegistry.activatePackage(sName);
+                } catch (Exception ex) {
+                    logger.debug("InstructionRegistry registration: {}", ex.getMessage());
+                }
+            }
         } catch (Exception e) {
             logger.error("Failed to register version to PromptEngine: {}", e.getMessage(), e);
         }

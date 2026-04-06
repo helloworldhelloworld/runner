@@ -77,10 +77,12 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private com.lightweightai.web.skillcreator.SkillTestExecutionService skillTestExecutionService;
     private com.lightweightai.web.skillcreator.SkillPublishService skillPublishService;
     private com.lightweightai.web.skillcreator.SkillSimulationService skillSimulationService;
+    private com.lightweightai.web.skillcreator.SkillTestCaseGenerationService skillTestCaseGenerationService;
 
     public void setSkillTestExecutionService(com.lightweightai.web.skillcreator.SkillTestExecutionService svc) { this.skillTestExecutionService = svc; }
     public void setSkillPublishService(com.lightweightai.web.skillcreator.SkillPublishService svc) { this.skillPublishService = svc; }
     public void setSkillSimulationService(com.lightweightai.web.skillcreator.SkillSimulationService svc) { this.skillSimulationService = svc; }
+    public void setSkillTestCaseGenerationService(com.lightweightai.web.skillcreator.SkillTestCaseGenerationService svc) { this.skillTestCaseGenerationService = svc; }
 
     private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -385,6 +387,35 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                 }
 
                 // ==================== Skill Pipeline ====================
+                case "skill_generate_cases" -> {
+                    if (skillTestCaseGenerationService != null) {
+                        String skillId = payload.path("skillId").asText("");
+                        String genSessionId = payload.path("sessionId").asText(session.getId());
+                        String genMessage = payload.path("message").asText("");
+                        handlePipelineStream(session, requestId, "skill_generate",
+                            skillTestCaseGenerationService.chat(genSessionId, skillId, genMessage));
+                    } else {
+                        sendResponse(session, "error_response", requestId, Map.of("error", "Case generation service not configured"));
+                    }
+                }
+                case "skill_confirm_cases" -> {
+                    if (skillTestCaseGenerationService != null) {
+                        try {
+                            String genSessionId = payload.path("sessionId").asText(session.getId());
+                            var cases = skillTestCaseGenerationService.confirmCases(genSessionId);
+                            sendResponse(session, "skill_cases_confirmed", requestId, Map.of("count", cases.size()));
+                        } catch (Exception e) {
+                            sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
+                        }
+                    }
+                }
+                case "skill_get_generated_cases" -> {
+                    if (skillTestCaseGenerationService != null) {
+                        String genSessionId = payload.path("sessionId").asText(session.getId());
+                        sendResponse(session, "skill_generated_cases", requestId,
+                            skillTestCaseGenerationService.getCases(genSessionId));
+                    }
+                }
                 case "skill_test_execute" -> {
                     if (skillTestExecutionService != null) {
                         String skillId = payload.path("skillId").asText("");
@@ -639,7 +670,13 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         Disposable sub = flux.subscribe(
             event -> {
                 try {
-                    if (event.getType() == StreamEvent.EventType.POST_PROCESS_DATA) {
+                    if (event.getType() == StreamEvent.EventType.TEXT_DELTA) {
+                        ObjectNode msg = MAPPER.createObjectNode();
+                        msg.put("type", prefix + "_token");
+                        if (requestId != null) msg.put("requestId", requestId);
+                        msg.put("data", event.getTextDelta());
+                        safeSend(session, MAPPER.writeValueAsString(msg));
+                    } else if (event.getType() == StreamEvent.EventType.POST_PROCESS_DATA) {
                         ObjectNode msg = MAPPER.createObjectNode();
                         msg.put("type", prefix + "_" + event.getCategory());
                         if (requestId != null) msg.put("requestId", requestId);

@@ -32,7 +32,7 @@ class SkillPublishServiceTest {
         ToolRegistry toolRegistry = new ToolRegistry();
 
         publishService = new SkillPublishService(
-            skillRepository, versionRepository, testRunRepository, promptEngine, toolRegistry);
+            skillRepository, versionRepository, testRunRepository, promptEngine, toolRegistry, null);
     }
 
     @AfterEach

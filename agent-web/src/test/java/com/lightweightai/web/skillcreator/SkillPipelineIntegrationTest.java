@@ -43,7 +43,7 @@ class SkillPipelineIntegrationTest {
         testExecutionService = new SkillTestExecutionService(
             new MockTestExecutor(), skillRepository, testCaseRepository, testRunRepository);
         publishService = new SkillPublishService(
-            skillRepository, versionRepository, testRunRepository, promptEngine, toolRegistry);
+            skillRepository, versionRepository, testRunRepository, promptEngine, toolRegistry, null);
     }
 
     @AfterEach

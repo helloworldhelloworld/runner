@@ -7,6 +7,7 @@ let _ws = null
 let _wsConnecting = null
 let _wsCallbacks = null
 let _skillCreatorCallbacks = null
+let _pipelineCallbacks = null
 const _pendingRequests = new Map()
 let _requestIdCounter = 0
 
@@ -94,6 +95,31 @@ function _handleMessage(raw) {
         case 'skill_creator_draft': scCb.onDraft?.(msg.data); break
         case 'skill_creator_error': scCb.onError?.(new Error(msg.message || 'Skill Creator 错误')); _skillCreatorCallbacks = null; break
         case 'skill_creator_stream_end': scCb.onComplete?.(); _skillCreatorCallbacks = null; break
+      }
+      return
+    }
+
+    // Skill Pipeline stream (case generation / test execution / simulation)
+    if (msg.type?.startsWith('skill_generate_') || msg.type?.startsWith('skill_test_') || msg.type?.startsWith('skill_simulation_')) {
+      const pcb = _pipelineCallbacks
+      if (!pcb) return
+      if (msg.requestId && pcb.requestId && msg.requestId !== pcb.requestId) return
+      switch (msg.type) {
+        // Case generation
+        case 'skill_generate_token': pcb.onDelta?.(msg.data); break
+        case 'skill_generate_test_cases_update': pcb.onCasesUpdate?.(msg.data); break
+        case 'skill_generate_error': pcb.onError?.(new Error(msg.message || 'Generation error')); _pipelineCallbacks = null; break
+        case 'skill_generate_stream_end': pcb.onComplete?.(); _pipelineCallbacks = null; break
+        // Test execution
+        case 'skill_test_test_case_start': pcb.onCaseStart?.(msg.data); break
+        case 'skill_test_test_case_result': pcb.onCaseResult?.(msg.data); break
+        case 'skill_test_test_run_complete': pcb.onRunComplete?.(msg.data); pcb.onComplete?.(msg.data); _pipelineCallbacks = null; break
+        case 'skill_test_error': pcb.onError?.(new Error(msg.message || 'Test execution error')); _pipelineCallbacks = null; break
+        case 'skill_test_stream_end': pcb.onComplete?.(msg.data); _pipelineCallbacks = null; break
+        case 'skill_simulation_simulation_turn': pcb.onTurn?.(msg.data); break
+        case 'skill_simulation_simulation_complete': pcb.onSimComplete?.(msg.data); pcb.onComplete?.(msg.data); _pipelineCallbacks = null; break
+        case 'skill_simulation_error': pcb.onError?.(new Error(msg.message || 'Simulation error')); _pipelineCallbacks = null; break
+        case 'skill_simulation_stream_end': pcb.onComplete?.(msg.data); _pipelineCallbacks = null; break
       }
       return
     }
@@ -237,6 +263,79 @@ export const skillTestSave = (testCase) => _sendRequest('skill_test_save', { tes
 export const skillTestSaveBatch = (testCases) => _sendRequest('skill_test_save_batch', { testCases })
 export const skillTestDelete = (testCaseId) => _sendRequest('skill_test_delete', { testCaseId })
 export const skillTestDeleteAll = (skillId) => _sendRequest('skill_test_delete_all', { skillId })
+
+// ========== Skill Pipeline: Case Generation (streaming) ==========
+export async function skillGenerateCases(skillId, sessionId, message, options = {}) {
+  const ws = await ensureWebSocket()
+  const requestId = _nextRequestId()
+  return new Promise((resolve, reject) => {
+    _pipelineCallbacks = {
+      requestId,
+      onDelta: options.onDelta,
+      onCasesUpdate: options.onCasesUpdate,
+      onComplete: () => { options.onComplete?.(); resolve() },
+      onError: (err) => { options.onError?.(err); reject(err) }
+    }
+    ws.send(JSON.stringify({ type: 'skill_generate_cases', requestId, skillId, sessionId, message }))
+  })
+}
+export const skillConfirmCases = (sessionId) => _sendRequest('skill_confirm_cases', { sessionId })
+export const skillGetGeneratedCases = (sessionId) => _sendRequest('skill_get_generated_cases', { sessionId })
+
+// ========== Skill Pipeline: Test Execution (streaming) ==========
+export async function skillTestExecute(skillId, options = {}) {
+  const ws = await ensureWebSocket()
+  const requestId = _nextRequestId()
+  return new Promise((resolve, reject) => {
+    _pipelineCallbacks = {
+      requestId,
+      onCaseStart: options.onCaseStart,
+      onCaseResult: options.onCaseResult,
+      onRunComplete: options.onRunComplete,
+      onComplete: () => { options.onComplete?.(); resolve() },
+      onError: (err) => { options.onError?.(err); reject(err) }
+    }
+    ws.send(JSON.stringify({ type: 'skill_test_execute', requestId, skillId }))
+  })
+}
+
+export async function skillTestExecuteSingle(skillId, testCaseId, options = {}) {
+  const ws = await ensureWebSocket()
+  const requestId = _nextRequestId()
+  return new Promise((resolve, reject) => {
+    _pipelineCallbacks = {
+      requestId,
+      onCaseStart: options.onCaseStart,
+      onCaseResult: options.onCaseResult,
+      onComplete: () => { options.onComplete?.(); resolve() },
+      onError: (err) => { options.onError?.(err); reject(err) }
+    }
+    ws.send(JSON.stringify({ type: 'skill_test_execute_single', requestId, skillId, testCaseId }))
+  })
+}
+
+// ========== Skill Pipeline: Publish ==========
+export const skillTestRunHistory = (skillId) => _sendRequest('skill_test_run_history', { skillId })
+export const skillPublishStage = (skillId, threshold = 0.9) => _sendRequest('skill_publish_stage', { skillId, threshold })
+export const skillPublishActivate = (versionId) => _sendRequest('skill_publish_activate', { versionId })
+export const skillPublishRollback = (skillId, versionId) => _sendRequest('skill_publish_rollback', { skillId, versionId })
+export const skillVersionHistory = (skillId) => _sendRequest('skill_version_history', { skillId })
+
+// ========== Skill Pipeline: Simulation (streaming) ==========
+export async function skillSimulate(versionId, scenarios, options = {}) {
+  const ws = await ensureWebSocket()
+  const requestId = _nextRequestId()
+  return new Promise((resolve, reject) => {
+    _pipelineCallbacks = {
+      requestId,
+      onTurn: options.onTurn,
+      onSimComplete: options.onSimComplete,
+      onComplete: () => { options.onComplete?.(); resolve() },
+      onError: (err) => { options.onError?.(err); reject(err) }
+    }
+    ws.send(JSON.stringify({ type: 'skill_simulate', requestId, versionId, scenarios }))
+  })
+}
 
 // ========== Client Tool Simulation ==========
 
