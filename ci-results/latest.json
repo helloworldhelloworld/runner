@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "7f5508b1fe768eb94b444aa892c60d077863183a",
-  "exit_code": 1,
-  "timestamp": "2026-04-03T19:28:28Z",
-  "branch": "claude/add-critical-path-unit-tests",
-  "run_id": "23959213875",
-  "test_summary": "[INFO] Tests run: 28, Failures: 0, Errors: 0, Skipped: 0|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.416 s - in com.lightweightai.assessment.AssessmentServiceTest|[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.025 s - in com.lightweightai.assessment.AssessmentScorerTest|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.061 s - in com.lightweightai.assessment.scale.Gad7ScaleTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.018 s - in com.lightweightai.assessment.scale.Phq9ScaleTest|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s - in com.lightweightai.assessment.scale.Pss10ScaleTest|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.assessment.AssessmentReportGeneratorTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.042 s - in com.lightweightai.assessment.AssessmentRepositoryTest|[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.assessment.ScaleDefinitionTest|[INFO] Tests run: 90, Failures: 0, Errors: 0, Skipped: 0|"
+  "trigger_sha": "fdcaa61f308a42cdd221713415f4aa68fecd20dd",
+  "exit_code": 0,
+  "timestamp": "2026-04-06T17:06:10Z",
+  "branch": "main",
+  "run_id": "24041546990",
+  "test_summary": "[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.053 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.web.agent.ReflectionServiceTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.066 s - in com.lightweightai.web.gateway.GatewayServiceTest|[WARNING] Tests run: 218, Failures: 0, Errors: 0, Skipped: 20|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.058 s - in com.lightweightai.plugin.example.PluginToolTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0|"
 }
