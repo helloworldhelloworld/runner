@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "7a0649b1af568deecf36c0d7d49a523a1695233b",
-  "exit_code": 1,
-  "timestamp": "2026-04-06T19:37:09Z",
+  "trigger_sha": "0b5a237ae1fb9db0fd5a7886d75a1c5ec3ba85c9",
+  "exit_code": 0,
+  "timestamp": "2026-04-06T19:40:50Z",
   "branch": "claude/add-unit-tests-v2",
-  "run_id": "24047617832",
-  "test_summary": ""
+  "run_id": "24047743700",
+  "test_summary": "[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.021 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.048 s - in com.lightweightai.web.agent.SoulComfortAgentTest|[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s - in com.lightweightai.web.agent.ReflectionServiceTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.065 s - in com.lightweightai.web.gateway.GatewayServiceTest|[WARNING] Tests run: 229, Failures: 0, Errors: 0, Skipped: 20|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.052 s - in com.lightweightai.plugin.example.PluginToolTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0|"
 }
