@@ -16,7 +16,7 @@ class DeviceToolBindingTest {
     @Test
     @DisplayName("通配符绑定匹配任意设备")
     void wildcardBindingShouldMatchAll() {
-        DeviceToolBinding binding = new DeviceToolBinding("*", VersionRange.any(), mockTool);
+        DeviceToolBinding binding = new DeviceToolBinding("*", VersionRange.all(), mockTool);
 
         assertTrue(binding.matches(DeviceContext.of("ios", "2.0")));
         assertTrue(binding.matches(DeviceContext.of("android")));
@@ -26,7 +26,7 @@ class DeviceToolBindingTest {
     @Test
     @DisplayName("精确设备类型匹配")
     void shouldMatchExactDeviceType() {
-        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.any(), mockTool);
+        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.all(), mockTool);
 
         assertTrue(binding.matches(DeviceContext.of("ios", "2.0")));
         assertFalse(binding.matches(DeviceContext.of("android", "2.0")));
@@ -35,7 +35,7 @@ class DeviceToolBindingTest {
     @Test
     @DisplayName("null context 不匹配")
     void shouldNotMatchNullContext() {
-        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.any(), mockTool);
+        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.all(), mockTool);
         assertFalse(binding.matches(null));
     }
 
@@ -43,17 +43,17 @@ class DeviceToolBindingTest {
     @DisplayName("构造器 null 检查")
     void shouldThrowOnNullParams() {
         assertThrows(NullPointerException.class,
-            () -> new DeviceToolBinding(null, VersionRange.any(), mockTool));
+            () -> new DeviceToolBinding(null, VersionRange.all(), mockTool));
         assertThrows(NullPointerException.class,
             () -> new DeviceToolBinding("ios", null, mockTool));
         assertThrows(NullPointerException.class,
-            () -> new DeviceToolBinding("ios", VersionRange.any(), null));
+            () -> new DeviceToolBinding("ios", VersionRange.all(), null));
     }
 
     @Test
     @DisplayName("getter 方法")
     void shouldReturnCorrectValues() {
-        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.any(), mockTool, 10);
+        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.all(), mockTool, 10);
 
         assertEquals("ios", binding.getDeviceType());
         assertEquals(mockTool, binding.getTool());
@@ -63,14 +63,14 @@ class DeviceToolBindingTest {
     @Test
     @DisplayName("默认优先级为0")
     void shouldHaveDefaultPriority() {
-        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.any(), mockTool);
+        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.all(), mockTool);
         assertEquals(0, binding.getPriority());
     }
 
     @Test
     @DisplayName("toString 包含关键信息")
     void shouldHaveMeaningfulToString() {
-        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.any(), mockTool, 5);
+        DeviceToolBinding binding = new DeviceToolBinding("ios", VersionRange.all(), mockTool, 5);
         String str = binding.toString();
         assertTrue(str.contains("ios"));
         assertTrue(str.contains("test-tool"));
