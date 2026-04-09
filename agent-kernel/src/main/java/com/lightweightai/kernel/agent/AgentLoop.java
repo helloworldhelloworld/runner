@@ -10,6 +10,7 @@ import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.MemorySearchResult;
 import com.lightweightai.kernel.memory.Message;
+import com.lightweightai.kernel.memory.MessageSnapshot;
 import com.lightweightai.kernel.prompt.PromptEngine;
 import com.lightweightai.kernel.prompt.Skill;
 import reactor.core.publisher.Flux;
@@ -78,37 +79,57 @@ public class AgentLoop {
      * Tool 循环委托给 ToolCallingLoop 统一处理。
      */
     public AgentResponse run(String input, String sessionId) {
-        // 1. 检索相关记忆
-        List<MemorySearchResult> memoryResults = memoryProvider.search(input);
-        String memoryContext = formatMemoryContext(memoryResults);
+        // Hook: onAgentStart
+        notifyObservers(o -> o.onAgentStart(input, sessionId));
 
-        // 2. 保存用户消息
-        memoryProvider.addMessage(sessionId, Message.user(input));
+        try {
+            // 1. 检索相关记忆
+            List<MemorySearchResult> memoryResults = memoryProvider.search(input);
+            String memoryContext = formatMemoryContext(memoryResults);
 
-        // 3. 构建消息上下文
-        List<ConversationMessage> messages = buildMessages(sessionId, memoryContext);
+            // 2. 保存用户消息
+            memoryProvider.addMessage(sessionId, Message.user(input));
 
-        // 4. 委托 ToolCallingLoop 执行 LLM + Tool 循环
-        ToolExecutor toolExecutor = new ToolExecutor(toolRegistry);
-        ToolCallingLoop loop = ToolCallingLoop.builder()
-            .provider(llmProvider)
-            .toolExecutor(toolExecutor)
-            .maxIterations(maxToolIterations)
-            .build();
+            // 3. 构建消息上下文
+            List<ConversationMessage> messages = buildMessages(sessionId, memoryContext);
 
-        LLMResponse response = loop.executeWithTools(messages, llmOptions);
-        String responseText = response.getMessage().getTextContent();
+            // Hook: onLLMRequest
+            notifyObservers(o -> o.onLLMRequest(messages));
 
-        // 5. 保存助手消息到记忆
-        memoryProvider.addMessage(sessionId, Message.assistant(responseText));
+            // 4. 委托 ToolCallingLoop 执行 LLM + Tool 循环
+            ToolExecutor toolExecutor = new ToolExecutor(toolRegistry);
+            ToolCallingLoop loop = ToolCallingLoop.builder()
+                .provider(llmProvider)
+                .toolExecutor(toolExecutor)
+                .maxIterations(maxToolIterations)
+                .build();
 
-        // 6. 写入 Ephemeral 记忆（对话摘要）
-        writeConversationToMemory(input, responseText);
+            LLMResponse response = loop.executeWithTools(messages, llmOptions);
+            String responseText = response.getMessage().getTextContent();
 
-        return AgentResponse.builder()
-            .text(responseText)
-            .stopReason(response.getStopReason())
-            .build();
+            // Hook: onLLMResponse
+            notifyObservers(o -> o.onLLMResponse(response));
+
+            // 5. 保存助手消息到记忆
+            memoryProvider.addMessage(sessionId, Message.assistant(responseText));
+
+            // 6. 写入 Ephemeral 记忆（对话摘要）
+            writeConversationToMemory(input, responseText);
+
+            AgentResponse agentResponse = AgentResponse.builder()
+                .text(responseText)
+                .stopReason(response.getStopReason())
+                .build();
+
+            // Hook: onAgentComplete
+            notifyObservers(o -> o.onAgentComplete(agentResponse));
+
+            return agentResponse;
+        } catch (Exception e) {
+            // Hook: onError
+            notifyObservers(o -> o.onError(e));
+            throw e;
+        }
     }
 
     // ==================== 流式执行 ====================
@@ -171,6 +192,9 @@ public class AgentLoop {
         // (memory search, message building) don't run on the caller's thread.
         // Without this, calling from Vert.x WebSocket handler blocks the event loop.
         return Flux.<StreamEvent>defer(() -> {
+            // Hook: onAgentStart
+            notifyObservers(o -> o.onAgentStart(input, sessionId));
+
             // 1. 检索记忆（阻塞操作，现在在 boundedElastic 线程上执行）
             List<MemorySearchResult> memoryResults = memoryProvider.search(input);
             String memoryContext = formatMemoryContext(memoryResults);
@@ -180,6 +204,9 @@ public class AgentLoop {
 
             // 3. 构建消息上下文
             List<ConversationMessage> messages = buildMessages(sessionId, memoryContext);
+
+            // Hook: onLLMRequest
+            notifyObservers(o -> o.onLLMRequest(messages));
 
             // 4. 构建 ToolCallingLoop 并执行
             ToolExecutor toolExecutor = new ToolExecutor(toolRegistry);
@@ -197,6 +224,11 @@ public class AgentLoop {
                     if (event.getType() == StreamEvent.EventType.TEXT_DELTA) {
                         fullResponse.append(event.getTextDelta());
                     }
+                    // Hook: onLLMResponse for LLM_COMPLETE events
+                    if (event.getType() == StreamEvent.EventType.LLM_COMPLETE
+                            && event.getResponse() != null) {
+                        notifyObservers(o -> o.onLLMResponse(event.getResponse()));
+                    }
                 })
                 .doOnComplete(() -> {
                     // 保存助手消息到记忆（包裹 try-catch 防止异常转换 complete→error 信号）
@@ -206,11 +238,30 @@ public class AgentLoop {
                             memoryProvider.addMessage(sessionId, Message.assistant(responseText));
                         }
                         writeConversationToMemory(input, responseText);
+
+                        // Hook: onAgentComplete
+                        AgentResponse agentResponse = AgentResponse.builder()
+                            .text(responseText)
+                            .build();
+                        notifyObservers(o -> o.onAgentComplete(agentResponse));
                     } catch (Exception e) {
                         // 记忆保存失败不应阻断流的正常完成
                     }
-                });
+                })
+                .doOnError(e -> notifyObservers(o -> o.onError(e)));
         }).subscribeOn(Schedulers.boundedElastic());
+    }
+
+    // ==================== Observer 通知 ====================
+
+    private void notifyObservers(Consumer<AgentObserver> action) {
+        for (AgentObserver observer : observers) {
+            try {
+                action.accept(observer);
+            } catch (Exception e) {
+                // Observer 异常不应中断主链路
+            }
+        }
     }
 
     // ==================== 辅助方法 ====================
@@ -229,9 +280,9 @@ public class AgentLoop {
             .textContent(systemContent.toString())
             .build());
 
-        // 历史消息
-        List<Message> history = memoryProvider.getHistory(sessionId, 20);
-        for (Message msg : history) {
+        // 历史消息 — 使用不可变快照，与持久化路径解耦
+        MessageSnapshot snapshot = MessageSnapshot.capture(memoryProvider, sessionId, 20);
+        for (Message msg : snapshot.getMessages()) {
             messages.add(msg.toConversationMessage());
         }
 

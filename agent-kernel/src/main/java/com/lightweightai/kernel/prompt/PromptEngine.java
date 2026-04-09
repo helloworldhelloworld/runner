@@ -32,11 +32,29 @@ public class PromptEngine {
     private final MemoryProvider memoryProvider;
     private final Map<String, Skill> skillRegistry;
     private final String baseSystemPrompt;
+    private final List<PromptSection> sections;
 
     private PromptEngine(Builder builder) {
         this.memoryProvider = builder.memoryProvider;
         this.skillRegistry = new LinkedHashMap<>();
         this.baseSystemPrompt = builder.baseSystemPrompt != null ? builder.baseSystemPrompt : "";
+        this.sections = new ArrayList<>(builder.sections);
+    }
+
+    // ==================== Section 管理 ====================
+
+    /**
+     * 注册模块化 Prompt 片段
+     */
+    public void registerSection(PromptSection section) {
+        sections.add(section);
+    }
+
+    /**
+     * 获取所有已注册的 section
+     */
+    public List<PromptSection> getSections() {
+        return Collections.unmodifiableList(sections);
     }
 
     // ==================== Skill 管理 ====================
@@ -97,8 +115,8 @@ public class PromptEngine {
         // 2. 按优先级排序
         activeSkills.sort(Comparator.comparingInt(Skill::getPriority));
 
-        // 3. 组装 System Prompt
-        String systemPrompt = buildSystemPrompt(activeSkills, buildLog);
+        // 3. 组装 System Prompt（含条件 sections）
+        String systemPrompt = buildSystemPrompt(activeSkills, request, buildLog);
         contextBuilder.systemPrompt(systemPrompt);
 
         // 4. 收集所有工具
@@ -168,9 +186,12 @@ public class PromptEngine {
     }
 
     /**
-     * 构建 System Prompt
+     * 构建 System Prompt（模块化组装）
+     *
+     * 组装顺序：base prompt → conditional sections（按 order 排序）→ skill prompts
      */
-    private String buildSystemPrompt(List<Skill> activeSkills, List<String> buildLog) {
+    private String buildSystemPrompt(List<Skill> activeSkills, PromptRequest request,
+                                      List<String> buildLog) {
         StringBuilder sb = new StringBuilder();
 
         // 1. 基础 System Prompt
@@ -179,7 +200,20 @@ public class PromptEngine {
             buildLog.add("Added base system prompt");
         }
 
-        // 2. 各 Skill 的 System Prompt
+        // 2. 条件 Sections（按 order 排序，仅注入满足条件的）
+        if (!sections.isEmpty()) {
+            List<PromptSection> sorted = sections.stream()
+                .filter(s -> s.isActive(request))
+                .sorted(Comparator.comparingInt(PromptSection::getOrder))
+                .collect(Collectors.toList());
+            for (PromptSection section : sorted) {
+                sb.append(section.getContent()).append("\n\n");
+                buildLog.add(String.format("Injected section '%s' (order=%d)",
+                    section.getId(), section.getOrder()));
+            }
+        }
+
+        // 3. 各 Skill 的 System Prompt
         for (Skill skill : activeSkills) {
             String skillPrompt = skill.getSystemPrompt();
             if (!skillPrompt.isEmpty()) {
@@ -273,6 +307,7 @@ public class PromptEngine {
     public static class Builder {
         private MemoryProvider memoryProvider;
         private String baseSystemPrompt;
+        private List<PromptSection> sections = new ArrayList<>();
 
         public Builder memoryProvider(MemoryProvider provider) {
             this.memoryProvider = provider;
@@ -281,6 +316,16 @@ public class PromptEngine {
 
         public Builder baseSystemPrompt(String prompt) {
             this.baseSystemPrompt = prompt;
+            return this;
+        }
+
+        public Builder addSection(PromptSection section) {
+            this.sections.add(section);
+            return this;
+        }
+
+        public Builder sections(List<PromptSection> sections) {
+            this.sections = new ArrayList<>(sections);
             return this;
         }
 

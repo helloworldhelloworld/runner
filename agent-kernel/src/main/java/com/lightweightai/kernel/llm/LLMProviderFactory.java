@@ -1,11 +1,37 @@
 package com.lightweightai.kernel.llm;
 
-import com.lightweightai.kernel.llm.claude.ClaudeProvider;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.ServiceLoader;
 
 /**
- * Factory for creating LLM providers
+ * Factory for creating LLM providers (SPI-based)
+ *
+ * 通过 ServiceLoader 自动发现所有 LLMProviderSpi 实现。
+ * 新增 Provider 只需：
+ * 1. 实现 LLMProviderSpi
+ * 2. 注册到 META-INF/services/com.lightweightai.kernel.llm.LLMProviderSpi
+ *
+ * 不再需要修改本类代码。
  */
 public class LLMProviderFactory {
+
+    private static final Map<String, LLMProviderSpi> REGISTRY = new LinkedHashMap<>();
+
+    static {
+        for (LLMProviderSpi spi : ServiceLoader.load(LLMProviderSpi.class)) {
+            for (String name : spi.supportedNames()) {
+                String key = name.toLowerCase().trim();
+                LLMProviderSpi existing = REGISTRY.putIfAbsent(key, spi);
+                if (existing != null) {
+                    throw new IllegalStateException(
+                        "Duplicate LLMProviderSpi registration for name '" + key +
+                        "': " + existing.getClass().getName() + " vs " + spi.getClass().getName()
+                    );
+                }
+            }
+        }
+    }
 
     /**
      * Create an LLM provider based on provider name
@@ -21,25 +47,16 @@ public class LLMProviderFactory {
         }
 
         String normalizedName = providerName.toLowerCase().trim();
+        LLMProviderSpi spi = REGISTRY.get(normalizedName);
 
-        switch (normalizedName) {
-            case "claude":
-            case "anthropic":
-                return new ClaudeProvider(apiKey, model);
-
-            case "openai":
-                // TODO: Implement OpenAI provider
-                throw new UnsupportedOperationException(
-                    "OpenAI provider not yet implemented. " +
-                    "Please use 'claude' provider or implement OpenAIProvider."
-                );
-
-            default:
-                throw new IllegalArgumentException(
-                    "Unknown provider: " + providerName + ". " +
-                    "Supported providers: claude, openai (coming soon)"
-                );
+        if (spi == null) {
+            throw new IllegalArgumentException(
+                "Unknown provider: " + providerName + ". " +
+                "Registered providers: " + REGISTRY.keySet()
+            );
         }
+
+        return spi.create(apiKey, model);
     }
 
     /**
@@ -50,7 +67,6 @@ public class LLMProviderFactory {
             return false;
         }
 
-        String normalizedName = providerName.toLowerCase().trim();
-        return "claude".equals(normalizedName) || "anthropic".equals(normalizedName);
+        return REGISTRY.containsKey(providerName.toLowerCase().trim());
     }
 }

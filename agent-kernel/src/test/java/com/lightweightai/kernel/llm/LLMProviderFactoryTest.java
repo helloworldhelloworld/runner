@@ -50,9 +50,9 @@ class LLMProviderFactoryTest {
         }
 
         @Test
-        @DisplayName("openai 抛出 UnsupportedOperationException")
-        void openaiThrowsUnsupported() {
-            assertThrows(UnsupportedOperationException.class,
+        @DisplayName("openai 无 SPI 注册时抛出 IllegalArgumentException")
+        void openaiThrowsUnknown() {
+            assertThrows(IllegalArgumentException.class,
                 () -> LLMProviderFactory.create("openai", "key", "model"));
         }
 
