@@ -5,6 +5,9 @@ import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.core.postprocess.StreamPostProcessor;
 import com.lightweightai.kernel.llm.ToolCall;
 import com.lightweightai.kernel.llm.ToolResult;
+import com.lightweightai.kernel.trace.Span;
+import com.lightweightai.kernel.trace.SpanExporter;
+import com.lightweightai.kernel.trace.Tracer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
@@ -296,6 +299,107 @@ class GatewayReactiveTest {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(List.of("real"), deltas);
+    }
+
+    // ==================== Tracer 集成 ====================
+
+    @Test
+    @DisplayName("handleStreamReactive 创建并完成 trace span")
+    void shouldCreateAndEndTraceSpan() {
+        ChatHandler handler = createReactiveChatHandler(List.of(
+            StreamEvent.textDelta("traced"),
+            StreamEvent.llmComplete(null)
+        ));
+
+        List<Span> exportedSpans = new ArrayList<>();
+        SpanExporter exporter = exportedSpans::add;
+
+        Tracer tracer = Tracer.builder().addExporter(exporter).build();
+        Gateway gw = Gateway.builder()
+            .chatHandler(handler)
+            .tracer(tracer)
+            .build();
+
+        GatewayRequest request = GatewayRequest.builder()
+            .sessionId("s1").message("trace test").build();
+
+        StepVerifier.create(gw.handleStreamReactive(request))
+            .expectNextCount(3) // TRACE + TEXT_DELTA + LLM_COMPLETE
+            .verifyComplete();
+
+        assertEquals(1, exportedSpans.size());
+        Span span = exportedSpans.get(0);
+        assertEquals("gateway.handle", span.getName());
+        assertEquals("s1", span.getAttributes().get("sessionId"));
+    }
+
+    @Test
+    @DisplayName("handleStreamReactive 错误时 trace span 记录错误")
+    void shouldRecordErrorOnTraceSpan() {
+        ChatHandler handler = new ChatHandler() {
+            @Override
+            public GatewayResponse chat(GatewayRequest request) {
+                throw new UnsupportedOperationException();
+            }
+            @Override
+            public CompletableFuture<GatewayResponse> chatStream(GatewayRequest request, StreamCallback callback) {
+                throw new UnsupportedOperationException();
+            }
+            @Override
+            public Flux<StreamEvent> chatStreamReactive(GatewayRequest request) {
+                return Flux.error(new RuntimeException("LLM 不可用"));
+            }
+        };
+
+        List<Span> exportedSpans = new ArrayList<>();
+        SpanExporter exporter = exportedSpans::add;
+
+        Tracer tracer = Tracer.builder().addExporter(exporter).build();
+        Gateway gw = Gateway.builder()
+            .chatHandler(handler)
+            .tracer(tracer)
+            .build();
+
+        GatewayRequest request = GatewayRequest.builder()
+            .sessionId("s1").message("fail").build();
+
+        StepVerifier.create(gw.handleStreamReactive(request))
+            .assertNext(e -> assertEquals(StreamEvent.EventType.TRACE, e.getType()))
+            .expectError(RuntimeException.class)
+            .verify();
+
+        assertEquals(1, exportedSpans.size());
+        assertNotNull(exportedSpans.get(0).getErrorMessage());
+        assertTrue(exportedSpans.get(0).getErrorMessage().contains("LLM 不可用"));
+    }
+
+    @Test
+    @DisplayName("handleStream 的 TOOL_LOG 事件正确分发")
+    void shouldDispatchToolLogEvent() throws Exception {
+        ToolResultChunk logChunk = ToolResultChunk.log("search", "INFO", "Querying database");
+
+        ChatHandler handler = createReactiveChatHandler(List.of(
+            StreamEvent.toolLog(logChunk),
+            StreamEvent.llmComplete(null)
+        ));
+
+        Gateway gw = Gateway.builder().chatHandler(handler).build();
+        GatewayRequest request = GatewayRequest.builder()
+            .sessionId("s1").message("test").build();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        List<ToolResultChunk> logs = new ArrayList<>();
+
+        gw.handleStream(request, new GatewayStreamHandler() {
+            @Override public void onDelta(String delta) {}
+            @Override public void onToolLog(ToolResultChunk chunk) { logs.add(chunk); }
+            @Override public void onComplete(GatewayResponse resp) { latch.countDown(); }
+            @Override public void onError(Throwable error) { latch.countDown(); }
+        });
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertEquals(1, logs.size());
+        assertEquals(ToolResultChunk.ChunkType.LOG, logs.get(0).getType());
     }
 
     // ==================== 辅助方法 ====================

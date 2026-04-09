@@ -139,4 +139,53 @@ class GatewayResponseTest {
 
         assertTrue(resp.toString().contains("..."));
     }
+
+    // ==================== 补充测试 ====================
+
+    @Test
+    @DisplayName("fromAgentResponse 带工具调用记录计数")
+    void fromAgentResponseWithToolCalls() {
+        AgentResponse agent = AgentResponse.builder()
+            .text("调用了工具")
+            .stopReason("tool_use")
+            .toolCalls(List.of(
+                new AgentResponse.ToolCallRecord("search", "{}", "results"),
+                new AgentResponse.ToolCallRecord("calc", "{}", "42")
+            ))
+            .build();
+
+        GatewayResponse resp = GatewayResponse.fromAgentResponse(agent, "r1", "s1", 50);
+
+        assertEquals(2, resp.getMetadata().get("toolCallCount"));
+        assertEquals("tool_use", resp.getMetadata().get("stopReason"));
+    }
+
+    @Test
+    @DisplayName("timestamp 在构建前后范围内")
+    void timestampInRange() {
+        long before = System.currentTimeMillis();
+        GatewayResponse resp = GatewayResponse.builder().build();
+        long after = System.currentTimeMillis();
+
+        assertTrue(resp.getTimestamp() >= before);
+        assertTrue(resp.getTimestamp() <= after);
+    }
+
+    @Test
+    @DisplayName("error 响应 text 默认为空字符串")
+    void errorResponseDefaultText() {
+        GatewayResponse resp = GatewayResponse.error("r1", "s1", "err");
+        assertEquals("", resp.getText());
+    }
+
+    @Test
+    @DisplayName("后设置的 metadata 覆盖同 key 的值")
+    void metadataOverwrite() {
+        GatewayResponse resp = GatewayResponse.builder()
+            .metadata("key", "first")
+            .metadata("key", "second")
+            .build();
+
+        assertEquals("second", resp.getMetadata().get("key"));
+    }
 }

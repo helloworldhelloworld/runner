@@ -1,5 +1,6 @@
 package com.lightweightai.kernel.gateway;
 
+import com.lightweightai.kernel.agent.DeviceContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -103,5 +104,63 @@ class GatewayRequestTest {
 
         String str = req.toString();
         assertTrue(str.contains("..."));
+    }
+
+    // ==================== DeviceContext ====================
+
+    @Test
+    @DisplayName("通过 builder 设置 DeviceContext")
+    void shouldSetDeviceContext() {
+        DeviceContext ctx = DeviceContext.of("phone", "2.0");
+        GatewayRequest req = GatewayRequest.builder()
+            .message("test")
+            .deviceContext(ctx)
+            .build();
+
+        assertEquals(ctx, req.getDeviceContext());
+        assertEquals("phone", req.getDeviceContext().getDeviceType());
+    }
+
+    @Test
+    @DisplayName("未设置 DeviceContext 时返回 DEFAULT")
+    void shouldReturnDefaultDeviceContext() {
+        GatewayRequest req = GatewayRequest.builder()
+            .message("test")
+            .build();
+
+        assertEquals(DeviceContext.DEFAULT, req.getDeviceContext());
+    }
+
+    @Test
+    @DisplayName("metadata 中非 DeviceContext 类型返回 DEFAULT")
+    void shouldReturnDefaultForWrongDeviceContextType() {
+        GatewayRequest req = GatewayRequest.builder()
+            .message("test")
+            .metadata("deviceContext", "not-a-context")
+            .build();
+
+        assertEquals(DeviceContext.DEFAULT, req.getDeviceContext());
+    }
+
+    // ==================== Unique IDs ====================
+
+    @Test
+    @DisplayName("两次构建产生不同的自动 requestId")
+    void shouldGenerateUniqueRequestIds() {
+        GatewayRequest r1 = GatewayRequest.builder().message("a").build();
+        GatewayRequest r2 = GatewayRequest.builder().message("b").build();
+
+        assertNotEquals(r1.getRequestId(), r2.getRequestId());
+    }
+
+    @Test
+    @DisplayName("timestamp 在构建前后范围内")
+    void shouldHaveTimestampInRange() {
+        long before = System.currentTimeMillis();
+        GatewayRequest req = GatewayRequest.builder().message("test").build();
+        long after = System.currentTimeMillis();
+
+        assertTrue(req.getTimestamp() >= before);
+        assertTrue(req.getTimestamp() <= after);
     }
 }
