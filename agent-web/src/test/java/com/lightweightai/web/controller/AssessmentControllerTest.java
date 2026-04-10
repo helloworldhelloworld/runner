@@ -8,9 +8,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
@@ -20,16 +17,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @DisplayName("AssessmentController - 心理评估 API")
-@ExtendWith(MockitoExtension.class)
 class AssessmentControllerTest {
 
-    @Mock
     private AssessmentService assessmentService;
-
     private AssessmentController controller;
 
     @BeforeEach
     void setUp() {
+        assessmentService = mock(AssessmentService.class);
         controller = new AssessmentController(assessmentService);
     }
 
@@ -42,7 +37,6 @@ class AssessmentControllerTest {
         when(assessmentService.getScales()).thenReturn(scales);
 
         ResponseEntity<Map<String, ScaleDefinition>> response = controller.getScales();
-
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody());
     }
@@ -61,7 +55,6 @@ class AssessmentControllerTest {
             when(assessmentService.getScale(ScaleType.PHQ9)).thenReturn(definition);
 
             ResponseEntity<ScaleDefinition> response = controller.getScale("phq9");
-
             assertEquals(200, response.getStatusCode().value());
             assertNotNull(response.getBody());
         }
@@ -99,7 +92,6 @@ class AssessmentControllerTest {
 
             var request = new AssessmentController.SubmitRequest("user-1", "PHQ9", List.of(0, 1, 2, 3, 0, 1, 2, 3, 0));
             ResponseEntity<?> response = controller.submit(request);
-
             assertEquals(200, response.getStatusCode().value());
         }
 
@@ -130,7 +122,6 @@ class AssessmentControllerTest {
         when(assessmentService.getHistory("user-1")).thenReturn(List.of());
 
         ResponseEntity<List<AssessmentResult>> response = controller.getHistory("user-1");
-
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody());
         assertTrue(response.getBody().isEmpty());

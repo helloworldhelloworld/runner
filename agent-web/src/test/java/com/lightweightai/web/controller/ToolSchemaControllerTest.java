@@ -5,9 +5,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
@@ -17,16 +14,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @DisplayName("ToolSchemaController - 工具 Schema 管理")
-@ExtendWith(MockitoExtension.class)
 class ToolSchemaControllerTest {
 
-    @Mock
     private ToolSchemaRepository toolSchemaRepository;
-
     private ToolSchemaController controller;
 
     @BeforeEach
     void setUp() {
+        toolSchemaRepository = mock(ToolSchemaRepository.class);
         controller = new ToolSchemaController(toolSchemaRepository);
     }
 
@@ -38,7 +33,6 @@ class ToolSchemaControllerTest {
         when(toolSchemaRepository.findAll()).thenReturn(List.of());
 
         ResponseEntity<List<Map<String, Object>>> response = controller.listAll();
-
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody());
     }
@@ -51,7 +45,6 @@ class ToolSchemaControllerTest {
         when(toolSchemaRepository.findEnabled()).thenReturn(List.of());
 
         ResponseEntity<List<Map<String, Object>>> response = controller.listEnabled();
-
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody());
     }
@@ -68,7 +61,6 @@ class ToolSchemaControllerTest {
             when(toolSchemaRepository.delete("schema-1")).thenReturn(true);
 
             ResponseEntity<Map<String, Object>> response = controller.delete("schema-1");
-
             assertEquals(200, response.getStatusCode().value());
             assertEquals(true, response.getBody().get("success"));
         }
@@ -79,7 +71,6 @@ class ToolSchemaControllerTest {
             when(toolSchemaRepository.delete("nonexistent")).thenReturn(false);
 
             ResponseEntity<Map<String, Object>> response = controller.delete("nonexistent");
-
             assertEquals(false, response.getBody().get("success"));
         }
 
@@ -89,7 +80,6 @@ class ToolSchemaControllerTest {
             when(toolSchemaRepository.deleteAll()).thenReturn(5);
 
             ResponseEntity<Map<String, Object>> response = controller.deleteAll();
-
             assertEquals(200, response.getStatusCode().value());
             assertEquals(5, response.getBody().get("deleted"));
         }

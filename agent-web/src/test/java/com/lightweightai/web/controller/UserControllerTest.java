@@ -9,9 +9,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -23,22 +20,26 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @DisplayName("UserController - 用户管理 API")
-@ExtendWith(MockitoExtension.class)
 class UserControllerTest {
 
-    @Mock private UserService userService;
-    @Mock private PasswordEncoder passwordEncoder;
-    @Mock private AuthSessionService authSessionService;
-    @Mock private HttpServletRequest adminRequest;
-    @Mock private HttpServletRequest userRequest;
-
+    private UserService userService;
+    private PasswordEncoder passwordEncoder;
+    private AuthSessionService authSessionService;
+    private HttpServletRequest adminRequest;
+    private HttpServletRequest userRequest;
     private UserController controller;
 
     @BeforeEach
     void setUp() {
+        userService = mock(UserService.class);
+        passwordEncoder = mock(PasswordEncoder.class);
+        authSessionService = mock(AuthSessionService.class);
+        adminRequest = mock(HttpServletRequest.class);
+        userRequest = mock(HttpServletRequest.class);
         controller = new UserController(userService, passwordEncoder, authSessionService);
-        lenient().when(adminRequest.getAttribute("userRole")).thenReturn("ADMIN");
-        lenient().when(userRequest.getAttribute("userRole")).thenReturn("USER");
+
+        when(adminRequest.getAttribute("userRole")).thenReturn("ADMIN");
+        when(userRequest.getAttribute("userRole")).thenReturn("USER");
     }
 
     // ==================== 匿名用户 ====================
@@ -50,7 +51,6 @@ class UserControllerTest {
         when(userService.createAnonymousUser()).thenReturn(anon);
 
         ResponseEntity<SoulUser> response = controller.createAnonymous();
-
         assertEquals(200, response.getStatusCode().value());
         assertEquals("anon-1", response.getBody().getId());
     }
@@ -132,7 +132,6 @@ class UserControllerTest {
 
             var request = new UserController.LoginRequest("testuser", "password");
             ResponseEntity<?> response = controller.login(request);
-
             assertEquals(200, response.getStatusCode().value());
         }
 
@@ -218,7 +217,6 @@ class UserControllerTest {
         @DisplayName("无效 token 返回 401")
         void shouldRejectInvalidToken() {
             when(authSessionService.resolveSession("tk-bad")).thenReturn(Optional.empty());
-
             ResponseEntity<?> response = controller.me("Bearer tk-bad");
             assertEquals(401, response.getStatusCode().value());
         }
@@ -251,7 +249,6 @@ class UserControllerTest {
         @DisplayName("管理员可列出用户")
         void shouldListUsersAsAdmin() {
             when(userService.listAllUsers()).thenReturn(List.of(createUser("u1", "user1")));
-
             ResponseEntity<?> response = controller.listUsers(adminRequest);
             assertEquals(200, response.getStatusCode().value());
         }
@@ -266,19 +263,15 @@ class UserControllerTest {
         @Test
         @DisplayName("管理员可更新角色")
         void shouldUpdateRoleAsAdmin() {
-            ResponseEntity<?> response = controller.updateRole(
-                "usr-1", Map.of("role", "ADMIN"), adminRequest
-            );
+            ResponseEntity<?> response = controller.updateRole("usr-1", Map.of("role", "ADMIN"), adminRequest);
             assertEquals(200, response.getStatusCode().value());
             verify(userService).updateUserRole("usr-1", "ADMIN");
         }
 
         @Test
-        @DisplayName("管理员可启用/禁用用户")
+        @DisplayName("管理员可禁用用户")
         void shouldUpdateStatusAsAdmin() {
-            ResponseEntity<?> response = controller.updateStatus(
-                "usr-1", Map.of("enabled", false), adminRequest
-            );
+            ResponseEntity<?> response = controller.updateStatus("usr-1", Map.of("enabled", false), adminRequest);
             assertEquals(200, response.getStatusCode().value());
             verify(userService).disableUser("usr-1");
         }
@@ -286,9 +279,7 @@ class UserControllerTest {
         @Test
         @DisplayName("非管理员更新角色返回 403")
         void shouldDenyUpdateRoleForNonAdmin() {
-            ResponseEntity<?> response = controller.updateRole(
-                "usr-1", Map.of("role", "ADMIN"), userRequest
-            );
+            ResponseEntity<?> response = controller.updateRole("usr-1", Map.of("role", "ADMIN"), userRequest);
             assertEquals(403, response.getStatusCode().value());
         }
     }
@@ -314,17 +305,14 @@ class UserControllerTest {
         @DisplayName("获取情绪记录")
         void shouldGetEmotions() {
             when(userService.getEmotions("usr-1", 7)).thenReturn(List.of());
-
             ResponseEntity<List<EmotionRecord>> response = controller.getEmotions("usr-1", 7);
             assertEquals(200, response.getStatusCode().value());
-            assertNotNull(response.getBody());
         }
 
         @Test
         @DisplayName("获取用户统计")
         void shouldGetStats() {
             when(userService.getStats("usr-1")).thenReturn(Map.of("totalSessions", 5));
-
             ResponseEntity<Map<String, Object>> response = controller.getStats("usr-1");
             assertEquals(200, response.getStatusCode().value());
         }

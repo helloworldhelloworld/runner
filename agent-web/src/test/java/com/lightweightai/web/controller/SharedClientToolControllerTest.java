@@ -7,9 +7,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
@@ -20,16 +17,16 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @DisplayName("SharedClientToolController - 共享客户端工具管理")
-@ExtendWith(MockitoExtension.class)
 class SharedClientToolControllerTest {
 
-    @Mock private SharedClientToolService service;
-    @Mock private AuthSessionService authSessionService;
-
+    private SharedClientToolService service;
+    private AuthSessionService authSessionService;
     private SharedClientToolController controller;
 
     @BeforeEach
     void setUp() {
+        service = mock(SharedClientToolService.class);
+        authSessionService = mock(AuthSessionService.class);
         controller = new SharedClientToolController(service, authSessionService);
     }
 

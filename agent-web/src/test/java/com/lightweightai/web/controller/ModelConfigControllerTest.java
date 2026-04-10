@@ -13,9 +13,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -26,21 +23,19 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @DisplayName("ModelConfigController - 模型配置管理")
-@ExtendWith(MockitoExtension.class)
 class ModelConfigControllerTest {
 
-    @Mock
     private AgentConfig agentConfig;
-    @Mock
     private HttpServletRequest adminRequest;
-    @Mock
     private HttpServletRequest userRequest;
-
     private DynamicLLMProvider dynamicProvider;
     private ModelConfigController controller;
 
     @BeforeEach
     void setUp() {
+        agentConfig = mock(AgentConfig.class);
+        adminRequest = mock(HttpServletRequest.class);
+        userRequest = mock(HttpServletRequest.class);
         dynamicProvider = new DynamicLLMProvider(createStubProvider("initial-provider"));
         controller = new ModelConfigController(dynamicProvider, agentConfig);
 
@@ -58,7 +53,6 @@ class ModelConfigControllerTest {
         @DisplayName("返回当前 provider 信息")
         void shouldReturnCurrentConfig() {
             Map<String, Object> config = controller.getConfig();
-
             assertNotNull(config);
             assertEquals("initial-provider", config.get("providerName"));
         }
@@ -103,7 +97,6 @@ class ModelConfigControllerTest {
         @Test
         @DisplayName("空 apiKey 保留已有值")
         void shouldKeepExistingApiKeyWhenEmpty() {
-            // 第一次更新设置 apiKey
             LLMProvider provider1 = createStubProvider("p1");
             when(agentConfig.buildProvider(anyString(), eq("real-key"), anyString(), anyString()))
                 .thenReturn(provider1);
@@ -112,7 +105,6 @@ class ModelConfigControllerTest {
                 adminRequest
             );
 
-            // 第二次更新不传 apiKey
             LLMProvider provider2 = createStubProvider("p2");
             when(agentConfig.buildProvider(anyString(), eq("real-key"), anyString(), anyString()))
                 .thenReturn(provider2);
@@ -135,8 +127,7 @@ class ModelConfigControllerTest {
         @DisplayName("保存和列出预设")
         void shouldSaveAndListPreset() {
             Map<String, Object> saveResult = controller.savePreset(
-                Map.of("name", "test-preset"), adminRequest
-            );
+                Map.of("name", "test-preset"), adminRequest);
             assertTrue(saveResult.get("message").toString().contains("test-preset"));
 
             List<Map<String, Object>> presets = controller.listPresets();
