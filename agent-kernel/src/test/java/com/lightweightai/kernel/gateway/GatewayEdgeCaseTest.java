@@ -4,7 +4,6 @@ import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.core.postprocess.StreamPostProcessor;
 import com.lightweightai.kernel.llm.ToolCall;
-import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.trace.Tracer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
