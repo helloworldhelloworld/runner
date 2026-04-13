@@ -41,7 +41,8 @@ class AssessmentControllerTest {
     @Test
     @DisplayName("getScales returns all scale definitions")
     void getScalesReturnsAll() {
-        Map<String, ScaleDefinition> scales = Map.of("PHQ9", new ScaleDefinition());
+        ScaleDefinition phq9 = new ScaleDefinition(ScaleType.PHQ9, "PHQ-9", "desc", List.of(), List.of(), List.of());
+        Map<String, ScaleDefinition> scales = Map.of("PHQ9", phq9);
         when(assessmentService.getScales()).thenReturn(scales);
 
         ResponseEntity<Map<String, ScaleDefinition>> result = controller.getScales();
@@ -56,7 +57,7 @@ class AssessmentControllerTest {
     @Test
     @DisplayName("getScale returns specific scale for valid type")
     void getScaleReturnsForValidType() {
-        ScaleDefinition definition = new ScaleDefinition();
+        ScaleDefinition definition = new ScaleDefinition(ScaleType.PHQ9, "PHQ-9", "desc", List.of(), List.of(), List.of());
         when(assessmentService.getScale(ScaleType.PHQ9)).thenReturn(definition);
 
         ResponseEntity<ScaleDefinition> result = controller.getScale("phq9");
@@ -76,7 +77,7 @@ class AssessmentControllerTest {
     @Test
     @DisplayName("getScale is case insensitive")
     void getScaleIsCaseInsensitive() {
-        ScaleDefinition definition = new ScaleDefinition();
+        ScaleDefinition definition = new ScaleDefinition(ScaleType.PHQ9, "PHQ-9", "desc", List.of(), List.of(), List.of());
         when(assessmentService.getScale(ScaleType.GAD7)).thenReturn(definition);
 
         ResponseEntity<ScaleDefinition> result = controller.getScale("gad7");

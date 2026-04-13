@@ -1,15 +1,18 @@
 package com.lightweightai.agent;
 
 import com.lightweightai.agent.plugin.Plugin;
+import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
+import com.lightweightai.kernel.agent.ToolSchema;
+import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
 
 @DisplayName("AgentBuilder - fluent builder for creating Agent instances")
 class AgentBuilderTest {
@@ -74,8 +77,7 @@ class AgentBuilderTest {
         AgentBuilder builder = new AgentBuilder();
         assertNull(builder.getToolRegistry());
 
-        builder.claude("sk-test")
-            .tool(mock(com.lightweightai.kernel.agent.Tool.class));
+        builder.claude("sk-test").tool(new StubTool("test-tool"));
 
         assertNotNull(builder.getToolRegistry());
     }
@@ -86,8 +88,7 @@ class AgentBuilderTest {
     @DisplayName("plugin adds single plugin")
     void pluginAddsSingle() {
         AgentBuilder builder = new AgentBuilder();
-        Plugin plugin = mock(Plugin.class);
-        builder.claude("sk-test").plugin(plugin);
+        builder.claude("sk-test").plugin(new StubPlugin("p1"));
 
         assertEquals(1, builder.getPlugins().size());
     }
@@ -96,9 +97,7 @@ class AgentBuilderTest {
     @DisplayName("plugins adds multiple plugins")
     void pluginsAddsMultiple() {
         AgentBuilder builder = new AgentBuilder();
-        Plugin p1 = mock(Plugin.class);
-        Plugin p2 = mock(Plugin.class);
-        builder.claude("sk-test").plugins(p1, p2);
+        builder.claude("sk-test").plugins(new StubPlugin("p1"), new StubPlugin("p2"));
 
         assertEquals(2, builder.getPlugins().size());
     }
@@ -107,10 +106,10 @@ class AgentBuilderTest {
     @DisplayName("getPlugins returns defensive copy")
     void getPluginsDefensiveCopy() {
         AgentBuilder builder = new AgentBuilder();
-        builder.claude("sk-test").plugin(mock(Plugin.class));
+        builder.claude("sk-test").plugin(new StubPlugin("p1"));
 
         List<Plugin> copy = builder.getPlugins();
-        copy.add(mock(Plugin.class));
+        copy.add(new StubPlugin("extra"));
         assertEquals(1, builder.getPlugins().size());
     }
 
@@ -187,5 +186,23 @@ class AgentBuilderTest {
             .build();
 
         assertNotNull(agent);
+    }
+
+    // ==================== test stubs ====================
+
+    private static class StubTool implements Tool {
+        private final String name;
+        StubTool(String name) { this.name = name; }
+        @Override public String getName() { return name; }
+        @Override public String getDescription() { return "stub"; }
+        @Override public ToolSchema getSchema() { return null; }
+        @Override public ToolResult execute(Map<String, Object> args) { return ToolResult.success("ok"); }
+    }
+
+    private static class StubPlugin extends Plugin {
+        private final String name;
+        StubPlugin(String name) { this.name = name; }
+        @Override public String getName() { return name; }
+        @Override public String getDescription() { return "stub plugin"; }
     }
 }
