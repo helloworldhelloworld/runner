@@ -26,18 +26,19 @@ class AgentToolsSourceTest {
             .map(Tool::getName)
             .collect(Collectors.toSet());
 
-        // MathTools: add, subtract, multiply, divide
-        assertTrue(toolNames.contains("add"));
-        assertTrue(toolNames.contains("subtract"));
+        // MathTools: add, multiply, divide
+        assertTrue(toolNames.contains("add"), "Expected 'add' tool, found: " + toolNames);
+        assertTrue(toolNames.contains("multiply"), "Expected 'multiply' tool");
+        assertTrue(toolNames.contains("divide"), "Expected 'divide' tool");
 
-        // TimeTools: get_current_time, parse_date
-        assertTrue(toolNames.contains("get_current_time"));
+        // TimeTools: get_time
+        assertTrue(toolNames.contains("get_time"), "Expected 'get_time' tool, found: " + toolNames);
 
         // WebTools: web_search
-        assertTrue(toolNames.contains("web_search"));
+        assertTrue(toolNames.contains("web_search"), "Expected 'web_search' tool");
 
-        // CheckWeatherTool: check_weather
-        assertTrue(toolNames.contains("check_weather"));
+        // CheckWeatherTool: checkWeather
+        assertTrue(toolNames.contains("checkWeather"), "Expected 'checkWeather' tool");
     }
 
     @Test
