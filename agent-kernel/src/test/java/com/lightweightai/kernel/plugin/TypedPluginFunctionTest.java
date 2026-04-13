@@ -74,7 +74,7 @@ class TypedPluginFunctionTest {
         FunctionResult result = fn.execute(Map.of("name", "Alice"));
 
         assertTrue(result.isSuccess());
-        assertEquals("Hello, Alice!", result.getContent());
+        assertEquals("Hello, Alice!", result.getValue());
     }
 
     @Test

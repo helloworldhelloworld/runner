@@ -2,22 +2,14 @@ package com.lightweightai.kernel.memory;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
 @DisplayName("MessageSnapshot - immutable conversation history snapshot")
 class MessageSnapshotTest {
-
-    @Mock
-    private MemoryProvider memoryProvider;
 
     // ==================== factory methods ====================
 
@@ -52,17 +44,15 @@ class MessageSnapshotTest {
     @Test
     @DisplayName("capture creates snapshot from MemoryProvider")
     void captureFromMemoryProvider() {
-        List<Message> history = List.of(
-            Message.user("hello"),
-            Message.assistant("hi")
-        );
-        when(memoryProvider.getHistory("s1", 50)).thenReturn(history);
+        // Use InMemoryProvider which is available in agent-kernel
+        InMemoryProvider provider = new InMemoryProvider();
+        provider.addMessage("s1", Message.user("hello"));
+        provider.addMessage("s1", Message.assistant("hi"));
 
-        MessageSnapshot snapshot = MessageSnapshot.capture(memoryProvider, "s1", 50);
+        MessageSnapshot snapshot = MessageSnapshot.capture(provider, "s1", 50);
 
         assertEquals("s1", snapshot.getSessionId());
         assertEquals(2, snapshot.size());
-        verify(memoryProvider).getHistory("s1", 50);
     }
 
     // ==================== immutability ====================
@@ -74,6 +64,24 @@ class MessageSnapshotTest {
 
         assertThrows(UnsupportedOperationException.class, () ->
             snapshot.getMessages().add(Message.user("injected")));
+    }
+
+    // ==================== multiple messages ====================
+
+    @Test
+    @DisplayName("of preserves message order")
+    void ofPreservesOrder() {
+        List<Message> messages = List.of(
+            Message.user("first"),
+            Message.assistant("second"),
+            Message.user("third")
+        );
+
+        MessageSnapshot snapshot = MessageSnapshot.of("s1", messages);
+
+        assertEquals(3, snapshot.size());
+        assertEquals("first", snapshot.getMessages().get(0).getContent());
+        assertEquals("third", snapshot.getMessages().get(2).getContent());
     }
 
     // ==================== toString ====================
