@@ -51,34 +51,877 @@
 [INFO] Compiling 77 source files with javac [debug target 21] to target/test-classes
 [INFO] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/skill/SkillRegistryTest.java: Some input files use or override a deprecated API.
 [INFO] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/skill/SkillRegistryTest.java: Recompile with -Xlint:deprecation for details.
-[INFO] -------------------------------------------------------------
-[ERROR] COMPILATION ERROR : 
-[INFO] -------------------------------------------------------------
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[6,19] package org.mockito does not exist
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[7,33] package org.mockito.junit.jupiter does not exist
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[13,26] package org.mockito does not exist
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[15,13] cannot find symbol
-  symbol: class MockitoExtension
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[19,6] cannot find symbol
-  symbol:   class Mock
-  location: class com.lightweightai.kernel.memory.MessageSnapshotTest
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/plugin/TypedPluginFunctionTest.java:[77,45] cannot find symbol
-  symbol:   method getContent()
-  location: variable result of type com.lightweightai.kernel.plugin.FunctionResult
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[59,9] cannot find symbol
-  symbol:   method when(java.util.List<com.lightweightai.kernel.memory.Message>)
-  location: class com.lightweightai.kernel.memory.MessageSnapshotTest
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[65,9] cannot find symbol
-  symbol:   method verify(com.lightweightai.kernel.memory.MemoryProvider)
-  location: class com.lightweightai.kernel.memory.MessageSnapshotTest
-[INFO] 8 errors 
-[INFO] -------------------------------------------------------------
+[INFO] 
+[INFO] --- surefire:3.0.0:test (default-test) @ agent-kernel ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.lightweightai.kernel.prompt.PromptEngineAdvancedTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.085 s - in com.lightweightai.kernel.prompt.PromptEngineAdvancedTest
+[INFO] Running com.lightweightai.kernel.prompt.SkillTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s - in com.lightweightai.kernel.prompt.SkillTest
+[INFO] Running com.lightweightai.kernel.prompt.PromptEngineTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.048 s - in com.lightweightai.kernel.prompt.PromptEngineTest
+[INFO] Running com.lightweightai.kernel.prompt.SkillToolIntegrationTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.kernel.prompt.SkillToolIntegrationTest
+[INFO] Running com.lightweightai.kernel.prompt.PromptSectionTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s - in com.lightweightai.kernel.prompt.PromptSectionTest
+[INFO] Running com.lightweightai.kernel.prompt.PromptContextTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s - in com.lightweightai.kernel.prompt.PromptContextTest
+[INFO] Running com.lightweightai.kernel.prompt.PromptRequestTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.prompt.PromptRequestTest
+[INFO] Running com.lightweightai.kernel.plugin.JsonSchemaGeneratorTest
+[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.039 s - in com.lightweightai.kernel.plugin.JsonSchemaGeneratorTest
+[INFO] Running com.lightweightai.kernel.plugin.FunctionParameterTest
+[INFO] Running com.lightweightai.kernel.plugin.FunctionParameterTest$ParameterTypeTests
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.kernel.plugin.FunctionParameterTest$ParameterTypeTests
+[INFO] Running com.lightweightai.kernel.plugin.FunctionParameterTest$BuilderTests
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.plugin.FunctionParameterTest$BuilderTests
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.025 s - in com.lightweightai.kernel.plugin.FunctionParameterTest
+[INFO] Running com.lightweightai.kernel.plugin.TypedPluginFunctionTest
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.182 s - in com.lightweightai.kernel.plugin.TypedPluginFunctionTest
+[INFO] Running com.lightweightai.kernel.plugin.FunctionResultTest
+[INFO] Running com.lightweightai.kernel.plugin.FunctionResultTest$ToStringTests
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.plugin.FunctionResultTest$ToStringTests
+[INFO] Running com.lightweightai.kernel.plugin.FunctionResultTest$ErrorThrowableFactory
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.plugin.FunctionResultTest$ErrorThrowableFactory
+[INFO] Running com.lightweightai.kernel.plugin.FunctionResultTest$ErrorStringFactory
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.plugin.FunctionResultTest$ErrorStringFactory
+[INFO] Running com.lightweightai.kernel.plugin.FunctionResultTest$SuccessFactory
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.kernel.plugin.FunctionResultTest$SuccessFactory
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.024 s - in com.lightweightai.kernel.plugin.FunctionResultTest
+[INFO] Running com.lightweightai.kernel.instruction.InstructionRegistryTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.042 s - in com.lightweightai.kernel.instruction.InstructionRegistryTest
+[INFO] Running com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest
+[INFO] Running com.lightweightai.kernel.core.ToolExecutorTest
+19:44:57.920 [main] DEBUG reactor.util.Loggers -- Using Slf4j logging framework
+[INFO] Tests run: 39, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.203 s - in com.lightweightai.kernel.core.ToolExecutorTest
+[INFO] Running com.lightweightai.kernel.core.ToolCallingLoopSyncTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.02 s - in com.lightweightai.kernel.core.ToolCallingLoopSyncTest
+[INFO] Running com.lightweightai.kernel.core.ToolCallingLoopAsyncTest
+Main thread: main
+Async thread: main
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.216 s - in com.lightweightai.kernel.core.ToolCallingLoopAsyncTest
+[INFO] Running com.lightweightai.kernel.core.ToolExecutionContextTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.core.ToolExecutionContextTest
+[INFO] Running com.lightweightai.kernel.core.ToolCallingLoopReactiveTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s - in com.lightweightai.kernel.core.ToolCallingLoopReactiveTest
+[INFO] Running com.lightweightai.kernel.core.DefaultTestExecutorTest
+19:44:58.256 [main] WARN com.lightweightai.kernel.core.DefaultTestExecutor -- Test case tc-5 execution failed: LLM mock failure
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.018 s - in com.lightweightai.kernel.core.DefaultTestExecutorTest
+[INFO] Running com.lightweightai.kernel.core.ToolExecutorClientRoutingTest
+19:44:58.262 [main] INFO com.lightweightai.kernel.core.ToolExecutor -- Dispatching to client: gps (callId=03c41180-0447-4f78-a262-074528ec8e3a)
+19:44:58.363 [main] WARN com.lightweightai.kernel.core.ToolExecutor -- Client tool timed out: gps (callId=03c41180-0447-4f78-a262-074528ec8e3a)
+19:44:58.364 [main] INFO com.lightweightai.kernel.core.ToolExecutor -- Dispatching to client: sign (callId=d1a57364-315f-4683-9dbf-1b82d9669dd9)
+19:44:58.365 [main] ERROR com.lightweightai.kernel.core.ToolExecutor -- Client tool failed: sign (callId=d1a57364-315f-4683-9dbf-1b82d9669dd9)
+java.lang.RuntimeException: Connection lost
+	at com.lightweightai.kernel.core.ToolExecutorClientRoutingTest.lambda$shouldHandleClientDispatcherException$3(ToolExecutorClientRoutingTest.java:111)
+	at com.lightweightai.kernel.core.ToolExecutor.executeOnClient(ToolExecutor.java:299)
+	at com.lightweightai.kernel.core.ToolExecutor.executeToolCall(ToolExecutor.java:204)
+	at com.lightweightai.kernel.core.ToolExecutorClientRoutingTest.shouldHandleClientDispatcherException(ToolExecutorClientRoutingTest.java:117)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:728)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:156)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:147)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:86)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:103)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:92)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:86)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$7(TestMethodTestDescriptor.java:218)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:214)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:139)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:69)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:151)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:198)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:169)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:93)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:141)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:57)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LazyLauncher.execute(LazyLauncher.java:50)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:184)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:148)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:122)
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+19:44:58.370 [main] INFO com.lightweightai.kernel.core.ToolExecutor -- Dispatching to client: camera (callId=88fe2738-f967-4bb8-807f-d0e058fc048a)
+19:44:58.371 [main] INFO com.lightweightai.kernel.core.ToolExecutor -- Dispatching to client: camera (callId=13636c71-08a3-40e4-b5ea-72d11f622baa)
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.111 s - in com.lightweightai.kernel.core.ToolExecutorClientRoutingTest
+[INFO] Running com.lightweightai.kernel.core.StreamEventTest
+[INFO] Running com.lightweightai.kernel.core.StreamEventTest$ToStringTests
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.core.StreamEventTest$ToStringTests
+[INFO] Running com.lightweightai.kernel.core.StreamEventTest$TraceEvent
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.core.StreamEventTest$TraceEvent
+[INFO] Running com.lightweightai.kernel.core.StreamEventTest$PostProcessData
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.core.StreamEventTest$PostProcessData
+[INFO] Running com.lightweightai.kernel.core.StreamEventTest$ErrorEvent
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.core.StreamEventTest$ErrorEvent
+[INFO] Running com.lightweightai.kernel.core.StreamEventTest$LlmComplete
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.core.StreamEventTest$LlmComplete
+[INFO] Running com.lightweightai.kernel.core.StreamEventTest$ToolEvents
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.core.StreamEventTest$ToolEvents
+[INFO] Running com.lightweightai.kernel.core.StreamEventTest$TextDelta
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.core.StreamEventTest$TextDelta
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.039 s - in com.lightweightai.kernel.core.StreamEventTest
+[INFO] Running com.lightweightai.kernel.core.MockToolRegistryTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.core.MockToolRegistryTest
+[INFO] Running com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipelineTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.018 s - in com.lightweightai.kernel.core.postprocess.StreamPostProcessorPipelineTest
+[INFO] Running com.lightweightai.kernel.core.ToolResultChunkTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.core.ToolResultChunkTest
+[INFO] Running com.lightweightai.kernel.skill.SkillLoaderTest
+19:44:58.464 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit4351132433391930607/my-sample-skill
+19:44:58.469 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-1
+19:44:58.470 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-2
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.026 s - in com.lightweightai.kernel.skill.SkillLoaderTest
+[INFO] Running com.lightweightai.kernel.skill.SkillRegistryTest
+19:44:58.479 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit7062456666256944535/skill-a
+19:44:58.479 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Created sample skill at: /tmp/junit7062456666256944535/skill-b
+19:44:58.480 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-b
+19:44:58.480 [main] INFO com.lightweightai.kernel.skill.SkillLoader -- Loaded skill: skill-a
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.kernel.skill.SkillRegistryTest
+[INFO] Running com.lightweightai.kernel.llm.LLMOptionsTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.llm.LLMOptionsTest
+[INFO] Running com.lightweightai.kernel.llm.ResilientLLMProviderTest
+19:44:58.495 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [fail-provider] with maxRetries=2, initialBackoffMs=10
+19:44:58.498 [main] WARN com.lightweightai.kernel.llm.ResilientLLMProvider -- [fail-provider] complete attempt 1/3 failed: Server error: 500. Retrying in 10ms...
+19:44:58.508 [main] WARN com.lightweightai.kernel.llm.ResilientLLMProvider -- [fail-provider] complete attempt 2/3 failed: Server error: 500. Retrying in 20ms...
+19:44:58.530 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [test-provider] with maxRetries=2, initialBackoffMs=1000
+19:44:58.530 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [test-provider] with maxRetries=2, initialBackoffMs=1000
+19:44:58.532 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [auth-fail] with maxRetries=3, initialBackoffMs=10
+19:44:58.533 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [test-provider] with maxRetries=2, initialBackoffMs=1000
+19:44:58.533 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [test-provider] with maxRetries=2, initialBackoffMs=1000
+19:44:58.534 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [test-provider] with maxRetries=2, initialBackoffMs=1000
+19:44:58.535 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [unhealthy] with maxRetries=0, initialBackoffMs=10
+19:44:58.536 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [retry-provider] with maxRetries=2, initialBackoffMs=10
+19:44:58.536 [main] WARN com.lightweightai.kernel.llm.ResilientLLMProvider -- [retry-provider] complete attempt 1/3 failed: Server error: 500. Retrying in 10ms...
+19:44:58.547 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [test-provider] with maxRetries=2, initialBackoffMs=1000
+19:44:58.547 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [error-info] with maxRetries=0, initialBackoffMs=10
+19:44:58.548 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [bad-request] with maxRetries=3, initialBackoffMs=10
+19:44:58.550 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [test-provider] with maxRetries=2, initialBackoffMs=1000
+19:44:58.550 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [degraded] with maxRetries=0, initialBackoffMs=10
+19:44:58.551 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [rate-limited] with maxRetries=2, initialBackoffMs=10
+19:44:58.551 [main] WARN com.lightweightai.kernel.llm.ResilientLLMProvider -- [rate-limited] complete attempt 1/3 failed: Rate limited: 429. Retrying in 10ms...
+19:44:58.562 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [test-provider] with maxRetries=2, initialBackoffMs=1000
+19:44:58.565 [main] INFO com.lightweightai.kernel.llm.ResilientLLMProvider -- ResilientLLMProvider wrapping [recover] with maxRetries=0, initialBackoffMs=10
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.072 s - in com.lightweightai.kernel.llm.ResilientLLMProviderTest
+[INFO] Running com.lightweightai.kernel.llm.ToolCallTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.llm.ToolCallTest
+[INFO] Running com.lightweightai.kernel.llm.ConversationMessageTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.kernel.llm.ConversationMessageTest
+[INFO] Running com.lightweightai.kernel.llm.LLMResponseTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.llm.LLMResponseTest
+[INFO] Running com.lightweightai.kernel.llm.ToolResultTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.llm.ToolResultTest
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
+19:44:58.955 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.claude.ClaudeProvider -- Claude streaming request: POST https://api.anthropic.com/v1/messages (model: claude-3-5-sonnet-20241022)
+19:44:58.955 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.claude.ClaudeProvider -- Claude streaming request body: {"model":"claude-3-5-sonnet-20241022","max_tokens":4096,"messages":[{"role":"user","content":"Test message"}],"stream":true}
+19:44:58.960 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.claude.ClaudeProvider -- Claude streaming request: POST https://api.anthropic.com/v1/messages (model: claude-3-5-sonnet-20241022)
+19:44:58.960 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.claude.ClaudeProvider -- Claude streaming request body: {"model":"claude-3-5-sonnet-20241022","max_tokens":4096,"messages":[{"role":"user","content":"Add 10 and 20"}],"stream":true}
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.378 s - in com.lightweightai.kernel.llm.claude.ClaudeProviderStreamTest
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeModelCapabilityTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.033 s - in com.lightweightai.kernel.llm.claude.ClaudeModelCapabilityTest
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProProviderTest
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$CompleteAsyncDelegationTests
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$CompleteAsyncDelegationTests
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$StreamErrorHandlingTests
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$StreamErrorHandlingTests
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$ExtractLastUserMessageTests
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$ExtractLastUserMessageTests
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$StreamChunkingTests
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$StreamChunkingTests
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$LLMProviderContractTests
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.457 s - in com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$LLMProviderContractTests
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$GetModelCapabilityTests
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$GetModelCapabilityTests
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$GetProviderNameTests
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$GetProviderNameTests
+[INFO] Running com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$ConstructorValidationTests
+19:44:59.569 [main] WARN com.lightweightai.kernel.llm.claude.ClaudeProProvider -- Failed to fetch organization ID: Failed to fetch organization ID: 403
+Session key may be invalid or expired.
+19:44:59.658 [main] WARN com.lightweightai.kernel.llm.claude.ClaudeProProvider -- Failed to fetch organization ID: Failed to fetch organization ID: 403
+Session key may be invalid or expired.
+19:44:59.742 [main] WARN com.lightweightai.kernel.llm.claude.ClaudeProProvider -- Failed to fetch organization ID: Failed to fetch organization ID: 403
+Session key may be invalid or expired.
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.262 s - in com.lightweightai.kernel.llm.claude.ClaudeProProviderTest$ConstructorValidationTests
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.745 s - in com.lightweightai.kernel.llm.claude.ClaudeProProviderTest
+[INFO] Running com.lightweightai.kernel.llm.ContentBlockTest
+[INFO] Running com.lightweightai.kernel.llm.ContentBlockTest$ContentTypeTests
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.llm.ContentBlockTest$ContentTypeTests
+[INFO] Running com.lightweightai.kernel.llm.ContentBlockTest$ImageContentTests
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.llm.ContentBlockTest$ImageContentTests
+[INFO] Running com.lightweightai.kernel.llm.ContentBlockTest$TextContentTests
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.llm.ContentBlockTest$TextContentTests
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.llm.ContentBlockTest
+[INFO] Running com.lightweightai.kernel.llm.openrouter.OpenRouterProviderTest
+19:44:59.765 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:41295/v1
+19:44:59.766 [main] WARN com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Skipping tool with null/empty name (flat format): {name=, description=bad tool}
+19:44:59.766 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.766 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:41295/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.766 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.771 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.771 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.775 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: anthropic/claude-3.5-sonnet, baseUrl: https://openrouter.ai/api/v1
+19:44:59.776 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:46483/v1
+19:44:59.777 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.777 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:46483/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.777 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.778 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.778 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.780 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: gpt-4o, baseUrl: http://localhost:42343/v1
+19:44:59.781 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.781 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:42343/v1/chat/completions (model: gpt-4o, customGateway: true, headers: api_key: key
+)
+19:44:59.781 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"key","model":"gpt-4o","max_tokens":2048,"temperature":0.7,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.782 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.783 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.793 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:38911/v1
+19:44:59.794 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 2 messages
+19:44:59.794 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:38911/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.794 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"system","content":"You are helpful"},{"role":"user","content":"Hello"}]}
+19:44:59.795 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.797 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.799 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:58923/v1
+19:44:59.799 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.799 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:58923/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.799 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.801 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.801 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"Hello, world!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.804 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:47233/v1
+19:44:59.805 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.805 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:47233/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.805 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"search"}],"tools":[{"type":"function","function":{"name":"search","description":"Search the web","parameters":{"type":"object"}}}]}
+19:44:59.806 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.807 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.813 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: model, baseUrl: http://localhost:54651/v1
+19:44:59.814 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.814 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:54651/v1/chat/completions (model: model, customGateway: true, headers: api_key: key
+)
+19:44:59.814 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"key","model":"model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.820 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.820 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.824 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:60925/v1
+19:44:59.824 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.824 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:60925/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.824 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.825 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.826 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: "{\"id\":\"chatcmpl-test123\",\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"unwrapped content\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5}}"
+19:44:59.826 [main] WARN com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Response is double-encoded JSON string, unwrapping
+19:44:59.829 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:49837/v1
+19:44:59.829 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.829 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:49837/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.829 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":4096,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.833 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.833 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.837 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:59199/v1
+19:44:59.838 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request: POST http://localhost:59199/v1/chat/completions (model: test-model, headers: api_key: test-key
+)
+19:44:59.838 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"stream":true,"messages":[{"role":"user","content":"weather"}]}
+19:44:59.840 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming response complete (SSE: false)
+19:44:59.840 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Response is not SSE format, parsing as regular JSON
+19:44:59.841 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- tool_calls detected: 1
+19:44:59.841 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] Non-SSE parsed: textLen=0 hasToolCalls=true toolCallCount=1
+19:44:59.841 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] No text content in response (tool-call-only response)
+19:44:59.841 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] Returning fallbackResponse to completeStream caller
+19:44:59.841 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: calling handler.onComplete, hasToolCalls=true, textLen=0
+19:44:59.841 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: handler.onComplete returned
+19:44:59.842 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:53443/v1
+19:44:59.844 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request: POST http://localhost:53443/v1/chat/completions (model: test-model, headers: api_key: test-key
+)
+19:44:59.844 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"stream":true,"messages":[{"role":"user","content":"weather in Paris?"}]}
+19:44:59.846 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter SSE stream: [DONE]
+19:44:59.846 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming response complete (SSE: true)
+19:44:59.846 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Streaming tool_calls assembled: 1
+19:44:59.846 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: calling handler.onComplete, hasToolCalls=true, textLen=0
+19:44:59.846 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: handler.onComplete returned
+19:44:59.848 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:34663/v1
+19:44:59.848 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request: POST http://localhost:34663/v1/chat/completions (model: test-model, headers: api_key: test-key
+)
+19:44:59.848 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"stream":true,"messages":[{"role":"user","content":"think"}]}
+19:44:59.850 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter SSE stream: [DONE]
+19:44:59.850 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming response complete (SSE: true)
+19:44:59.850 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: calling handler.onComplete, hasToolCalls=false, textLen=6
+19:44:59.850 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: handler.onComplete returned
+19:44:59.853 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:37717/v1
+19:44:59.853 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request: POST http://localhost:37717/v1/chat/completions (model: test-model, headers: api_key: test-key
+)
+19:44:59.853 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"stream":true,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.854 [ForkJoinPool.commonPool-worker-3] ERROR com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming failed: POST http://localhost:37717/v1/chat/completions → HTTP 503 
+Error: Service Unavailable
+19:44:59.861 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:57023/v1
+19:44:59.861 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.862 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:57023/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.862 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.866 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.866 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"choices":[]}
+19:44:59.867 [main] ERROR com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- No choices in API response. Raw body: {"choices":[]}
+19:44:59.868 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:59013/v1
+19:44:59.869 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.869 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:59013/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.869 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.870 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.870 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"choices":[{"index":0,"message":{"role":"assistant","content":"no usage"},"finish_reason":"stop"}]}
+19:44:59.872 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:45331/v1
+19:44:59.872 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.872 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:45331/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: my-gateway-key
+)
+19:44:59.872 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"my-gateway-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.874 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.874 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.876 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: model, baseUrl: https://openrouter.ai/api/v1
+19:44:59.878 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:41453/v1
+19:44:59.878 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.878 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:41453/v1/chat/completions (model: test-model, customGateway: true, headers: )
+19:44:59.878 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.881 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.881 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.883 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:58519/v1
+19:44:59.884 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.884 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:58519/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.884 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"weather?"}],"tools":[{"type":"function","function":{"name":"get_weather","description":"Get weather for a city","parameters":{"type":"object","properties":{"city":{"type":"string"}}}}}]}
+19:44:59.885 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.885 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.888 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:58819/v1
+19:44:59.888 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.888 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:58819/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: body-key
+)
+19:44:59.888 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"body-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.890 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.890 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}
+19:44:59.892 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:51141/v1
+19:44:59.893 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request: POST http://localhost:51141/v1/chat/completions (model: test-model, headers: api_key: test-key
+)
+19:44:59.893 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"stream":true,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.895 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming response complete (SSE: false)
+19:44:59.895 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Response is not SSE format, parsing as regular JSON
+19:44:59.895 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] Non-SSE parsed: textLen=17 hasToolCalls=false toolCallCount=0
+19:44:59.895 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] Emitting onTextDelta, len=17, preview='fallback response'
+19:44:59.895 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] Returning fallbackResponse to completeStream caller
+19:44:59.895 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: calling handler.onComplete, hasToolCalls=false, textLen=17
+19:44:59.895 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: handler.onComplete returned
+19:44:59.898 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:42465/v1
+19:44:59.898 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.898 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:42465/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.898 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"What's the weather?"}]}
+19:44:59.900 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 200
+19:44:59.900 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API raw response: {"id":"chatcmpl-tc1","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_abc123","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"London\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":20,"completion_tokens":15}}
+19:44:59.900 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- tool_calls detected: 1
+19:44:59.902 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:39057/v1
+19:44:59.903 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.903 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:39057/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.903 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.904 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 429
+19:44:59.904 [main] ERROR com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API failed: POST http://localhost:39057/v1/chat/completions → HTTP 429 
+Error: {"error":{"message":"Rate limit exceeded"}}
+19:44:59.907 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:34837/v1
+19:44:59.907 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Calling API with 1 messages
+19:44:59.907 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API request: POST http://localhost:34837/v1/chat/completions (model: test-model, customGateway: true, headers: api_key: test-key
+)
+19:44:59.907 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.909 [main] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Got response: 500
+19:44:59.909 [main] ERROR com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter API failed: POST http://localhost:34837/v1/chat/completions → HTTP 500 
+Error: Internal Server Error
+19:44:59.913 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:45039/v1
+19:44:59.913 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request: POST http://localhost:45039/v1/chat/completions (model: test-model, headers: api_key: test-key
+)
+19:44:59.913 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"stream":true,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.915 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter SSE stream: [DONE]
+19:44:59.915 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming response complete (SSE: true)
+19:44:59.915 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: calling handler.onComplete, hasToolCalls=false, textLen=2
+19:44:59.915 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: handler.onComplete returned
+19:44:59.918 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: http://localhost:51933/v1
+19:44:59.918 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request: POST http://localhost:51933/v1/chat/completions (model: test-model, headers: api_key: test-key
+)
+19:44:59.918 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming request body: {"api_key":"test-key","model":"test-model","max_tokens":100,"stream":true,"messages":[{"role":"user","content":"hi"}]}
+19:44:59.920 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter SSE stream: [DONE]
+19:44:59.920 [ForkJoinPool.commonPool-worker-3] DEBUG com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- OpenRouter streaming response complete (SSE: true)
+19:44:59.920 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: calling handler.onComplete, hasToolCalls=false, textLen=11
+19:44:59.920 [ForkJoinPool.commonPool-worker-3] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- [STREAM-DEBUG] completeStream: handler.onComplete returned
+19:44:59.921 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: model, baseUrl: https://openrouter.ai/api/v1
+19:44:59.923 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: some-model, baseUrl: https://openrouter.ai/api/v1
+19:44:59.925 [main] INFO com.lightweightai.kernel.llm.openrouter.OpenRouterProvider -- Initialized with model: test-model, baseUrl: https://openrouter.ai/api/v1
+[INFO] Tests run: 33, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.168 s - in com.lightweightai.kernel.llm.openrouter.OpenRouterProviderTest
+[INFO] Running com.lightweightai.kernel.llm.openrouter.OpenRouterModelCapabilityTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.llm.openrouter.OpenRouterModelCapabilityTest
+[INFO] Running com.lightweightai.kernel.llm.LLMProviderFactoryTest
+[INFO] Running com.lightweightai.kernel.llm.LLMProviderFactoryTest$IsSupportedTests
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.llm.LLMProviderFactoryTest$IsSupportedTests
+[INFO] Running com.lightweightai.kernel.llm.LLMProviderFactoryTest$CreateTests
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.llm.LLMProviderFactoryTest$CreateTests
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s - in com.lightweightai.kernel.llm.LLMProviderFactoryTest
+[INFO] Running com.lightweightai.kernel.memory.MemorySearchResultTest
+[INFO] Running com.lightweightai.kernel.memory.MemorySearchResultTest$ToStringTests
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.memory.MemorySearchResultTest$ToStringTests
+[INFO] Running com.lightweightai.kernel.memory.MemorySearchResultTest$MemoryTypeTests
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s - in com.lightweightai.kernel.memory.MemorySearchResultTest$MemoryTypeTests
+[INFO] Running com.lightweightai.kernel.memory.MemorySearchResultTest$NullChecks
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.memory.MemorySearchResultTest$NullChecks
+[INFO] Running com.lightweightai.kernel.memory.MemorySearchResultTest$SnippetTests
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.memory.MemorySearchResultTest$SnippetTests
+[INFO] Running com.lightweightai.kernel.memory.MemorySearchResultTest$FactoryMethods
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.memory.MemorySearchResultTest$FactoryMethods
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s - in com.lightweightai.kernel.memory.MemorySearchResultTest
+[INFO] Running com.lightweightai.kernel.memory.UserMemoryTest
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.019 s - in com.lightweightai.kernel.memory.UserMemoryTest
+[INFO] Running com.lightweightai.kernel.memory.InMemoryProviderTest
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.kernel.memory.InMemoryProviderTest
+[INFO] Running com.lightweightai.kernel.memory.MessageTest
+[INFO] Running com.lightweightai.kernel.memory.MessageTest$ToStringTests
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.memory.MessageTest$ToStringTests
+[INFO] Running com.lightweightai.kernel.memory.MessageTest$EqualsAndHashCode
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.memory.MessageTest$EqualsAndHashCode
+[INFO] Running com.lightweightai.kernel.memory.MessageTest$Conversion
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.memory.MessageTest$Conversion
+[INFO] Running com.lightweightai.kernel.memory.MessageTest$NullChecks
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.memory.MessageTest$NullChecks
+[INFO] Running com.lightweightai.kernel.memory.MessageTest$FactoryMethods
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.memory.MessageTest$FactoryMethods
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s - in com.lightweightai.kernel.memory.MessageTest
+[INFO] Running com.lightweightai.kernel.memory.MemoryProviderTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.memory.MemoryProviderTest
+[INFO] Running com.lightweightai.kernel.memory.MessageSnapshotTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.memory.MessageSnapshotTest
+[INFO] Running com.lightweightai.kernel.memory.ConversationMemoryTest
+[INFO] Running com.lightweightai.kernel.memory.ConversationMemoryTest$SummaryTests
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.memory.ConversationMemoryTest$SummaryTests
+[INFO] Running com.lightweightai.kernel.memory.ConversationMemoryTest$ClearOperations
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.memory.ConversationMemoryTest$ClearOperations
+[INFO] Running com.lightweightai.kernel.memory.ConversationMemoryTest$UserMemoryTests
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.memory.ConversationMemoryTest$UserMemoryTests
+[INFO] Running com.lightweightai.kernel.memory.ConversationMemoryTest$RecentMessages
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.memory.ConversationMemoryTest$RecentMessages
+[INFO] Running com.lightweightai.kernel.memory.ConversationMemoryTest$HistoryTrimming
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.memory.ConversationMemoryTest$HistoryTrimming
+[INFO] Running com.lightweightai.kernel.memory.ConversationMemoryTest$AddAndRetrieve
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.memory.ConversationMemoryTest$AddAndRetrieve
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s - in com.lightweightai.kernel.memory.ConversationMemoryTest
+[INFO] Running com.lightweightai.kernel.gateway.GatewayTest
+[INFO] Running com.lightweightai.kernel.gateway.GatewayTest$ChatHandlerTests
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.016 s - in com.lightweightai.kernel.gateway.GatewayTest$ChatHandlerTests
+[INFO] Running com.lightweightai.kernel.gateway.GatewayTest$AgentLoopBackwardCompatibility
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.gateway.GatewayTest$AgentLoopBackwardCompatibility
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.036 s - in com.lightweightai.kernel.gateway.GatewayTest
+[INFO] Running com.lightweightai.kernel.gateway.GatewayStreamHandlerTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.kernel.gateway.GatewayStreamHandlerTest
+[INFO] Running com.lightweightai.kernel.gateway.GatewayResponseTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.gateway.GatewayResponseTest
+[INFO] Running com.lightweightai.kernel.gateway.GatewayReactiveTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.kernel.gateway.GatewayReactiveTest
+[INFO] Running com.lightweightai.kernel.gateway.GatewayRequestTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.gateway.GatewayRequestTest
+[INFO] Running com.lightweightai.kernel.agent.AgentResponseTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.agent.AgentResponseTest
+[INFO] Running com.lightweightai.kernel.agent.ToolScannerTest
+19:45:00.097 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.098 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.098 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+19:45:00.099 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.099 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.099 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.100 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.100 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+19:45:00.100 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.100 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.101 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 0 tools
+19:45:00.102 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.102 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.102 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+19:45:00.103 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.103 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.103 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+19:45:00.104 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.105 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.105 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.105 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.106 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.107 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.108 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.108 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.108 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.109 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.109 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+19:45:00.110 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.110 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s - in com.lightweightai.kernel.agent.ToolScannerTest
+[INFO] Running com.lightweightai.kernel.agent.DynamicPluginProviderTest
+19:45:00.126 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider started, watching: /tmp/junit9630650453069764801, loaded 0 plugins
+19:45:00.126 [main] WARN com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin conflict-plugin skipped tool 'existing_tool': already registered
+19:45:00.127 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin registered: conflict-plugin with 1 tools: [new_tool]
+19:45:00.127 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin unregistered: conflict-plugin (removed 1 tools)
+19:45:00.128 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+19:45:00.130 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider started, watching: /tmp/junit10224957037527610755, loaded 0 plugins
+19:45:00.131 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin registered: my-plugin.jar with 1 tools: [v1_tool]
+19:45:00.131 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin unregistered: my-plugin.jar (removed 1 tools)
+19:45:00.131 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin registered: my-plugin.jar with 1 tools: [v2_tool]
+19:45:00.131 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+19:45:00.133 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider started, watching: /tmp/junit1265841333655540954, loaded 0 plugins
+19:45:00.133 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin registered: test-plugin with 1 tools: [dynamic_tool_1]
+19:45:00.133 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin unregistered: test-plugin (removed 1 tools)
+19:45:00.133 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+19:45:00.136 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider started, watching: /tmp/junit15547710825369582078, loaded 0 plugins
+19:45:00.136 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin registered: my-plugin with 1 tools: [t]
+19:45:00.136 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+19:45:00.139 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider started, watching: /tmp/junit7711329143728564585, loaded 0 plugins
+19:45:00.143 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+19:45:00.144 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+19:45:00.148 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider started, watching: /tmp/junit7091392476799431483, loaded 0 plugins
+19:45:00.148 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin registered: p1 with 1 tools: [t1]
+19:45:00.148 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin registered: p2 with 1 tools: [t2]
+19:45:00.152 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+19:45:00.154 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider started, watching: /tmp/junit15187728468427645185/plugins, loaded 0 plugins
+19:45:00.157 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+19:45:00.159 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider started, watching: /tmp/junit6459723189946279502, loaded 0 plugins
+19:45:00.159 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin registered: plugin-a with 2 tools: [tool_a1, tool_a2]
+19:45:00.159 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin registered: plugin-b with 1 tools: [tool_b1]
+19:45:00.159 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- Plugin unregistered: plugin-a (removed 2 tools)
+19:45:00.164 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+19:45:00.167 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider started, watching: /tmp/junit7160087145655815260, loaded 0 plugins
+19:45:00.173 [main] INFO com.lightweightai.kernel.agent.DynamicPluginProvider -- DynamicPluginProvider stopped
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.062 s - in com.lightweightai.kernel.agent.DynamicPluginProviderTest
+[INFO] Running com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.033 s - in com.lightweightai.kernel.agent.annotation.AnnotatedToolWrapperTest
+[INFO] Running com.lightweightai.kernel.agent.ToolRegistryTest
+[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.agent.ToolRegistryTest
+[INFO] Running com.lightweightai.kernel.agent.ToolSchemaTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.agent.ToolSchemaTest
+[INFO] Running com.lightweightai.kernel.agent.directive.DirectiveManagerTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.027 s - in com.lightweightai.kernel.agent.directive.DirectiveManagerTest
+[INFO] Running com.lightweightai.kernel.agent.directive.ClientCapabilityTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.kernel.agent.directive.ClientCapabilityTest
+[INFO] Running com.lightweightai.kernel.agent.directive.DirectiveTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.agent.directive.DirectiveTest
+[INFO] Running com.lightweightai.kernel.agent.directive.DirectiveToolBridgeTest
+19:45:00.258 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: Camera.TakePhoto (from android 2.1.0)
+19:45:00.258 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: GPS.GetLocation (from android 2.1.0)
+19:45:00.258 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 2 directive tools from manifest (client=android, version=2.1.0)
+19:45:00.259 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: Camera.TakePhoto (from android 2.0)
+19:45:00.259 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 1 directive tools from manifest (client=android, version=2.0)
+19:45:00.259 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Unregistered directive tool: Camera.TakePhoto (device=android)
+19:45:00.261 [main] WARN com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Empty manifest from client: browser
+19:45:00.261 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered directive tool: NFC.ReadTag (from ios 1.0)
+19:45:00.261 [main] INFO com.lightweightai.kernel.agent.directive.DirectiveToolBridge -- Registered 1 directive tools from manifest (client=ios, version=1.0)
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.agent.directive.DirectiveToolBridgeTest
+[INFO] Running com.lightweightai.kernel.agent.directive.DirectiveResultTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.agent.directive.DirectiveResultTest
+[INFO] Running com.lightweightai.kernel.agent.AgentLoopReactiveTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.027 s - in com.lightweightai.kernel.agent.AgentLoopReactiveTest
+[INFO] Running com.lightweightai.kernel.agent.ToolSourceProviderTest
+[INFO] Running com.lightweightai.kernel.agent.ToolSourceProviderTest$MultiProviderTest
+19:45:00.302 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.302 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.302 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.agent.ToolSourceProviderTest$MultiProviderTest
+[INFO] Running com.lightweightai.kernel.agent.ToolSourceProviderTest$ManualToolProviderTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.agent.ToolSourceProviderTest$ManualToolProviderTest
+[INFO] Running com.lightweightai.kernel.agent.ToolSourceProviderTest$LegacyScanProviderTest
+19:45:00.307 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.307 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.307 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+19:45:00.309 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 0 tools
+19:45:00.309 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 0 tools via SPI scanning
+19:45:00.309 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via Tool SPI: test_echo (com.lightweightai.kernel.agent.TestEchoTool)
+19:45:00.309 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 1 tools
+19:45:00.309 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 1 tools via SPI scanning
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.agent.ToolSourceProviderTest$LegacyScanProviderTest
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.agent.ToolSourceProviderTest
+[INFO] Running com.lightweightai.kernel.agent.ClientToolWrapperTest
+19:45:00.313 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Dispatching client tool call: t (callId=50c2f032-3a0c-4242-9e87-793ca0654afe)
+19:45:00.313 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Client tool result received: t (callId=50c2f032-3a0c-4242-9e87-793ca0654afe, isError=true)
+19:45:00.317 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Dispatching client tool call: t (callId=c7fdf83d-1297-4704-bbfd-4589088b7d61)
+19:45:00.318 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Client tool result received: t (callId=c7fdf83d-1297-4704-bbfd-4589088b7d61, isError=false)
+19:45:00.318 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Dispatching client tool call: t (callId=5e86e5fe-da76-4a24-83ad-0b91d2782902)
+19:45:00.318 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Client tool result received: t (callId=5e86e5fe-da76-4a24-83ad-0b91d2782902, isError=false)
+19:45:00.319 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Dispatching client tool call: Camera.TakePhoto (callId=1260e93f-3289-4e17-94ae-8a95ebce8495)
+19:45:00.319 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Client tool result received: Camera.TakePhoto (callId=1260e93f-3289-4e17-94ae-8a95ebce8495, isError=false)
+19:45:00.320 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Dispatching client tool call: t (callId=39872a96-3ce7-4bf1-9360-9ac56155e039)
+19:45:00.320 [main] ERROR com.lightweightai.kernel.agent.ClientToolWrapper -- Client tool call failed: t (callId=39872a96-3ce7-4bf1-9360-9ac56155e039)
+java.util.concurrent.ExecutionException: java.lang.RuntimeException: boom
+	at java.base/java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:396)
+	at java.base/java.util.concurrent.CompletableFuture.get(CompletableFuture.java:2096)
+	at com.lightweightai.kernel.agent.ClientToolWrapper.execute(ClientToolWrapper.java:122)
+	at com.lightweightai.kernel.agent.ClientToolWrapperTest.execute_dispatcherFutureFails_returnsError(ClientToolWrapperTest.java:195)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:728)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:156)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:147)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:86)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:103)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:92)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:86)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$7(TestMethodTestDescriptor.java:218)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:214)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:139)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:69)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:151)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:198)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:169)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:93)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:141)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:57)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LazyLauncher.execute(LazyLauncher.java:50)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:184)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:148)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:122)
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+Caused by: java.lang.RuntimeException: boom
+	at com.lightweightai.kernel.agent.ClientToolWrapperTest.execute_dispatcherFutureFails_returnsError(ClientToolWrapperTest.java:191)
+	... 69 common frames omitted
+19:45:00.321 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Dispatching client tool call: t (callId=2756a501-d397-4bca-b8c5-a9be9d49cd87)
+19:45:00.321 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Client tool result received: t (callId=2756a501-d397-4bca-b8c5-a9be9d49cd87, isError=false)
+19:45:00.323 [main] INFO com.lightweightai.kernel.agent.ClientToolWrapper -- Dispatching client tool call: slow_tool (callId=dbb28c2c-fd79-42d3-be80-74d8f96d1603)
+19:45:00.373 [main] WARN com.lightweightai.kernel.agent.ClientToolWrapper -- Client tool timed out: slow_tool (callId=dbb28c2c-fd79-42d3-be80-74d8f96d1603, timeout=50ms)
+[INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.062 s - in com.lightweightai.kernel.agent.ClientToolWrapperTest
+[INFO] Running com.lightweightai.kernel.agent.AgentLoopTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.agent.AgentLoopTest
+[INFO] Running com.lightweightai.kernel.agent.DeviceContextTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.agent.DeviceContextTest
+[INFO] Running com.lightweightai.kernel.agent.DispatchingToolTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.agent.DispatchingToolTest
+[INFO] Running com.lightweightai.kernel.agent.DeviceDispatchRegistryTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.agent.DeviceDispatchRegistryTest
+[INFO] Running com.lightweightai.kernel.agent.VersionRangeTest
+[INFO] Running com.lightweightai.kernel.agent.VersionRangeTest$EdgeCases
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s - in com.lightweightai.kernel.agent.VersionRangeTest$EdgeCases
+[INFO] Running com.lightweightai.kernel.agent.VersionRangeTest$NullVersionTests
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.agent.VersionRangeTest$NullVersionTests
+[INFO] Running com.lightweightai.kernel.agent.VersionRangeTest$ExactTests
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.agent.VersionRangeTest$ExactTests
+[INFO] Running com.lightweightai.kernel.agent.VersionRangeTest$ParseTests
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.agent.VersionRangeTest$ParseTests
+[INFO] Running com.lightweightai.kernel.agent.VersionRangeTest$AllTests
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.agent.VersionRangeTest$AllTests
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.kernel.agent.VersionRangeTest
+[INFO] Running com.lightweightai.kernel.trace.SpanContextTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.kernel.trace.SpanContextTest
+[INFO] Running com.lightweightai.kernel.trace.TraceContextTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.trace.TraceContextTest
+[INFO] Running com.lightweightai.kernel.trace.TracerTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.trace.TracerTest
+[INFO] Running com.lightweightai.kernel.trace.export.StreamEventSpanExporterTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.kernel.trace.export.StreamEventSpanExporterTest
+[INFO] Running com.lightweightai.kernel.trace.export.ConsoleSpanExporterTest
+19:45:00.429 [main] INFO kernel.trace -- [TRACE] gateway traceId=a6bbea7422c647ba spanId=5fa12585dec94840 parent=root duration=0ms OK {sessionId=test}
+19:45:00.430 [main] WARN kernel.trace -- [TRACE] tool.execute.checkWeather traceId=558c01a0244a4179 spanId=76eaab670813424a parent=root duration=0ms ERROR error="API timeout" {toolName=checkWeather}
+19:45:00.431 [main] INFO kernel.trace -- [TRACE] gateway.handle traceId=3113e5c7c2c94aed spanId=b07114f8bf764608 parent=root duration=0ms OK {requestId=r1, sessionId=s1}
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.kernel.trace.export.ConsoleSpanExporterTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 780, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ agent-kernel ---
+[INFO] Building jar: /home/runner/work/runner/runner/agent-kernel/target/agent-kernel-0.1.0-SNAPSHOT.jar
+[INFO] 
+[INFO] -------------------< com.lightweightai:agent-tools >--------------------
+[INFO] Building Agent Tools 0.1.0-SNAPSHOT                               [3/12]
+[INFO]   from agent-tools/pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ agent-tools ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ agent-tools ---
+[INFO] Changes detected - recompiling the module! :dependency
+[INFO] Compiling 6 source files with javac [debug target 21] to target/classes
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ agent-tools ---
+[INFO] skip non existing resourceDirectory /home/runner/work/runner/runner/agent-tools/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ agent-tools ---
+[INFO] Changes detected - recompiling the module! :dependency
+[INFO] Compiling 7 source files with javac [debug target 21] to target/test-classes
+[INFO] 
+[INFO] --- surefire:3.0.0:test (default-test) @ agent-tools ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.lightweightai.tools.math.MathToolsTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.067 s - in com.lightweightai.tools.math.MathToolsTest
+[INFO] Running com.lightweightai.tools.ToolRegistryIntegrationTest
+19:45:02.153 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: add (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.156 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: multiply (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.156 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: divide (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.156 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: get_time (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.156 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: web_search (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.156 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: checkWeather (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.157 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 6 tools
+19:45:02.157 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 6 tools via SPI scanning
+19:45:02.164 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: add (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.164 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: multiply (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.164 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: divide (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.164 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 3 tools
+19:45:02.173 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: add (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.173 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: multiply (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.173 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: divide (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.173 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 3 tools
+19:45:02.182 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: add (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.182 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: multiply (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.182 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: divide (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.182 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: get_time (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.182 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: checkWeather (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.182 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 5 tools
+19:45:02.182 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 5 tools via SPI scanning
+19:45:02.187 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: add (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.187 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: multiply (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.187 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: divide (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.187 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: get_time (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.187 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: web_search (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.187 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: checkWeather (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.187 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 6 tools
+19:45:02.187 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- Registered 6 tools via SPI scanning
+19:45:02.200 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: add (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.200 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: multiply (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.200 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: divide (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.200 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: get_time (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.200 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: web_search (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.200 [main] DEBUG com.lightweightai.kernel.agent.ToolScanner -- Discovered tool via ToolSource SPI: checkWeather (source: com.lightweightai.tools.AgentToolsSource)
+19:45:02.200 [main] INFO com.lightweightai.kernel.agent.ToolScanner -- ToolScanner discovered 6 tools
+[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.183 s - in com.lightweightai.tools.ToolRegistryIntegrationTest
+[INFO] Running com.lightweightai.tools.client.ClientToolIntegrationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.033 s - in com.lightweightai.tools.client.ClientToolIntegrationTest
+[INFO] Running com.lightweightai.tools.weather.CheckWeatherToolTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s - in com.lightweightai.tools.weather.CheckWeatherToolTest
+[INFO] Running com.lightweightai.tools.web.WebToolsTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.tools.web.WebToolsTest
+[INFO] Running com.lightweightai.tools.AgentToolsSourceTest
+[ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.014 s <<< FAILURE! - in com.lightweightai.tools.AgentToolsSourceTest
+[ERROR] com.lightweightai.tools.AgentToolsSourceTest.discoverToolsReturnsAllTools  Time elapsed: 0.007 s  <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)
+	at com.lightweightai.tools.AgentToolsSourceTest.discoverToolsReturnsAllTools(AgentToolsSourceTest.java:31)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[INFO] Running com.lightweightai.tools.time.TimeToolsTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.tools.time.TimeToolsTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   AgentToolsSourceTest.discoverToolsReturnsAllTools:31 expected: <true> but was: <false>
+[INFO] 
+[ERROR] Tests run: 50, Failures: 1, Errors: 0, Skipped: 0
+[INFO] 
 [INFO] ------------------------------------------------------------------------
 [INFO] Reactor Summary for Lightweight AI Kernel Parent 0.1.0-SNAPSHOT:
 [INFO] 
-[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.002 s]
-[INFO] Agent Kernel ....................................... FAILURE [  4.770 s]
-[INFO] Agent Tools ........................................ SKIPPED
+[INFO] Lightweight AI Kernel Parent ....................... SUCCESS [  0.004 s]
+[INFO] Agent Kernel ....................................... SUCCESS [  9.935 s]
+[INFO] Agent Tools ........................................ FAILURE [  1.246 s]
 [INFO] Agent MCP .......................................... SKIPPED
 [INFO] Kernel Memory ...................................... SKIPPED
 [INFO] Agent SDK .......................................... SKIPPED
@@ -91,27 +934,13 @@
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  5.082 s
-[INFO] Finished at: 2026-04-13T19:43:26Z
+[INFO] Total time:  11.522 s
+[INFO] Finished at: 2026-04-13T19:45:02Z
 [INFO] ------------------------------------------------------------------------
-[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:testCompile (default-testCompile) on project agent-kernel: Compilation failure: Compilation failure: 
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[6,19] package org.mockito does not exist
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[7,33] package org.mockito.junit.jupiter does not exist
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[13,26] package org.mockito does not exist
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[15,13] cannot find symbol
-[ERROR]   symbol: class MockitoExtension
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[19,6] cannot find symbol
-[ERROR]   symbol:   class Mock
-[ERROR]   location: class com.lightweightai.kernel.memory.MessageSnapshotTest
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/plugin/TypedPluginFunctionTest.java:[77,45] cannot find symbol
-[ERROR]   symbol:   method getContent()
-[ERROR]   location: variable result of type com.lightweightai.kernel.plugin.FunctionResult
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[59,9] cannot find symbol
-[ERROR]   symbol:   method when(java.util.List<com.lightweightai.kernel.memory.Message>)
-[ERROR]   location: class com.lightweightai.kernel.memory.MessageSnapshotTest
-[ERROR] /home/runner/work/runner/runner/agent-kernel/src/test/java/com/lightweightai/kernel/memory/MessageSnapshotTest.java:[65,9] cannot find symbol
-[ERROR]   symbol:   method verify(com.lightweightai.kernel.memory.MemoryProvider)
-[ERROR]   location: class com.lightweightai.kernel.memory.MessageSnapshotTest
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.0.0:test (default-test) on project agent-tools: There are test failures.
+[ERROR] 
+[ERROR] Please refer to /home/runner/work/runner/runner/agent-tools/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
 [ERROR] -> [Help 1]
 [ERROR] 
 [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
@@ -121,4 +950,4 @@
 [ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
 [ERROR] 
 [ERROR] After correcting the problems, you can resume the build with the command
-[ERROR]   mvn <args> -rf :agent-kernel
+[ERROR]   mvn <args> -rf :agent-tools
