@@ -649,6 +649,26 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                     msg.set("data", data);
                     safeSend(session, MAPPER.writeValueAsString(msg));
                 }
+                // Orchestrator 生命周期事件
+                case AGENT_ROUTE, AGENT_INTERRUPT, AGENT_RESUME,
+                     SUBAGENT_SPAWN, SUBAGENT_COMPLETE, SUBAGENT_ERROR, SUBAGENT_CANCELLED -> {
+                    String typeName = switch (event.getType()) {
+                        case AGENT_ROUTE -> "agent_route";
+                        case AGENT_INTERRUPT -> "agent_interrupt";
+                        case AGENT_RESUME -> "agent_resume";
+                        case SUBAGENT_SPAWN -> "subagent_spawn";
+                        case SUBAGENT_COMPLETE -> "subagent_complete";
+                        case SUBAGENT_ERROR -> "subagent_error";
+                        case SUBAGENT_CANCELLED -> "subagent_cancelled";
+                        default -> "unknown";
+                    };
+                    ObjectNode msg = MAPPER.createObjectNode();
+                    msg.put("type", typeName);
+                    if (event.getData() != null) msg.set("data", MAPPER.valueToTree(event.getData()));
+                    if (event.getTraceMessage() != null) msg.put("message", event.getTraceMessage());
+                    msg.put("timestamp", event.getTraceTimestamp());
+                    safeSend(session, MAPPER.writeValueAsString(msg));
+                }
                 default -> {} // TOOL_RESULT, LLM_COMPLETE 不需要额外推送
             }
         } catch (Exception e) {

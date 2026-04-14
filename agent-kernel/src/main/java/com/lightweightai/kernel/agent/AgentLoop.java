@@ -188,6 +188,17 @@ public class AgentLoop {
      * 需要 ToolCallingLoop 支持。
      */
     public Flux<StreamEvent> runReactive(String input, String sessionId) {
+        return runReactive(input, sessionId, null);
+    }
+
+    /**
+     * 执行 Agent 循环（Reactive，支持外部 CancellationToken）
+     *
+     * CancellationToken 会传递到 ToolCallingLoop，每轮迭代前检查。
+     * 用于 InterruptibleRun 的打断接续机制。
+     */
+    public Flux<StreamEvent> runReactive(String input, String sessionId,
+                                          com.lightweightai.kernel.core.CancellationToken cancellationToken) {
         // Wrap in Flux.defer + subscribeOn(boundedElastic) so that blocking operations
         // (memory search, message building) don't run on the caller's thread.
         // Without this, calling from Vert.x WebSocket handler blocks the event loop.
@@ -210,11 +221,14 @@ public class AgentLoop {
 
             // 4. 构建 ToolCallingLoop 并执行
             ToolExecutor toolExecutor = new ToolExecutor(toolRegistry);
-            ToolCallingLoop loop = ToolCallingLoop.builder()
+            ToolCallingLoop.Builder loopBuilder = ToolCallingLoop.builder()
                 .provider(llmProvider)
                 .toolExecutor(toolExecutor)
-                .maxIterations(maxToolIterations)
-                .build();
+                .maxIterations(maxToolIterations);
+            if (cancellationToken != null) {
+                loopBuilder.cancellationToken(cancellationToken);
+            }
+            ToolCallingLoop loop = loopBuilder.build();
 
             // 累积完整响应文本，流结束后保存到记忆
             StringBuilder fullResponse = new StringBuilder();
@@ -300,6 +314,14 @@ public class AgentLoop {
             sb.append("- ").append(results.get(i).getSnippet(100)).append("\n");
         }
         return sb.toString();
+    }
+
+    public ToolRegistry getToolRegistry() {
+        return toolRegistry;
+    }
+
+    public LLMOptions getLlmOptions() {
+        return llmOptions;
     }
 
     private void writeConversationToMemory(String userInput, String response) {

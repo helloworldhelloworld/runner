@@ -23,7 +23,18 @@ public class StreamEvent {
         LLM_COMPLETE,      // LLM 最终响应(无更多工具调用)
         ERROR,             // 管道错误
         POST_PROCESS_DATA, // 后处理器注入数据 (卡片、标注、风控信号等)
-        TRACE              // 调用链追踪日志
+        TRACE,             // 调用链追踪日志
+
+        // Orchestrator 生命周期
+        AGENT_ROUTE,       // Orchestrator 路由决策：选中了哪个 agent
+        AGENT_INTERRUPT,   // 用户打断：记录被打断时的 phase 和已生成文本长度
+        AGENT_RESUME,      // 从打断处接续：记录新输入和恢复的上下文大小
+
+        // Subagent 生命周期
+        SUBAGENT_SPAWN,    // 子 agent 创建
+        SUBAGENT_COMPLETE, // 子 agent 完成
+        SUBAGENT_ERROR,    // 子 agent 失败
+        SUBAGENT_CANCELLED // 子 agent 被取消（级联停止）
     }
 
     private final EventType type;
@@ -131,6 +142,59 @@ public class StreamEvent {
     public static StreamEvent trace(String phase, String message, Map<String, Object> data) {
         return new StreamEvent(EventType.TRACE, null, null, null, null, null,
                 null, data, null, phase, message, System.currentTimeMillis());
+    }
+
+    // ==================== Orchestrator 生命周期事件 ====================
+
+    /** Orchestrator 路由决策 */
+    public static StreamEvent agentRoute(String agentId, String sessionId) {
+        return new StreamEvent(EventType.AGENT_ROUTE, null, null, null, null, null,
+                null, Map.of("agentId", agentId, "sessionId", sessionId), null,
+                "agent.route", agentId, System.currentTimeMillis());
+    }
+
+    /** 用户打断 */
+    public static StreamEvent agentInterrupt(String runId, String phase, int textLength) {
+        return new StreamEvent(EventType.AGENT_INTERRUPT, null, null, null, null, null,
+                null, Map.of("runId", runId, "phase", phase, "textLength", textLength), null,
+                "agent.interrupt", runId, System.currentTimeMillis());
+    }
+
+    /** 从打断处接续 */
+    public static StreamEvent agentResume(String runId, String newInput, int contextSize) {
+        return new StreamEvent(EventType.AGENT_RESUME, null, null, null, null, null,
+                null, Map.of("runId", runId, "newInput", newInput, "contextSize", contextSize), null,
+                "agent.resume", runId, System.currentTimeMillis());
+    }
+
+    // ==================== Subagent 生命周期事件 ====================
+
+    /** 子 agent 创建 */
+    public static StreamEvent subagentSpawn(String runId, String agentId, String task) {
+        return new StreamEvent(EventType.SUBAGENT_SPAWN, null, null, null, null, null,
+                null, Map.of("runId", runId, "agentId", agentId, "task", task), null,
+                "subagent.spawn", runId, System.currentTimeMillis());
+    }
+
+    /** 子 agent 完成 */
+    public static StreamEvent subagentComplete(String runId, String result, long durationMs, int tokenUsage) {
+        return new StreamEvent(EventType.SUBAGENT_COMPLETE, null, null, null, null, null,
+                null, Map.of("runId", runId, "result", result, "durationMs", durationMs, "tokenUsage", tokenUsage), null,
+                "subagent.complete", runId, System.currentTimeMillis());
+    }
+
+    /** 子 agent 失败 */
+    public static StreamEvent subagentError(String runId, String error) {
+        return new StreamEvent(EventType.SUBAGENT_ERROR, null, null, null, null, null,
+                null, Map.of("runId", runId, "error", error), null,
+                "subagent.error", runId + ": " + error, System.currentTimeMillis());
+    }
+
+    /** 子 agent 被取消 */
+    public static StreamEvent subagentCancelled(String runId, String reason) {
+        return new StreamEvent(EventType.SUBAGENT_CANCELLED, null, null, null, null, null,
+                null, Map.of("runId", runId, "reason", reason), null,
+                "subagent.cancelled", runId, System.currentTimeMillis());
     }
 
     public EventType getType() {

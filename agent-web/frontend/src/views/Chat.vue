@@ -4,7 +4,12 @@
     <div class="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
       <div>
         <h2 class="text-lg font-bold text-gray-800">对话</h2>
-        <p class="text-xs text-gray-400">会话: {{ chatStore.sessionId }}</p>
+        <p class="text-xs text-gray-400">
+          会话: {{ chatStore.sessionId }}
+          <span v-if="currentAgent" class="ml-2 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded">
+            Agent: {{ currentAgent }}
+          </span>
+        </p>
       </div>
       <div class="flex gap-2 items-center">
         <label class="flex items-center gap-1 text-xs cursor-pointer px-2 py-1 rounded hover:bg-purple-50">
@@ -51,6 +56,37 @@
       </div>
     </div>
 
+    <!-- Subagent Panel -->
+    <div v-if="subagents.length > 0" class="border-t border-gray-200 max-h-36 overflow-y-auto p-3 bg-indigo-50/50">
+      <h3 class="text-xs font-bold text-indigo-700 mb-2">子 Agent ({{ subagents.length }})</h3>
+      <div v-for="sa in subagents" :key="sa.runId" class="flex items-center gap-2 py-1 text-xs">
+        <span :class="{
+          'w-2 h-2 rounded-full': true,
+          'bg-blue-400 animate-pulse': sa.status === 'running',
+          'bg-green-500': sa.status === 'completed',
+          'bg-red-500': sa.status === 'error',
+          'bg-gray-400': sa.status === 'cancelled'
+        }"></span>
+        <span class="font-mono text-gray-500">{{ sa.runId }}</span>
+        <span class="text-gray-700">{{ sa.task }}</span>
+        <span v-if="sa.duration" class="text-gray-400">{{ sa.duration }}ms</span>
+        <span v-if="sa.result" class="text-green-600 truncate max-w-48">{{ sa.result }}</span>
+        <span v-if="sa.error" class="text-red-500 truncate max-w-48">{{ sa.error }}</span>
+      </div>
+    </div>
+
+    <!-- Tool Progress Panel -->
+    <div v-if="activeTools.length > 0" class="border-t border-gray-200 p-3 bg-amber-50/50">
+      <div v-for="tool in activeTools" :key="tool.name" class="flex items-center gap-2 text-xs mb-1">
+        <span class="animate-spin text-amber-600">&#9881;</span>
+        <span class="font-semibold text-gray-700">{{ tool.name }}</span>
+        <div v-if="tool.progress >= 0" class="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div class="h-full bg-amber-500 rounded-full transition-all" :style="{ width: (tool.progress * 100) + '%' }"></div>
+        </div>
+        <span class="text-gray-500">{{ tool.message }}</span>
+      </div>
+    </div>
+
     <!-- Trace Panel -->
     <div v-if="traceMode && traceEvents.length > 0" class="border-t border-gray-200 max-h-48 overflow-y-auto p-3 bg-gray-50">
       <div class="flex items-center justify-between mb-2">
@@ -94,6 +130,15 @@ const traceEvents = ref([])
 const traceStartTime = ref(0)
 const sending = ref(false)
 
+// Orchestrator state
+const currentAgent = ref('')
+
+// Subagent state
+const subagents = ref([])
+
+// Tool progress state
+const activeTools = ref([])
+
 function scrollToBottom() {
   nextTick(() => {
     if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight
@@ -110,6 +155,7 @@ async function sendMessage() {
   sending.value = true
   traceEvents.value = []
   traceStartTime.value = 0
+  activeTools.value = []
 
   chatStore.addMessage('user', message)
   const msgId = chatStore.addMessage('assistant', '<span class="text-gray-400">正在输入...</span>')
@@ -127,12 +173,14 @@ async function sendMessage() {
         }
       },
       onComplete: () => {
+        activeTools.value = []
         if (fullResponse) {
           chatStore.storeRawMarkdown(msgId, fullResponse)
           chatStore.updateMessage(msgId, renderMarkdown(fullResponse))
         }
       },
       onError: (err) => {
+        activeTools.value = []
         chatStore.updateMessage(msgId, `<span class="text-red-500">出错了: ${escapeHtml(err.message)}</span>`)
       },
       onCrisis: (resources) => {
@@ -141,14 +189,84 @@ async function sendMessage() {
         html += '</div>'
         chatStore.updateMessage(msgId, html)
       },
+
+      // Tool events
       onToolCallStart: (data) => {
-        fullResponse += `\n\n<div class="text-xs text-blue-500 mt-1">🔧 调用工具: ${data.toolName}</div>`
+        activeTools.value.push({ name: data.toolName, progress: -1, message: '执行中...' })
+        fullResponse += `\n\n<div class="text-xs text-blue-500 mt-1">&#128295; 调用工具: ${escapeHtml(data.toolName)}</div>`
         chatStore.updateMessage(msgId, renderMarkdown(fullResponse))
+      },
+      onToolProgress: (data) => {
+        const tool = activeTools.value.find(t => t.name === data.toolName)
+        if (tool) {
+          tool.progress = data.total > 0 ? data.progress / data.total : -1
+          tool.message = data.message || ''
+        }
+      },
+      onToolLog: (data) => {
+        if (traceMode.value) {
+          traceEvents.value.push({
+            timestamp: Date.now(),
+            phase: `tool.log.${data.toolName}`,
+            message: `[${data.level || 'INFO'}] ${data.message || ''}`
+          })
+        }
       },
       onToolError: (data) => {
-        fullResponse += `\n\n<div class="text-xs text-red-500 mt-1">工具错误: ${data.toolName} - ${data.message}</div>`
+        activeTools.value = activeTools.value.filter(t => t.name !== data.toolName)
+        fullResponse += `\n\n<div class="text-xs text-red-500 mt-1">工具错误: ${escapeHtml(data.toolName)} - ${escapeHtml(data.message || '')}</div>`
         chatStore.updateMessage(msgId, renderMarkdown(fullResponse))
       },
+
+      // Orchestrator events
+      onAgentRoute: (data) => {
+        currentAgent.value = data?.agentId || ''
+        if (traceMode.value) {
+          traceEvents.value.push({ timestamp: Date.now(), phase: 'agent.route', message: `-> ${data?.agentId}` })
+        }
+      },
+      onAgentInterrupt: (data) => {
+        fullResponse += `\n\n<div class="text-xs text-amber-600 mt-1">&#9208; 已打断 (${data?.phase || ''})</div>`
+        chatStore.updateMessage(msgId, renderMarkdown(fullResponse))
+      },
+      onAgentResume: (data) => {
+        if (traceMode.value) {
+          traceEvents.value.push({ timestamp: Date.now(), phase: 'agent.resume', message: `context=${data?.contextSize || 0}` })
+        }
+      },
+
+      // Subagent events
+      onSubagentSpawn: (data) => {
+        subagents.value.push({
+          runId: data?.runId || '?',
+          agentId: data?.agentId || '',
+          task: data?.task || '',
+          status: 'running',
+          duration: null,
+          result: null,
+          error: null
+        })
+      },
+      onSubagentComplete: (data) => {
+        const sa = subagents.value.find(s => s.runId === data?.runId)
+        if (sa) {
+          sa.status = 'completed'
+          sa.duration = data?.durationMs
+          sa.result = data?.result || ''
+        }
+        // Append result to chat
+        fullResponse += `\n\n<div class="text-xs text-green-600 mt-1 bg-green-50 p-2 rounded">&#9989; Subagent [${escapeHtml(data?.runId || '')}]: ${escapeHtml(data?.result || '')}</div>`
+        chatStore.updateMessage(msgId, renderMarkdown(fullResponse))
+      },
+      onSubagentError: (data) => {
+        const sa = subagents.value.find(s => s.runId === data?.runId)
+        if (sa) { sa.status = 'error'; sa.error = data?.error || '' }
+      },
+      onSubagentCancelled: (data) => {
+        const sa = subagents.value.find(s => s.runId === data?.runId)
+        if (sa) { sa.status = 'cancelled'; sa.error = data?.reason || 'cancelled' }
+      },
+
       onTrace: (trace) => {
         if (traceMode.value) {
           if (traceStartTime.value === 0) traceStartTime.value = trace.timestamp
@@ -179,6 +297,8 @@ async function clearChat() {
   try {
     await clearSession(chatStore.sessionId)
     chatStore.resetSession()
+    subagents.value = []
+    currentAgent.value = ''
   } catch (e) {
     alert('清空失败: ' + e.message)
   }

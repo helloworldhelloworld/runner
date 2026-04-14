@@ -6,7 +6,7 @@ Each module follows this pattern: `com.lightweightai.<domain>`.
 
 | Module | Root Package | Sub-packages |
 |---|---|---|
-| agent-kernel | `com.lightweightai.kernel` | `.agent`, `.core`, `.gateway`, `.llm`, `.memory`, `.prompt`, `.skill`, `.plugin`, `.instruction`, `.speech`, `.trace` |
+| agent-kernel | `com.lightweightai.kernel` | `.agent`, `.core`, `.orchestrator`, `.gateway`, `.llm`, `.memory`, `.prompt`, `.skill`, `.plugin`, `.instruction`, `.speech`, `.trace` |
 | agent-tools | `com.lightweightai.tools` | `.client`, `.math`, `.time`, `.weather`, `.web` |
 | agent-mcp | `com.lightweightai.mcp` | — |
 | kernel-memory | `com.lightweightai.kernel.memory` | `.chunk`, `.embedding`, `.file`, `.index`, `.model`, `.queue`, `.tools` |

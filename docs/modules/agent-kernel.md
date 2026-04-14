@@ -9,18 +9,19 @@ Defines all core abstractions: AgentLoop, ToolCallingLoop, Gateway, Tool, LLMPro
 
 | Package | Purpose |
 |---|---|
-| `.agent` | Tool, ToolRegistry, ToolScanner, AgentLoop, ClientTool dispatch |
+| `.agent` | Tool, ToolRegistry, ToolScanner, AgentLoop, AgentProfile, AgentRegistry, ScopedToolRegistry |
 | `.agent.annotation` | `@ToolFunction`, `@ToolParam`, `@ClientTool` annotation scanning |
 | `.agent.directive` | Directive system — DirectiveManager, DirectiveRegistry, DirectiveToolBridge |
-| `.core` | ToolCallingLoop, ToolExecutor, StreamEvent, ToolResultChunk |
+| `.core` | ToolCallingLoop, ToolExecutor, StreamEvent, ToolResultChunk, CancellationToken |
 | `.core.postprocess` | StreamPostProcessor pipeline |
+| `.orchestrator` | Orchestrator, AgentRouter, AgentFactory, InterruptibleRun, SubagentRuntime |
 | `.gateway` | Gateway, ChatHandler, GatewayRequest/Response, SessionManager |
-| `.llm` | LLMProvider interface, ConversationMessage, ToolCall, ContentBlock |
-| `.llm.claude` | ClaudeProvider, ClaudeProProvider |
+| `.llm` | LLMProvider, LLMProviderSpi (ServiceLoader), ConversationMessage, ToolCall |
+| `.llm.claude` | ClaudeProvider, ClaudeProProvider, ClaudeProviderSpi |
 | `.llm.openrouter` | OpenRouterProvider |
 | `.llm.websocket` | WebSocket-based LLM provider |
-| `.memory` | MemoryProvider, ConversationMemory, Message |
-| `.prompt` | PromptEngine, PromptContext, Skill |
+| `.memory` | MemoryProvider, ConversationMemory, Message, MessageSnapshot |
+| `.prompt` | PromptEngine, PromptSection, PromptContext, Skill |
 | `.skill` | Skill loading and management |
 | `.instruction` | InstructionPackage, InstructionRegistry, ProviderAdapter |
 | `.speech` | Speech/TTS integration |

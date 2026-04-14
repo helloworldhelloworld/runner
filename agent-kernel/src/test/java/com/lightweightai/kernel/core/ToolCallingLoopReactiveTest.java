@@ -255,6 +255,51 @@ class ToolCallingLoopReactiveTest {
             .build();
     }
 
+    @Test
+    @DisplayName("CancellationToken 触发后，下一轮迭代优雅退出")
+    void shouldExitGracefullyWhenCancelled() {
+        // 第一轮：LLM 发起工具调用
+        mockProvider.addStreamResponse(List.of(
+            StreamEvent.textDelta("Let me call a tool"),
+            StreamEvent.llmComplete(createToolCallResponse("echo", Map.of("input", "test")))
+        ));
+        // 第二轮不应发生，因为 cancel 在第一轮后触发
+        mockProvider.addStreamResponse(List.of(
+            StreamEvent.textDelta("This should not appear"),
+            StreamEvent.llmComplete(createTextResponse("Should not reach here"))
+        ));
+
+        CancellationToken token = new CancellationToken();
+
+        ToolCallingLoop loop = ToolCallingLoop.builder()
+            .provider(mockProvider)
+            .toolExecutor(toolExecutor)
+            .maxIterations(5)
+            .cancellationToken(token)
+            .build();
+
+        // 在工具调用完成后、下一轮 LLM 调用前取消
+        // 通过 doOnNext 在收到 TOOL_RESULT 后 cancel
+        List<StreamEvent> events = loop.executeWithToolsReactive(
+                createUserMessages("test"),
+                LLMOptions.builder().build())
+            .doOnNext(e -> {
+                if (e.getType() == StreamEvent.EventType.TOOL_RESULT) {
+                    token.cancel();
+                }
+            })
+            .collectList()
+            .block();
+
+        assertNotNull(events);
+        // 应有 TEXT_DELTA, LLM_COMPLETE, TOOL_CALL_START, TOOL_RESULT(echo)
+        // 但不应有第二轮的 "This should not appear"
+        boolean hasSecondText = events.stream()
+            .anyMatch(e -> e.getType() == StreamEvent.EventType.TEXT_DELTA
+                && "This should not appear".equals(e.getTextDelta()));
+        assertFalse(hasSecondText, "Second iteration should not execute after cancellation");
+    }
+
     /**
      * Mock LLM Provider that returns pre-configured reactive streams
      */

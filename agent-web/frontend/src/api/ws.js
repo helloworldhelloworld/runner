@@ -138,6 +138,15 @@ function _handleMessage(raw) {
       case 'tool_error': cb.onToolError?.(msg.data); break
       case 'post_process': cb.onPostProcess?.(msg.category, msg.data); break
       case 'trace': cb.onTrace?.(msg.data); break
+      // Orchestrator events
+      case 'agent_route': cb.onAgentRoute?.(msg.data); break
+      case 'agent_interrupt': cb.onAgentInterrupt?.(msg.data); break
+      case 'agent_resume': cb.onAgentResume?.(msg.data); break
+      // Subagent events
+      case 'subagent_spawn': cb.onSubagentSpawn?.(msg.data); break
+      case 'subagent_complete': cb.onSubagentComplete?.(msg.data); break
+      case 'subagent_error': cb.onSubagentError?.(msg.data); break
+      case 'subagent_cancelled': cb.onSubagentCancelled?.(msg.data); break
     }
   } catch (e) {
     console.error('[WS] Failed to parse message:', e)
@@ -171,7 +180,16 @@ export async function sendChatStream(message, options = {}) {
       onToolLog: options.onToolLog,
       onToolError: options.onToolError,
       onPostProcess: options.onPostProcess,
-      onTrace: options.onTrace
+      onTrace: options.onTrace,
+      // Orchestrator
+      onAgentRoute: options.onAgentRoute,
+      onAgentInterrupt: options.onAgentInterrupt,
+      onAgentResume: options.onAgentResume,
+      // Subagent
+      onSubagentSpawn: options.onSubagentSpawn,
+      onSubagentComplete: options.onSubagentComplete,
+      onSubagentError: options.onSubagentError,
+      onSubagentCancelled: options.onSubagentCancelled
     }
     ws.send(JSON.stringify({
       type: 'chat', sessionId: options.sessionId || 'default',

@@ -191,6 +191,85 @@ class StreamEventTest {
     }
 
     @Nested
+    @DisplayName("Orchestrator 生命周期事件")
+    class OrchestratorEvents {
+
+        @Test
+        @DisplayName("AGENT_ROUTE 包含 agentId 和 sessionId")
+        void agentRoute() {
+            StreamEvent event = StreamEvent.agentRoute("email-triage", "sess-123");
+            assertEquals(StreamEvent.EventType.AGENT_ROUTE, event.getType());
+            assertEquals("email-triage", event.getData().get("agentId"));
+            assertEquals("sess-123", event.getData().get("sessionId"));
+            assertTrue(event.getTraceTimestamp() > 0);
+        }
+
+        @Test
+        @DisplayName("AGENT_INTERRUPT 包含 runId, phase, textLength")
+        void agentInterrupt() {
+            StreamEvent event = StreamEvent.agentInterrupt("run-1", "LLM_CALL", 128);
+            assertEquals(StreamEvent.EventType.AGENT_INTERRUPT, event.getType());
+            assertEquals("run-1", event.getData().get("runId"));
+            assertEquals("LLM_CALL", event.getData().get("phase"));
+            assertEquals(128, event.getData().get("textLength"));
+        }
+
+        @Test
+        @DisplayName("AGENT_RESUME 包含 runId, newInput, contextSize")
+        void agentResume() {
+            StreamEvent event = StreamEvent.agentResume("run-1", "新问题", 15);
+            assertEquals(StreamEvent.EventType.AGENT_RESUME, event.getType());
+            assertEquals("run-1", event.getData().get("runId"));
+            assertEquals("新问题", event.getData().get("newInput"));
+            assertEquals(15, event.getData().get("contextSize"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Subagent 生命周期事件")
+    class SubagentEvents {
+
+        @Test
+        @DisplayName("SUBAGENT_SPAWN 包含 runId, agentId, task")
+        void subagentSpawn() {
+            StreamEvent event = StreamEvent.subagentSpawn("run-42", "code-assistant", "写单测");
+            assertEquals(StreamEvent.EventType.SUBAGENT_SPAWN, event.getType());
+            assertEquals("run-42", event.getData().get("runId"));
+            assertEquals("code-assistant", event.getData().get("agentId"));
+            assertEquals("写单测", event.getData().get("task"));
+        }
+
+        @Test
+        @DisplayName("SUBAGENT_COMPLETE 包含 runId, result, duration, tokenUsage")
+        void subagentComplete() {
+            StreamEvent event = StreamEvent.subagentComplete("run-42", "任务完成", 3500L, 1200);
+            assertEquals(StreamEvent.EventType.SUBAGENT_COMPLETE, event.getType());
+            assertEquals("run-42", event.getData().get("runId"));
+            assertEquals("任务完成", event.getData().get("result"));
+            assertEquals(3500L, event.getData().get("durationMs"));
+            assertEquals(1200, event.getData().get("tokenUsage"));
+        }
+
+        @Test
+        @DisplayName("SUBAGENT_ERROR 包含 runId 和 error")
+        void subagentError() {
+            StreamEvent event = StreamEvent.subagentError("run-42", "timeout after 60s");
+            assertEquals(StreamEvent.EventType.SUBAGENT_ERROR, event.getType());
+            assertEquals("run-42", event.getData().get("runId"));
+            assertEquals("timeout after 60s", event.getData().get("error"));
+        }
+
+        @Test
+        @DisplayName("SUBAGENT_CANCELLED 包含 runId 和 reason")
+        void subagentCancelled() {
+            StreamEvent event = StreamEvent.subagentCancelled("run-42", "parent stopped");
+            assertEquals(StreamEvent.EventType.SUBAGENT_CANCELLED, event.getType());
+            assertEquals("run-42", event.getData().get("runId"));
+            assertEquals("parent stopped", event.getData().get("reason"));
+        }
+    }
+
+    @Nested
     @DisplayName("toString")
     class ToStringTests {
 

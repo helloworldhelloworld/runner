@@ -331,6 +331,17 @@ public class VertxChatWebSocketHandler {
                         }
                         case ERROR -> sendError(ws,
                                 event.getError() != null ? event.getError().getMessage() : "Unknown error");
+
+                        // Orchestrator 生命周期事件
+                        case AGENT_ROUTE -> sendEventWithData(ws, "agent_route", event);
+                        case AGENT_INTERRUPT -> sendEventWithData(ws, "agent_interrupt", event);
+                        case AGENT_RESUME -> sendEventWithData(ws, "agent_resume", event);
+
+                        // Subagent 生命周期事件
+                        case SUBAGENT_SPAWN -> sendEventWithData(ws, "subagent_spawn", event);
+                        case SUBAGENT_COMPLETE -> sendEventWithData(ws, "subagent_complete", event);
+                        case SUBAGENT_ERROR -> sendEventWithData(ws, "subagent_error", event);
+                        case SUBAGENT_CANCELLED -> sendEventWithData(ws, "subagent_cancelled", event);
                     }
                 },
                 error -> {
@@ -1023,6 +1034,26 @@ public class VertxChatWebSocketHandler {
             safeSend(ws, MAPPER.writeValueAsString(msg));
         } catch (Exception e) {
             logger.error("Failed to serialize tool_error message", e);
+        }
+    }
+
+    /**
+     * 通用事件转发 — 用于 Orchestrator / Subagent 等携带 data Map 的事件
+     */
+    private void sendEventWithData(ServerWebSocket ws, String type, StreamEvent event) {
+        try {
+            ObjectNode msg = MAPPER.createObjectNode();
+            msg.put("type", type);
+            if (event.getData() != null) {
+                msg.set("data", MAPPER.valueToTree(event.getData()));
+            }
+            if (event.getTraceMessage() != null) {
+                msg.put("message", event.getTraceMessage());
+            }
+            msg.put("timestamp", event.getTraceTimestamp());
+            safeSend(ws, MAPPER.writeValueAsString(msg));
+        } catch (Exception e) {
+            logger.error("Failed to serialize {} message", type, e);
         }
     }
 

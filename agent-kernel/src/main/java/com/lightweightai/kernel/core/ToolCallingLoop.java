@@ -35,6 +35,7 @@ public class ToolCallingLoop {
     private final int maxIterations;
     private final ToolExecutionContext executionContext;
     private final Tracer tracer;
+    private final CancellationToken cancellationToken;
 
     /**
      * Create a new ToolCallingLoop
@@ -54,6 +55,12 @@ public class ToolCallingLoop {
 
     public ToolCallingLoop(LLMProvider provider, ToolExecutor toolExecutor, int maxIterations,
                            ToolExecutionContext executionContext, Tracer tracer) {
+        this(provider, toolExecutor, maxIterations, executionContext, tracer, null);
+    }
+
+    public ToolCallingLoop(LLMProvider provider, ToolExecutor toolExecutor, int maxIterations,
+                           ToolExecutionContext executionContext, Tracer tracer,
+                           CancellationToken cancellationToken) {
         if (provider == null) {
             throw new IllegalArgumentException("LLM provider cannot be null");
         }
@@ -69,6 +76,7 @@ public class ToolCallingLoop {
         this.maxIterations = maxIterations;
         this.executionContext = executionContext;
         this.tracer = tracer != null ? tracer : Tracer.NOOP;
+        this.cancellationToken = cancellationToken;
     }
 
     /**
@@ -83,6 +91,18 @@ public class ToolCallingLoop {
         int iteration = 0;
 
         while (iteration < maxIterations) {
+            // 打断检查
+            if (cancellationToken != null && cancellationToken.isCancelled()) {
+                logger.debug("ToolCallingLoop cancelled at sync iteration {}", iteration);
+                return LLMResponse.builder()
+                        .message(ConversationMessage.builder()
+                                .role(MessageRole.ASSISTANT)
+                                .textContent("[cancelled]")
+                                .build())
+                        .stopReason("cancelled")
+                        .build();
+            }
+
             // Call LLM
             LLMResponse response = provider.complete(conversation, options);
 
@@ -210,6 +230,12 @@ public class ToolCallingLoop {
             List<ConversationMessage> conversation,
             LLMOptions options,
             int iteration) {
+
+        // 打断检查：CancellationToken 触发后优雅退出
+        if (cancellationToken != null && cancellationToken.isCancelled()) {
+            logger.debug("ToolCallingLoop cancelled at iteration {}", iteration);
+            return Flux.empty();
+        }
 
         if (iteration >= maxIterations) {
             return Flux.error(new RuntimeException(
@@ -359,6 +385,7 @@ public class ToolCallingLoop {
         private int maxIterations = 10;
         private ToolExecutionContext executionContext;
         private Tracer tracer;
+        private CancellationToken cancellationToken;
 
         public Builder provider(LLMProvider provider) {
             this.provider = provider;
@@ -388,8 +415,17 @@ public class ToolCallingLoop {
             return this;
         }
 
+        /**
+         * 设置取消信号，ToolCallingLoop 每轮迭代前检查
+         */
+        public Builder cancellationToken(CancellationToken cancellationToken) {
+            this.cancellationToken = cancellationToken;
+            return this;
+        }
+
         public ToolCallingLoop build() {
-            return new ToolCallingLoop(provider, toolExecutor, maxIterations, executionContext, tracer);
+            return new ToolCallingLoop(provider, toolExecutor, maxIterations,
+                    executionContext, tracer, cancellationToken);
         }
     }
 
