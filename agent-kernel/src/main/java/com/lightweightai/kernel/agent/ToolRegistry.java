@@ -440,6 +440,23 @@ public class ToolRegistry {
         directiveRegistry.clear();
     }
 
+    /**
+     * 按关键词搜索工具 — 匹配 name 或 description
+     *
+     * 用于 cli_discover 等场景：LLM 按能力需求描述搜索可用工具。
+     * 简单实现：关键词不区分大小写，匹配 name 或 description 的子串。
+     */
+    public List<Tool> search(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return getEnabled();
+        }
+        String lower = keyword.toLowerCase();
+        return getEnabled().stream()
+                .filter(t -> (t.getName() != null && t.getName().toLowerCase().contains(lower))
+                        || (t.getDescription() != null && t.getDescription().toLowerCase().contains(lower)))
+                .toList();
+    }
+
     @Override
     public String toString() {
         return String.format("ToolRegistry{total=%d, enabled=%d}",

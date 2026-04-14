@@ -143,6 +143,21 @@ All lifecycle events are defined as `StreamEvent.EventType` enum values with fac
 | Tracing | `TRACE` | Call-chain logging |
 | Pipeline | `ERROR` | Pipeline-level errors |
 
+### Tool Source 三种供给形态
+
+```
+ToolSourceProvider（统一接口）
+├── LegacyScanProvider       — Java SPI 扫描
+├── ManualToolProvider       — 手动注册（需构造参数的工具）
+├── DynamicPluginProvider    — jar 热加载（监听 plugins/ 目录）
+├── McpToolSourceProvider    — MCP 远程工具（JSON-RPC 协议）
+└── CliToolSourceProvider    — CLI 命令行工具（进程 I/O，沙箱执行）
+     ├── 扫描 cli-plugins/ 目录
+     ├── 解析 cli-manifest.json（name + description + entry_point + output_format）
+     ├── CliTool extends StreamingTool → stdout 逐行推送 PROGRESS → COMPLETE/ERROR
+     └── ToolRegistry.search(keyword) 支持按 description 模糊检索（cli_discover 底层能力）
+```
+
 ### Tool Interface
 
 ```java
@@ -155,7 +170,8 @@ public interface Tool {
 }
 ```
 
-Built-in `StreamingTool` base class for real streaming (file reads, HTTP, shell).
+Built-in `StreamingTool` base class for real streaming (file reads, HTTP, shell, CLI).
+`CliTool extends StreamingTool` for external CLI tools with process I/O adaptation.
 
 ### LLMProvider Interface (4 execution modes)
 
@@ -209,6 +225,7 @@ System Prompt = Base Prompt + PromptSections (conditional) + Durable Memory + Ac
 | `.agent` | Tool, ToolRegistry, AgentLoop, AgentProfile, AgentRegistry, ScopedToolRegistry |
 | `.agent.annotation` | `@ToolFunction`, `@ToolParam`, `@ClientTool` |
 | `.agent.directive` | Directive system |
+| `.cli` | CliTool (StreamingTool), CliManifest, CliToolSourceProvider |
 | `.core` | ToolCallingLoop, ToolExecutor, StreamEvent, ToolResultChunk, CancellationToken |
 | `.core.postprocess` | StreamPostProcessor pipeline |
 | `.orchestrator` | Orchestrator, AgentRouter, AgentFactory, InterruptibleRun, SubagentRuntime |

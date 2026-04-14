@@ -41,11 +41,17 @@ public abstract class StreamingTool implements Tool {
      */
     @Override
     public ToolResult execute(Map<String, Object> args) {
-        return executeReactive(args)
+        ToolResultChunk chunk = executeReactive(args)
             .filter(c -> c.getType() == ToolResultChunk.ChunkType.COMPLETE
                       || c.getType() == ToolResultChunk.ChunkType.ERROR)
-            .blockFirst()
-            .getResult();
+            .blockFirst();
+        if (chunk == null) {
+            return ToolResult.error("No result from streaming tool");
+        }
+        if (chunk.getType() == ToolResultChunk.ChunkType.ERROR) {
+            return ToolResult.error(chunk.getMessage() != null ? chunk.getMessage() : "Tool execution failed");
+        }
+        return chunk.getResult();
     }
 
     /**
