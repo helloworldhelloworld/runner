@@ -47,11 +47,12 @@ class SubagentRuntimeEdgeCaseTest {
                 .systemPrompt("worker")
                 .maxSpawnDepth(2)
                 .build());
-        registry.setDefault(AgentProfile.builder()
+        registry.register(AgentProfile.builder()
                 .agentId("default")
                 .systemPrompt("default")
                 .maxSpawnDepth(1)
                 .build());
+        registry.setDefault("default");
 
         memory = new TestMemory();
         ToolRegistry tools = new ToolRegistry();
