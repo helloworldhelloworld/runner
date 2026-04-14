@@ -8,7 +8,6 @@ import com.lightweightai.kernel.orchestrator.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -24,7 +23,6 @@ import org.springframework.context.annotation.Primary;
  * - "worker": 使用全部工具，maxSpawnDepth=0（不能再 spawn）
  */
 @Configuration
-@ConditionalOnProperty(name = "app.orchestrator.enabled", havingValue = "true")
 public class OrchestratorConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(OrchestratorConfig.class);

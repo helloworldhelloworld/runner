@@ -61,7 +61,10 @@ public class InterruptibleRun {
         this.sessionId = sessionId;
         this.agent = agent;
         this.memoryProvider = memoryProvider;
+        this.createdAt = System.currentTimeMillis();
     }
+
+    private final long createdAt;
 
     /**
      * 开始或接续执行
@@ -186,6 +189,7 @@ public class InterruptibleRun {
 
     public boolean isRunning() { return phase == RunPhase.RUNNING; }
     public RunPhase getPhase() { return phase; }
+    public long getCreatedAt() { return createdAt; }
     public String getRunId() { return runId; }
     public List<ConversationMessage> getMessages() { return Collections.unmodifiableList(messages); }
 

@@ -13,6 +13,7 @@ public class LLMOptions {
 
     private Double temperature;
     private Integer maxTokens;
+    private Integer maxBudgetTokens;  // 总预算（input+output），0=无限
     private List<PluginFunction> tools;
     private List<Map<String, Object>> toolDefinitions;  // Raw tool definitions for API
     private String systemPrompt;
@@ -20,6 +21,7 @@ public class LLMOptions {
     private LLMOptions(Builder builder) {
         this.temperature = builder.temperature;
         this.maxTokens = builder.maxTokens;
+        this.maxBudgetTokens = builder.maxBudgetTokens;
         this.tools = builder.tools != null ? new ArrayList<>(builder.tools) : new ArrayList<>();
         this.toolDefinitions = builder.toolDefinitions != null ? new ArrayList<>(builder.toolDefinitions) : new ArrayList<>();
         this.systemPrompt = builder.systemPrompt;
@@ -45,6 +47,10 @@ public class LLMOptions {
         return systemPrompt;
     }
 
+    public Integer getMaxBudgetTokens() {
+        return maxBudgetTokens;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -52,6 +58,7 @@ public class LLMOptions {
     public static class Builder {
         private Double temperature;
         private Integer maxTokens;
+        private Integer maxBudgetTokens;
         private List<PluginFunction> tools;
         private List<Map<String, Object>> toolDefinitions;
         private String systemPrompt;
@@ -63,6 +70,11 @@ public class LLMOptions {
 
         public Builder maxTokens(int maxTokens) {
             this.maxTokens = maxTokens;
+            return this;
+        }
+
+        public Builder maxBudgetTokens(int maxBudgetTokens) {
+            this.maxBudgetTokens = maxBudgetTokens;
             return this;
         }
 

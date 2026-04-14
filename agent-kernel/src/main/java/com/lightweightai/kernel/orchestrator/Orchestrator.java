@@ -41,6 +41,11 @@ public class Orchestrator implements ChatHandler {
     // per-session 的活跃执行
     private final Map<String, InterruptibleRun> activeRuns = new ConcurrentHashMap<>();
 
+    // TTL 清理：超过此时间的非 RUNNING run 会被自动移除
+    private static final long RUN_TTL_MS = 60 * 60 * 1000; // 1 hour
+    private static final long CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+    private final java.util.concurrent.ScheduledExecutorService cleanupExecutor;
+
     public Orchestrator(AgentRegistry agentRegistry, AgentFactory agentFactory, AgentRouter router) {
         this(agentRegistry, agentFactory, router, null);
     }
@@ -51,6 +56,26 @@ public class Orchestrator implements ChatHandler {
         this.agentFactory = agentFactory;
         this.router = router;
         this.subagentRuntime = subagentRuntime;
+
+        // 启动定期清理任务
+        this.cleanupExecutor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(
+                r -> { Thread t = new Thread(r, "orchestrator-cleanup"); t.setDaemon(true); return t; });
+        this.cleanupExecutor.scheduleAtFixedRate(this::cleanupStaleRuns,
+                CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+    }
+
+    private void cleanupStaleRuns() {
+        long now = System.currentTimeMillis();
+        activeRuns.entrySet().removeIf(entry -> {
+            InterruptibleRun run = entry.getValue();
+            if (run.isRunning()) return false; // 正在运行的不清理
+            // INTERRUPTED / COMPLETED 超过 TTL 则清理
+            if (now - run.getCreatedAt() > RUN_TTL_MS) {
+                logger.debug("Cleaning up stale run: session={}, phase={}", entry.getKey(), run.getPhase());
+                return true;
+            }
+            return false;
+        });
     }
 
     @Override

@@ -310,38 +310,19 @@ public class VertxChatWebSocketHandler {
                 event -> {
                     logger.info("[WS-STREAM] Event received: type={} session={} wsClosed={}",
                         event.getType(), sessionId, ws.isClosed());
-                    switch (event.getType()) {
-                        case TEXT_DELTA -> {
-                            String delta = event.getTextDelta();
-                            logger.info("[WS-STREAM] TEXT_DELTA len={} preview='{}'",
-                                delta != null ? delta.length() : 0,
-                                delta != null ? delta.substring(0, Math.min(50, delta.length())) : "null");
-                            sendToken(ws, delta);
-                        }
-                        case TOOL_CALL_START -> sendToolCallStart(ws, event);
-                        case TOOL_PROGRESS -> sendToolProgress(ws, event);
-                        case TOOL_LOG -> sendToolLog(ws, event);
-                        case TOOL_RESULT -> { /* 工具结果已喂回 LLM，不需要额外通知 */ }
-                        case TOOL_ERROR -> sendToolError(ws, event);
-                        case POST_PROCESS_DATA -> sendPostProcessData(ws, event);
-                        case TRACE -> sendTrace(ws, event);
-                        case LLM_COMPLETE -> {
-                            logger.info("[WS-STREAM] LLM_COMPLETE hasToolCalls={} session={}",
-                                event.getResponse() != null && event.getResponse().hasToolCalls(), sessionId);
-                        }
-                        case ERROR -> sendError(ws,
-                                event.getError() != null ? event.getError().getMessage() : "Unknown error");
-
-                        // Orchestrator 生命周期事件
-                        case AGENT_ROUTE -> sendEventWithData(ws, "agent_route", event);
-                        case AGENT_INTERRUPT -> sendEventWithData(ws, "agent_interrupt", event);
-                        case AGENT_RESUME -> sendEventWithData(ws, "agent_resume", event);
-
-                        // Subagent 生命周期事件
-                        case SUBAGENT_SPAWN -> sendEventWithData(ws, "subagent_spawn", event);
-                        case SUBAGENT_COMPLETE -> sendEventWithData(ws, "subagent_complete", event);
-                        case SUBAGENT_ERROR -> sendEventWithData(ws, "subagent_error", event);
-                        case SUBAGENT_CANCELLED -> sendEventWithData(ws, "subagent_cancelled", event);
+                    if (event.getType() == StreamEvent.EventType.TEXT_DELTA) {
+                        String delta = event.getTextDelta();
+                        logger.info("[WS-STREAM] TEXT_DELTA len={} preview='{}'",
+                            delta != null ? delta.length() : 0,
+                            delta != null ? delta.substring(0, Math.min(50, delta.length())) : "null");
+                    } else if (event.getType() == StreamEvent.EventType.LLM_COMPLETE) {
+                        logger.info("[WS-STREAM] LLM_COMPLETE hasToolCalls={} session={}",
+                            event.getResponse() != null && event.getResponse().hasToolCalls(), sessionId);
+                    }
+                    // 委托给 StreamEventSerializer 统一序列化
+                    String json = StreamEventSerializer.serialize(event);
+                    if (json != null) {
+                        safeSend(ws, json);
                     }
                 },
                 error -> {

@@ -588,88 +588,10 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
 
     private void handleStreamEvent(WebSocketSession session, StreamEvent event) {
         try {
-            switch (event.getType()) {
-                case TEXT_DELTA -> {
-                    ObjectNode msg = MAPPER.createObjectNode();
-                    msg.put("type", "token");
-                    msg.put("data", event.getTextDelta());
-                    safeSend(session, MAPPER.writeValueAsString(msg));
-                }
-                case TOOL_CALL_START -> {
-                    ObjectNode msg = MAPPER.createObjectNode();
-                    msg.put("type", "tool_call_start");
-                    ObjectNode data = MAPPER.createObjectNode();
-                    if (event.getToolCall() != null) {
-                        data.put("toolName", event.getToolCall().getName());
-                        data.put("toolCallId", event.getToolCall().getId());
-                    }
-                    msg.set("data", data);
-                    safeSend(session, MAPPER.writeValueAsString(msg));
-                }
-                case TOOL_PROGRESS, TOOL_LOG -> {
-                    ObjectNode msg = MAPPER.createObjectNode();
-                    msg.put("type", event.getType() == StreamEvent.EventType.TOOL_PROGRESS ? "tool_progress" : "tool_log");
-                    ObjectNode data = MAPPER.createObjectNode();
-                    ToolResultChunk chunk = event.getChunk();
-                    if (chunk != null) {
-                        data.put("toolName", chunk.getToolName());
-                        data.put("message", chunk.getMessage() != null ? chunk.getMessage() : "");
-                    }
-                    msg.set("data", data);
-                    safeSend(session, MAPPER.writeValueAsString(msg));
-                }
-                case TOOL_ERROR -> {
-                    ObjectNode msg = MAPPER.createObjectNode();
-                    msg.put("type", "tool_error");
-                    ObjectNode data = MAPPER.createObjectNode();
-                    if (event.getChunk() != null) {
-                        data.put("toolName", event.getChunk().getToolName());
-                        data.put("message", event.getChunk().getMessage() != null ? event.getChunk().getMessage() : "");
-                    }
-                    msg.set("data", data);
-                    safeSend(session, MAPPER.writeValueAsString(msg));
-                }
-                case POST_PROCESS_DATA -> {
-                    ObjectNode msg = MAPPER.createObjectNode();
-                    msg.put("type", "post_process");
-                    msg.put("category", event.getCategory() != null ? event.getCategory() : "");
-                    if (event.getData() != null) msg.set("data", MAPPER.valueToTree(event.getData()));
-                    safeSend(session, MAPPER.writeValueAsString(msg));
-                }
-                case ERROR -> safeSend(session, errorJson(
-                    event.getError() != null ? event.getError().getMessage() : "Unknown error"));
-                case TRACE -> {
-                    ObjectNode msg = MAPPER.createObjectNode();
-                    msg.put("type", "trace");
-                    ObjectNode data = MAPPER.createObjectNode();
-                    data.put("phase", event.getTracePhase());
-                    data.put("message", event.getTraceMessage());
-                    data.put("timestamp", event.getTraceTimestamp());
-                    if (event.getData() != null) data.set("extra", MAPPER.valueToTree(event.getData()));
-                    msg.set("data", data);
-                    safeSend(session, MAPPER.writeValueAsString(msg));
-                }
-                // Orchestrator 生命周期事件
-                case AGENT_ROUTE, AGENT_INTERRUPT, AGENT_RESUME,
-                     SUBAGENT_SPAWN, SUBAGENT_COMPLETE, SUBAGENT_ERROR, SUBAGENT_CANCELLED -> {
-                    String typeName = switch (event.getType()) {
-                        case AGENT_ROUTE -> "agent_route";
-                        case AGENT_INTERRUPT -> "agent_interrupt";
-                        case AGENT_RESUME -> "agent_resume";
-                        case SUBAGENT_SPAWN -> "subagent_spawn";
-                        case SUBAGENT_COMPLETE -> "subagent_complete";
-                        case SUBAGENT_ERROR -> "subagent_error";
-                        case SUBAGENT_CANCELLED -> "subagent_cancelled";
-                        default -> "unknown";
-                    };
-                    ObjectNode msg = MAPPER.createObjectNode();
-                    msg.put("type", typeName);
-                    if (event.getData() != null) msg.set("data", MAPPER.valueToTree(event.getData()));
-                    if (event.getTraceMessage() != null) msg.put("message", event.getTraceMessage());
-                    msg.put("timestamp", event.getTraceTimestamp());
-                    safeSend(session, MAPPER.writeValueAsString(msg));
-                }
-                default -> {} // TOOL_RESULT, LLM_COMPLETE 不需要额外推送
+            // 委托给 StreamEventSerializer 统一序列化
+            String json = StreamEventSerializer.serialize(event);
+            if (json != null) {
+                safeSend(session, json);
             }
         } catch (Exception e) {
             logger.error("Failed to handle stream event", e);

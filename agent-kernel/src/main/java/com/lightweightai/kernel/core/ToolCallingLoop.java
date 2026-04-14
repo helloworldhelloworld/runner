@@ -36,6 +36,7 @@ public class ToolCallingLoop {
     private final ToolExecutionContext executionContext;
     private final Tracer tracer;
     private final CancellationToken cancellationToken;
+    private final com.lightweightai.kernel.context.CostTracker costTracker;
 
     /**
      * Create a new ToolCallingLoop
@@ -61,6 +62,13 @@ public class ToolCallingLoop {
     public ToolCallingLoop(LLMProvider provider, ToolExecutor toolExecutor, int maxIterations,
                            ToolExecutionContext executionContext, Tracer tracer,
                            CancellationToken cancellationToken) {
+        this(provider, toolExecutor, maxIterations, executionContext, tracer, cancellationToken, null);
+    }
+
+    public ToolCallingLoop(LLMProvider provider, ToolExecutor toolExecutor, int maxIterations,
+                           ToolExecutionContext executionContext, Tracer tracer,
+                           CancellationToken cancellationToken,
+                           com.lightweightai.kernel.context.CostTracker costTracker) {
         if (provider == null) {
             throw new IllegalArgumentException("LLM provider cannot be null");
         }
@@ -77,6 +85,7 @@ public class ToolCallingLoop {
         this.executionContext = executionContext;
         this.tracer = tracer != null ? tracer : Tracer.NOOP;
         this.cancellationToken = cancellationToken;
+        this.costTracker = costTracker;
     }
 
     /**
@@ -237,6 +246,13 @@ public class ToolCallingLoop {
             return Flux.empty();
         }
 
+        // 预算检查：超预算时优雅退出
+        if (costTracker != null && costTracker.isOverBudget()) {
+            logger.warn("ToolCallingLoop over budget at iteration {} (consumed={}/{})",
+                    iteration, costTracker.getTotalConsumed(), costTracker.getMaxBudgetTokens());
+            return Flux.empty();
+        }
+
         if (iteration >= maxIterations) {
             return Flux.error(new RuntimeException(
                 "Tool calling loop exceeded maximum iterations: " + maxIterations));
@@ -386,6 +402,7 @@ public class ToolCallingLoop {
         private ToolExecutionContext executionContext;
         private Tracer tracer;
         private CancellationToken cancellationToken;
+        private com.lightweightai.kernel.context.CostTracker costTracker;
 
         public Builder provider(LLMProvider provider) {
             this.provider = provider;
@@ -423,9 +440,17 @@ public class ToolCallingLoop {
             return this;
         }
 
+        /**
+         * 设置成本追踪器，每轮迭代前检查预算
+         */
+        public Builder costTracker(com.lightweightai.kernel.context.CostTracker costTracker) {
+            this.costTracker = costTracker;
+            return this;
+        }
+
         public ToolCallingLoop build() {
             return new ToolCallingLoop(provider, toolExecutor, maxIterations,
-                    executionContext, tracer, cancellationToken);
+                    executionContext, tracer, cancellationToken, costTracker);
         }
     }
 
