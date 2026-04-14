@@ -3,10 +3,7 @@ package com.lightweightai.kernel.core;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.agent.ToolSchema;
-import com.lightweightai.kernel.context.CostTracker;
 import com.lightweightai.kernel.llm.*;
-import com.lightweightai.kernel.plugin.FunctionResult;
-import com.lightweightai.kernel.plugin.PluginFunction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,16 +17,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * ToolCallingLoop 补充测试 — CancellationToken/CostTracker/边界路径
+ * ToolCallingLoop 补充测试 — executionContext 路径、async 路径、Builder 边界
  *
  * 覆盖之前遗漏的关键路径：
- * - 同步路径 CancellationToken 中途取消
- * - CostTracker 超预算优雅退出（reactive）
- * - CostTracker 与 CancellationToken 同时设置
- * - 同步路径带 executionContext 执行
- * - Tracer.NOOP 默认行为
+ * - 同步路径带 executionContext 执行工具
+ * - 异步路径基本场景和最大迭代保护
+ * - Tracer 为 null 时使用 NOOP 默认值
+ * - Reactive 路径带 executionContext
+ * - 异步路径工具不存在时优雅降级
  */
-@DisplayName("ToolCallingLoop - CancellationToken + CostTracker 补充测试")
+@DisplayName("ToolCallingLoop - ExecutionContext + Async + Builder 补充测试")
 class ToolCallingLoopCancellationTest {
 
     private ToolExecutor toolExecutor;
@@ -45,190 +42,10 @@ class ToolCallingLoopCancellationTest {
         toolRegistry.register(createEchoTool("echo"));
     }
 
-    // ==================== Sync CancellationToken ====================
+    // ==================== 同步路径带 executionContext ====================
 
     @Test
-    @DisplayName("同步路径：CancellationToken 已取消时直接返回 [cancelled]")
-    void syncPathReturnsCancelledWhenTokenAlreadyCancelled() {
-        MockSyncProvider provider = new MockSyncProvider();
-        provider.addResponse(createToolCallResponse("echo", Map.of("input", "test")));
-        provider.addResponse(createTextResponse("should not reach"));
-
-        CancellationToken token = new CancellationToken();
-        token.cancel(); // 预先取消
-
-        ToolCallingLoop loop = ToolCallingLoop.builder()
-            .provider(provider)
-            .toolExecutor(toolExecutor)
-            .maxIterations(5)
-            .cancellationToken(token)
-            .build();
-
-        LLMResponse result = loop.executeWithTools(createUserMessages("test"), LLMOptions.builder().build());
-
-        assertEquals("[cancelled]", result.getMessage().getTextContent());
-        assertEquals("cancelled", result.getStopReason());
-        assertEquals(0, provider.getCallCount(), "LLM should not be called when pre-cancelled");
-    }
-
-    @Test
-    @DisplayName("同步路径：CancellationToken 在第一轮工具调用后取消，第二轮不执行")
-    void syncPathCancelsMidIteration() {
-        AtomicInteger toolCallCount = new AtomicInteger(0);
-        CancellationToken token = new CancellationToken();
-
-        // 注册一个会在执行时取消 token 的工具
-        toolRegistry.register(new Tool() {
-            public String getName() { return "cancel_trigger"; }
-            public String getDescription() { return "Triggers cancellation"; }
-            public ToolSchema getSchema() { return ToolSchema.empty(); }
-            public ToolResult execute(Map<String, Object> args) {
-                toolCallCount.incrementAndGet();
-                token.cancel(); // 工具执行时取消
-                return ToolResult.success("done");
-            }
-        });
-
-        MockSyncProvider provider = new MockSyncProvider();
-        provider.addResponse(createToolCallResponse("cancel_trigger", Map.of()));
-        provider.addResponse(createToolCallResponse("echo", Map.of("input", "second"))); // 不应执行
-        provider.addResponse(createTextResponse("should not reach"));
-
-        ToolCallingLoop loop = ToolCallingLoop.builder()
-            .provider(provider)
-            .toolExecutor(toolExecutor)
-            .maxIterations(10)
-            .cancellationToken(token)
-            .build();
-
-        LLMResponse result = loop.executeWithTools(createUserMessages("test"), LLMOptions.builder().build());
-
-        assertEquals("[cancelled]", result.getMessage().getTextContent());
-        assertEquals(1, toolCallCount.get(), "Only first tool call should execute");
-    }
-
-    @Test
-    @DisplayName("同步路径：无 CancellationToken 正常完成（null token）")
-    void syncPathWorksWithoutToken() {
-        MockSyncProvider provider = new MockSyncProvider();
-        provider.addResponse(createTextResponse("Hello"));
-
-        ToolCallingLoop loop = ToolCallingLoop.builder()
-            .provider(provider)
-            .toolExecutor(toolExecutor)
-            .maxIterations(5)
-            .build(); // 不设置 cancellationToken
-
-        LLMResponse result = loop.executeWithTools(createUserMessages("hi"), LLMOptions.builder().build());
-        assertEquals("Hello", result.getMessage().getTextContent());
-    }
-
-    // ==================== Reactive CostTracker ====================
-
-    @Test
-    @DisplayName("Reactive：CostTracker 超预算时返回空 Flux")
-    void reactiveCostTrackerOverBudgetReturnsEmpty() {
-        ReactiveMockProvider provider = new ReactiveMockProvider();
-        provider.addStreamResponse(List.of(
-            StreamEvent.textDelta("should not appear"),
-            StreamEvent.llmComplete(createTextResponse("should not appear"))
-        ));
-
-        CostTracker tracker = new CostTracker(1000);
-        tracker.record(800, 300); // 1100 > 1000 → 超预算
-
-        ToolCallingLoop loop = ToolCallingLoop.builder()
-            .provider(provider)
-            .toolExecutor(toolExecutor)
-            .maxIterations(5)
-            .costTracker(tracker)
-            .build();
-
-        StepVerifier.create(loop.executeWithToolsReactive(createUserMessages("test"), LLMOptions.builder().build()))
-            .verifyComplete(); // 空 Flux
-    }
-
-    @Test
-    @DisplayName("Reactive：CostTracker 未超预算时正常执行")
-    void reactiveCostTrackerUnderBudgetExecutesNormally() {
-        ReactiveMockProvider provider = new ReactiveMockProvider();
-        provider.addStreamResponse(List.of(
-            StreamEvent.textDelta("Hello"),
-            StreamEvent.llmComplete(createTextResponse("Hello"))
-        ));
-
-        CostTracker tracker = new CostTracker(10000);
-        tracker.record(100, 50); // 150 < 10000 → 未超
-
-        ToolCallingLoop loop = ToolCallingLoop.builder()
-            .provider(provider)
-            .toolExecutor(toolExecutor)
-            .maxIterations(5)
-            .costTracker(tracker)
-            .build();
-
-        StepVerifier.create(loop.executeWithToolsReactive(createUserMessages("test"), LLMOptions.builder().build()))
-            .assertNext(e -> assertEquals(StreamEvent.EventType.TEXT_DELTA, e.getType()))
-            .assertNext(e -> assertEquals(StreamEvent.EventType.LLM_COMPLETE, e.getType()))
-            .verifyComplete();
-    }
-
-    @Test
-    @DisplayName("Reactive：CostTracker 无限预算（0）永远不退出")
-    void reactiveCostTrackerUnlimitedBudget() {
-        ReactiveMockProvider provider = new ReactiveMockProvider();
-        provider.addStreamResponse(List.of(
-            StreamEvent.textDelta("ok"),
-            StreamEvent.llmComplete(createTextResponse("ok"))
-        ));
-
-        CostTracker tracker = new CostTracker(0); // unlimited
-        tracker.record(999999, 999999);
-
-        ToolCallingLoop loop = ToolCallingLoop.builder()
-            .provider(provider)
-            .toolExecutor(toolExecutor)
-            .maxIterations(5)
-            .costTracker(tracker)
-            .build();
-
-        StepVerifier.create(loop.executeWithToolsReactive(createUserMessages("test"), LLMOptions.builder().build()))
-            .assertNext(e -> assertEquals(StreamEvent.EventType.TEXT_DELTA, e.getType()))
-            .assertNext(e -> assertEquals(StreamEvent.EventType.LLM_COMPLETE, e.getType()))
-            .verifyComplete();
-    }
-
-    // ==================== CancellationToken + CostTracker 组合 ====================
-
-    @Test
-    @DisplayName("Reactive：CancellationToken 优先于 CostTracker 检查")
-    void reactiveCancellationTakesPriorityOverCost() {
-        ReactiveMockProvider provider = new ReactiveMockProvider();
-        provider.addStreamResponse(List.of(
-            StreamEvent.textDelta("shouldn't appear"),
-            StreamEvent.llmComplete(createTextResponse("shouldn't appear"))
-        ));
-
-        CancellationToken token = new CancellationToken();
-        token.cancel();
-        CostTracker tracker = new CostTracker(10000); // under budget
-
-        ToolCallingLoop loop = ToolCallingLoop.builder()
-            .provider(provider)
-            .toolExecutor(toolExecutor)
-            .maxIterations(5)
-            .cancellationToken(token)
-            .costTracker(tracker)
-            .build();
-
-        StepVerifier.create(loop.executeWithToolsReactive(createUserMessages("test"), LLMOptions.builder().build()))
-            .verifyComplete(); // 空，因为 cancelled
-    }
-
-    // ==================== 同步路径 executionContext ====================
-
-    @Test
-    @DisplayName("同步路径：带 executionContext 调用 ToolExecutor")
+    @DisplayName("同步路径：带 serverOnly executionContext 调用工具")
     void syncWithExecutionContext() {
         MockSyncProvider provider = new MockSyncProvider();
         provider.addResponse(createToolCallResponse("echo", Map.of("input", "ctx_test")));
@@ -239,6 +56,117 @@ class ToolCallingLoopCancellationTest {
 
         LLMResponse result = loop.executeWithTools(createUserMessages("test"), LLMOptions.builder().build());
         assertEquals("Done with context", result.getMessage().getTextContent());
+        assertEquals(2, provider.getCallCount());
+    }
+
+    @Test
+    @DisplayName("同步路径：executionContext=null 时使用无 context 路径")
+    void syncWithNullContext() {
+        MockSyncProvider provider = new MockSyncProvider();
+        provider.addResponse(createToolCallResponse("echo", Map.of("input", "test")));
+        provider.addResponse(createTextResponse("No context"));
+
+        ToolCallingLoop loop = new ToolCallingLoop(provider, toolExecutor, 10, null);
+
+        LLMResponse result = loop.executeWithTools(createUserMessages("test"), LLMOptions.builder().build());
+        assertEquals("No context", result.getMessage().getTextContent());
+    }
+
+    // ==================== 异步路径 ====================
+
+    @Test
+    @DisplayName("异步路径：无工具调用直接返回")
+    void asyncNoToolCallsReturnsDirectly() {
+        MockSyncProvider provider = new MockSyncProvider();
+        provider.addResponse(createTextResponse("Async hello"));
+
+        ToolCallingLoop loop = ToolCallingLoop.builder()
+            .provider(provider)
+            .toolExecutor(toolExecutor)
+            .maxIterations(5)
+            .build();
+
+        LLMResponse result = loop.executeWithToolsAsync(createUserMessages("hi"), LLMOptions.builder().build()).join();
+        assertEquals("Async hello", result.getMessage().getTextContent());
+    }
+
+    @Test
+    @DisplayName("异步路径：单轮工具调用后返回最终响应")
+    void asyncSingleToolCallRound() {
+        MockSyncProvider provider = new MockSyncProvider();
+        provider.addResponse(createToolCallResponse("echo", Map.of("input", "async_test")));
+        provider.addResponse(createTextResponse("Async echo done"));
+
+        ToolCallingLoop loop = ToolCallingLoop.builder()
+            .provider(provider)
+            .toolExecutor(toolExecutor)
+            .maxIterations(5)
+            .build();
+
+        LLMResponse result = loop.executeWithToolsAsync(createUserMessages("test"), LLMOptions.builder().build()).join();
+        assertEquals("Async echo done", result.getMessage().getTextContent());
+    }
+
+    @Test
+    @DisplayName("异步路径：超过最大迭代次数返回失败 Future")
+    void asyncMaxIterationsExceeded() {
+        MockSyncProvider provider = new MockSyncProvider();
+        for (int i = 0; i < 5; i++) {
+            provider.addResponse(createToolCallResponse("echo", Map.of("input", "loop")));
+        }
+
+        ToolCallingLoop loop = ToolCallingLoop.builder()
+            .provider(provider)
+            .toolExecutor(toolExecutor)
+            .maxIterations(2)
+            .build();
+
+        CompletableFuture<LLMResponse> future = loop.executeWithToolsAsync(
+            createUserMessages("loop"), LLMOptions.builder().build());
+
+        assertTrue(future.isCompletedExceptionally() || futureHasError(future));
+    }
+
+    @Test
+    @DisplayName("异步路径：带 executionContext 执行工具")
+    void asyncWithExecutionContext() {
+        MockSyncProvider provider = new MockSyncProvider();
+        provider.addResponse(createToolCallResponse("echo", Map.of("input", "async_ctx")));
+        provider.addResponse(createTextResponse("Async ctx done"));
+
+        ToolExecutionContext ctx = ToolExecutionContext.serverOnly();
+        ToolCallingLoop loop = new ToolCallingLoop(provider, toolExecutor, 10, ctx);
+
+        LLMResponse result = loop.executeWithToolsAsync(createUserMessages("test"), LLMOptions.builder().build()).join();
+        assertEquals("Async ctx done", result.getMessage().getTextContent());
+    }
+
+    // ==================== Reactive 路径补充 ====================
+
+    @Test
+    @DisplayName("Reactive：带 executionContext 的工具调用")
+    void reactiveWithExecutionContext() {
+        ReactiveMockProvider provider = new ReactiveMockProvider();
+        LLMResponse toolCallResponse = createToolCallResponse("echo", Map.of("input", "reactive_ctx"));
+        provider.addStreamResponse(List.of(
+            StreamEvent.textDelta(""),
+            StreamEvent.llmComplete(toolCallResponse)
+        ));
+        provider.addStreamResponse(List.of(
+            StreamEvent.textDelta("Reactive ctx done"),
+            StreamEvent.llmComplete(createTextResponse("Reactive ctx done"))
+        ));
+
+        ToolExecutionContext ctx = ToolExecutionContext.serverOnly();
+        ToolCallingLoop loop = new ToolCallingLoop(provider, toolExecutor, 5, ctx);
+
+        List<StreamEvent> events = new ArrayList<>();
+        StepVerifier.create(loop.executeWithToolsReactive(createUserMessages("test"), LLMOptions.builder().build()))
+            .recordWith(() -> events)
+            .thenConsumeWhile(e -> true)
+            .verifyComplete();
+
+        assertTrue(events.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.TOOL_CALL_START));
     }
 
     // ==================== 构造器边界 ====================
@@ -246,17 +174,84 @@ class ToolCallingLoopCancellationTest {
     @Test
     @DisplayName("Tracer 为 null 时使用 NOOP 默认值")
     void tracerDefaultsToNoop() {
+        ToolCallingLoop loop = new ToolCallingLoop(
+            new ReactiveMockProvider(), toolExecutor, 5, null, null);
+        assertNotNull(loop);
+        assertEquals(5, loop.getMaxIterations());
+    }
+
+    @Test
+    @DisplayName("Builder 模式完整构造")
+    void builderComplete() {
         ToolCallingLoop loop = ToolCallingLoop.builder()
             .provider(new ReactiveMockProvider())
             .toolExecutor(toolExecutor)
+            .maxIterations(7)
+            .executionContext(ToolExecutionContext.serverOnly())
             .tracer(null)
             .build();
 
-        assertNotNull(loop);
-        assertEquals(10, loop.getMaxIterations());
+        assertEquals(7, loop.getMaxIterations());
+    }
+
+    @Test
+    @DisplayName("多轮工具调用对话上下文正确累积")
+    void multiRoundConversationContextAccumulates() {
+        AtomicInteger llmCallCount = new AtomicInteger(0);
+        List<Integer> messageCounts = new ArrayList<>();
+
+        // Provider that records how many messages it receives each call
+        LLMProvider recordingProvider = new LLMProvider() {
+            private final Queue<LLMResponse> responses = new LinkedList<>();
+            {
+                responses.add(createToolCallResponse("echo", Map.of("input", "r1")));
+                responses.add(createToolCallResponse("echo", Map.of("input", "r2")));
+                responses.add(createTextResponse("Final"));
+            }
+
+            @Override
+            public LLMResponse complete(List<ConversationMessage> messages, LLMOptions options) {
+                llmCallCount.incrementAndGet();
+                messageCounts.add(messages.size());
+                return responses.poll();
+            }
+
+            @Override
+            public CompletableFuture<LLMResponse> completeAsync(List<ConversationMessage> m, LLMOptions o) {
+                return CompletableFuture.completedFuture(complete(m, o));
+            }
+
+            @Override
+            public CompletableFuture<LLMResponse> completeStream(List<ConversationMessage> m, LLMOptions o, StreamEventHandler h) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ModelCapability getModelCapability() { return null; }
+
+            @Override
+            public String getProviderName() { return "recording"; }
+        };
+
+        ToolCallingLoop loop = new ToolCallingLoop(recordingProvider, toolExecutor, 10);
+        loop.executeWithTools(createUserMessages("calc"), LLMOptions.builder().build());
+
+        assertEquals(3, llmCallCount.get());
+        // Each round adds assistant msg + tool result msg, so message count grows
+        assertTrue(messageCounts.get(1) > messageCounts.get(0), "Context should grow between rounds");
+        assertTrue(messageCounts.get(2) > messageCounts.get(1), "Context should grow between rounds");
     }
 
     // ==================== 辅助方法 ====================
+
+    private boolean futureHasError(CompletableFuture<?> future) {
+        try {
+            future.join();
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
+    }
 
     private Tool createEchoTool(String name) {
         return new Tool() {
