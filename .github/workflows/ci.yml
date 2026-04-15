@@ -39,7 +39,7 @@ jobs:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
       - name: Write CI results back to repo
-        if: always()
+        if: always() && github.event_name == 'push'
         run: |
           mkdir -p ci-results
           [ ! -f ci-results/build.log ] && echo "(build did not start)" > ci-results/build.log
