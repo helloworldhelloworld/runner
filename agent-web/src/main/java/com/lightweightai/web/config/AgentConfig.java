@@ -50,6 +50,10 @@ public class AgentConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(AgentConfig.class);
 
+    // ToolSourceProvider 引用，供 @PreDestroy 清理
+    private final java.util.List<ToolSourceProvider> activeProviders = new java.util.ArrayList<>();
+    private ToolRegistry activeRegistry;
+
     @Value("${app.mock-mode:true}")
     private boolean mockMode;
 
@@ -382,7 +386,7 @@ public class AgentConfig {
         }
 
         // 通过 ToolSourceProvider 组装工具来源
-        List<ToolSourceProvider> providers = List.of(
+        List<ToolSourceProvider> providers = new java.util.ArrayList<>(List.of(
             // 1. SPI 扫描（现有逻辑包装）
             new LegacyScanProvider(tool -> !tool.getName().equals("web_search")),
             // 2. 手动注册（需要构造参数 / 运行时绑定的工具）
@@ -391,14 +395,21 @@ public class AgentConfig {
                 .addTool(new GetPositionTool(clientToolDispatcher)),
             // 3. 动态插件（监听 plugins/ 目录，支持热加载 jar）
             dynamicPluginProvider()
-        );
+        ));
+        // 4. CLI 工具（扫描 cli-plugins/ 目录）
+        java.nio.file.Path cliPluginsDir = java.nio.file.Path.of("cli-plugins");
+        if (java.nio.file.Files.isDirectory(cliPluginsDir)) {
+            providers.add(new com.lightweightai.kernel.cli.CliToolSourceProvider(cliPluginsDir));
+        }
 
         providers.forEach(p -> {
             p.start(registry);
+            activeProviders.add(p);
             logger.info("ToolSourceProvider started: {} → registry now has {} tools",
                 p.sourceType(), registry.size());
         });
 
+        this.activeRegistry = registry;
         logger.info("ToolRegistry initialized: {}", registry);
         return registry;
     }
@@ -694,6 +705,24 @@ public class AgentConfig {
         @Override
         public String getProviderName() {
             return "mock-speech";
+        }
+    }
+
+    /**
+     * 清理 ToolSourceProvider 生命周期 — 防止 DynamicPluginProvider WatchService 线程泄漏
+     */
+    @jakarta.annotation.PreDestroy
+    public void shutdownToolSourceProviders() {
+        if (activeRegistry != null && !activeProviders.isEmpty()) {
+            for (ToolSourceProvider p : activeProviders) {
+                try {
+                    p.stop(activeRegistry);
+                    logger.info("ToolSourceProvider stopped: {}", p.sourceType());
+                } catch (Exception e) {
+                    logger.warn("Failed to stop ToolSourceProvider: {}", p.sourceType(), e);
+                }
+            }
+            activeProviders.clear();
         }
     }
 }

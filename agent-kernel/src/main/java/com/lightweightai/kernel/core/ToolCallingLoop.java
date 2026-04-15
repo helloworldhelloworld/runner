@@ -37,6 +37,7 @@ public class ToolCallingLoop {
     private final Tracer tracer;
     private final CancellationToken cancellationToken;
     private final com.lightweightai.kernel.context.CostTracker costTracker;
+    private java.util.List<com.lightweightai.kernel.agent.AgentObserver> observers;
 
     /**
      * Create a new ToolCallingLoop
@@ -86,6 +87,7 @@ public class ToolCallingLoop {
         this.tracer = tracer != null ? tracer : Tracer.NOOP;
         this.cancellationToken = cancellationToken;
         this.costTracker = costTracker;
+        this.observers = java.util.List.of();
     }
 
     /**
@@ -305,13 +307,23 @@ public class ToolCallingLoop {
                         toolCalls.stream().map(ToolCall::getName).toList());
                     conversation.add(enrichWithToolCalls(response));
 
-                    // Step 3a: 发出 TOOL_CALL_START 事件
+                    // Step 3a: 发出 TOOL_CALL_START 事件 + PreToolUse hooks
                     Flux<StreamEvent> toolStartEvents = Flux.fromIterable(toolCalls)
+                        .doOnNext(tc -> firePreToolUse(tc.getName(), tc.getArguments()))
                         .map(StreamEvent::toolCallStart);
 
                     // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
                     Flux<ToolResultChunk> sharedToolExec = toolExecutor
                         .executeToolCallsReactive(toolCalls, executionContext)
+                        .doOnNext(chunk -> {
+                            // PostToolUse hook on COMPLETE/ERROR
+                            if (chunk.getType() == ToolResultChunk.ChunkType.COMPLETE && chunk.getResult() != null) {
+                                firePostToolUse(chunk.getToolName(), Map.of(), chunk.getResult());
+                            } else if (chunk.getType() == ToolResultChunk.ChunkType.ERROR) {
+                                firePostToolUse(chunk.getToolName(), Map.of(),
+                                        ToolResult.error(chunk.getMessage()));
+                            }
+                        })
                         .cache();
 
                     // 流式发出 TOOL_PROGRESS / TOOL_LOG / TOOL_RESULT 事件
@@ -403,6 +415,7 @@ public class ToolCallingLoop {
         private Tracer tracer;
         private CancellationToken cancellationToken;
         private com.lightweightai.kernel.context.CostTracker costTracker;
+        private java.util.List<com.lightweightai.kernel.agent.AgentObserver> observers = new java.util.ArrayList<>();
 
         public Builder provider(LLMProvider provider) {
             this.provider = provider;
@@ -448,14 +461,33 @@ public class ToolCallingLoop {
             return this;
         }
 
+        public Builder observers(java.util.List<com.lightweightai.kernel.agent.AgentObserver> observers) {
+            this.observers = observers != null ? observers : java.util.List.of();
+            return this;
+        }
+
         public ToolCallingLoop build() {
-            return new ToolCallingLoop(provider, toolExecutor, maxIterations,
+            ToolCallingLoop loop = new ToolCallingLoop(provider, toolExecutor, maxIterations,
                     executionContext, tracer, cancellationToken, costTracker);
+            loop.observers = observers != null ? java.util.List.copyOf(observers) : java.util.List.of();
+            return loop;
         }
     }
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    private void firePreToolUse(String toolName, Map<String, Object> args) {
+        for (var observer : observers) {
+            try { observer.onPreToolUse(toolName, args); } catch (Exception ignored) {}
+        }
+    }
+
+    private void firePostToolUse(String toolName, Map<String, Object> args, com.lightweightai.kernel.llm.ToolResult result) {
+        for (var observer : observers) {
+            try { observer.onPostToolUse(toolName, args, result); } catch (Exception ignored) {}
+        }
     }
 
     @Override

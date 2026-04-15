@@ -55,6 +55,20 @@ public interface AgentObserver {
     default void onToolCall(String toolName, Map<String, Object> args, ToolResult result) {}
 
     /**
+     * 工具调用前拦截点
+     *
+     * 可用于：安全审计、参数校验、日志记录
+     */
+    default void onPreToolUse(String toolName, Map<String, Object> args) {}
+
+    /**
+     * 工具调用后拦截点
+     *
+     * 可用于：结果过滤、成本追踪、性能监控
+     */
+    default void onPostToolUse(String toolName, Map<String, Object> args, ToolResult result) {}
+
+    /**
      * Agent 循环开始时调用
      *
      * @param input 用户输入

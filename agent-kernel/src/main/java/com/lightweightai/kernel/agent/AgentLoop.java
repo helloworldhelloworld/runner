@@ -43,6 +43,7 @@ public class AgentLoop {
     private final int maxToolIterations;
     private final LLMOptions llmOptions;
     private final List<AgentObserver> observers;
+    private final com.lightweightai.kernel.context.ContextCompactor contextCompactor;
 
     private AgentLoop(Builder builder) {
         this.llmProvider = Objects.requireNonNull(builder.llmProvider, "llmProvider required");
@@ -52,6 +53,7 @@ public class AgentLoop {
         this.maxToolIterations = builder.maxToolIterations;
         this.llmOptions = builder.llmOptions;
         this.observers = new ArrayList<>(builder.observers);
+        this.contextCompactor = builder.contextCompactor;
 
         // 初始化 PromptEngine
         this.promptEngine = PromptEngine.builder()
@@ -91,7 +93,9 @@ public class AgentLoop {
             memoryProvider.addMessage(sessionId, Message.user(input));
 
             // 3. 构建消息上下文
-            List<ConversationMessage> messages = buildMessages(sessionId, memoryContext);
+            List<ConversationMessage> rawMessages = buildMessages(sessionId, memoryContext);
+            final List<ConversationMessage> messages = contextCompactor != null
+                    ? contextCompactor.compact(rawMessages) : rawMessages;
 
             // Hook: onLLMRequest
             notifyObservers(o -> o.onLLMRequest(messages));
@@ -213,8 +217,10 @@ public class AgentLoop {
             // 2. 保存用户消息
             memoryProvider.addMessage(sessionId, Message.user(input));
 
-            // 3. 构建消息上下文
-            List<ConversationMessage> messages = buildMessages(sessionId, memoryContext);
+            // 3. 构建消息上下文 + compaction
+            List<ConversationMessage> rawMessages = buildMessages(sessionId, memoryContext);
+            final List<ConversationMessage> messages = contextCompactor != null
+                    ? contextCompactor.compact(rawMessages) : rawMessages;
 
             // Hook: onLLMRequest
             notifyObservers(o -> o.onLLMRequest(messages));
@@ -224,7 +230,8 @@ public class AgentLoop {
             ToolCallingLoop.Builder loopBuilder = ToolCallingLoop.builder()
                 .provider(llmProvider)
                 .toolExecutor(toolExecutor)
-                .maxIterations(maxToolIterations);
+                .maxIterations(maxToolIterations)
+                .observers(observers);
             if (cancellationToken != null) {
                 loopBuilder.cancellationToken(cancellationToken);
             }
@@ -347,6 +354,7 @@ public class AgentLoop {
         private LLMProvider llmProvider;
         private MemoryProvider memoryProvider;
         private ToolRegistry toolRegistry = new ToolRegistry();
+        private com.lightweightai.kernel.context.ContextCompactor contextCompactor;
         private String systemPrompt;
         private int maxToolIterations = 10;
         private LLMOptions llmOptions = LLMOptions.builder().build();
@@ -394,6 +402,11 @@ public class AgentLoop {
 
         public Builder addObserver(AgentObserver observer) {
             this.observers.add(observer);
+            return this;
+        }
+
+        public Builder contextCompactor(com.lightweightai.kernel.context.ContextCompactor compactor) {
+            this.contextCompactor = compactor;
             return this;
         }
 
