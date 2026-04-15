@@ -91,7 +91,7 @@ public class StreamEvent {
 
     public static StreamEvent textDelta(String delta, Map<String, Object> metadata) {
         return new StreamEvent(EventType.TEXT_DELTA, delta, null, null, null, null,
-                null, null, metadata != null ? Collections.unmodifiableMap(metadata) : null);
+                null, null, metadata != null ? Collections.unmodifiableMap(new java.util.HashMap<>(metadata)) : null);
     }
 
     public static StreamEvent toolCallStart(ToolCall call) {
@@ -124,7 +124,7 @@ public class StreamEvent {
 
     public static StreamEvent postProcessData(String category, Map<String, Object> data) {
         return new StreamEvent(EventType.POST_PROCESS_DATA, null, null, null, null, null,
-                category, data != null ? Collections.unmodifiableMap(data) : Collections.emptyMap());
+                category, data != null ? Collections.unmodifiableMap(new java.util.HashMap<>(data)) : Collections.emptyMap());
     }
 
     /**
