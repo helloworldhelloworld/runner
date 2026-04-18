@@ -64,6 +64,14 @@ public class Orchestrator implements ChatHandler {
                 CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * 关闭清理线程 — 防止线程池泄漏
+     */
+    public void shutdown() {
+        cleanupExecutor.shutdown();
+        logger.info("Orchestrator cleanup executor shut down");
+    }
+
     private void cleanupStaleRuns() {
         long now = System.currentTimeMillis();
         activeRuns.entrySet().removeIf(entry -> {

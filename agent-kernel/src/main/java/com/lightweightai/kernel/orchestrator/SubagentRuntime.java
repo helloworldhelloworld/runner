@@ -170,6 +170,15 @@ public class SubagentRuntime {
     }
 
     /**
+     * 关闭线程池 — 防止泄漏
+     */
+    public void shutdown() {
+        stopAll();
+        executor.shutdown();
+        logger.info("SubagentRuntime executor shut down");
+    }
+
+    /**
      * 等待指定 run 完成（测试用）
      */
     public boolean waitForCompletion(String runId, long timeout, TimeUnit unit) throws InterruptedException {

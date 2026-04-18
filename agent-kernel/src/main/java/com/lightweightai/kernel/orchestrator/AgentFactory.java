@@ -48,12 +48,16 @@ public class AgentFactory {
         // 2. 创建 scoped ToolRegistry
         ScopedToolRegistry scopedRegistry = new ScopedToolRegistry(globalToolRegistry, profile);
 
-        // 3. 构建 AgentLoop
+        // 3. 构建 AgentLoop（含默认 Context Compaction）
         AgentLoop.Builder builder = AgentLoop.builder()
                 .llmProvider(provider)
                 .memoryProvider(sharedMemory)
                 .toolRegistry(scopedRegistry)
-                .maxToolIterations(profile.getMaxToolIterations());
+                .maxToolIterations(profile.getMaxToolIterations())
+                .contextCompactor(new com.lightweightai.kernel.context.CompactionChain(
+                        new com.lightweightai.kernel.context.SnipCompactor(3),
+                        new com.lightweightai.kernel.context.MicroCompactor(2000)
+                ));
 
         if (profile.getSystemPrompt() != null) {
             builder.systemPrompt(profile.getSystemPrompt());

@@ -61,7 +61,7 @@ public class OrchestratorConfig {
         return new AgentFactory(llmProvider, memoryProvider, toolRegistry);
     }
 
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     public SubagentRuntime subagentRuntime(AgentFactory agentFactory, AgentRegistry agentRegistry) {
         SubagentRuntime runtime = new SubagentRuntime(agentFactory, agentRegistry, maxConcurrentSubagents);
         logger.info("SubagentRuntime: maxConcurrent={}", maxConcurrentSubagents);
@@ -82,8 +82,18 @@ public class OrchestratorConfig {
         logger.info("Registered subagent tools: wait_subagent, list_subagents");
 
         MetadataAgentRouter router = new MetadataAgentRouter(agentRegistry);
-        Orchestrator orchestrator = new Orchestrator(agentRegistry, agentFactory, router, subagentRuntime);
+        this.orchestratorInstance = new Orchestrator(agentRegistry, agentFactory, router, subagentRuntime);
         logger.info("Orchestrator initialized as primary ChatHandler");
-        return orchestrator;
+        return orchestratorInstance;
+    }
+
+    private Orchestrator orchestratorInstance;
+
+    @jakarta.annotation.PreDestroy
+    public void shutdownOrchestrator() {
+        if (orchestratorInstance != null) {
+            orchestratorInstance.shutdown();
+            logger.info("Orchestrator shutdown complete");
+        }
     }
 }

@@ -45,7 +45,8 @@ Before making changes, read the relevant docs:
 3. **Events as first-class citizens** — All lifecycle events MUST be `StreamEvent.EventType` enum values with factory methods. NEVER use TRACE + string conventions for new event types.
 4. **Tool-first extensibility** — `Tool` interface + `ToolRegistry` + MCP bridge
 5. **Multi-Agent Orchestrator** — Orchestrator routes to multiple AgentLoop instances via AgentProfile; ScopedToolRegistry enforces per-agent tool permissions; SubagentRuntime handles async spawn/announce/cascade-stop
-6. **Dependency flows downward** — See [docs/architecture.md](docs/architecture.md) for allowed dependency directions
+6. **Context budget awareness** — ContextCompactor (Snip+Micro) prevents context overflow; CostTracker tracks token consumption per request chain
+7. **Dependency flows downward** — See [docs/architecture.md](docs/architecture.md) for allowed dependency directions
 
 ## TDD Rules (ENFORCED)
 
