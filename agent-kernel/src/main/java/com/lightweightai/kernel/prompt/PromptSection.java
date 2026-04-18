@@ -3,6 +3,8 @@ package com.lightweightai.kernel.prompt;
 import java.util.function.Predicate;
 
 /**
+ * @deprecated 使用 Skill.systemPrompt 替代。PromptSection 从未在生产中注册使用。
+ *
  * 模块化 Prompt 片段
  *
  * 参考 Claude Code 泄露源码的 110+ 独立 prompt 字符串条件组装模型：

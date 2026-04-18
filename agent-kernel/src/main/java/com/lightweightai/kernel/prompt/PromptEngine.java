@@ -88,6 +88,13 @@ public class PromptEngine {
     }
 
     /**
+     * 获取所有注册的 Skill 对象（统一入口）
+     */
+    public List<Skill> getSkillObjects() {
+        return new ArrayList<>(skillRegistry.values());
+    }
+
+    /**
      * 获取 Skill
      */
     public Optional<Skill> getSkill(String name) {

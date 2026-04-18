@@ -12,6 +12,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
+ * @deprecated 使用 PromptEngine.registerSkill() 替代。
+ * InstructionRegistry 与 PromptEngine 功能重叠，统一使用 PromptEngine 作为 Skill 的唯一注册点。
+ * 保留以支持 SkillPublishService 的向后兼容。
+ *
  * Universal Instruction Registry
  *
  * Provider-agnostic registry for managing instruction packages.
