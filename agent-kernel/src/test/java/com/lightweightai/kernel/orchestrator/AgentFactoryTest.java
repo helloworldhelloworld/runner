@@ -51,6 +51,44 @@ class AgentFactoryTest {
     }
 
     @Test
+    @DisplayName("创建的 AgentLoop 暴露受 deny/allow 过滤的 toolDefinitions")
+    void createdAgentExposesScopedToolDefinitions() {
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("safe-agent")
+                .systemPrompt("安全助手")
+                .toolDenyList(Set.of("shell_exec"))
+                .build();
+
+        AgentFactory factory = new AgentFactory(defaultProvider, memory, globalRegistry);
+        AgentLoop agent = factory.create(profile);
+
+        List<Map<String, Object>> defs = agent.getLlmOptions().getToolDefinitions();
+        assertNotNull(defs);
+        assertEquals(2, defs.size());
+        List<String> names = defs.stream().map(d -> (String) d.get("name")).toList();
+        assertTrue(names.contains("search"));
+        assertTrue(names.contains("read_file"));
+        assertFalse(names.contains("shell_exec"));
+    }
+
+    @Test
+    @DisplayName("AllowList 模式：只暴露白名单工具的 toolDefinitions")
+    void createdAgentRespectsAllowList() {
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("narrow-agent")
+                .systemPrompt("只读助手")
+                .toolAllowList(Set.of("read_file"))
+                .build();
+
+        AgentFactory factory = new AgentFactory(defaultProvider, memory, globalRegistry);
+        AgentLoop agent = factory.create(profile);
+
+        List<Map<String, Object>> defs = agent.getLlmOptions().getToolDefinitions();
+        assertEquals(1, defs.size());
+        assertEquals("read_file", defs.get(0).get("name"));
+    }
+
+    @Test
     @DisplayName("不同 Profile 创建独立的 AgentLoop 实例")
     void createsIndependentInstances() {
         AgentProfile p1 = AgentProfile.builder().agentId("a").systemPrompt("A").build();
