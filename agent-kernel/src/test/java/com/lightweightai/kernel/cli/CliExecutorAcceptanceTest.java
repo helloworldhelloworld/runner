@@ -111,6 +111,25 @@ class CliExecutorAcceptanceTest {
     }
 
     @Test
+    @DisplayName("env 变量追加到子进程环境")
+    void envVariablesArePropagatedToProcess() throws IOException {
+        Path script = writeScript("env-check", "#!/bin/bash\necho \"X=$RUNNER_TEST_VAR\"\n");
+
+        List<ExecEvent> events = new LocalProcessExecutor()
+                .exec(new ExecRequest(
+                        List.of(script.toAbsolutePath().toString()),
+                        tempDir,
+                        Map.of("RUNNER_TEST_VAR", "hello-env"),
+                        Duration.ofSeconds(5)))
+                .collectList()
+                .block();
+
+        assertNotNull(events);
+        assertTrue(events.stream().anyMatch(e -> e instanceof Stdout s && s.line().contains("hello-env")),
+                "子进程应能读到 env: " + events);
+    }
+
+    @Test
     @DisplayName("流式:多行 stdout 按行拆分为多个 Stdout 事件")
     void multilineStdoutSplitsIntoMultipleEvents() throws IOException {
         Path script = writeScript("multi", "#!/bin/bash\necho a\necho b\necho c\n");

@@ -100,6 +100,55 @@ class CliToolSeamAcceptanceTest {
     }
 
     @Test
+    @DisplayName("Exited(非零)+ 无 stderr → fallback 错误消息(带 exit code)")
+    void nonZeroExitWithoutStderrUsesFallbackMessage() throws IOException {
+        CliManifest manifest = sampleManifest("silent-fail");
+        Path cliDir = writeManifestDir(manifest);
+        FakeCliExecutor fake = FakeCliExecutor.of(new Exited(13));
+
+        CliTool tool = new CliTool(manifest, cliDir, fake);
+        ToolResult result = tool.execute(Map.of());
+
+        assertTrue(result.isError(), "非零 exit 无 stderr 仍为 error");
+        assertTrue(result.getContent().contains("13"),
+                "fallback 消息应含 exit code: " + result.getContent());
+    }
+
+    @Test
+    @DisplayName("Failed(Throwable) 无 message → fallback 到 toString")
+    void failedWithNullMessageFallsBackToToString() throws IOException {
+        CliManifest manifest = sampleManifest("nullmsg");
+        Path cliDir = writeManifestDir(manifest);
+        Throwable cause = new RuntimeException();  // getMessage() == null
+        FakeCliExecutor fake = FakeCliExecutor.of(new Failed(cause));
+
+        CliTool tool = new CliTool(manifest, cliDir, fake);
+        ToolResult result = tool.execute(Map.of());
+
+        assertTrue(result.isError());
+        // toString() 至少含类名
+        assertTrue(result.getContent().contains("RuntimeException"),
+                "空 message 应 fallback 到 cause.toString(): " + result.getContent());
+    }
+
+    @Test
+    @DisplayName("args 中 key=value 非 args 条目被转换成 --key value 传入 command")
+    void keyValueArgsMapToDashDashFlags() throws IOException {
+        CliManifest manifest = sampleManifest("flags");
+        Path cliDir = writeManifestDir(manifest);
+        FakeCliExecutor fake = FakeCliExecutor.of(new Exited(0));
+
+        CliTool tool = new CliTool(manifest, cliDir, fake);
+        tool.execute(Map.of("city", "Tokyo", "unit", "metric"));
+
+        var cmd = fake.received().get(0).command();
+        assertTrue(cmd.contains("--city") && cmd.contains("Tokyo"),
+                "command 应含 --city Tokyo: " + cmd);
+        assertTrue(cmd.contains("--unit") && cmd.contains("metric"),
+                "command 应含 --unit metric: " + cmd);
+    }
+
+    @Test
     @DisplayName("CliTool 传给 executor 的 ExecRequest 含正确 command(含 entry_point)")
     void executorReceivesCommandWithEntryPoint() throws IOException {
         CliManifest manifest = sampleManifest("echo-tool");

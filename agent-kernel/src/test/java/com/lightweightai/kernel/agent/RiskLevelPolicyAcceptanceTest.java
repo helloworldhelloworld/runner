@@ -43,6 +43,27 @@ class RiskLevelPolicyAcceptanceTest {
     }
 
     @Test
+    @DisplayName("未覆写 riskLevel 的 Tool 走默认 SAFE — byRiskLevel(SAFE) 仍放行")
+    void toolWithoutRiskLevelOverrideTreatedAsSafe() {
+        ToolRegistry reg = new ToolRegistry();
+        reg.register(new Tool() {
+            @Override public String getName() { return "plain"; }
+            @Override public String getDescription() { return "plain tool"; }
+            @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
+            @Override public ToolResult execute(Map<String, Object> args) { return ToolResult.success("ok"); }
+            // 不覆写 riskLevel(),走默认
+        });
+
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("reader")
+                .toolPolicy(ToolPolicy.byRiskLevel(RiskLevel.SAFE))
+                .build();
+        ScopedToolRegistry scoped = new ScopedToolRegistry(reg, profile);
+
+        assertTrue(scoped.has("plain"), "默认 SAFE 应通过 byRiskLevel(SAFE)");
+    }
+
+    @Test
     @DisplayName("profile 限定 max=SAFE → 只保留 SAFE 工具")
     void byRiskLevelSafeFiltersWriteAndSystem() {
         AgentProfile profile = AgentProfile.builder()
