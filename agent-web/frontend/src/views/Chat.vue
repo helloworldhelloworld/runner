@@ -88,15 +88,88 @@
     </div>
 
     <!-- Trace Panel -->
-    <div v-if="traceMode && traceEvents.length > 0" class="border-t border-gray-200 max-h-48 overflow-y-auto p-3 bg-gray-50">
+    <div v-if="traceMode && traceEvents.length > 0" class="border-t border-gray-200 max-h-72 overflow-y-auto p-3 bg-gray-50">
       <div class="flex items-center justify-between mb-2">
         <h3 class="text-xs font-bold text-indigo-700">调用链追踪</h3>
-        <button @click="traceEvents = []" class="text-xs text-gray-400 hover:text-gray-600">清空</button>
+        <button @click="clearTrace" class="text-xs text-gray-400 hover:text-gray-600">清空</button>
       </div>
-      <div v-for="(evt, i) in traceEvents" :key="i" class="flex items-center gap-1 py-0.5 text-xs font-mono">
-        <span class="text-gray-400 w-14 text-right shrink-0">+{{ evt.timestamp - traceStartTime }}ms</span>
-        <span class="font-semibold text-gray-700">{{ evt.phase }}</span>
-        <span class="text-gray-500 truncate">{{ evt.message || '' }}</span>
+      <div v-for="(evt, i) in traceEvents" :key="i"
+           class="text-xs font-mono border-b border-gray-100 last:border-b-0">
+        <!-- Summary row -->
+        <div class="flex items-center gap-1 py-0.5"
+             :class="evt.extra && evt.extra.isError ? 'text-red-600' : ''">
+          <button v-if="hasExtra(evt)"
+                  @click="toggleTrace(i)"
+                  class="w-4 text-gray-400 hover:text-gray-700 shrink-0"
+                  :title="expandedTraces.has(i) ? '折叠' : '展开'">
+            {{ expandedTraces.has(i) ? '▾' : '▸' }}
+          </button>
+          <span v-else class="w-4 shrink-0"></span>
+          <span class="text-gray-400 w-14 text-right shrink-0">+{{ evt.timestamp - traceStartTime }}ms</span>
+          <span class="font-semibold shrink-0"
+                :class="evt.extra && evt.extra.isError ? 'text-red-700' : 'text-gray-700'">{{ evt.phase }}</span>
+          <span class="text-gray-500 truncate flex-1">{{ evt.message || '' }}</span>
+          <!-- timing / token pills -->
+          <span v-if="evt.extra && evt.extra.elapsedMs != null"
+                class="px-1 bg-indigo-100 text-indigo-700 rounded shrink-0">{{ evt.extra.elapsedMs }}ms</span>
+          <span v-if="evt.extra && evt.extra.latencyMs != null"
+                class="px-1 bg-indigo-100 text-indigo-700 rounded shrink-0">{{ evt.extra.latencyMs }}ms</span>
+          <span v-if="evt.extra && (evt.extra.inputTokens != null || evt.extra.outputTokens != null)"
+                class="px-1 bg-emerald-100 text-emerald-700 rounded shrink-0">
+            {{ (evt.extra.inputTokens || 0) }}/{{ (evt.extra.outputTokens || 0) }} tok
+          </span>
+        </div>
+        <!-- Detail row (extra payload) -->
+        <div v-if="expandedTraces.has(i) && evt.extra" class="pl-10 pr-2 pb-2 space-y-1">
+          <!-- arguments (tool.start) -->
+          <div v-if="evt.extra.arguments && isObject(evt.extra.arguments)"
+               class="bg-white border border-gray-200 rounded px-2 py-1">
+            <div class="text-gray-500 mb-0.5">arguments</div>
+            <div v-for="(v, k) in evt.extra.arguments" :key="k" class="flex gap-2">
+              <span class="text-indigo-700 shrink-0">{{ k }}:</span>
+              <span class="text-gray-800 break-all whitespace-pre-wrap">{{ stringify(v, 2000) }}</span>
+            </div>
+          </div>
+          <!-- content (tool.result / llm output) -->
+          <div v-if="evt.extra.content != null && evt.extra.content !== ''"
+               class="bg-white border border-gray-200 rounded px-2 py-1">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="text-gray-500">content</span>
+              <button v-if="String(evt.extra.content).length > 500"
+                      @click="toggleFull(i)"
+                      class="text-[10px] text-indigo-600 hover:underline">
+                {{ fullContent.has(i) ? '折叠' : '展开全部' }}
+              </button>
+            </div>
+            <pre class="text-gray-800 break-all whitespace-pre-wrap">{{ fullContent.has(i) ? String(evt.extra.content) : truncate(String(evt.extra.content), 500) }}</pre>
+          </div>
+          <!-- errorMessage -->
+          <div v-if="evt.extra.errorMessage"
+               class="bg-red-50 border border-red-200 text-red-700 rounded px-2 py-1">
+            <span class="text-red-500">error:</span> {{ evt.extra.errorMessage }}
+          </div>
+          <!-- output (llm.complete) -->
+          <div v-if="evt.extra.output"
+               class="bg-white border border-gray-200 rounded px-2 py-1">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="text-gray-500">output</span>
+              <button v-if="String(evt.extra.output).length > 500"
+                      @click="toggleFull(i)"
+                      class="text-[10px] text-indigo-600 hover:underline">
+                {{ fullContent.has(i) ? '折叠' : '展开全部' }}
+              </button>
+            </div>
+            <pre class="text-gray-800 break-all whitespace-pre-wrap">{{ fullContent.has(i) ? String(evt.extra.output) : truncate(String(evt.extra.output), 500) }}</pre>
+          </div>
+          <!-- Other fields (toolCallId / stopReason / runId / agentId / hasToolCalls / task / ...) -->
+          <div v-if="otherKeys(evt.extra).length > 0"
+               class="bg-white border border-gray-200 rounded px-2 py-1">
+            <div v-for="k in otherKeys(evt.extra)" :key="k" class="flex gap-2">
+              <span class="text-indigo-700 shrink-0">{{ k }}:</span>
+              <span class="text-gray-800 break-all whitespace-pre-wrap">{{ stringify(evt.extra[k], 500) }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -128,6 +201,50 @@ const selectedModel = ref('')
 const traceMode = ref(false)
 const traceEvents = ref([])
 const traceStartTime = ref(0)
+const expandedTraces = ref(new Set())
+const fullContent = ref(new Set())
+
+// 这些字段在 summary 行 / 专用详情块里已渲染，详情区里"其它字段"里就别再重复打印。
+const HANDLED_EXTRA_KEYS = new Set([
+  'arguments', 'content', 'errorMessage', 'output',
+  'isError', 'elapsedMs', 'latencyMs', 'inputTokens', 'outputTokens'
+])
+
+function hasExtra(evt) {
+  return evt && evt.extra && typeof evt.extra === 'object' && Object.keys(evt.extra).length > 0
+}
+function toggleTrace(i) {
+  const s = new Set(expandedTraces.value)
+  if (s.has(i)) s.delete(i); else s.add(i)
+  expandedTraces.value = s
+}
+function toggleFull(i) {
+  const s = new Set(fullContent.value)
+  if (s.has(i)) s.delete(i); else s.add(i)
+  fullContent.value = s
+}
+function clearTrace() {
+  traceEvents.value = []
+  expandedTraces.value = new Set()
+  fullContent.value = new Set()
+  traceStartTime.value = 0
+}
+function isObject(v) {
+  return v != null && typeof v === 'object' && !Array.isArray(v)
+}
+function truncate(s, n) {
+  if (s == null) return ''
+  return s.length <= n ? s : s.slice(0, n) + '…[+' + (s.length - n) + ' chars]'
+}
+function stringify(v, maxLen) {
+  if (v == null) return ''
+  const s = typeof v === 'string' ? v : JSON.stringify(v)
+  return truncate(s, maxLen)
+}
+function otherKeys(extra) {
+  if (!isObject(extra)) return []
+  return Object.keys(extra).filter(k => !HANDLED_EXTRA_KEYS.has(k) && extra[k] != null && extra[k] !== '')
+}
 const sending = ref(false)
 
 // Orchestrator state
@@ -153,8 +270,7 @@ async function sendMessage() {
 
   inputMessage.value = ''
   sending.value = true
-  traceEvents.value = []
-  traceStartTime.value = 0
+  clearTrace()
   activeTools.value = []
 
   chatStore.addMessage('user', message)
