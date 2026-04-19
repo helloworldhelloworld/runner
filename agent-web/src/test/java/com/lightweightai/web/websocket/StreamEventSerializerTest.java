@@ -6,6 +6,7 @@ import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolCall;
+import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -80,17 +81,49 @@ class StreamEventSerializerTest {
     }
 
     @Test
-    @DisplayName("TOOL_RESULT 不发送给客户端(返回 null)")
-    void toolResultReturnsNull() {
-        ToolResultChunk chunk = ToolResultChunk.complete("search",
-                com.lightweightai.kernel.llm.ToolResult.success("found it"));
+    @DisplayName("TOOL_RESULT 序列化为 type=tool_result，data 里含 toolName/toolCallId/result")
+    void toolResultIsSerialized() throws Exception {
+        ToolResult result = ToolResult.success("call-42", "It's sunny.");
+        ToolResultChunk chunk = ToolResultChunk.complete("get_weather", result)
+                .withToolCallId("call-42");
         StreamEvent event = StreamEvent.toolResult(chunk);
 
-        assertNull(StreamEventSerializer.serialize(event));
+        String json = StreamEventSerializer.serialize(event);
+
+        assertNotNull(json, "TOOL_RESULT should be serialized");
+        JsonNode node = MAPPER.readTree(json);
+        assertEquals("tool_result", node.get("type").asText());
+        JsonNode data = node.get("data");
+        assertNotNull(data);
+        assertEquals("get_weather", data.get("toolName").asText());
+        assertEquals("call-42", data.get("toolCallId").asText());
+        JsonNode resultNode = data.get("result");
+        assertNotNull(resultNode, "data.result must exist");
+        assertTrue(resultNode.get("content").asText().contains("sunny"),
+                "data.result.content should contain tool output");
+        assertFalse(resultNode.get("isError").asBoolean(), "Non-error result isError=false");
     }
 
     @Test
-    @DisplayName("LLM_COMPLETE 不发送给客户端(返回 null)")
+    @DisplayName("Oversized content is truncated to prevent WS frame explosion")
+    void oversizedContentIsTruncated() throws Exception {
+        String huge = "x".repeat(10_000);
+        ToolResult result = ToolResult.success("call-big", huge);
+        ToolResultChunk chunk = ToolResultChunk.complete("dump", result)
+                .withToolCallId("call-big");
+
+        String json = StreamEventSerializer.serialize(StreamEvent.toolResult(chunk));
+
+        assertNotNull(json);
+        JsonNode node = MAPPER.readTree(json);
+        String content = node.get("data").get("result").get("content").asText();
+        assertTrue(content.length() < huge.length(), "Oversized content should be truncated: " + content.length());
+        assertTrue(content.contains("+") && content.contains("chars"),
+                "Should include truncation marker, actual: " + content.substring(Math.max(0, content.length() - 40)));
+    }
+
+    @Test
+    @DisplayName("LLM_COMPLETE returns null (internal signal, not sent to client)")
     void llmCompleteReturnsNull() {
         LLMResponse response = LLMResponse.builder()
                 .stopReason("end_turn")
@@ -98,6 +131,21 @@ class StreamEventSerializerTest {
         StreamEvent event = StreamEvent.llmComplete(response);
 
         assertNull(StreamEventSerializer.serialize(event));
+    }
+
+    @Test
+    @DisplayName("Error TOOL_RESULT preserves isError=true with message")
+    void errorToolResultCarriesErrorFlag() throws Exception {
+        ToolResult errResult = ToolResult.error("call-err", "boom");
+        ToolResultChunk chunk = ToolResultChunk.complete("bad_tool", errResult)
+                .withToolCallId("call-err");
+
+        String json = StreamEventSerializer.serialize(StreamEvent.toolResult(chunk));
+
+        JsonNode data = MAPPER.readTree(json).get("data");
+        JsonNode resultNode = data.get("result");
+        assertTrue(resultNode.get("isError").asBoolean(), "Error result isError should be true");
+        assertTrue(resultNode.get("content").asText().contains("boom"));
     }
 
     @Test
