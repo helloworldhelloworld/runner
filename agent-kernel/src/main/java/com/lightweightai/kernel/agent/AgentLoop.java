@@ -51,7 +51,21 @@ public class AgentLoop {
         this.toolRegistry = builder.toolRegistry;
         this.systemPrompt = builder.systemPrompt != null ? builder.systemPrompt : "";
         this.maxToolIterations = builder.maxToolIterations;
-        this.llmOptions = builder.llmOptions;
+        // 若调用方未显式设置 toolDefinitions，则从 toolRegistry 自动注入，
+        // 使 Orchestrator 等非手动装配路径也能正确把工具告诉 LLM。
+        // 调用方已显式提供时保持原样（调用方优先）。
+        LLMOptions baseOptions = builder.llmOptions != null ? builder.llmOptions : LLMOptions.builder().build();
+        boolean callerProvidedTools = baseOptions.getToolDefinitions() != null
+                && !baseOptions.getToolDefinitions().isEmpty();
+        if (!callerProvidedTools && this.toolRegistry != null
+                && !this.toolRegistry.getToolDefinitions().isEmpty()) {
+            this.llmOptions = LLMOptions.builder()
+                    .from(baseOptions)
+                    .toolDefinitions(this.toolRegistry.getToolDefinitions())
+                    .build();
+        } else {
+            this.llmOptions = baseOptions;
+        }
         this.observers = new ArrayList<>(builder.observers);
         this.contextCompactor = builder.contextCompactor;
 

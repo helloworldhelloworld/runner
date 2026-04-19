@@ -97,4 +97,47 @@ class LLMOptionsTest {
 
         assertEquals(1, options.getTools().size());
     }
+
+    @Test
+    @DisplayName("Builder.from(existing) 复制全部字段")
+    void builderFromCopiesAllFields() {
+        List<PluginFunction> tools = List.of(new StubPluginFunction("t"));
+        List<Map<String, Object>> toolDefs = List.of(Map.of("name", "d"));
+
+        LLMOptions original = LLMOptions.builder()
+            .temperature(0.5)
+            .maxTokens(256)
+            .maxBudgetTokens(4096)
+            .tools(tools)
+            .toolDefinitions(toolDefs)
+            .systemPrompt("sys")
+            .build();
+
+        LLMOptions copy = LLMOptions.builder().from(original).build();
+
+        assertEquals(0.5, copy.getTemperature());
+        assertEquals(256, copy.getMaxTokens());
+        assertEquals(4096, copy.getMaxBudgetTokens());
+        assertEquals(1, copy.getTools().size());
+        assertEquals("t", copy.getTools().get(0).getName());
+        assertEquals(1, copy.getToolDefinitions().size());
+        assertEquals("d", copy.getToolDefinitions().get(0).get("name"));
+        assertEquals("sys", copy.getSystemPrompt());
+    }
+
+    @Test
+    @DisplayName("Builder.from(existing) 后续 setter 覆盖旧值")
+    void builderFromAllowsOverride() {
+        LLMOptions original = LLMOptions.builder()
+            .toolDefinitions(List.of(Map.of("name", "old")))
+            .build();
+
+        LLMOptions copy = LLMOptions.builder()
+            .from(original)
+            .toolDefinitions(List.of(Map.of("name", "new")))
+            .build();
+
+        assertEquals(1, copy.getToolDefinitions().size());
+        assertEquals("new", copy.getToolDefinitions().get(0).get("name"));
+    }
 }

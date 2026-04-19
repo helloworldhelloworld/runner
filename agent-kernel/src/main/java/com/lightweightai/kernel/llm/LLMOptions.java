@@ -93,6 +93,21 @@ public class LLMOptions {
             return this;
         }
 
+        /**
+         * 从已有 LLMOptions 拷贝所有字段作为起点，方便在保留其它配置的前提下覆盖个别字段。
+         */
+        public Builder from(LLMOptions existing) {
+            if (existing == null) return this;
+            this.temperature = existing.temperature;
+            this.maxTokens = existing.maxTokens;
+            this.maxBudgetTokens = existing.maxBudgetTokens;
+            this.tools = existing.tools != null ? new ArrayList<>(existing.tools) : null;
+            this.toolDefinitions = existing.toolDefinitions != null
+                    ? new ArrayList<>(existing.toolDefinitions) : null;
+            this.systemPrompt = existing.systemPrompt;
+            return this;
+        }
+
         public LLMOptions build() {
             return new LLMOptions(this);
         }

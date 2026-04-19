@@ -170,6 +170,66 @@ class AgentLoopTest {
             loopWithTools.run("开始循环", "session-1"));
     }
 
+    // ==================== 工具定义自动注入测试 ====================
+
+    @Test
+    @DisplayName("构造时自动从 ToolRegistry 注入 toolDefinitions 到 LLMOptions")
+    void shouldAutoDeriveToolDefinitionsFromRegistry() {
+        Tool searchTool = new MockTool("search", "search the web",
+            args -> Map.of("result", "ok"));
+        Tool readTool = new MockTool("read_file", "read a file",
+            args -> Map.of("result", "ok"));
+
+        AgentLoop loop = AgentLoop.builder()
+            .llmProvider(llmProvider)
+            .memoryProvider(memory)
+            .addTool(searchTool)
+            .addTool(readTool)
+            .build();
+
+        List<Map<String, Object>> defs = loop.getLlmOptions().getToolDefinitions();
+        assertNotNull(defs);
+        assertEquals(2, defs.size());
+        List<String> names = defs.stream().map(d -> (String) d.get("name")).toList();
+        assertTrue(names.contains("search"));
+        assertTrue(names.contains("read_file"));
+    }
+
+    @Test
+    @DisplayName("调用方已设置 toolDefinitions 时保留调用方版本（override）")
+    void shouldNotOverrideCallerSuppliedToolDefinitions() {
+        Tool fromRegistry = new MockTool("registry_tool", "from registry",
+            args -> Map.of("r", "x"));
+
+        List<Map<String, Object>> customDefs = List.of(
+            Map.of("name", "custom_tool", "description", "caller-supplied",
+                   "input_schema", Map.of("type", "object")));
+
+        AgentLoop loop = AgentLoop.builder()
+            .llmProvider(llmProvider)
+            .memoryProvider(memory)
+            .addTool(fromRegistry)
+            .llmOptions(LLMOptions.builder().toolDefinitions(customDefs).build())
+            .build();
+
+        List<Map<String, Object>> defs = loop.getLlmOptions().getToolDefinitions();
+        assertEquals(1, defs.size());
+        assertEquals("custom_tool", defs.get(0).get("name"));
+    }
+
+    @Test
+    @DisplayName("空 registry + 空 options → 空 toolDefinitions（不 NPE）")
+    void shouldHandleEmptyRegistryAndOptions() {
+        AgentLoop loop = AgentLoop.builder()
+            .llmProvider(llmProvider)
+            .memoryProvider(memory)
+            .build();
+
+        List<Map<String, Object>> defs = loop.getLlmOptions().getToolDefinitions();
+        assertNotNull(defs);
+        assertTrue(defs.isEmpty());
+    }
+
     // ==================== 流式响应测试 ====================
 
     @Test
