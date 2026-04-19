@@ -1,20 +1,17 @@
 package com.lightweightai.kernel.orchestrator;
 
 import com.lightweightai.kernel.agent.*;
-import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.llm.*;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.MemorySearchResult;
 import com.lightweightai.kernel.memory.Message;
+import com.lightweightai.kernel.testsupport.CapturingLLMProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import reactor.core.publisher.Flux;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -49,8 +46,7 @@ class OrchestratorToolDefinitionsAcceptanceTest {
                 .build());
         registry.setDefault("safe");
 
-        AtomicReference<LLMOptions> capturedOptions = new AtomicReference<>();
-        LLMProvider spyProvider = capturingProvider(capturedOptions);
+        CapturingLLMProvider spyProvider = CapturingLLMProvider.endTurn("done");
 
         TestMemory memory = new TestMemory();
         AgentFactory factory = new AgentFactory(spyProvider, memory, globalRegistry);
@@ -63,7 +59,7 @@ class OrchestratorToolDefinitionsAcceptanceTest {
 
         orchestrator.chatStreamReactive(request).collectList().block();
 
-        LLMOptions received = capturedOptions.get();
+        LLMOptions received = spyProvider.lastOptions();
         assertNotNull(received, "spy provider should have captured LLMOptions");
         List<Map<String, Object>> defs = received.getToolDefinitions();
         assertNotNull(defs, "toolDefinitions must not be null");
@@ -85,8 +81,7 @@ class OrchestratorToolDefinitionsAcceptanceTest {
                 .build());
         registry.setDefault("open");
 
-        AtomicReference<LLMOptions> capturedOptions = new AtomicReference<>();
-        LLMProvider spyProvider = capturingProvider(capturedOptions);
+        CapturingLLMProvider spyProvider = CapturingLLMProvider.endTurn("done");
 
         TestMemory memory = new TestMemory();
         AgentFactory factory = new AgentFactory(spyProvider, memory, globalRegistry);
@@ -99,7 +94,7 @@ class OrchestratorToolDefinitionsAcceptanceTest {
 
         orchestrator.chatStreamReactive(request).collectList().block();
 
-        LLMOptions received = capturedOptions.get();
+        LLMOptions received = spyProvider.lastOptions();
         assertNotNull(received);
         List<Map<String, Object>> defs = received.getToolDefinitions();
         assertEquals(3, defs.size(), "got " + toNames(defs));
@@ -108,35 +103,6 @@ class OrchestratorToolDefinitionsAcceptanceTest {
 
     private static List<String> toNames(List<Map<String, Object>> defs) {
         return defs.stream().map(d -> (String) d.get("name")).toList();
-    }
-
-    private static LLMProvider capturingProvider(AtomicReference<LLMOptions> sink) {
-        return new LLMProvider() {
-            @Override
-            public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> m, LLMOptions o) {
-                sink.set(o);
-                return Flux.just(StreamEvent.llmComplete(LLMResponse.builder()
-                        .message(ConversationMessage.builder()
-                                .role(ConversationMessage.MessageRole.ASSISTANT)
-                                .textContent("done").build())
-                        .stopReason("end_turn").build()));
-            }
-            @Override public LLMResponse complete(List<ConversationMessage> m, LLMOptions o) {
-                sink.set(o);
-                return LLMResponse.builder().stopReason("end_turn")
-                        .message(ConversationMessage.builder()
-                                .role(ConversationMessage.MessageRole.ASSISTANT)
-                                .textContent("done").build()).build();
-            }
-            @Override public CompletableFuture<LLMResponse> completeAsync(List<ConversationMessage> m, LLMOptions o) {
-                return CompletableFuture.completedFuture(complete(m, o));
-            }
-            @Override public CompletableFuture<LLMResponse> completeStream(List<ConversationMessage> m, LLMOptions o, StreamEventHandler h) {
-                return CompletableFuture.completedFuture(complete(m, o));
-            }
-            @Override public ModelCapability getModelCapability() { return null; }
-            @Override public String getProviderName() { return "capturing-spy"; }
-        };
     }
 
     private static Tool noopTool(String name) {
