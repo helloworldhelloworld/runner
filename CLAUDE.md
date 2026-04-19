@@ -64,6 +64,23 @@ Inside-out TDD (unit test per class) has a blind spot: each class works in isola
 - `CancellationToken` created in `InterruptibleRun` but never passed to `AgentLoop` → `ToolCallingLoop` (transmission chain broken — each class tested fine alone)
 - `ScopedToolRegistry` overrode `get()` and `has()` but not `isEnabled()` → `ToolExecutor` used `isEnabled()` → tools invisible (unit tests for `get()/has()` all green, but the real call path failed)
 - `spawn_subagent` tool worked alone, but no `wait_subagent` tool existed → LLM could spawn but never collect results (feature gap invisible to unit tests)
+- `AgentFactory` built `AgentLoop` with default empty `LLMOptions` — `toolRegistry.getToolDefinitions()` was never injected into `LLMOptions.toolDefinitions`, so Claude/OpenRouter never saw any tools on the Orchestrator path (both `ToolRegistry.getToolDefinitions()` and `ClaudeProvider.buildRequestBody` had green unit tests; only the wiring between them was broken)
+
+### UT rules — when writing/adding tests, follow these (extracted from real bugs above)
+
+The pattern behind all four bugs above: **each zero-link works, the chain doesn't carry the payload.** Future UTs MUST follow these rules to catch this class of bug:
+
+1. **Assert the payload, not just the ceremony.** `assertNotNull(agent)` / "no exception thrown" / "method was called" are **not** valid test endpoints for wiring tests. Always follow with an assertion on the actual field that downstream code consumes (e.g. `llmOptions.getToolDefinitions()`, `event.getResponse().getStopReason()`, the outgoing HTTP body's `tools` array).
+
+2. **Mocks MUST capture, not swallow.** When stubbing a cross-layer dependency (`LLMProvider`, `ToolExecutor`, `MemoryProvider`), record the inputs into an `AtomicReference` / `List` so tests can later assert on them. A mock that ignores its arguments is how the `toolDefinitions` bug survived for so long. Use/extend the shared `CapturingLLMProvider` test helper instead of re-inventing per-file anonymous mocks.
+
+3. **Every producer–consumer pair needs ≥ 1 transmission test.** For any field that flows through the agent stack (Profile → Factory → AgentLoop → ToolCallingLoop → Provider → HTTP body), write one test that sets it at the top and asserts it shows up at the bottom. Missing links in this chain are what kept toolDefinitions invisible.
+
+4. **Any `// TODO verify via execution` / "间接验证" comment IS a bug waiting to happen.** Replace with an explicit assertion or delete the test — those comments are a known failure mode in this codebase (see `AgentFactoryTest.createsAgentWithScopedTools` history).
+
+5. **When fixing a transmission-chain bug, add a payload-capture acceptance test first.** Don't stop at the unit test for the class you changed. Example: this repo's `OrchestratorToolDefinitionsAcceptanceTest` uses a spy `LLMProvider` to prove the chain carries the filtered tool list end-to-end — that template is the canonical shape for future chain-payload tests.
+
+6. **Red→green discipline:** acceptance test must fail BEFORE the fix for the right reason (assert the missing payload, not a NullPointerException). If the red test only fails because of a crash, the assertion is too weak.
 
 ### Baseline discipline
 

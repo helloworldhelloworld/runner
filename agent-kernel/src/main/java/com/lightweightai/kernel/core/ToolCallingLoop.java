@@ -312,15 +312,25 @@ public class ToolCallingLoop {
                         .doOnNext(tc -> firePreToolUse(tc.getName(), tc.getArguments()))
                         .map(StreamEvent::toolCallStart);
 
+                    // 旁路 map：按 toolCallId 记下本轮的 args，供 PostToolUse 对齐。
+                    // 不改 ToolResultChunk 的字段（避免扩散到 ToolExecutor / MCP adapter 等下游）。
+                    java.util.Map<String, Map<String, Object>> argsByCallId = new java.util.HashMap<>();
+                    for (ToolCall tc : toolCalls) {
+                        argsByCallId.put(tc.getId(),
+                                tc.getArguments() != null ? tc.getArguments() : Map.of());
+                    }
+
                     // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
                     Flux<ToolResultChunk> sharedToolExec = toolExecutor
                         .executeToolCallsReactive(toolCalls, executionContext)
                         .doOnNext(chunk -> {
-                            // PostToolUse hook on COMPLETE/ERROR
+                            // PostToolUse hook on COMPLETE/ERROR（按 callId 查回 args）
+                            Map<String, Object> args = argsByCallId.getOrDefault(
+                                    chunk.getToolCallId(), Map.of());
                             if (chunk.getType() == ToolResultChunk.ChunkType.COMPLETE && chunk.getResult() != null) {
-                                firePostToolUse(chunk.getToolName(), Map.of(), chunk.getResult());
+                                firePostToolUse(chunk.getToolName(), args, chunk.getResult());
                             } else if (chunk.getType() == ToolResultChunk.ChunkType.ERROR) {
-                                firePostToolUse(chunk.getToolName(), Map.of(),
+                                firePostToolUse(chunk.getToolName(), args,
                                         ToolResult.error(chunk.getMessage()));
                             }
                         })
@@ -479,12 +489,25 @@ public class ToolCallingLoop {
     }
 
     private void firePreToolUse(String toolName, Map<String, Object> args) {
+        // 结构化日志 —— 调用链上能看到"调了什么工具、传了什么字段"，值不入日志（PII 防护）
+        if (logger.isInfoEnabled()) {
+            logger.info("tool.execute.start: name={}, argKeys={}",
+                    toolName, args != null ? args.keySet() : java.util.Set.of());
+        }
         for (var observer : observers) {
             try { observer.onPreToolUse(toolName, args); } catch (Exception ignored) {}
         }
     }
 
     private void firePostToolUse(String toolName, Map<String, Object> args, com.lightweightai.kernel.llm.ToolResult result) {
+        // 结构化日志 —— 调用链上能看到"工具返回了啥"，content 截断到 500 字符
+        if (logger.isInfoEnabled() && result != null) {
+            logger.info("tool.execute.end: name={}, argKeys={}, isError={}, result={}",
+                    toolName,
+                    args != null ? args.keySet() : java.util.Set.of(),
+                    result.isError(),
+                    com.lightweightai.kernel.util.TextTruncator.truncate(result.getContent(), 500));
+        }
         for (var observer : observers) {
             try { observer.onPostToolUse(toolName, args, result); } catch (Exception ignored) {}
         }
