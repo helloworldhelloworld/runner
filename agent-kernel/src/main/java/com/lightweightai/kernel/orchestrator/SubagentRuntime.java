@@ -104,7 +104,10 @@ public class SubagentRuntime {
                 AgentResponse result = childAgent.run(request.getTask(), sessionKey);
                 run.complete(result);
 
-                logger.info("Subagent completed: runId={}, duration={}ms", runId, run.getDurationMs());
+                String resultText = result != null ? result.getText() : null;
+                logger.info("Subagent completed: runId={}, duration={}ms, result={}",
+                        runId, run.getDurationMs(),
+                        com.lightweightai.kernel.util.TextTruncator.truncate(resultText, 500));
                 announcer.accept(StreamEvent.subagentComplete(
                         runId,
                         result != null ? result.getText() : "",

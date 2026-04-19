@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.llm.ToolCall;
+import com.lightweightai.kernel.llm.ToolResult;
+import com.lightweightai.kernel.util.TextTruncator;
 
 /**
  * StreamEvent → WebSocket JSON 序列化
@@ -27,6 +29,7 @@ public class StreamEventSerializer {
                 case TOOL_CALL_START -> toolCallStartJson(event);
                 case TOOL_PROGRESS -> toolProgressJson(event);
                 case TOOL_LOG -> toolLogJson(event);
+                case TOOL_RESULT -> toolResultJson(event);
                 case TOOL_ERROR -> toolErrorJson(event);
                 case POST_PROCESS_DATA -> postProcessJson(event);
                 case TRACE -> traceJson(event);
@@ -37,8 +40,8 @@ public class StreamEventSerializer {
                      SUBAGENT_SPAWN, SUBAGENT_COMPLETE, SUBAGENT_ERROR, SUBAGENT_CANCELLED ->
                         eventWithDataJson(eventTypeName(event.getType()), event);
 
-                // 不推送给客户端的事件
-                case TOOL_RESULT, LLM_COMPLETE -> null;
+                // 不推送给客户端的事件（LLM_COMPLETE 是内部信号）
+                case LLM_COMPLETE -> null;
             };
         } catch (Exception e) {
             return null;
@@ -79,6 +82,34 @@ public class StreamEventSerializer {
             if (tc.getArguments() != null) {
                 data.set("arguments", MAPPER.valueToTree(tc.getArguments()));
             }
+        }
+        msg.set("data", data);
+        return MAPPER.writeValueAsString(msg);
+    }
+
+    /** WS 载荷里工具结果内容的上限 —— 大内容用截断标记替代，防帧爆炸。 */
+    private static final int TOOL_RESULT_CONTENT_LIMIT = 4096;
+
+    private static String toolResultJson(StreamEvent event) throws Exception {
+        ObjectNode msg = MAPPER.createObjectNode();
+        msg.put("type", "tool_result");
+        ObjectNode data = MAPPER.createObjectNode();
+        ToolResultChunk chunk = event.getChunk();
+        if (chunk != null) {
+            data.put("toolName", chunk.getToolName());
+            data.put("toolCallId", chunk.getToolCallId());
+            ToolResult result = chunk.getResult();
+            ObjectNode resultNode = MAPPER.createObjectNode();
+            if (result != null) {
+                resultNode.put("content",
+                        TextTruncator.truncate(result.getContent(), TOOL_RESULT_CONTENT_LIMIT));
+                resultNode.put("isError", result.isError());
+            } else {
+                // 理论上不会发生 —— COMPLETE 分支必有 result —— 防御性处理
+                resultNode.put("content", "");
+                resultNode.put("isError", false);
+            }
+            data.set("result", resultNode);
         }
         msg.set("data", data);
         return MAPPER.writeValueAsString(msg);
