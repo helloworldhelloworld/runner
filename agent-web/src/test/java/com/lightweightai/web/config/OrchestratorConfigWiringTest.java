@@ -9,11 +9,13 @@ import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.MemorySearchResult;
 import com.lightweightai.kernel.memory.Message;
 import com.lightweightai.kernel.orchestrator.*;
-import com.lightweightai.kernel.testsupport.CapturingLLMProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Flux;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -35,7 +37,7 @@ class OrchestratorConfigWiringTest {
     @Test
     @DisplayName("orchestratorChatHandler 注册 subagent 工具到 ToolRegistry")
     void subagentToolsRegisteredInToolRegistry() {
-        CapturingLLMProvider provider = CapturingLLMProvider.endTurn("ok");
+        SpyLLMProvider provider = new SpyLLMProvider("ok");
         TestMemory memory = new TestMemory();
         ToolRegistry toolRegistry = new ToolRegistry();
         toolRegistry.register(noopTool("test_tool"));
@@ -74,7 +76,7 @@ class OrchestratorConfigWiringTest {
     @Test
     @DisplayName("Orchestrator 作为 primary ChatHandler 能处理流式请求")
     void orchestratorAsPrimaryChatHandlerProcessesStreamRequest() {
-        CapturingLLMProvider provider = CapturingLLMProvider.endTurn("response text");
+        SpyLLMProvider provider = new SpyLLMProvider("response text");
         TestMemory memory = new TestMemory();
         ToolRegistry toolRegistry = new ToolRegistry();
         toolRegistry.register(noopTool("search"));
@@ -128,7 +130,7 @@ class OrchestratorConfigWiringTest {
     @Test
     @DisplayName("maxSpawnDepth=0 的 worker agent 不注入 spawn_subagent 工具")
     void workerAgentDoesNotGetSpawnTool() {
-        CapturingLLMProvider provider = CapturingLLMProvider.endTurn("done");
+        SpyLLMProvider provider = new SpyLLMProvider("done");
         TestMemory memory = new TestMemory();
         ToolRegistry toolRegistry = new ToolRegistry();
         toolRegistry.register(noopTool("read_file"));
@@ -191,5 +193,54 @@ class OrchestratorConfigWiringTest {
         @Override public void writeEphemeral(String c) {}
         @Override public void writeDurable(String s, String c) {}
         @Override public List<MemorySearchResult> search(String q) { return List.of(); }
+    }
+
+    private static class SpyLLMProvider implements LLMProvider {
+        private final String responseText;
+        private final AtomicReference<LLMOptions> lastOpts = new AtomicReference<>();
+
+        SpyLLMProvider(String responseText) {
+            this.responseText = responseText;
+        }
+
+        LLMOptions lastOptions() { return lastOpts.get(); }
+
+        @Override
+        public LLMResponse complete(List<ConversationMessage> messages, LLMOptions options) {
+            lastOpts.set(options);
+            return LLMResponse.builder()
+                    .message(ConversationMessage.builder()
+                            .role(ConversationMessage.MessageRole.ASSISTANT)
+                            .textContent(responseText)
+                            .build())
+                    .stopReason("end_turn")
+                    .build();
+        }
+
+        @Override
+        public CompletableFuture<LLMResponse> completeAsync(List<ConversationMessage> messages, LLMOptions options) {
+            return CompletableFuture.completedFuture(complete(messages, options));
+        }
+
+        @Override
+        public CompletableFuture<LLMResponse> completeStream(List<ConversationMessage> messages,
+                                                              LLMOptions options, StreamEventHandler handler) {
+            lastOpts.set(options);
+            LLMResponse r = complete(messages, options);
+            handler.onComplete(r);
+            return CompletableFuture.completedFuture(r);
+        }
+
+        @Override
+        public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> messages, LLMOptions options) {
+            lastOpts.set(options);
+            return Flux.just(StreamEvent.llmComplete(complete(messages, options)));
+        }
+
+        @Override
+        public ModelCapability getModelCapability() { return null; }
+
+        @Override
+        public String getProviderName() { return "spy"; }
     }
 }
