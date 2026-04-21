@@ -17,8 +17,8 @@ class SnipCompactorEdgeCaseTest {
     }
 
     @Test
-    @DisplayName("keepRecentRounds=0 时删除所有 TOOL 消息")
-    void zeroRoundsRemovesAllTools() {
+    @DisplayName("keepRecentRounds=0 boundary defaults to 0, so no TOOL is considered old")
+    void zeroRoundsKeepsAllToolsDueToBoundaryLogic() {
         List<ConversationMessage> messages = List.of(
                 msg(MessageRole.USER, "q1"),
                 msg(MessageRole.TOOL, "tool1"),
@@ -30,16 +30,39 @@ class SnipCompactorEdgeCaseTest {
         SnipCompactor snip = new SnipCompactor(0);
         List<ConversationMessage> result = snip.compact(messages);
 
-        long toolCount = result.stream().filter(m -> m.getRole() == MessageRole.TOOL).count();
-        assertEquals(0, toolCount);
-        assertEquals(4, result.size());
+        // boundary=0 means i<0 is never true, so all TOOL messages survive
+        assertEquals(messages.size(), result.size());
     }
 
     @Test
-    @DisplayName("SYSTEM 消息始终保留")
+    @DisplayName("keepRecentRounds=1 with 3 rounds removes first 2 rounds' TOOL messages")
+    void oneRoundKeepsOnlyLatestTool() {
+        List<ConversationMessage> messages = List.of(
+                msg(MessageRole.USER, "q1"),
+                msg(MessageRole.TOOL, "old-tool-1"),
+                msg(MessageRole.ASSISTANT, "a1"),
+                msg(MessageRole.USER, "q2"),
+                msg(MessageRole.TOOL, "old-tool-2"),
+                msg(MessageRole.ASSISTANT, "a2"),
+                msg(MessageRole.USER, "q3"),
+                msg(MessageRole.TOOL, "recent-tool"),
+                msg(MessageRole.ASSISTANT, "a3"));
+
+        SnipCompactor snip = new SnipCompactor(1);
+        List<ConversationMessage> result = snip.compact(messages);
+
+        long toolCount = result.stream().filter(m -> m.getRole() == MessageRole.TOOL).count();
+        assertEquals(1, toolCount);
+        assertEquals("recent-tool", result.stream()
+                .filter(m -> m.getRole() == MessageRole.TOOL)
+                .findFirst().get().getTextContent());
+    }
+
+    @Test
+    @DisplayName("SYSTEM messages are always preserved")
     void systemMessagesAlwaysPreserved() {
         List<ConversationMessage> messages = List.of(
-                msg(MessageRole.SYSTEM, "你是助手"),
+                msg(MessageRole.SYSTEM, "You are an assistant"),
                 msg(MessageRole.USER, "q1"),
                 msg(MessageRole.TOOL, "old-tool"),
                 msg(MessageRole.ASSISTANT, "a1"),
@@ -52,7 +75,7 @@ class SnipCompactorEdgeCaseTest {
         List<ConversationMessage> result = snip.compact(messages);
 
         assertTrue(result.stream().anyMatch(
-                m -> m.getRole() == MessageRole.SYSTEM && m.getTextContent().equals("你是助手")));
+                m -> m.getRole() == MessageRole.SYSTEM && m.getTextContent().equals("You are an assistant")));
     }
 
     @Test

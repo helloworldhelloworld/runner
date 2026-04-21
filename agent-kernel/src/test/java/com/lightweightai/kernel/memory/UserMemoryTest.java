@@ -8,7 +8,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("UserMemory - 用户长期记忆")
+@DisplayName("UserMemory - user long-term memory")
 class UserMemoryTest {
 
     private UserMemory memory;
@@ -19,23 +19,23 @@ class UserMemoryTest {
     }
 
     @Test
-    @DisplayName("put/get 存取基本信息")
+    @DisplayName("put/get stores and retrieves basic info")
     void putAndGetBasicInfo() {
-        memory.put("name", "张三");
+        memory.put("name", "Alice");
         memory.put("age", "25");
 
-        assertEquals("张三", memory.get("name"));
+        assertEquals("Alice", memory.get("name"));
         assertEquals("25", memory.get("age"));
     }
 
     @Test
-    @DisplayName("get 不存在的 key 返回 null")
+    @DisplayName("get returns null for nonexistent key")
     void getNonexistentKeyReturnsNull() {
         assertNull(memory.get("nonexistent"));
     }
 
     @Test
-    @DisplayName("addEmotionRecord 添加情绪记录")
+    @DisplayName("addEmotionRecord adds emotion record")
     void addEmotionRecord() {
         memory.addEmotionRecord("happy", "got promoted");
 
@@ -47,7 +47,7 @@ class UserMemoryTest {
     }
 
     @Test
-    @DisplayName("情绪历史超过 20 条时自动淘汰最早的")
+    @DisplayName("emotion history evicts oldest when exceeding 20")
     void emotionHistoryEvictsOldest() {
         for (int i = 0; i < 25; i++) {
             memory.addEmotionRecord("emotion-" + i, "context-" + i);
@@ -60,7 +60,7 @@ class UserMemoryTest {
     }
 
     @Test
-    @DisplayName("getRecentEmotions 返回最近 N 条")
+    @DisplayName("getRecentEmotions returns last N records")
     void getRecentEmotionsReturnsLastN() {
         for (int i = 0; i < 10; i++) {
             memory.addEmotionRecord("e-" + i, "c-" + i);
@@ -73,7 +73,7 @@ class UserMemoryTest {
     }
 
     @Test
-    @DisplayName("getRecentEmotions 数量不足时返回全部")
+    @DisplayName("getRecentEmotions returns all when fewer than requested")
     void getRecentEmotionsReturnsAllWhenFewer() {
         memory.addEmotionRecord("sad", "bad day");
 
@@ -82,20 +82,20 @@ class UserMemoryTest {
     }
 
     @Test
-    @DisplayName("addImportantTopic 添加不重复的话题")
+    @DisplayName("addImportantTopic deduplicates same topic")
     void addImportantTopicDeduplicates() {
-        memory.addImportantTopic("工作压力");
-        memory.addImportantTopic("工作压���");
-        memory.addImportantTopic("家庭关��");
+        memory.addImportantTopic("work stress");
+        memory.addImportantTopic("work stress");
+        memory.addImportantTopic("family");
 
         List<String> topics = memory.getImportantTopics();
         assertEquals(2, topics.size());
-        assertTrue(topics.contains("工作压力"));
-        assertTrue(topics.contains("家庭关系"));
+        assertTrue(topics.contains("work stress"));
+        assertTrue(topics.contains("family"));
     }
 
     @Test
-    @DisplayName("重要话题超过 10 个时自动淘汰最早的")
+    @DisplayName("important topics evicts oldest when exceeding 10")
     void importantTopicsEvictsOldest() {
         for (int i = 0; i < 15; i++) {
             memory.addImportantTopic("topic-" + i);
@@ -108,7 +108,7 @@ class UserMemoryTest {
     }
 
     @Test
-    @DisplayName("getAllBasicInfo 返回防御性副本")
+    @DisplayName("getAllBasicInfo returns defensive copy")
     void getAllBasicInfoReturnsDefensiveCopy() {
         memory.put("key", "value");
         var info = memory.getAllBasicInfo();
@@ -118,7 +118,7 @@ class UserMemoryTest {
     }
 
     @Test
-    @DisplayName("getImportantTopics 返回防御性副本")
+    @DisplayName("getImportantTopics returns defensive copy")
     void getImportantTopicsReturnsDefensiveCopy() {
         memory.addImportantTopic("original");
         var topics = memory.getImportantTopics();
@@ -128,13 +128,13 @@ class UserMemoryTest {
     }
 
     @Test
-    @DisplayName("firstMeetTime 记录创建时间")
+    @DisplayName("firstMeetTime is recorded at creation")
     void firstMeetTimeIsRecorded() {
         assertNotNull(memory.getFirstMeetTime());
     }
 
     @Test
-    @DisplayName("lastInteractionTime 随操作更新")
+    @DisplayName("lastInteractionTime updates on operations")
     void lastInteractionTimeUpdatesOnOperations() throws InterruptedException {
         var initial = memory.getLastInteractionTime();
         Thread.sleep(10);
@@ -145,7 +145,7 @@ class UserMemoryTest {
     }
 
     @Test
-    @DisplayName("EmotionRecord.toString 包含关键信息")
+    @DisplayName("EmotionRecord.toString contains key info")
     void emotionRecordToStringContainsKeyInfo() {
         memory.addEmotionRecord("anxious", "exam tomorrow");
         String str = memory.getRecentEmotions(1).get(0).toString();

@@ -104,13 +104,13 @@ class StreamEventSerializerTest {
     @DisplayName("POST_PROCESS_DATA 序列化为 post_process 消息")
     void postProcessDataSerializesToPostProcess() throws Exception {
         StreamEvent event = StreamEvent.postProcessData("card",
-                Map.of("title", "测试卡片"));
+                Map.of("title", "test card"));
         String json = StreamEventSerializer.serialize(event);
 
         JsonNode node = MAPPER.readTree(json);
         assertEquals("post_process", node.get("type").asText());
         assertEquals("card", node.get("category").asText());
-        assertEquals("测试卡片", node.get("data").get("title").asText());
+        assertEquals("test card", node.get("data").get("title").asText());
     }
 
     @Test
@@ -128,7 +128,7 @@ class StreamEventSerializerTest {
     @Test
     @DisplayName("SUBAGENT_SPAWN 序列化为 subagent_spawn 消息")
     void subagentSpawnSerializesToSubagentSpawn() throws Exception {
-        StreamEvent event = StreamEvent.subagentSpawn("run-1", "worker", "搜索文档");
+        StreamEvent event = StreamEvent.subagentSpawn("run-1", "worker", "search docs");
         String json = StreamEventSerializer.serialize(event);
 
         JsonNode node = MAPPER.readTree(json);

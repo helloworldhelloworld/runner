@@ -9,7 +9,7 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("SubagentRun - 子 Agent 运行状态跟踪")
+@DisplayName("SubagentRun - subagent run state tracking")
 class SubagentRunTest {
 
     private SpawnRequest request;
@@ -19,23 +19,23 @@ class SubagentRunTest {
     void setUp() {
         request = SpawnRequest.builder()
                 .parentSessionKey("agent:worker:main:s1")
-                .task("分析数据")
+                .task("analyze data")
                 .agentId("worker")
                 .build();
         run = new SubagentRun("run-001", "agent:worker:subagent:run-001", request);
     }
 
     @Test
-    @DisplayName("初始状态为 RUNNING")
+    @DisplayName("initial status is RUNNING")
     void initialStatusIsRunning() {
         assertEquals(SubagentRun.Status.RUNNING, run.getStatus());
         assertTrue(run.isRunning());
     }
 
     @Test
-    @DisplayName("complete() 将状态切换为 COMPLETED")
+    @DisplayName("complete() transitions to COMPLETED")
     void completeTransitionsToCompleted() {
-        AgentResponse response = new AgentResponse("分析完成");
+        AgentResponse response = new AgentResponse("analysis done");
         run.complete(response);
 
         assertEquals(SubagentRun.Status.COMPLETED, run.getStatus());
@@ -44,7 +44,7 @@ class SubagentRunTest {
     }
 
     @Test
-    @DisplayName("fail() 将状态切换为 FAILED 并记录错误信息")
+    @DisplayName("fail() transitions to FAILED with error message")
     void failTransitionsToFailed() {
         run.fail(new RuntimeException("OOM"));
 
@@ -54,7 +54,7 @@ class SubagentRunTest {
     }
 
     @Test
-    @DisplayName("fail() 对 null message 的异常使用类名")
+    @DisplayName("fail() uses class name for null-message exception")
     void failUsesClassNameForNullMessage() {
         run.fail(new NullPointerException());
 
@@ -62,27 +62,27 @@ class SubagentRunTest {
     }
 
     @Test
-    @DisplayName("cancel() 将状态切换为 CANCELLED 并取消 Future")
+    @DisplayName("cancel() transitions to CANCELLED and cancels Future")
     void cancelTransitionsToCancelled() {
         CompletableFuture<Void> future = new CompletableFuture<>();
         run.setFuture(future);
-        run.cancel("用户取消");
+        run.cancel("user cancelled");
 
         assertEquals(SubagentRun.Status.CANCELLED, run.getStatus());
         assertFalse(run.isRunning());
-        assertEquals("���户取消", run.getErrorMessage());
+        assertEquals("user cancelled", run.getErrorMessage());
         assertTrue(future.isCancelled());
     }
 
     @Test
-    @DisplayName("cancel() 在 future 为 null 时不抛异常")
+    @DisplayName("cancel() with null future does not throw")
     void cancelWithNullFutureDoesNotThrow() {
         assertDoesNotThrow(() -> run.cancel("safe cancel"));
         assertEquals(SubagentRun.Status.CANCELLED, run.getStatus());
     }
 
     @Test
-    @DisplayName("getRunId / getSessionKey / getRequest 返回构造参数")
+    @DisplayName("accessors return constructor arguments")
     void accessorsReturnConstructorArgs() {
         assertEquals("run-001", run.getRunId());
         assertEquals("agent:worker:subagent:run-001", run.getSessionKey());
@@ -90,13 +90,13 @@ class SubagentRunTest {
     }
 
     @Test
-    @DisplayName("getDurationMs 返回正数")
+    @DisplayName("getDurationMs returns non-negative value")
     void durationIsPositive() {
         assertTrue(run.getDurationMs() >= 0);
     }
 
     @Test
-    @DisplayName("getStartTime 记录创建时刻")
+    @DisplayName("getStartTime records creation time")
     void startTimeIsRecorded() {
         long now = System.currentTimeMillis();
         assertTrue(run.getStartTime() <= now);

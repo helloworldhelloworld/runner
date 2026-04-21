@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("MetadataAgentRouter - 基于 metadata 的 Agent 路由")
+@DisplayName("MetadataAgentRouter - metadata-based agent routing")
 class MetadataAgentRouterTest {
 
     private AgentRegistry registry;
@@ -31,7 +31,7 @@ class MetadataAgentRouterTest {
     }
 
     @Test
-    @DisplayName("metadata 中包含有效 agentId 时路由到指定 agent")
+    @DisplayName("routes to specified agent when valid agentId in metadata")
     void routesToSpecifiedAgent() {
         GatewayRequest request = GatewayRequest.builder()
                 .message("hello")
@@ -42,7 +42,7 @@ class MetadataAgentRouterTest {
     }
 
     @Test
-    @DisplayName("metadata 中无 agentId 时 fallback 到 default agent")
+    @DisplayName("falls back to default when no agentId in metadata")
     void fallsBackToDefaultWhenNoAgentId() {
         GatewayRequest request = GatewayRequest.builder()
                 .message("hello")
@@ -52,7 +52,7 @@ class MetadataAgentRouterTest {
     }
 
     @Test
-    @DisplayName("metadata 中 agentId 不存在于 registry 时 fallback 到 default")
+    @DisplayName("falls back to default when agentId not found in registry")
     void fallsBackToDefaultWhenAgentNotFound() {
         GatewayRequest request = GatewayRequest.builder()
                 .message("hello")
@@ -63,7 +63,7 @@ class MetadataAgentRouterTest {
     }
 
     @Test
-    @DisplayName("agentId 为 null 时 fallback 到 default")
+    @DisplayName("falls back to default when agentId is null")
     void fallsBackWhenAgentIdIsNull() {
         GatewayRequest request = GatewayRequest.builder()
                 .message("hello")
@@ -74,7 +74,7 @@ class MetadataAgentRouterTest {
     }
 
     @Test
-    @DisplayName("未设置显式 default 时路由到第一个注册的 agent")
+    @DisplayName("falls back to first registered when no explicit default set")
     void fallsBackToFirstRegisteredWhenNoExplicitDefault() {
         AgentRegistry reg = new AgentRegistry();
         reg.register(AgentProfile.builder().agentId("first").build());

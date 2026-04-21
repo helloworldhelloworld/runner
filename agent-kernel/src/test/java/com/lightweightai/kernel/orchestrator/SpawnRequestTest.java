@@ -7,43 +7,43 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("SpawnRequest - spawn 请求参数与深度计算")
+@DisplayName("SpawnRequest - spawn request parameters and depth calculation")
 class SpawnRequestTest {
 
     @Test
-    @DisplayName("builder 创建完��� SpawnRequest")
+    @DisplayName("builder creates complete SpawnRequest")
     void builderCreatesFullRequest() {
         SpawnRequest request = SpawnRequest.builder()
                 .parentSessionKey("agent:worker:main:s1")
-                .task("搜索文档")
+                .task("search documents")
                 .agentId("worker")
                 .modelOverride("claude-3-opus")
                 .metadata(Map.of("priority", "high"))
                 .build();
 
         assertEquals("agent:worker:main:s1", request.getParentSessionKey());
-        assertEquals("搜索文档", request.getTask());
+        assertEquals("search documents", request.getTask());
         assertEquals("worker", request.getAgentId());
         assertEquals("claude-3-opus", request.getModelOverride());
         assertEquals("high", request.getMetadata().get("priority"));
     }
 
     @Test
-    @DisplayName("缺少 parentSessionKey 时抛出 NullPointerException")
+    @DisplayName("missing parentSessionKey throws NullPointerException")
     void requiresParentSessionKey() {
         assertThrows(NullPointerException.class, () ->
                 SpawnRequest.builder().task("task").build());
     }
 
     @Test
-    @DisplayName("缺少 task 时抛出 NullPointerException")
+    @DisplayName("missing task throws NullPointerException")
     void requiresTask() {
         assertThrows(NullPointerException.class, () ->
                 SpawnRequest.builder().parentSessionKey("key").build());
     }
 
     @Test
-    @DisplayName("main session key 深度为 0")
+    @DisplayName("main session key has depth 0")
     void mainSessionDepthIsZero() {
         SpawnRequest request = SpawnRequest.builder()
                 .parentSessionKey("agent:worker:main:s1")
@@ -54,7 +54,7 @@ class SpawnRequestTest {
     }
 
     @Test
-    @DisplayName("一层 subagent 深度为 1")
+    @DisplayName("single subagent has depth 1")
     void singleSubagentDepthIsOne() {
         SpawnRequest request = SpawnRequest.builder()
                 .parentSessionKey("agent:worker:subagent:uuid-1")
@@ -65,7 +65,7 @@ class SpawnRequestTest {
     }
 
     @Test
-    @DisplayName("两层嵌套 subagent 深度为 2")
+    @DisplayName("nested subagent has depth 2")
     void nestedSubagentDepthIsTwo() {
         SpawnRequest request = SpawnRequest.builder()
                 .parentSessionKey("agent:worker:subagent:uuid-1:subagent:uuid-2")
@@ -76,7 +76,7 @@ class SpawnRequestTest {
     }
 
     @Test
-    @DisplayName("metadata 为 null 时使用空 Map")
+    @DisplayName("null metadata defaults to empty Map")
     void nullMetadataDefaultsToEmpty() {
         SpawnRequest request = SpawnRequest.builder()
                 .parentSessionKey("key")
@@ -88,7 +88,7 @@ class SpawnRequestTest {
     }
 
     @Test
-    @DisplayName("metadata 是不可变副本")
+    @DisplayName("metadata is an immutable defensive copy")
     void metadataIsDefensiveCopy() {
         Map<String, Object> original = new java.util.HashMap<>();
         original.put("key", "value");
