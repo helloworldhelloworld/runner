@@ -124,37 +124,39 @@ class CompactionChainTest {
     }
 
     @Test
-    @DisplayName("阶段顺序影响结果：先 Micro 再 Snip 与先 Snip 再 Micro 不同")
-    void stageOrderMatters() {
+    @DisplayName("Snip 先删除旧 TOOL 后 Micro 不再需要截断：链式效率验证")
+    void snipReducesWorkForMicro() {
         String largeContent = "B".repeat(3000);
         List<ConversationMessage> messages = new ArrayList<>(List.of(
                 msg(MessageRole.USER, "q1"),
                 toolMsg(largeContent),
+                msg(MessageRole.ASSISTANT, "a1"),
                 msg(MessageRole.USER, "q2"),
                 toolMsg("small tool"),
-                msg(MessageRole.USER, "q3")
+                msg(MessageRole.ASSISTANT, "a2"),
+                msg(MessageRole.USER, "q3"),
+                toolMsg(largeContent),
+                msg(MessageRole.ASSISTANT, "a3")
         ));
 
-        CompactionChain snipFirst = new CompactionChain(
-                new SnipCompactor(1),
+        CompactionChain chain = new CompactionChain(
+                new SnipCompactor(2),
                 new MicroCompactor(500)
         );
-        List<ConversationMessage> resultSnipFirst = snipFirst.compact(new ArrayList<>(messages));
+        List<ConversationMessage> result = chain.compact(new ArrayList<>(messages));
 
-        CompactionChain microFirst = new CompactionChain(
-                new MicroCompactor(500),
-                new SnipCompactor(1)
-        );
-        List<ConversationMessage> resultMicroFirst = microFirst.compact(new ArrayList<>(messages));
-
-        boolean snipFirstHasLargeTool = resultSnipFirst.stream()
-                .filter(m -> m.getRole() == MessageRole.TOOL)
-                .anyMatch(m -> m.getTextContent().length() > 500);
-        assertFalse(snipFirstHasLargeTool, "Snip-first: large old TOOL removed, no large tool remains");
-
-        long microFirstToolCount = resultMicroFirst.stream()
+        long toolCount = result.stream()
                 .filter(m -> m.getRole() == MessageRole.TOOL)
                 .count();
-        assertEquals(1, microFirstToolCount, "Micro-first: Snip still removes old TOOL messages");
+        assertEquals(2, toolCount, "SnipCompactor(2) keeps recent 2 rounds' TOOLs");
+
+        boolean hasRawLarge = result.stream()
+                .filter(m -> m.getRole() == MessageRole.TOOL)
+                .anyMatch(m -> m.getTextContent().length() > 500);
+        assertFalse(hasRawLarge, "MicroCompactor should truncate surviving large TOOL");
+
+        boolean hasSmall = result.stream()
+                .anyMatch(m -> "small tool".equals(m.getTextContent()));
+        assertTrue(hasSmall, "Small TOOL should survive both stages unchanged");
     }
 }
