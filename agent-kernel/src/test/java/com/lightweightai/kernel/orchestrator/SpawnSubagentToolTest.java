@@ -38,7 +38,7 @@ class SpawnSubagentToolTest {
         );
         runtime = new SubagentRuntime(factory, registry, 5);
 
-        announcedEvents = new ArrayList<>();
+        announcedEvents = new java.util.concurrent.CopyOnWriteArrayList<>();
         tool = new SpawnSubagentTool(runtime, "agent:helper:main:session1", announcedEvents::add);
     }
 
