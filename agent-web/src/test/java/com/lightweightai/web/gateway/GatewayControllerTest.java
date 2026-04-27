@@ -170,7 +170,10 @@ class GatewayControllerTest {
         @DisplayName("获取会话历史 - 有 SessionManager")
         void shouldDelegateToSessionManager() {
             SessionManager sm = mock(SessionManager.class);
-            when(sm.getSessionHistory("sess-1")).thenReturn(List.of("msg1", "msg2"));
+            when(sm.getSessionHistory("sess-1")).thenReturn(List.of(
+                    Map.of("role", "user", "content", "msg1"),
+                    Map.of("role", "assistant", "content", "msg2")
+            ));
             when(gateway.getSessionManager()).thenReturn(sm);
 
             Map<String, Object> result = controller.getSessionHistory("sess-1");
