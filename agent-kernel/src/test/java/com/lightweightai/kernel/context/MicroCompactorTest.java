@@ -103,16 +103,16 @@ class MicroCompactorTest {
     }
 
     @Test
-    @DisplayName("TOOL 消息 textContent 为 null 时不截断")
-    void nullTextContentNotTruncated() {
-        ConversationMessage nullContent = ConversationMessage.builder()
+    @DisplayName("TOOL 消息 textContent 为空字符串时不截断")
+    void emptyTextContentNotTruncated() {
+        ConversationMessage emptyContent = ConversationMessage.builder()
                 .role(MessageRole.TOOL)
-                .textContent(null)
+                .textContent("")
                 .build();
 
-        List<ConversationMessage> result = new MicroCompactor(100).compact(List.of(nullContent));
+        List<ConversationMessage> result = new MicroCompactor(100).compact(List.of(emptyContent));
         assertEquals(1, result.size());
-        assertNull(result.get(0).getTextContent());
+        assertEquals("", result.get(0).getTextContent());
     }
 
     @Test

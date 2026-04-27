@@ -72,7 +72,7 @@ class ListSubagentsToolTest {
         @Override public java.util.concurrent.CompletableFuture<com.lightweightai.kernel.llm.LLMResponse> completeAsync(List<com.lightweightai.kernel.llm.ConversationMessage> m, com.lightweightai.kernel.llm.LLMOptions o) {
             return java.util.concurrent.CompletableFuture.completedFuture(complete(m, o));
         }
-        @Override public java.util.concurrent.CompletableFuture<com.lightweightai.kernel.llm.LLMResponse> completeStream(List<com.lightweightai.kernel.llm.ConversationMessage> m, com.lightweightai.kernel.llm.LLMOptions o, com.lightweightai.kernel.llm.StreamEventHandler h) {
+        @Override public java.util.concurrent.CompletableFuture<com.lightweightai.kernel.llm.LLMResponse> completeStream(List<com.lightweightai.kernel.llm.ConversationMessage> m, com.lightweightai.kernel.llm.LLMOptions o, com.lightweightai.kernel.llm.LLMProvider.StreamEventHandler h) {
             throw new UnsupportedOperationException();
         }
         @Override public com.lightweightai.kernel.llm.ModelCapability getModelCapability() { return null; }

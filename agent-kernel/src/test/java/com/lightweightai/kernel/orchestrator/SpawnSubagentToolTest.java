@@ -1,9 +1,7 @@
 package com.lightweightai.kernel.orchestrator;
 
-import com.lightweightai.kernel.agent.AgentLoop;
 import com.lightweightai.kernel.agent.AgentProfile;
 import com.lightweightai.kernel.agent.AgentRegistry;
-import com.lightweightai.kernel.agent.AgentResponse;
 import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -131,7 +128,7 @@ class SpawnSubagentToolTest {
         @Override public java.util.concurrent.CompletableFuture<com.lightweightai.kernel.llm.LLMResponse> completeAsync(List<com.lightweightai.kernel.llm.ConversationMessage> m, com.lightweightai.kernel.llm.LLMOptions o) {
             return java.util.concurrent.CompletableFuture.completedFuture(complete(m, o));
         }
-        @Override public java.util.concurrent.CompletableFuture<com.lightweightai.kernel.llm.LLMResponse> completeStream(List<com.lightweightai.kernel.llm.ConversationMessage> m, com.lightweightai.kernel.llm.LLMOptions o, com.lightweightai.kernel.llm.StreamEventHandler h) {
+        @Override public java.util.concurrent.CompletableFuture<com.lightweightai.kernel.llm.LLMResponse> completeStream(List<com.lightweightai.kernel.llm.ConversationMessage> m, com.lightweightai.kernel.llm.LLMOptions o, com.lightweightai.kernel.llm.LLMProvider.StreamEventHandler h) {
             throw new UnsupportedOperationException();
         }
         @Override public com.lightweightai.kernel.llm.ModelCapability getModelCapability() { return null; }

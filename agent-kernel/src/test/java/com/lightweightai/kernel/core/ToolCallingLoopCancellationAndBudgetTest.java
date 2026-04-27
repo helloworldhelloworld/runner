@@ -234,7 +234,7 @@ class ToolCallingLoopCancellationAndBudgetTest {
             assertEquals("echo", observer.postCalls().get(0).name());
             assertEquals(toolArgs, observer.postCalls().get(0).args());
             assertNotNull(observer.postCalls().get(0).result());
-            assertTrue(observer.postCalls().get(0).result().getContent().contains("echo: {msg=test-value}"));
+            assertTrue(observer.postCalls().get(0).result().getContent().contains("echo: test-value"));
         }
 
         @Test
