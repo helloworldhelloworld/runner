@@ -1,7 +1,10 @@
 package com.lightweightai.kernel.agent;
 
+import com.lightweightai.kernel.llm.ToolResult;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Agent 响应结果
@@ -59,20 +62,67 @@ public class AgentResponse {
 
     /**
      * 工具调用记录
+     *
+     * 携带类型化的 args(Map&lt;String, Object&gt;)和 result(ToolResult)以保留结构;
+     * 旧式 String 入口仍可用,内部以适配方式存储,用于向后兼容。
      */
     public static class ToolCallRecord {
         private final String toolName;
-        private final String arguments;
-        private final String result;
+        private final Map<String, Object> argumentsMap;
+        private final ToolResult resultObject;
 
+        // 旧式 String 入口写入的快照,保证 getArguments()/getResult() 与构造入参逐字一致
+        private final String legacyArgumentsString;
+        private final String legacyResultString;
+
+        /**
+         * 类型化构造(推荐)— 直接接受 ToolCall 原 args 与 ToolResult。
+         */
+        public ToolCallRecord(String toolName, Map<String, Object> arguments, ToolResult result) {
+            this.toolName = toolName;
+            this.argumentsMap = arguments != null ? Map.copyOf(arguments) : Map.of();
+            this.resultObject = result;
+            this.legacyArgumentsString = null;
+            this.legacyResultString = null;
+        }
+
+        /**
+         * @deprecated 使用类型化构造 {@link #ToolCallRecord(String, Map, ToolResult)};
+         *             该构造保留以兼容历史调用方,String 字段被原样存储但无法保留结构。
+         */
+        @Deprecated
         public ToolCallRecord(String toolName, String arguments, String result) {
             this.toolName = toolName;
-            this.arguments = arguments;
-            this.result = result;
+            this.argumentsMap = Map.of();
+            this.resultObject = result != null ? ToolResult.success(result) : null;
+            this.legacyArgumentsString = arguments;
+            this.legacyResultString = result;
         }
 
         public String getToolName() { return toolName; }
-        public String getArguments() { return arguments; }
-        public String getResult() { return result; }
+
+        /** 类型化 args:LLM 原始 ToolCall.arguments 的 Map 副本 */
+        public Map<String, Object> getArgumentsMap() { return argumentsMap; }
+
+        /** 类型化 result:工具实际返回的 ToolResult */
+        public ToolResult getResultObject() { return resultObject; }
+
+        /**
+         * 旧式 String 形式 args。
+         * 类型化构造下返回 {@link Map#toString()};旧式构造下逐字回放原入参。
+         */
+        public String getArguments() {
+            if (legacyArgumentsString != null) return legacyArgumentsString;
+            return argumentsMap.toString();
+        }
+
+        /**
+         * 旧式 String 形式 result。
+         * 类型化构造下返回 {@link ToolResult#getContent()};旧式构造下逐字回放原入参。
+         */
+        public String getResult() {
+            if (legacyResultString != null) return legacyResultString;
+            return resultObject != null ? resultObject.getContent() : null;
+        }
     }
 }

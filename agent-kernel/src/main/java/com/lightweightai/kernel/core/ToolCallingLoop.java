@@ -307,18 +307,19 @@ public class ToolCallingLoop {
                         toolCalls.stream().map(ToolCall::getName).toList());
                     conversation.add(enrichWithToolCalls(response));
 
+                    // 本轮 call id → 原始 args 的映射,用于把结构化参数透传到 PostToolUse
+                    java.util.Map<String, Map<String, Object>> argsByCallId = new java.util.concurrent.ConcurrentHashMap<>();
+                    for (ToolCall tc : toolCalls) {
+                        if (tc.getId() != null) {
+                            argsByCallId.put(tc.getId(),
+                                    tc.getArguments() != null ? tc.getArguments() : Map.of());
+                        }
+                    }
+
                     // Step 3a: 发出 TOOL_CALL_START 事件 + PreToolUse hooks
                     Flux<StreamEvent> toolStartEvents = Flux.fromIterable(toolCalls)
                         .doOnNext(tc -> firePreToolUse(tc.getName(), tc.getArguments()))
                         .map(StreamEvent::toolCallStart);
-
-                    // 旁路 map：按 toolCallId 记下本轮的 args，供 PostToolUse 对齐。
-                    // 不改 ToolResultChunk 的字段（避免扩散到 ToolExecutor / MCP adapter 等下游）。
-                    java.util.Map<String, Map<String, Object>> argsByCallId = new java.util.HashMap<>();
-                    for (ToolCall tc : toolCalls) {
-                        argsByCallId.put(tc.getId(),
-                                tc.getArguments() != null ? tc.getArguments() : Map.of());
-                    }
 
                     // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
                     Flux<ToolResultChunk> sharedToolExec = toolExecutor
