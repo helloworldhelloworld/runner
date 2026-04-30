@@ -90,18 +90,18 @@ class MicroCompactorTest {
     }
 
     @Test
-    @DisplayName("TOOL 消息 textContent 为 null 时不报错")
-    void nullToolContentHandledGracefully() {
-        ConversationMessage nullTool = ConversationMessage.builder()
+    @DisplayName("TOOL 消息 textContent 为空字符串时不截断")
+    void emptyToolContentNotTruncated() {
+        ConversationMessage emptyTool = ConversationMessage.builder()
                 .role(MessageRole.TOOL)
-                .textContent(null)
+                .textContent("")
                 .build();
 
         MicroCompactor micro = new MicroCompactor(100);
-        List<ConversationMessage> result = micro.compact(List.of(nullTool));
+        List<ConversationMessage> result = micro.compact(List.of(emptyTool));
 
         assertEquals(1, result.size());
-        assertNull(result.get(0).getTextContent());
+        assertEquals("", result.get(0).getTextContent());
     }
 
     @Test
