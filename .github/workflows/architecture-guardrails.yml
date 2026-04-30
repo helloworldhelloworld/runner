@@ -42,33 +42,4 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Build and test all modules
-        run: |
-          set -o pipefail
-          mvn clean test -B 2>&1 | tee build-output.log
-      - name: Post failure details to PR
-        if: failure() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const log = fs.readFileSync('build-output.log', 'utf8');
-            const lines = log.split('\n');
-            const errors = lines.filter(l =>
-              l.includes('ERROR') || l.includes('FAILURE') ||
-              (l.includes('Tests run:') && !l.includes('Failures: 0, Errors: 0'))
-            ).slice(-40).join('\n');
-            const reactor = lines.slice(lines.findIndex(l => l.includes('Reactor Summary'))).slice(0, 20).join('\n');
-            const body = `### Build & Test Failure\n\`\`\`\n${reactor}\n\`\`\`\n\n<details><summary>Errors</summary>\n\n\`\`\`\n${errors}\n\`\`\`\n</details>`;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: body
-            });
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build-output.log
-          retention-days: 3
+        run: mvn clean test -B
