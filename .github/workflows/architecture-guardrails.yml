@@ -38,7 +38,9 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Build and test all modules
-        run: mvn clean test -B 2>&1 | tee build-output.log
+        run: |
+          set -o pipefail
+          mvn clean test -B 2>&1 | tee build-output.log
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
