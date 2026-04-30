@@ -39,14 +39,16 @@ public class AuthSessionService {
     }
 
     public Optional<String> resolveUserId(String token) {
+        if (token == null) return Optional.empty();
         return Optional.ofNullable(tokenToSession.get(token)).map(SessionInfo::getUserId);
     }
 
     public Optional<SessionInfo> resolveSession(String token) {
+        if (token == null) return Optional.empty();
         return Optional.ofNullable(tokenToSession.get(token));
     }
 
     public void invalidate(String token) {
-        tokenToSession.remove(token);
+        if (token != null) tokenToSession.remove(token);
     }
 }

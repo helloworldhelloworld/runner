@@ -60,4 +60,4 @@ jobs:
           git add -f ci-results/
           git status
           git commit -m "ci-results: ${{ github.sha }} [skip ci]" || echo "nothing to commit"
-          git push
+          git push || echo "git push failed (expected on PR events)"
