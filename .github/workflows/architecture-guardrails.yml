@@ -38,9 +38,11 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Build and test all modules
-        run: mvn clean test -B
-      - name: Save CI results
+        run: mvn clean test -B 2>&1 | tee build-output.log
+      - name: Upload build log
         if: always()
-        run: |
-          mkdir -p ci-results
-          echo '{"status":"${{ job.status }}","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","sha":"${{ github.sha }}"}' > ci-results/latest.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build-output.log
+          retention-days: 3
