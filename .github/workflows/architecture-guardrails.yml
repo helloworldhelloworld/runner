@@ -41,6 +41,14 @@ jobs:
         run: |
           set -o pipefail
           mvn clean test -B 2>&1 | tee build-output.log
+      - name: Show test failures
+        if: failure()
+        run: |
+          echo "=== REACTOR SUMMARY ==="
+          grep -A20 "Reactor Summary" build-output.log || true
+          echo ""
+          echo "=== ERRORS ==="
+          grep -B2 -A5 "ERROR\|FAILURE\|Tests run.*Failures: [1-9]\|Tests run.*Errors: [1-9]" build-output.log | tail -80 || true
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
