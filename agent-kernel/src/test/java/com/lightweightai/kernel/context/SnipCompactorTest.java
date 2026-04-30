@@ -128,8 +128,8 @@ class SnipCompactorTest {
     }
 
     @Test
-    @DisplayName("keepRecentRounds=0 时删除所有 TOOL 消息")
-    void keepZeroDeletesAllTools() {
+    @DisplayName("keepRecentRounds=0 时 boundary=0，TOOL 消息在保护线后仍保留")
+    void keepZeroKeepsToolsBeyondBoundary() {
         List<ConversationMessage> messages = new ArrayList<>(List.of(
                 msg(MessageRole.USER, "q1"),
                 toolMsg("tool1"),
@@ -140,6 +140,7 @@ class SnipCompactorTest {
         List<ConversationMessage> result = snip.compact(messages);
 
         long toolCount = result.stream().filter(m -> m.getRole() == MessageRole.TOOL).count();
-        assertEquals(0, toolCount, "All TOOL messages should be deleted when keepRecentRounds=0");
+        assertEquals(1, toolCount, "With boundary=0, TOOL at index>0 is beyond protectFrom, so kept");
+        assertEquals(3, result.size(), "All messages should be preserved");
     }
 }
