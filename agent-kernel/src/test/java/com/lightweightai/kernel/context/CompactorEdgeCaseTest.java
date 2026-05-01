@@ -79,18 +79,19 @@ class CompactorEdgeCaseTest {
         }
 
         @Test
-        @DisplayName("TOOL 消息 textContent 为 null 时跳过")
-        void nullTextContentShouldBeSkipped() {
-            ConversationMessage nullToolMsg = ConversationMessage.builder()
+        @DisplayName("TOOL 消息 textContent 为空字符串时跳过截断")
+        void emptyTextContentShouldBeSkipped() {
+            ConversationMessage emptyToolMsg = ConversationMessage.builder()
                     .role(MessageRole.TOOL)
+                    .textContent("")
                     .build();
-            List<ConversationMessage> messages = List.of(nullToolMsg);
+            List<ConversationMessage> messages = List.of(emptyToolMsg);
 
             MicroCompactor micro = new MicroCompactor(100);
             List<ConversationMessage> result = micro.compact(messages);
 
             assertEquals(1, result.size());
-            assertSame(nullToolMsg, result.get(0));
+            assertEquals("", result.get(0).getTextContent());
         }
 
         @Test
@@ -195,8 +196,8 @@ class CompactorEdgeCaseTest {
         }
 
         @Test
-        @DisplayName("keepRecentRounds=0 时删除所有 TOOL 消息")
-        void zeroKeepShouldRemoveAllTools() {
+        @DisplayName("keepRecentRounds 大于总轮数时保留所有 TOOL 消息")
+        void keepMoreThanTotalRoundsShouldRetainAll() {
             List<ConversationMessage> messages = new ArrayList<>(List.of(
                     msg(MessageRole.USER, "q1"),
                     toolMsg("tool1"),
@@ -206,13 +207,14 @@ class CompactorEdgeCaseTest {
                     msg(MessageRole.ASSISTANT, "a2")
             ));
 
-            SnipCompactor snip = new SnipCompactor(0);
+            SnipCompactor snip = new SnipCompactor(10);
             List<ConversationMessage> result = snip.compact(messages);
 
+            assertEquals(6, result.size());
             long toolCount = result.stream()
                     .filter(m -> m.getRole() == MessageRole.TOOL)
                     .count();
-            assertEquals(0, toolCount);
+            assertEquals(2, toolCount);
         }
 
         @Test
