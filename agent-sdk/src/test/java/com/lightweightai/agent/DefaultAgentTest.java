@@ -148,7 +148,7 @@ class DefaultAgentTest {
                     .build();
 
             assertThrows(UnsupportedOperationException.class,
-                    () -> agent.chatStream("hello", (delta) -> {}));
+                    () -> agent.chatStream("hello", new StreamCallback() {}));
         }
 
         @Test
@@ -160,7 +160,7 @@ class DefaultAgentTest {
 
             ChatOptions opts = ChatOptions.builder().build();
             assertThrows(UnsupportedOperationException.class,
-                    () -> agent.chatStream("hello", opts, (delta) -> {}));
+                    () -> agent.chatStream("hello", opts, new StreamCallback() {}));
         }
     }
 
