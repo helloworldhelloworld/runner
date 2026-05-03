@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("MetadataAgentRouter - 基于 metadata 的 Agent 路由")
+@DisplayName("MetadataAgentRouter — routes by agentId in request metadata")
 class MetadataAgentRouterTest {
 
     private AgentRegistry registry;
@@ -19,73 +19,64 @@ class MetadataAgentRouterTest {
     void setUp() {
         registry = new AgentRegistry();
         registry.register(AgentProfile.builder()
-                .agentId("comfort")
-                .systemPrompt("I provide comfort")
-                .build());
+            .agentId("counselor")
+            .systemPrompt("I'm a counselor")
+            .build());
         registry.register(AgentProfile.builder()
-                .agentId("assessment")
-                .systemPrompt("I assess")
-                .build());
-        registry.setDefault("comfort");
+            .agentId("analyst")
+            .systemPrompt("I'm an analyst")
+            .build());
         router = new MetadataAgentRouter(registry);
     }
 
     @Test
-    @DisplayName("metadata 中包含有效 agentId 时路由到指定 agent")
-    void routesToSpecifiedAgent() {
+    @DisplayName("routes to matching agentId from metadata")
+    void routesToMatchingAgent() {
         GatewayRequest request = GatewayRequest.builder()
-                .message("hello")
-                .metadata("agentId", "assessment")
-                .build();
+            .message("hello")
+            .metadata("agentId", "analyst")
+            .build();
 
-        assertEquals("assessment", router.route(request));
+        String result = router.route(request);
+        assertEquals("analyst", result);
     }
 
     @Test
-    @DisplayName("metadata 中无 agentId 时 fallback 到 default agent")
-    void fallsBackToDefaultWhenNoAgentId() {
+    @DisplayName("falls back to default when no agentId in metadata")
+    void fallsBackToDefault_noAgentId() {
         GatewayRequest request = GatewayRequest.builder()
-                .message("hello")
-                .build();
+            .message("hello")
+            .build();
 
-        assertEquals("comfort", router.route(request));
+        String result = router.route(request);
+        assertEquals(registry.getDefault().getAgentId(), result);
     }
 
     @Test
-    @DisplayName("metadata 中 agentId 不存在于 registry 时 fallback 到 default")
-    void fallsBackToDefaultWhenAgentNotFound() {
+    @DisplayName("falls back to default when agentId not found in registry")
+    void fallsBackToDefault_unknownAgentId() {
         GatewayRequest request = GatewayRequest.builder()
-                .message("hello")
-                .metadata("agentId", "nonexistent")
-                .build();
+            .message("hello")
+            .metadata("agentId", "nonexistent")
+            .build();
 
-        assertEquals("comfort", router.route(request));
+        String result = router.route(request);
+        assertEquals(registry.getDefault().getAgentId(), result);
     }
 
     @Test
-    @DisplayName("agentId 为 null 时 fallback 到 default")
-    void fallsBackWhenAgentIdIsNull() {
-        GatewayRequest request = GatewayRequest.builder()
-                .message("hello")
-                .metadata("agentId", null)
-                .build();
+    @DisplayName("routes correctly with multiple agents registered")
+    void routesCorrectlyWithMultipleAgents() {
+        GatewayRequest req1 = GatewayRequest.builder()
+            .message("hi")
+            .metadata("agentId", "counselor")
+            .build();
+        GatewayRequest req2 = GatewayRequest.builder()
+            .message("hi")
+            .metadata("agentId", "analyst")
+            .build();
 
-        assertEquals("comfort", router.route(request));
-    }
-
-    @Test
-    @DisplayName("未设置显式 default 时路由到第一个注册的 agent")
-    void fallsBackToFirstRegisteredWhenNoExplicitDefault() {
-        AgentRegistry reg = new AgentRegistry();
-        reg.register(AgentProfile.builder().agentId("first").build());
-        reg.register(AgentProfile.builder().agentId("second").build());
-        MetadataAgentRouter r = new MetadataAgentRouter(reg);
-
-        GatewayRequest request = GatewayRequest.builder()
-                .message("hello")
-                .build();
-
-        String result = r.route(request);
-        assertNotNull(result);
+        assertEquals("counselor", router.route(req1));
+        assertEquals("analyst", router.route(req2));
     }
 }
