@@ -4,24 +4,31 @@ import com.lightweightai.kernel.agent.AgentProfile;
 import com.lightweightai.kernel.agent.AgentRegistry;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
-import com.lightweightai.kernel.agent.ToolResult;
 import com.lightweightai.kernel.agent.ToolSchema;
+import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.gateway.ChatHandler;
+import com.lightweightai.kernel.llm.ConversationMessage;
+import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
+import com.lightweightai.kernel.llm.LLMResponse;
+import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.llm.ToolResult;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.orchestrator.AgentFactory;
 import com.lightweightai.kernel.orchestrator.Orchestrator;
 import com.lightweightai.kernel.orchestrator.SubagentRuntime;
-import com.lightweightai.kernel.testsupport.CapturingLLMProvider;
 import com.lightweightai.web.skillcreator.InMemoryMemoryProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Flux;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -44,7 +51,7 @@ class OrchestratorConfigTest {
 
         toolRegistry = new ToolRegistry();
         toolRegistry.register(stubTool("echo"));
-        llmProvider = CapturingLLMProvider.endTurn("done");
+        llmProvider = new StubLLMProvider();
         memoryProvider = new InMemoryMemoryProvider();
     }
 
@@ -176,5 +183,42 @@ class OrchestratorConfigTest {
                 return ToolResult.success("ok");
             }
         };
+    }
+
+    private static class StubLLMProvider implements LLMProvider {
+        @Override
+        public LLMResponse complete(List<ConversationMessage> messages, LLMOptions options) {
+            return LLMResponse.builder()
+                    .message(ConversationMessage.builder()
+                            .role(ConversationMessage.MessageRole.ASSISTANT)
+                            .textContent("done")
+                            .build())
+                    .stopReason("end_turn")
+                    .build();
+        }
+
+        @Override
+        public CompletableFuture<LLMResponse> completeAsync(List<ConversationMessage> messages, LLMOptions options) {
+            return CompletableFuture.completedFuture(complete(messages, options));
+        }
+
+        @Override
+        public CompletableFuture<LLMResponse> completeStream(List<ConversationMessage> messages,
+                                                              LLMOptions options, StreamEventHandler handler) {
+            LLMResponse r = complete(messages, options);
+            handler.onComplete(r);
+            return CompletableFuture.completedFuture(r);
+        }
+
+        @Override
+        public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> messages, LLMOptions options) {
+            return Flux.just(StreamEvent.llmComplete(complete(messages, options)));
+        }
+
+        @Override
+        public ModelCapability getModelCapability() { return null; }
+
+        @Override
+        public String getProviderName() { return "stub"; }
     }
 }

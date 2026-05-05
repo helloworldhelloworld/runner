@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -105,7 +106,7 @@ class WebSocketLLMProviderTest {
         @DisplayName("complete on disconnected provider throws RuntimeException")
         void completeWhenDisconnectedThrows() {
             assertThrows(RuntimeException.class,
-                    () -> provider.complete(java.util.List.of(), null));
+                    () -> provider.complete(List.of(), null));
         }
     }
 }
