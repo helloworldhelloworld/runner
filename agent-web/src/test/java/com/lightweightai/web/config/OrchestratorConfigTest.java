@@ -95,9 +95,9 @@ class OrchestratorConfigTest {
         @DisplayName("default agent is set to 'default'")
         void defaultAgentIsDefault() {
             AgentRegistry registry = config.agentRegistry();
-            Optional<AgentProfile> defaultProfile = registry.getDefault();
-            assertTrue(defaultProfile.isPresent());
-            assertEquals("default", defaultProfile.get().getAgentId());
+            AgentProfile defaultProfile = registry.getDefault();
+            assertNotNull(defaultProfile);
+            assertEquals("default", defaultProfile.getAgentId());
         }
     }
 
