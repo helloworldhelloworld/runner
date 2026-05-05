@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("LLMProviderException — contextual exception for LLM provider failures")
+@SuppressWarnings("ThrowableNotThrown")
 class LLMProviderExceptionTest {
 
     @Test
