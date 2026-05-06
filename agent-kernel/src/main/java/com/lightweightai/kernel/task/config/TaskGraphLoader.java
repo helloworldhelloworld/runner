@@ -81,7 +81,7 @@ public final class TaskGraphLoader {
                 attrs.put(task.getName(), node.attributes);
             }
         }
-        return new TaskGraphBundle(b.build(), attrs, cfg.exposeAsTools);
+        return new TaskGraphBundle(b.build(), attrs);
     }
 
     private static JoinStrategy parseJoin(String s) {

@@ -114,7 +114,9 @@ class TaskGraphLoaderTest {
     }
 
     @Test
-    void exposeAsToolsParsed() throws IOException {
+    void exposeAsToolsRejected() {
+        // Task 与 Tool 是不同本体，YAML 不允许声明 expose-as-tools。
+        // 严格模式下未知字段必须报错（不静默忽略）。
         String yaml = """
             version: 1
             tasks:
@@ -122,10 +124,9 @@ class TaskGraphLoaderTest {
                 ref: intent.classifier
             expose-as-tools:
               - name: my_pipeline
-                description: end-to-end intent classification
+                description: x
             """;
-        TaskGraphBundle bundle = new TaskGraphLoader(registry()).load(yaml);
-        assertEquals(1, bundle.getExposedTools().size());
-        assertEquals("my_pipeline", bundle.getExposedTools().get(0).name);
+        assertThrows(UnrecognizedPropertyException.class,
+            () -> new TaskGraphLoader(registry()).load(yaml));
     }
 }

@@ -4,20 +4,37 @@ import com.lightweightai.kernel.core.StreamEvent;
 import reactor.core.publisher.Flux;
 
 /**
- * 编排单元。
+ * <b>Internal orchestration primitive. Not exposed to the LLM.</b>
  *
- * <h3>Task vs Tool（关键边界）</h3>
- * <p>本仓库同时存在 {@link com.lightweightai.kernel.agent.Tool} 与 Task。两者并非冗余：</p>
+ * <p>Task 是系统内部编排单元。LLM 永远看不到 Task —— 它没有 schema、没有 description
+ * 进入 prompt、不在 ToolRegistry 里。Task 与 {@link com.lightweightai.kernel.agent.Tool}
+ * 是<b>不同本体</b>，命名空间独立、交互单向。</p>
+ *
+ * <h3>Task vs Tool（边界，权威定义）</h3>
+ * <table>
+ *   <tr><th></th><th>Task</th><th>Tool</th></tr>
+ *   <tr><td>本体</td><td>系统内部编排单元</td><td>模型上下文的一部分</td></tr>
+ *   <tr><td>模型可见性</td><td><b>不可见</b></td><td>可见（name/description/schema 进 prompt）</td></tr>
+ *   <tr><td>调用者</td><td>编排器（TaskGraph、ChatHandler 装饰器、复合 Tool 内部）</td><td>LLM（function calling）</td></tr>
+ *   <tr><td>输入</td><td>{@link TaskContext}（共享上下文）</td><td>args Map（LLM 生成的 JSON）</td></tr>
+ *   <tr><td>输出</td><td>{@code Flux<StreamEvent>}</td><td>{@code ToolResult}</td></tr>
+ *   <tr><td>描述写给谁</td><td>开发者</td><td>模型</td></tr>
+ * </table>
+ *
+ * <h3>合法交互（单向）</h3>
+ * <ol>
+ *   <li>Task 调用 Tool（流水线节点中的一种，例如 RAG 检索 task 调一个 search tool）</li>
+ *   <li>Tool 内部使用 TaskGraph（复合能力的内部编排）</li>
+ *   <li>ChatHandler 装饰器编排 Tasks（pre/post-processing 流水线）</li>
+ * </ol>
+ *
+ * <h3>明确禁止</h3>
  * <ul>
- *   <li><b>Tool</b>：面向 <i>LLM 自主调用</i>。LLM 看 schema、决定何时调、传入 {@code Map<String,Object>} args，
- *       本质是「让模型在推理过程中触发副作用」。</li>
- *   <li><b>Task</b>：面向 <i>编排器（DAG / pipeline）调用</i>。调用方是代码，
- *       传入共享 {@link TaskContext}，可消费上游任务结果。本质是「在确定性流程中编排步骤」。</li>
+ *   <li>❌ 把 TaskGraph 反向包装成 Tool 给 LLM 调（无 TaskGraphTool）</li>
+ *   <li>❌ {@code @ExposeAsTool} 一份代码两端用</li>
+ *   <li>❌ ToolBinding / TaskBackedTool / TaskBackedToolSource 任何 Task→Tool 适配</li>
+ *   <li>❌ TaskRegistry 与 ToolRegistry 桥接 —— 两套命名空间完全独立</li>
  * </ul>
- *
- * <p>两者通过 {@link com.lightweightai.kernel.task.integration.TaskGraphTool} 桥接：
- * 一张 TaskGraph 可被打包成 Tool 暴露给 LLM。<b>判断标准</b>：是否需要 LLM 在推理时自主决定调用？
- * 是 → Tool；否（属于固定流程）→ Task；既要又要 → 写成 Task，再用 TaskGraphTool 暴露。</p>
  *
  * <h3>实现规范</h3>
  * <ul>
@@ -26,6 +43,8 @@ import reactor.core.publisher.Flux;
  *       编排器从中提取并写入 {@link TaskContext#putResult}。</li>
  *   <li>不要在实现内 {@code .block()}：如需阻塞 IO，用 {@code subscribeOn(Schedulers.boundedElastic())}。</li>
  * </ul>
+ *
+ * <p>详细说明见 {@code docs/architecture/task-vs-tool.md}。</p>
  */
 public interface Task {
 
