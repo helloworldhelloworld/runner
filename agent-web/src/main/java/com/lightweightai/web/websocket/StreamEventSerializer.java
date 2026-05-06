@@ -35,9 +35,10 @@ public class StreamEventSerializer {
                 case TRACE -> traceJson(event);
                 case ERROR -> errorJson(event.getError() != null ? event.getError().getMessage() : "Unknown error");
 
-                // Orchestrator + Subagent 事件
+                // Orchestrator + Subagent + Task 事件
                 case AGENT_ROUTE, AGENT_INTERRUPT, AGENT_RESUME,
-                     SUBAGENT_SPAWN, SUBAGENT_COMPLETE, SUBAGENT_ERROR, SUBAGENT_CANCELLED ->
+                     SUBAGENT_SPAWN, SUBAGENT_COMPLETE, SUBAGENT_ERROR, SUBAGENT_CANCELLED,
+                     TASK_START, TASK_COMPLETE, TASK_ERROR, TASK_SKIPPED ->
                         eventWithDataJson(eventTypeName(event.getType()), event);
 
                 // 不推送给客户端的事件（LLM_COMPLETE 是内部信号）
