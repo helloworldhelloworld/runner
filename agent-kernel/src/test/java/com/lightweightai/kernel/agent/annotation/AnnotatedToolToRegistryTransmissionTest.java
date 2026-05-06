@@ -2,7 +2,6 @@ package com.lightweightai.kernel.agent.annotation;
 
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
-import com.lightweightai.kernel.llm.ClaudeToolDefinition;
 import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,19 +41,17 @@ class AnnotatedToolToRegistryTransmissionTest {
         tools.forEach(registry::register);
 
         // Step 3: Get tool definitions (what LLMProvider receives)
-        List<ClaudeToolDefinition> definitions = registry.getToolDefinitions();
+        // ToolRegistry.getToolDefinitions() returns List<Map<String, Object>> in Claude API format
+        List<Map<String, Object>> definitions = registry.getToolDefinitions();
         assertEquals(1, definitions.size());
 
-        ClaudeToolDefinition def = definitions.get(0);
-        assertEquals("get_weather", def.getName());
-        assertEquals("Get current weather for a city", def.getDescription());
+        Map<String, Object> def = definitions.get(0);
+        assertEquals("get_weather", def.get("name"));
+        assertEquals("Get current weather for a city", def.get("description"));
 
-        // Step 4: Verify input_schema in API format (what goes into HTTP body)
-        Map<String, Object> apiFormat = def.toApiFormat();
-        assertEquals("get_weather", apiFormat.get("name"));
-
+        // Step 4: Verify input_schema payload (what goes into HTTP body)
         @SuppressWarnings("unchecked")
-        Map<String, Object> inputSchema = (Map<String, Object>) apiFormat.get("input_schema");
+        Map<String, Object> inputSchema = (Map<String, Object>) def.get("input_schema");
         assertNotNull(inputSchema);
         assertEquals("object", inputSchema.get("type"));
 
