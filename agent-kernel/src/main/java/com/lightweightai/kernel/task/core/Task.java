@@ -10,6 +10,10 @@ import reactor.core.publisher.Flux;
  * 进入 prompt、不在 ToolRegistry 里。Task 与 {@link com.lightweightai.kernel.agent.Tool}
  * 是<b>不同本体</b>，命名空间独立、交互单向。</p>
  *
+ * <p><b>这是认知边界，不是 trigger 边界。</b>区分标准是「模型是否需要感知它的存在」。
+ * 不是「谁触发它」。同一段逻辑被代码触发还是被 LLM 触发，不影响它属于哪一侧 ——
+ * 只有「模型是否需要感知」决定。</p>
+ *
  * <h3>Task vs Tool（边界，权威定义）</h3>
  * <table>
  *   <tr><th></th><th>Task</th><th>Tool</th></tr>
