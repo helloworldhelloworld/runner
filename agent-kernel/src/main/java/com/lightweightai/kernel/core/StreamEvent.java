@@ -34,7 +34,13 @@ public class StreamEvent {
         SUBAGENT_SPAWN,    // 子 agent 创建
         SUBAGENT_COMPLETE, // 子 agent 完成
         SUBAGENT_ERROR,    // 子 agent 失败
-        SUBAGENT_CANCELLED // 子 agent 被取消（级联停止）
+        SUBAGENT_CANCELLED, // 子 agent 被取消（级联停止）
+
+        // Task 编排生命周期（DAG 节点级事件）
+        TASK_START,        // 任务开始执行
+        TASK_COMPLETE,     // 任务执行完成（携带 TaskResult payload）
+        TASK_SKIPPED,      // 任务被 guard 跳过
+        TASK_ERROR         // 任务执行失败
     }
 
     private final EventType type;
@@ -195,6 +201,36 @@ public class StreamEvent {
         return new StreamEvent(EventType.SUBAGENT_CANCELLED, null, null, null, null, null,
                 null, Map.of("runId", runId, "reason", reason), null,
                 "subagent.cancelled", runId, System.currentTimeMillis());
+    }
+
+    // ==================== Task 编排生命周期事件 ====================
+
+    /** 任务开始执行。data 须包含 taskName。 */
+    public static StreamEvent taskStart(String taskName, Map<String, Object> data) {
+        return new StreamEvent(EventType.TASK_START, null, null, null, null, null,
+                null, data != null ? Collections.unmodifiableMap(data) : Map.of(), null,
+                "task.start", taskName, System.currentTimeMillis());
+    }
+
+    /** 任务执行完成。data 须包含 taskName 与 taskResult(TaskResult)。 */
+    public static StreamEvent taskComplete(String taskName, Map<String, Object> data) {
+        return new StreamEvent(EventType.TASK_COMPLETE, null, null, null, null, null,
+                null, data != null ? Collections.unmodifiableMap(data) : Map.of(), null,
+                "task.complete", taskName, System.currentTimeMillis());
+    }
+
+    /** 任务执行失败。data 须包含 taskName 与 taskResult(TaskResult, isError)。 */
+    public static StreamEvent taskError(String taskName, Map<String, Object> data) {
+        return new StreamEvent(EventType.TASK_ERROR, null, null, null, null, null,
+                null, data != null ? Collections.unmodifiableMap(data) : Map.of(), null,
+                "task.error", taskName, System.currentTimeMillis());
+    }
+
+    /** 任务被 guard 跳过。data 须包含 taskName。 */
+    public static StreamEvent taskSkipped(String taskName, Map<String, Object> data) {
+        return new StreamEvent(EventType.TASK_SKIPPED, null, null, null, null, null,
+                null, data != null ? Collections.unmodifiableMap(data) : Map.of(), null,
+                "task.skipped", taskName, System.currentTimeMillis());
     }
 
     public EventType getType() {
