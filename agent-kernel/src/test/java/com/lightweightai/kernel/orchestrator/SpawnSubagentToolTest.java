@@ -34,6 +34,7 @@ class SpawnSubagentToolTest {
                 .systemPrompt("I work")
                 .maxSpawnDepth(2)
                 .build());
+        registry.setDefault("worker");
         registry.register(AgentProfile.builder()
                 .agentId("no-spawn")
                 .systemPrompt("Cannot spawn")
