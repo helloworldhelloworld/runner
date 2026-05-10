@@ -448,11 +448,244 @@
 
 ---
 
+## 十一、基于外部研究的新增 TODO（OpenClaw 最新架构 + Claude Code 泄露源码深度分析）
+
+> 以下 TODO 基于 2026-05-10 的外部研究成果补充。来源包括：OpenClaw GitHub (347K+ stars)、VILA-Lab 论文 arXiv:2604.14228（Claude Code 512K 行源码分析）、Google ADK 1.0 GA、以及 LangGraph/AutoGen/CrewAI 最新版本。
+
+### TODO-025: 压缩策略从 2 层升级为 5 层渐进式（对标 Claude Code）
+
+**现状**: runner 仅有 `SnipCompactor`（删 TOOL 消息）+ `MicroCompactor`（截断长消息），2 层。
+
+**参考**: Claude Code 泄露源码揭示了 **5 层渐进式压缩管线**，按成本从低到高依次执行：
+1. **Budget Reduction** — 将过大的 tool output 替换为引用指针，零成本
+2. **Snip** — 整块删除旧消息，零成本但信息损失高
+3. **Microcompact** — 选择性清除单个 tool result，感知 prompt cache 命中情况
+4. **Context Collapse** — 分阶段缩减消息块
+5. **Auto-Compact** — 发送整个对话给 LLM 做摘要，信息损失最小但最贵
+
+设计原则：**lazy degradation（懒降级）**—— 先用最便宜的策略，不够再升级。
+
+**优化方向**: 
+1. 实现 `BudgetReductionCompactor`：对超阈值的 tool result（如文件内容、搜索结果）替换为 `[引用: tool_call_id=xxx, 原始长度=N bytes]`
+2. 实现 `ContextCollapseCompactor`：分阶段合并同轮的多条消息
+3. `CompactionChain` 按成本排序执行：BudgetReduction → Snip → Micro → Collapse → Summarization
+
+**优先级**: P2 — runner 的 2 层策略在多轮工具调用场景中压缩不足。
+
+---
+
+### TODO-026: 实现 Memory Flush Before Compaction（对标 OpenClaw）
+
+**现状**: `SnipCompactor` 删除旧 TOOL 消息时，直接丢弃内容，没有先提取重要信息。
+
+**参考**: OpenClaw 2026.4 的压缩流程在 Snip 之前有一步 **Memory Flush**：
+- 从即将被删除的消息中提取关键事实
+- 写入持久化 Memory（Durable 层）
+- 然后再执行删除
+
+Claude Code 也有类似机制：`autoDream` 后台任务在空闲时整理记忆，合并矛盾信息，将模糊观察转化为持久事实。
+
+**优化方向**: 
+1. `CompactionChain` 增加 pre-compaction hook：`beforeCompact(messagesToRemove)`
+2. 实现 `MemoryFlushPreCompactor`：用轻量 LLM 调用从待删消息中提取 key facts
+3. 提取结果写入 `memoryProvider.writeDurable("compaction_extracted", facts)`
+
+**优先级**: P2 — 防止长对话中的信息丢失。
+
+---
+
+### TODO-027: Prompt Caching 支持（Claude API cache_control）
+
+**现状**: 每次 LLM 调用都发送完整的 system prompt + tool definitions，没有利用 Claude API 的 prompt caching 能力。
+
+**参考**: 
+- Claude Code 内部监控 **14 个 cache-break 条件**，确保稳定内容（system prompt、tool definitions）命中 prompt cache
+- Claude API 支持 `cache_control: {type: "ephemeral"}` 标记，可缓存标记之前的所有内容
+- 命中 cache 时 input token 成本降低 ~90%
+
+**优化方向**: 
+1. `ClaudeProvider` 在构建请求体时，对 system prompt 和 tool definitions 添加 `cache_control` 标记
+2. `LLMOptions` 增加 `enablePromptCaching` 选项
+3. 监控 cache hit rate（从 response header 的 `anthropic-cache-*` 字段读取）
+
+**优先级**: P1 — 直接降低 80%+ 的 input token 成本，ROI 极高。
+
+---
+
+### TODO-028: Steer Mode — 比 Interrupt 更细粒度的用户干预（对标 OpenClaw）
+
+**现状**: `InterruptibleRun` 只有两种模式：继续运行 或 完全打断（cancel CancellationToken + dispose Flux + 保存部分文本 + 重新执行）。
+
+**参考**: OpenClaw 的 **Steer Mode** 提供了更优雅的中间方案：
+- 用户在 agent 运行时发新消息
+- 不取消整个 run，而是**跳过当前 pending 的 tool calls**
+- 在下一个 tool gap（工具间隙）注入新消息
+- LLM 看到"我正在做 X，但用户刚说了 Y"，自行决定是否改变方向
+
+**优化方向**: 
+1. `InterruptibleRun` 增加 `steer(newInput)` 方法（与 `interrupt()` 并列）
+2. `ToolCallingLoop` 增加 `steerMessage` 注入点：每轮工具执行后检查是否有 steer 消息
+3. 如有 steer 消息，将其作为额外 USER 消息追加到对话中，让 LLM 在下一轮决定是否调整
+
+**优先级**: P3 — 增强 UX，但 interrupt+resume 已覆盖主要场景。
+
+---
+
+### TODO-029: Streaming Tool Execution + RWLock（对标 Claude Code）
+
+**现状**: `ToolCallingLoop` 等待 LLM 流式输出完全结束（`LLM_COMPLETE` 事件）后，才开始执行工具。
+
+**参考**: Claude Code 的 `StreamingToolExecutor` + `RWLock` 模式：
+- **在 LLM 仍在输出时就开始执行 tool**（当流中检测到完整的 tool_use block 时立即执行）
+- Read 操作并行执行（多个只读工具同时跑）
+- Write 操作互斥执行（写工具独占锁）
+- 显著减少端到端延迟（工具执行与 LLM 输出并行）
+
+**优化方向**: 
+1. `ToolCallingLoop.executeReactiveLoop()` 改为在检测到 `TOOL_CALL_START` 事件时立即启动工具执行（而非等 `LLM_COMPLETE`）
+2. 引入 `ReadWriteSemaphore`：按 Tool 的 `getPermissionLevel()` 区分读写
+3. 这与 TODO-017 (Tool Permission) 有协同效应
+
+**优先级**: P3 — 性能优化，减少多工具场景的延迟。
+
+---
+
+### TODO-030: Lazy Tool Schema Loading（对标 Claude Code + OpenClaw）
+
+**现状**: `ToolRegistry.getToolDefinitions()` 每次都返回所有 enabled tool 的完整定义（name + description + input_schema），全部注入 system prompt。工具数量大时占用大量 context 窗口。
+
+**参考**: 
+- Claude Code 初始只加载 tool 名称列表，完整 schema 按需获取
+- OpenClaw 的 TOOLS.md 只列工具名称，schema 在调用时才 fetch（token-efficient）
+- 减少 system prompt 大小也有利于 prompt cache 命中
+
+**优化方向**: 
+1. `LLMOptions` 增加 `toolLoadingStrategy` 枚举（EAGER / LAZY / DEFERRED）
+2. LAZY 模式：system prompt 只包含 tool name + description（无 input_schema）
+3. 当 LLM 决定调用某 tool 时，`ToolCallingLoop` 在第二轮注入该 tool 的完整 schema
+4. 需要评估 LLM 在缺少 schema 时是否仍能正确调用工具
+
+**优先级**: P3 — 优化 token 消耗，工具数量少时收益不明显。
+
+---
+
+### TODO-031: ClaudeProvider tool_result 格式修复（多工具并行调用）
+
+**现状**: 需要验证 `ClaudeProvider` 在发送 tool_result 时是否正确使用了 `{type: "tool_result", tool_use_id: "xxx", content: "..."}` 结构化格式。如果 tool_use_id 丢失，Claude API 在多工具并行调用时无法匹配结果。
+
+**参考**: Claude Code 和所有 production 实现都要求 tool_result 必须包含 `tool_use_id`。当前 `ToolCallingLoop.createToolResultMessage()` 将 `tool_use_id` 放在 `metadata` 中，但 `ClaudeProvider` 构建请求体时是否正确读取这个 metadata 需要验证。
+
+**优化方向**: 
+1. 审计 `ClaudeProvider` 的请求体构建逻辑，确保 tool_result content block 格式正确
+2. 添加 acceptance test：2+ 个并行 tool call → 结果正确匹配
+3. 如果 metadata 传递链有断裂，修复 `ConversationMessage` → `ClaudeProvider` 的映射
+
+**优先级**: P1 — 多工具并行是核心功能，格式错误会导致 API 400 错误。
+
+---
+
+### TODO-032: Workspace-as-Config（SOUL.md / AGENTS.md / TOOLS.md 文件驱动配置）
+
+**现状**: Agent 配置通过 Java 代码（`AgentProfile` + `AgentRegistry` + Spring Config）管理，修改需要重新编译部署。
+
+**参考**: 
+- OpenClaw 使用 **SOUL.md**（角色/人格）、**AGENTS.md**（agent 定义）、**TOOLS.md**（工具元数据）文件驱动配置，版本可控、可 diff
+- Claude Code 使用 **CLAUDE.md** 作为项目级指令
+- 所有配置都是 plain text，不需要重启即可生效
+
+**优化方向**: 
+1. 支持从 `agents.yaml` 或 `AGENTS.md` 文件加载 `AgentProfile` 列表
+2. 实现 file watcher 热加载，配置文件变更后自动更新 `AgentRegistry`
+3. 与当前的 Java Config 并存：文件配置优先，代码配置作为 fallback
+
+**优先级**: P3 — 运维友好，但需要控制好与代码配置的优先级关系。
+
+---
+
+### TODO-033: Subagent 模式扩展（Fork / Teammate / Worktree）
+
+**现状**: `SubagentRuntime` 只有一种执行模式：spawn 一个独立的 AgentLoop 同步执行，结果通过 callback 返回。
+
+**参考**: Claude Code 泄露源码揭示了 **三种 subagent 模式**：
+- **Fork**：轻量级，继承父上下文，200-turn 限制，结果 <500 words
+- **Teammate**：并行执行，通过文件 mailbox 通信，无限制
+- **Worktree**：Git 隔离，每个 agent 独立 branch 工作，适合代码修改任务
+
+**优化方向**: 
+1. `SpawnRequest` 增加 `mode` 字段（FORK / INDEPENDENT / ISOLATED）
+2. FORK 模式：子 agent 继承父 agent 的消息上下文（MessageSnapshot），结果自动注入父对话
+3. ISOLATED 模式：为文件系统隔离场景预留（如独立工作目录）
+
+**优先级**: P3 — 当前单一模式覆盖主要场景，多模式是进阶需求。
+
+---
+
+### TODO-034: A2A (Agent-to-Agent) 协议预备
+
+**现状**: runner 的 multi-agent 通信是内部私有协议（`SubagentRuntime` + `StreamEvent`）。
+
+**参考**: 
+- Google ADK 1.0 GA 已内置 A2A 支持
+- Linux Foundation AAIF 正在标准化 agent 间通信协议
+- A2A 与 MCP 互补：MCP = agent-to-tool，A2A = agent-to-agent
+
+**优化方向**: 
+1. 短期：无需变更，runner 的内部协议够用
+2. 中期：当需要跨框架 agent 通信时，实现 A2A protocol adapter
+3. 预备：`SubagentRuntime` 的 `spawn()` / `getRun()` 接口设计已接近 A2A 的 task model
+
+**优先级**: P4 — 前瞻性，等标准成熟后再投入。
+
+---
+
+## 更新后的优先级排序
+
+| 优先级 | 编号 | 标题 | 类别 |
+|--------|------|------|------|
+| **P1** | TODO-001 | CostTracker 未被记录 | Agent Loop |
+| **P1** | TODO-003 | sync 路径无法打断 | Agent Loop |
+| **P1** | TODO-004 | runStream() 不支持 Tool Calling | Agent Loop |
+| **P1** | TODO-018 | Tool 执行无超时 | Tool 系统 |
+| **P1** | TODO-022 | 缺少 Rate Limiting | API 安全 |
+| **P1** | TODO-027 | Prompt Caching 支持 | LLM Provider |
+| **P1** | TODO-031 | ClaudeProvider tool_result 格式 | LLM Provider |
+| **P2** | TODO-002 | 构造器参数膨胀 | 代码质量 |
+| **P2** | TODO-005 | 缺少 token-aware 压缩 | Context |
+| **P2** | TODO-007 | FixedThreadPool 不弹性 | 多 Agent |
+| **P2** | TODO-010 | 缺少 Structured Output | LLM Provider |
+| **P2** | TODO-011 | 重试策略字符串匹配 | LLM Provider |
+| **P2** | TODO-014 | Memory search 硬编码 top 3 | Memory |
+| **P2** | TODO-015 | 缺少 token usage 事件 | Streaming |
+| **P2** | TODO-016 | 不支持 Thinking 事件 | Streaming |
+| **P2** | TODO-017 | 缺少 Tool Permission | Tool 系统 |
+| **P2** | TODO-023 | 测试覆盖不均匀 | 质量 |
+| **P2** | TODO-025 | 压缩策略升级为 5 层 | Context |
+| **P2** | TODO-026 | Memory Flush Before Compaction | Memory |
+| **P3** | TODO-006 | 缺少 Summarization 压缩 | Context |
+| **P3** | TODO-008 | Subagent 缺少协作机制 | 多 Agent |
+| **P3** | TODO-009 | Router 缺少可观测性 | 多 Agent |
+| **P3** | TODO-012 | 缺少 Provider Fallback | LLM Provider |
+| **P3** | TODO-013 | Memory 同步阻塞 | Memory |
+| **P3** | TODO-019 | 缺少 Tool Result Cache | Tool 系统 |
+| **P3** | TODO-020 | Trace 未集成 OTel | Observability |
+| **P3** | TODO-021 | SDK 与 Kernel 概念重复 | 架构 |
+| **P3** | TODO-024 | 缺少 Benchmark | 质量 |
+| **P3** | TODO-028 | Steer Mode 细粒度干预 | 多 Agent |
+| **P3** | TODO-029 | Streaming Tool Execution | 性能 |
+| **P3** | TODO-030 | Lazy Tool Schema Loading | 性能 |
+| **P3** | TODO-032 | Workspace-as-Config | 运维 |
+| **P3** | TODO-033 | Subagent 多模式 | 多 Agent |
+| **P4** | TODO-034 | A2A 协议预备 | 前瞻 |
+
+---
+
 ## 参考来源
 
-1. **OpenClaw 2026.4** — Agent Core 的 Orchestrator / SubagentRuntime / ContextCompactor 设计
-2. **Claude Code 泄露源码分析** — tool permission 模式、context compaction 策略、cost tracking 闭环、thinking event 处理
-3. **LangGraph** — `trim_messages` 的 token-aware 压缩、`ToolNode` 的超时控制
-4. **AutoGen (Microsoft)** — GroupChat 多 agent 协作模式、`TransformMessages` 摘要压缩
-5. **CrewAI** — Task context 传递、condition-based routing
-6. **Anthropic SDK 最佳实践** — 结构化错误类型、Retry-After 处理、JSON mode / tool_choice
+1. **OpenClaw** (GitHub 347K+ stars) — Pi Agent Runtime 两层架构（Gateway + Pi Agent Core）、Steer Mode、Memory Flush Before Compaction、SOUL.md/AGENTS.md/TOOLS.md workspace-as-config、plugin 生命周期钩子
+2. **Claude Code 泄露源码** (arXiv:2604.14228, VILA-Lab) — 512K 行 TypeScript、5 层压缩管线、StreamingToolExecutor+RWLock、7 级权限模式+yoloClassifier ML 分类器、14 个 prompt cache-break 监控条件、KAIROS daemon mode、autoDream 记忆整理、Fork/Teammate/Worktree 三种 subagent 模式、44 个 feature flag
+3. **LangGraph** — Graph-based execution engine、StateGraph+reducer state、built-in checkpointing with time travel、model retry middleware
+4. **AutoGen / AG2 (Microsoft)** — Conversational agent teams、GroupChat 多 agent 协作、event-driven core、向 Microsoft Agent Framework 转型
+5. **CrewAI** — Crews（自主团队）vs Flows（事件驱动管线）两种架构模式、Hierarchical memory isolation、Swarm patterns
+6. **Google ADK 1.0 GA** — Tool/Agent/Orchestrator 三层、A2A 协议、Event Compaction（38% token 缩减）、Java Maven 支持
+7. **Java Agent 框架** — LangChain4j 1.x (agentic 模块)、Spring AI 2.0 (Boot 4 集成)、Embabel (GOAP 规划)、Koog (JetBrains, 显式有向图)、Semantic Kernel Java (OTel 原生)
+8. **Anthropic SDK 最佳实践** — 结构化错误类型、Retry-After 处理、JSON mode / tool_choice、prompt caching API
