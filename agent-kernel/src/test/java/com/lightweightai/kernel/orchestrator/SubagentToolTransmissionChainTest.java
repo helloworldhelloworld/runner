@@ -26,7 +26,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * spawn_subagent → wait_subagent → list_subagents end-to-end.
  *
  * Validates that the payload flows correctly through the entire tool chain,
- * catching wiring bugs like the ones documented in CLAUDE.md.
+ * catching wiring bugs like the ones documented in CLAUDE.md:
+ * - CancellationToken not passed through AgentLoop → ToolCallingLoop
+ * - ScopedToolRegistry overriding get()/has() but not isEnabled()
+ * - spawn_subagent tool worked alone but no wait_subagent tool existed
+ * - AgentFactory building AgentLoop with empty LLMOptions (no toolDefinitions)
  */
 @DisplayName("Acceptance: spawn → wait → list tool chain carries payload end-to-end")
 class SubagentToolTransmissionChainTest {
