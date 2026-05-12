@@ -18,6 +18,13 @@ public @interface ClientTool {
     String toolName();
 
     /**
+     * 额外的工具别名。多个 toolName 共享同一组 down/up action 时使用。
+     *
+     * <p>每个别名都会作为独立的 LLM 可见工具注册，但底层下行/上行指令保持一致。</p>
+     */
+    String[] aliases() default {};
+
+    /**
      * 下行指令名（Server -> Client，对应 header.name）。
      */
     String downAction();

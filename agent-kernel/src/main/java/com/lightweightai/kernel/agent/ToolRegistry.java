@@ -87,6 +87,7 @@ public class ToolRegistry {
         });
         registerDirectiveIfPresent(tool);
         fireToolRegistered(tool);
+        registerClientToolAliasesIfPresent(tool);
     }
 
     /**
@@ -412,7 +413,38 @@ public class ToolRegistry {
         if (directive == null) {
             return;
         }
-        directiveRegistry.register(DirectiveDescriptor.from(directive));
+        DirectiveDescriptor descriptor = DirectiveDescriptor.from(directive);
+        directiveRegistry.register(descriptor);
+        // 别名复用同一描述符，使得通过别名查询也能取到 down/up action。
+        for (String alias : descriptor.getAliases()) {
+            directiveRegistry.register(
+                new DirectiveDescriptor(
+                    alias,
+                    java.util.Collections.emptyList(),
+                    descriptor.getDownAction(),
+                    descriptor.getUpAction(),
+                    descriptor.getNamespace(),
+                    descriptor.getTimeoutMs(),
+                    descriptor.getVersion()
+                )
+            );
+        }
+    }
+
+    private void registerClientToolAliasesIfPresent(Tool tool) {
+        if (!(tool instanceof com.lightweightai.kernel.agent.ClientTool<?> clientTool)) {
+            return;
+        }
+        for (Tool alias : clientTool.getAliasTools()) {
+            tools.compute(alias.getName(), (name, existing) -> {
+                if (existing instanceof DispatchingTool dt) {
+                    dt.setDefaultTool(alias);
+                    return dt;
+                }
+                return alias;
+            });
+            fireToolRegistered(alias);
+        }
     }
 
     // ==================== 统计信息 ====================
