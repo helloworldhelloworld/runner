@@ -4,6 +4,9 @@ import com.lightweightai.kernel.agent.directive.DirectiveDescriptor;
 import com.lightweightai.kernel.agent.directive.Directive;
 import com.lightweightai.kernel.llm.ToolResult;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -133,5 +136,23 @@ public abstract class ClientTool<T> implements Tool {
 
     public DirectiveDescriptor getDirectiveDescriptor() {
         return descriptor;
+    }
+
+    /**
+     * 返回该 ClientTool 配置的别名工具列表。
+     *
+     * <p>每个别名共享相同的 down/up action，但作为独立的 LLM 可见工具暴露。
+     * 注册时由 {@link ToolRegistry#register(Tool)} 自动调用。</p>
+     */
+    public List<Tool> getAliasTools() {
+        List<String> aliases = descriptor.getAliases();
+        if (aliases.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Tool> views = new ArrayList<>(aliases.size());
+        for (String alias : aliases) {
+            views.add(new ClientToolAlias(alias, this));
+        }
+        return Collections.unmodifiableList(views);
     }
 }
