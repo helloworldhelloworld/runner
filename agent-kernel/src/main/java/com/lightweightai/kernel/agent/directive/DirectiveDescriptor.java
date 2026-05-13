@@ -40,15 +40,27 @@ public class DirectiveDescriptor {
 
     public static DirectiveDescriptor from(ClientTool directive) {
         Objects.requireNonNull(directive, "directive cannot be null");
+        List<String> mergedAliases = mergeWithRegistry(directive.toolName(), directive.aliases());
         return new DirectiveDescriptor(
             directive.toolName(),
-            Arrays.asList(directive.aliases()),
+            mergedAliases,
             directive.downAction(),
             directive.upAction(),
             directive.namespace(),
             directive.timeoutMs(),
             directive.version()
         );
+    }
+
+    private static List<String> mergeWithRegistry(String primary, String[] annotationAliases) {
+        List<String> external = ClientToolAliasRegistry.aliasesFor(primary);
+        if (external.isEmpty()) {
+            return Arrays.asList(annotationAliases);
+        }
+        ArrayList<String> merged = new ArrayList<>(annotationAliases.length + external.size());
+        Collections.addAll(merged, annotationAliases);
+        merged.addAll(external);
+        return merged;
     }
 
     private static List<String> normalizeAliases(String primary, List<String> aliases) {
