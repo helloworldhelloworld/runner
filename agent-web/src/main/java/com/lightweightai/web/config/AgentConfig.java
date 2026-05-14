@@ -375,7 +375,10 @@ public class AgentConfig {
     }
 
     @Bean
-    public ToolRegistry toolRegistry(SessionAwareClientToolDispatcher clientToolDispatcher) {
+    public ToolRegistry toolRegistry(SessionAwareClientToolDispatcher clientToolDispatcher,
+                                     ClientToolAliasConfig clientToolAliasConfig) {
+        // 显式依赖确保 ClientToolAliasRegistry 在任何 ClientTool 注册之前完成初始化。
+        java.util.Objects.requireNonNull(clientToolAliasConfig, "clientToolAliasConfig");
         ToolRegistry registry = new ToolRegistry();
 
         if (!toolsEnabled) {
