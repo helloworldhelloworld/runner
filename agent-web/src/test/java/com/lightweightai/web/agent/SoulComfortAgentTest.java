@@ -4,16 +4,24 @@ import com.lightweightai.kernel.agent.AgentObserver;
 import com.lightweightai.kernel.agent.AgentResponse;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolSchema;
+import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.ToolCallingLoop;
 import com.lightweightai.kernel.llm.*;
 import com.lightweightai.kernel.memory.ConversationMemory;
 import com.lightweightai.kernel.memory.InMemoryProvider;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.UserMemory;
 import com.lightweightai.kernel.prompt.PromptEngine;
+import com.lightweightai.kernel.prompt.PromptRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +30,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 /**
  * SoulComfortAgent 测试
@@ -439,6 +452,428 @@ class SoulComfortAgentTest {
         }
     }
 
+    // ==================== 工具结果传递链测试 ====================
+
+    @Nested
+    @DisplayName("工具结果传递链（payload 传输验证）")
+    class ToolPayloadTransmissionTest {
+
+        @Test
+        @DisplayName("工具执行结果文本出现在下一次 LLM 调用的消息中")
+        void shouldPassToolResultTextToNextLLMCall() {
+            MockLLMProvider llm = new MockLLMProvider();
+            Tool echoTool = new MockTool("echo", "回声工具",
+                args -> "工具返回值: " + args.getOrDefault("input", "默认"));
+
+            MemoryProvider mp = new InMemoryProvider();
+            PromptEngine pe = PromptEngine.builder()
+                .memoryProvider(mp)
+                .baseSystemPrompt("你是助手。")
+                .build();
+            SoulComfortAgent agent = new SoulComfortAgent(llm, pe, List.of(echoTool));
+
+            // 第一次调用：LLM 返回工具调用
+            llm.addToolCallResponse("echo", Map.of("input", "hello"));
+            // 第二次调用：LLM 返回最终回复
+            llm.addFollowUpResponse("工具说了 hello");
+
+            agent.chat("s1", "用 echo 工具");
+
+            // 捕获第二次 LLM 调用时的消息列表 — 应包含工具返回值
+            List<ConversationMessage> sentMessages = llm.getLastMessages();
+            boolean toolResultInMessages = sentMessages.stream()
+                .anyMatch(m -> m.getTextContent() != null
+                    && m.getTextContent().contains("工具返回值: hello"));
+            assertTrue(toolResultInMessages,
+                "第二次 LLM 调用的消息列表应包含工具执行结果 '工具返回值: hello'");
+        }
+
+        @Test
+        @DisplayName("多个工具调用的结果全部传递给下一次 LLM 调用")
+        void shouldPassAllToolResultsToNextLLMCall() {
+            MockLLMProvider llm = new MockLLMProvider();
+            Tool weatherTool = new MockTool("get_weather", "天气", args -> "晴天25度");
+            Tool timeTool = new MockTool("get_time", "时间", args -> "14:30");
+
+            MemoryProvider mp = new InMemoryProvider();
+            PromptEngine pe = PromptEngine.builder()
+                .memoryProvider(mp)
+                .baseSystemPrompt("助手")
+                .build();
+            SoulComfortAgent agent = new SoulComfortAgent(llm, pe, List.of(weatherTool, timeTool));
+
+            // LLM 同时调用两个工具 — 需要手动构建多工具响应
+            LLMResponse multiToolResp = LLMResponse.builder()
+                .message(ConversationMessage.builder()
+                    .role(ConversationMessage.MessageRole.ASSISTANT)
+                    .textContent("").build())
+                .toolCalls(List.of(
+                    new ToolCall("w-id", "get_weather", Map.of()),
+                    new ToolCall("t-id", "get_time", Map.of())
+                ))
+                .stopReason("tool_use")
+                .build();
+            llm.addRawResponse(multiToolResp);
+            llm.addFollowUpResponse("天气晴天25度，现在14:30。");
+
+            String response = agent.chat("s1", "天气和时间？");
+
+            assertEquals("天气晴天25度，现在14:30。", response);
+            // 验证工具结果文本都出现在 LLM 收到的消息中
+            List<ConversationMessage> lastSent = llm.getLastMessages();
+            boolean hasWeatherResult = lastSent.stream()
+                .anyMatch(m -> m.getTextContent() != null && m.getTextContent().contains("晴天25度"));
+            boolean hasTimeResult = lastSent.stream()
+                .anyMatch(m -> m.getTextContent() != null && m.getTextContent().contains("14:30"));
+            assertTrue(hasWeatherResult, "应传递天气工具结果");
+            assertTrue(hasTimeResult, "应传递时间工具结果");
+        }
+    }
+
+    // ==================== 观察者 payload 测试 ====================
+
+    @Nested
+    @DisplayName("观察者 Payload 验证（非仅 boolean）")
+    class ObserverPayloadTest {
+
+        @Test
+        @DisplayName("onAgentStart 收到正确的 userMessage 和 sessionId")
+        void shouldReceiveCorrectStartPayload() {
+            MockLLMProvider llm = new MockLLMProvider();
+            llm.setNextResponse("你好！");
+            SoulComfortAgent agent = new SoulComfortAgent(llm);
+            PayloadCapturingObserver observer = new PayloadCapturingObserver();
+            agent.setObserver(observer);
+
+            agent.chat("test-session-42", "我很难过");
+
+            assertEquals("我很难过", observer.capturedUserMessage,
+                "onAgentStart 的 userMessage 应与输入一致");
+            assertEquals("test-session-42", observer.capturedSessionId,
+                "onAgentStart 的 sessionId 应与输入一致");
+        }
+
+        @Test
+        @DisplayName("onLLMRequest 收到的消息列表包含系统提示和用户消息")
+        void shouldReceiveLLMRequestMessages() {
+            MockLLMProvider llm = new MockLLMProvider();
+            llm.setNextResponse("你好！");
+            SoulComfortAgent agent = new SoulComfortAgent(llm);
+            PayloadCapturingObserver observer = new PayloadCapturingObserver();
+            agent.setObserver(observer);
+
+            agent.chat("s1", "你好吗");
+
+            assertNotNull(observer.capturedLLMRequestMessages);
+            assertTrue(observer.capturedLLMRequestMessages.size() >= 2,
+                "LLM 请求消息列表应至少包含系统提示和用户消息");
+            // 验证系统提示
+            assertEquals(ConversationMessage.MessageRole.SYSTEM,
+                observer.capturedLLMRequestMessages.get(0).getRole());
+            // 验证用户消息出现
+            boolean hasUserMsg = observer.capturedLLMRequestMessages.stream()
+                .anyMatch(m -> m.getRole() == ConversationMessage.MessageRole.USER
+                    && "你好吗".equals(m.getTextContent()));
+            assertTrue(hasUserMsg, "LLM 请求消息应包含用户消息 '你好吗'");
+        }
+
+        @Test
+        @DisplayName("onLLMResponse 收到的响应包含正确的文本内容")
+        void shouldReceiveLLMResponsePayload() {
+            MockLLMProvider llm = new MockLLMProvider();
+            llm.setNextResponse("我理解你的感受。");
+            SoulComfortAgent agent = new SoulComfortAgent(llm);
+            PayloadCapturingObserver observer = new PayloadCapturingObserver();
+            agent.setObserver(observer);
+
+            agent.chat("s1", "你好");
+
+            assertNotNull(observer.capturedLLMResponse);
+            assertEquals("我理解你的感受。",
+                observer.capturedLLMResponse.getMessage().getTextContent(),
+                "onLLMResponse 应包含 LLM 的实际回复文本");
+        }
+
+        @Test
+        @DisplayName("onAgentComplete 收到的 AgentResponse 包含正确文本")
+        void shouldReceiveAgentCompletePayload() {
+            MockLLMProvider llm = new MockLLMProvider();
+            llm.setNextResponse("一切都会好起来的。");
+            SoulComfortAgent agent = new SoulComfortAgent(llm);
+            PayloadCapturingObserver observer = new PayloadCapturingObserver();
+            agent.setObserver(observer);
+
+            agent.chat("s1", "你好");
+
+            assertNotNull(observer.capturedAgentResponse);
+            assertEquals("一切都会好起来的。", observer.capturedAgentResponse.getText(),
+                "onAgentComplete 的 AgentResponse 应包含最终文本");
+        }
+
+        @Test
+        @DisplayName("onError 收到的异常是实际抛出的异常")
+        void shouldReceiveActualException() {
+            MockLLMProvider llm = new MockLLMProvider();
+            RuntimeException expected = new RuntimeException("连接超时");
+            llm.setThrowOnComplete(expected);
+            SoulComfortAgent agent = new SoulComfortAgent(llm);
+            PayloadCapturingObserver observer = new PayloadCapturingObserver();
+            agent.setObserver(observer);
+
+            assertThrows(RuntimeException.class, () -> agent.chat("s1", "你好"));
+
+            assertNotNull(observer.capturedError);
+            assertSame(expected, observer.capturedError,
+                "onError 收到的应是原始异常对象");
+            assertEquals("连接超时", observer.capturedError.getMessage());
+        }
+    }
+
+    // ==================== 最大迭代次数错误消息验证 ====================
+
+    @Nested
+    @DisplayName("最大工具迭代异常消息")
+    class MaxToolIterationsMessageTest {
+
+        @Test
+        @DisplayName("异常消息包含 'Max tool iterations (5)'")
+        void shouldContainMaxIterationsInErrorMessage() {
+            MockLLMProvider llm = new MockLLMProvider();
+            Tool loopTool = new MockTool("loop", "循环工具", args -> "继续");
+            MemoryProvider mp = new InMemoryProvider();
+            PromptEngine pe = PromptEngine.builder()
+                .memoryProvider(mp).baseSystemPrompt("助手").build();
+            SoulComfortAgent agent = new SoulComfortAgent(llm, pe, List.of(loopTool));
+
+            for (int i = 0; i < 10; i++) {
+                llm.addToolCallResponse("loop", Map.of());
+            }
+
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> agent.chat("s1", "开始"));
+            assertTrue(ex.getMessage().contains("Max tool iterations (5)"),
+                "异常消息应包含 'Max tool iterations (5)'，实际: " + ex.getMessage());
+        }
+    }
+
+    // ==================== OpenClaw PromptEngine 调用验证（Mockito）====================
+
+    @Nested
+    @DisplayName("OpenClaw PromptEngine 调用验证")
+    @ExtendWith(MockitoExtension.class)
+    class OpenClawPromptEngineVerificationTest {
+
+        @Test
+        @DisplayName("PromptEngine.build() 被调用时传入正确的 sessionId 和 userMessage")
+        void shouldCallPromptEngineBuildWithCorrectParams() {
+            // 准备 mock MemoryProvider
+            MemoryProvider mockMp = mock(MemoryProvider.class);
+            when(mockMp.getHistory(anyString(), anyInt())).thenReturn(List.of());
+
+            // 准备 mock PromptEngine（使用 spy 以验证调用）
+            PromptEngine realPe = PromptEngine.builder()
+                .memoryProvider(mockMp)
+                .baseSystemPrompt("你是助手。")
+                .build();
+            PromptEngine spyPe = spy(realPe);
+
+            // 准备 mock LLMProvider
+            LLMProvider mockLlm = mock(LLMProvider.class);
+            when(mockLlm.complete(anyList(), any(LLMOptions.class))).thenReturn(
+                LLMResponse.builder()
+                    .message(ConversationMessage.builder()
+                        .role(ConversationMessage.MessageRole.ASSISTANT)
+                        .textContent("回复").build())
+                    .stopReason("end_turn")
+                    .build());
+
+            SoulComfortAgent agent = new SoulComfortAgent(mockLlm, spyPe);
+            agent.chat("my-session-123", "你好世界");
+
+            // 捕获 PromptEngine.build() 的参数
+            ArgumentCaptor<PromptRequest> captor = ArgumentCaptor.forClass(PromptRequest.class);
+            verify(spyPe).build(captor.capture());
+
+            PromptRequest capturedRequest = captor.getValue();
+            assertEquals("my-session-123", capturedRequest.getSessionId(),
+                "PromptRequest 的 sessionId 应与调用参数一致");
+            assertEquals("你好世界", capturedRequest.getUserMessage(),
+                "PromptRequest 的 userMessage 应与调用参数一致");
+        }
+    }
+
+    // ==================== chatStreamReactive 测试 ====================
+
+    @Nested
+    @DisplayName("Reactive 流式对话")
+    class ReactiveStreamingTest {
+
+        @Test
+        @DisplayName("chatStreamReactive 无 ToolCallingLoop 时回退到 callback 桥接")
+        void shouldFallbackToCallbackBridgeWithoutToolCallingLoop() {
+            MockLLMProvider llm = new MockLLMProvider();
+            llm.setStreamResponse("你", "好", "！");
+            // 兼容模式构造，无 ToolCallingLoop
+            SoulComfortAgent agent = new SoulComfortAgent(llm);
+
+            Flux<StreamEvent> flux = agent.chatStreamReactive("s1", "你好");
+
+            List<StreamEvent> events = new ArrayList<>();
+            StepVerifier.create(flux)
+                .recordWith(() -> events)
+                .expectNextCount(4) // 3 TEXT_DELTA + 1 LLM_COMPLETE
+                .verifyComplete();
+
+            // 验证 TEXT_DELTA 事件携带正确的文本片段
+            List<String> deltas = events.stream()
+                .filter(e -> e.getType() == StreamEvent.EventType.TEXT_DELTA)
+                .map(StreamEvent::getTextDelta)
+                .toList();
+            assertEquals(List.of("你", "好", "！"), deltas,
+                "TEXT_DELTA 事件应按顺序携带正确的文本片段");
+
+            // 验证 LLM_COMPLETE 事件
+            StreamEvent completeEvent = events.stream()
+                .filter(e -> e.getType() == StreamEvent.EventType.LLM_COMPLETE)
+                .findFirst()
+                .orElse(null);
+            assertNotNull(completeEvent, "应有 LLM_COMPLETE 事件");
+            assertNotNull(completeEvent.getResponse(), "LLM_COMPLETE 应携带 LLMResponse");
+            assertEquals("你好！", completeEvent.getResponse().getMessage().getTextContent(),
+                "LLM_COMPLETE 的 response 应包含完整文本");
+        }
+
+        @Test
+        @DisplayName("chatStreamReactive 有 ToolCallingLoop 时走 Reactive 管道")
+        void shouldUseToolCallingLoopWhenProvided() {
+            // 准备 mock LLMProvider — 直接返回文本（无工具调用）
+            LLMProvider mockLlm = mock(LLMProvider.class);
+            // 提供 providerName 以避免 NPE in toString
+            when(mockLlm.getProviderName()).thenReturn("mock");
+
+            LLMResponse finalResponse = LLMResponse.builder()
+                .message(ConversationMessage.builder()
+                    .role(ConversationMessage.MessageRole.ASSISTANT)
+                    .textContent("reactive回复").build())
+                .stopReason("end_turn")
+                .build();
+
+            // ToolCallingLoop.executeWithToolsReactive 返回 TEXT_DELTA + LLM_COMPLETE
+            Flux<StreamEvent> mockFlux = Flux.just(
+                StreamEvent.textDelta("reactive"),
+                StreamEvent.textDelta("回复"),
+                StreamEvent.llmComplete(finalResponse)
+            );
+
+            // 准备 mock ToolCallingLoop
+            ToolCallingLoop mockLoop = mock(ToolCallingLoop.class);
+            when(mockLoop.executeWithToolsReactive(anyList(), any(LLMOptions.class)))
+                .thenReturn(mockFlux);
+
+            // 准备 PromptEngine（需要真实的以提供 memoryProvider）
+            MemoryProvider mp = new InMemoryProvider();
+            PromptEngine pe = PromptEngine.builder()
+                .memoryProvider(mp)
+                .baseSystemPrompt("助手")
+                .build();
+
+            // 使用完整构造器：(LLMProvider, PromptEngine, List<Tool>, ToolCallingLoop)
+            // 需要真实的 LLMProvider（因为构造器中 ReflectionService 需要它）
+            // 但 chat 调用走 ToolCallingLoop，所以 mockLlm 用于构造即可
+            // 但 PromptEngine.build 需要 LLM 不被调用 — 让 mockLlm.complete 返回默认值
+            when(mockLlm.complete(anyList(), any(LLMOptions.class))).thenReturn(finalResponse);
+
+            SoulComfortAgent agent = new SoulComfortAgent(mockLlm, pe, List.of(), mockLoop);
+
+            Flux<StreamEvent> resultFlux = agent.chatStreamReactive("s1", "你好");
+
+            List<StreamEvent> events = new ArrayList<>();
+            StepVerifier.create(resultFlux)
+                .recordWith(() -> events)
+                .expectNextCount(3) // 2 TEXT_DELTA + 1 LLM_COMPLETE
+                .verifyComplete();
+
+            // 验证走了 ToolCallingLoop 的 Reactive 路径
+            verify(mockLoop).executeWithToolsReactive(anyList(), any(LLMOptions.class));
+
+            // 验证事件内容
+            List<String> deltas = events.stream()
+                .filter(e -> e.getType() == StreamEvent.EventType.TEXT_DELTA)
+                .map(StreamEvent::getTextDelta)
+                .toList();
+            assertEquals(List.of("reactive", "回复"), deltas);
+        }
+
+        @Test
+        @DisplayName("chatStreamReactive 保存助手回复到 MemoryProvider")
+        void shouldSaveAssistantMessageAfterReactiveStream() {
+            MockLLMProvider llm = new MockLLMProvider();
+            llm.setStreamResponse("保存", "测试");
+            SoulComfortAgent agent = new SoulComfortAgent(llm);
+
+            Flux<StreamEvent> flux = agent.chatStreamReactive("reactive-save-s1", "你好");
+
+            // 消费完 Flux
+            StepVerifier.create(flux)
+                .expectNextCount(3) // 2 TEXT_DELTA + 1 LLM_COMPLETE
+                .verifyComplete();
+
+            // 验证消息保存到了 ConversationMemory
+            ConversationMemory memory = agent.getMemory();
+            List<ConversationMessage> history = memory.getRecentMessages("reactive-save-s1", 10);
+            assertTrue(history.size() >= 2, "应保存 user 和 assistant 消息");
+            boolean hasAssistantMsg = history.stream()
+                .anyMatch(m -> m.getRole() == ConversationMessage.MessageRole.ASSISTANT
+                    && "保存测试".equals(m.getTextContent()));
+            assertTrue(hasAssistantMsg, "应保存完整的助手回复文本 '保存测试'");
+        }
+    }
+
+    // ==================== clearSession 委托验证 ====================
+
+    @Nested
+    @DisplayName("clearSession 委托")
+    class ClearSessionDelegationTest {
+
+        @Test
+        @DisplayName("兼容模式下 clearSession 委托给 ConversationMemory")
+        void shouldDelegateToCovnersationMemoryInFallbackMode() {
+            MockLLMProvider llm = new MockLLMProvider();
+            llm.setNextResponse("你好！");
+            ConversationMemory externalMemory = new ConversationMemory(10);
+            SoulComfortAgent agent = new SoulComfortAgent(llm, externalMemory);
+
+            agent.chat("clear-test-s1", "你好");
+            assertFalse(externalMemory.getHistory("clear-test-s1").isEmpty(),
+                "对话后应有历史记录");
+
+            agent.clearSession("clear-test-s1");
+            assertTrue(externalMemory.getHistory("clear-test-s1").isEmpty(),
+                "clearSession 后历史记录应为空");
+        }
+
+        @Test
+        @DisplayName("OpenClaw 模式下 clearSession 委托给 MemoryProvider")
+        void shouldDelegateToMemoryProviderInOpenClawMode() {
+            MockLLMProvider llm = new MockLLMProvider();
+            llm.setNextResponse("你好！");
+            MemoryProvider mp = new InMemoryProvider();
+            PromptEngine pe = PromptEngine.builder()
+                .memoryProvider(mp)
+                .baseSystemPrompt("助手")
+                .build();
+            SoulComfortAgent agent = new SoulComfortAgent(llm, pe);
+
+            agent.chat("clear-test-s2", "你好");
+            assertFalse(mp.getHistory("clear-test-s2", 10).isEmpty(),
+                "对话后 MemoryProvider 应有历史记录");
+
+            agent.clearSession("clear-test-s2");
+            assertTrue(mp.getHistory("clear-test-s2", 10).isEmpty(),
+                "clearSession 后 MemoryProvider 历史记录应为空");
+        }
+    }
+
     // ==================== 辅助类 ====================
 
     static class MockLLMProvider implements LLMProvider {
@@ -460,6 +895,10 @@ class SoulComfortAgentTest {
 
         void addToolCallResponse(String toolName, Map<String, Object> args) {
             responseQueue.add(new ToolCallSetup(toolName, args));
+        }
+
+        void addRawResponse(LLMResponse response) {
+            responseQueue.add(response);
         }
 
         void setStreamResponse(String... chunks) {
@@ -487,6 +926,9 @@ class SoulComfortAgentTest {
             Object next = responseQueue.get(responseIndex++);
             if (next instanceof ToolCallSetup setup) {
                 return createToolCallResponse(setup.toolName, setup.args);
+            }
+            if (next instanceof LLMResponse raw) {
+                return raw;
             }
             return createTextResponse((String) next);
         }
@@ -595,5 +1037,43 @@ class SoulComfortAgentTest {
         public void onAgentComplete(AgentResponse response) { completeCalled = true; }
         @Override
         public void onError(Throwable error) { errorCalled = true; }
+    }
+
+    /**
+     * 捕获完整 payload 的观察者（用于验证回调参数的具体内容）
+     */
+    static class PayloadCapturingObserver implements AgentObserver {
+        String capturedUserMessage;
+        String capturedSessionId;
+        List<ConversationMessage> capturedLLMRequestMessages;
+        LLMResponse capturedLLMResponse;
+        AgentResponse capturedAgentResponse;
+        Throwable capturedError;
+
+        @Override
+        public void onAgentStart(String userMessage, String sessionId) {
+            this.capturedUserMessage = userMessage;
+            this.capturedSessionId = sessionId;
+        }
+
+        @Override
+        public void onLLMRequest(List<ConversationMessage> messages) {
+            this.capturedLLMRequestMessages = new ArrayList<>(messages);
+        }
+
+        @Override
+        public void onLLMResponse(LLMResponse response) {
+            this.capturedLLMResponse = response;
+        }
+
+        @Override
+        public void onAgentComplete(AgentResponse response) {
+            this.capturedAgentResponse = response;
+        }
+
+        @Override
+        public void onError(Throwable error) {
+            this.capturedError = error;
+        }
     }
 }
