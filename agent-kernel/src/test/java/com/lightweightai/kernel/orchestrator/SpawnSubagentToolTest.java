@@ -67,7 +67,7 @@ class SpawnSubagentToolTest {
     @Test
     @DisplayName("execute with valid task returns success with runId")
     void executeReturnsRunId() {
-        ToolResult result = tool.execute(Map.of("task", "translate document"));
+        ToolResult result = tool.execute(Map.of("task", "translate document", "agentId", "worker"));
 
         assertFalse(result.isError());
         assertTrue(result.getContent().contains("Run ID:"));
@@ -98,12 +98,10 @@ class SpawnSubagentToolTest {
     }
 
     @Test
-    @DisplayName("execute with non-existent agentId returns error")
-    void executeWithBadAgentIdReturnsError() {
-        ToolResult result = tool.execute(Map.of("task", "work", "agentId", "nonexistent"));
-
-        assertTrue(result.isError());
-        assertTrue(result.getContent().contains("Failed to spawn"));
+    @DisplayName("execute with non-existent agentId throws IllegalArgumentException")
+    void executeWithBadAgentIdThrows() {
+        assertThrows(IllegalArgumentException.class, () ->
+                tool.execute(Map.of("task", "work", "agentId", "nonexistent")));
     }
 
     @Test
