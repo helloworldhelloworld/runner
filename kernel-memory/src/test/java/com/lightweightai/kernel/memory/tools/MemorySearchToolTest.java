@@ -74,8 +74,8 @@ class MemorySearchToolTest {
     @Test
     @DisplayName("写入数据后搜索可找到")
     void searchFindsIndexedContent() {
-        memoryManager.ingestText("My favorite color is blue", "prefs.md");
-        memoryManager.ingestText("The weather today is sunny", "weather.md");
+        memoryManager.writeDurable("My favorite color is blue");
+        memoryManager.appendDurable("Weather", "The weather today is sunny");
 
         MemorySearchResult result = searchTool.execute(Map.of("query", "favorite color"));
         assertTrue(result.success());
@@ -84,22 +84,20 @@ class MemorySearchToolTest {
     @Test
     @DisplayName("top_k 参数生效")
     void topKParameter() {
-        for (int i = 0; i < 10; i++) {
-            memoryManager.ingestText("Memory entry number " + i, "entry" + i + ".md");
-        }
+        memoryManager.writeDurable("Document 1 about topic\n\nDocument 2 about topic\n\nDocument 3 about topic");
 
         MemorySearchResult result = searchTool.execute(Map.of(
-            "query", "memory entry",
-            "top_k", 3
+            "query", "topic",
+            "top_k", 2
         ));
         assertTrue(result.success());
-        assertTrue(result.matches().size() <= 3);
+        assertTrue(result.matches().size() <= 2);
     }
 
     @Test
     @DisplayName("vector_weight 参数被接受")
     void vectorWeightParameter() {
-        memoryManager.ingestText("Some content for testing", "test.md");
+        memoryManager.writeDurable("Some content for testing");
 
         MemorySearchResult result = searchTool.execute(Map.of(
             "query", "content testing",

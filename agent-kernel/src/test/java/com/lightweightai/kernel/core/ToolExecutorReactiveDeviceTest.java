@@ -38,11 +38,11 @@ class ToolExecutorReactiveDeviceTest {
             createTool("get_position", "default_position"));
 
         dispTool.addBinding(new DeviceToolBinding(
-            "car", VersionRange.any(),
+            "car", VersionRange.all(),
             createTool("get_position", "car_gps_position"), 10));
 
         dispTool.addBinding(new DeviceToolBinding(
-            "phone", VersionRange.any(),
+            "phone", VersionRange.all(),
             createTool("get_position", "phone_position"), 10));
 
         registry.register(dispTool);
@@ -86,7 +86,7 @@ class ToolExecutorReactiveDeviceTest {
         DispatchingTool dispTool = new DispatchingTool("sensor",
             createTool("sensor", "generic"));
         dispTool.addBinding(new DeviceToolBinding(
-            "car", VersionRange.any(),
+            "car", VersionRange.all(),
             createTool("sensor", "car_sensor"), 10));
         registry.register(dispTool);
 
