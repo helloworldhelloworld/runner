@@ -36,7 +36,7 @@ class ToolExecutorDeviceDispatchTransmissionTest {
                 simpleTool("get_position", "car: lat=31.2,lon=121.4"), 10));
 
         getPosition.addBinding(new DeviceToolBinding(
-                "phone", VersionRange.any(),
+                "phone", VersionRange.all(),
                 simpleTool("get_position", "phone: GPS(31.2,121.4)"), 5));
 
         toolRegistry.register(getPosition);
@@ -46,7 +46,7 @@ class ToolExecutorDeviceDispatchTransmissionTest {
     @DisplayName("car context dispatches to car implementation")
     void carContextDispatchesToCar() {
         ToolExecutionContext ctx = new ToolExecutionContext(
-                null, 5000, new DeviceContext("car", "2.1.0"));
+                null, 5000, DeviceContext.of("car", "2.1.0"));
 
         ToolResult result = executor.executeToolCall(
                 new ToolCall("tc-1", "get_position", Map.of()), ctx);
@@ -60,7 +60,7 @@ class ToolExecutorDeviceDispatchTransmissionTest {
     @DisplayName("phone context dispatches to phone implementation")
     void phoneContextDispatchesToPhone() {
         ToolExecutionContext ctx = new ToolExecutionContext(
-                null, 5000, new DeviceContext("phone", "1.0.0"));
+                null, 5000, DeviceContext.of("phone", "1.0.0"));
 
         ToolResult result = executor.executeToolCall(
                 new ToolCall("tc-2", "get_position", Map.of()), ctx);
@@ -74,7 +74,7 @@ class ToolExecutorDeviceDispatchTransmissionTest {
     @DisplayName("unknown device falls back to default tool")
     void unknownDeviceFallsToDefault() {
         ToolExecutionContext ctx = new ToolExecutionContext(
-                null, 5000, new DeviceContext("watch", "1.0.0"));
+                null, 5000, DeviceContext.of("watch", "1.0.0"));
 
         ToolResult result = executor.executeToolCall(
                 new ToolCall("tc-3", "get_position", Map.of()), ctx);
@@ -88,7 +88,7 @@ class ToolExecutorDeviceDispatchTransmissionTest {
     @DisplayName("old car version falls back to default (version mismatch)")
     void oldCarVersionFallsToDefault() {
         ToolExecutionContext ctx = new ToolExecutionContext(
-                null, 5000, new DeviceContext("car", "1.5.0"));
+                null, 5000, DeviceContext.of("car", "1.5.0"));
 
         ToolResult result = executor.executeToolCall(
                 new ToolCall("tc-4", "get_position", Map.of()), ctx);
@@ -126,7 +126,7 @@ class ToolExecutorDeviceDispatchTransmissionTest {
     @DisplayName("reactive dispatch also respects device context")
     void reactiveDispatchRespectsDeviceContext() {
         ToolExecutionContext ctx = new ToolExecutionContext(
-                null, 5000, new DeviceContext("car", "3.0.0"));
+                null, 5000, DeviceContext.of("car", "3.0.0"));
 
         ToolResultChunk chunk = executor.executeToolCallReactive(
                         new ToolCall("tc-7", "get_position", Map.of()), ctx)

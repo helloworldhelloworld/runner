@@ -23,17 +23,17 @@ class DeviceToolBindingTest {
         DeviceToolBinding binding = new DeviceToolBinding(
                 "car", VersionRange.parse(">=2.0.0"), simpleTool("car_gps"));
 
-        assertTrue(binding.matches(new DeviceContext("car", "2.1.0")));
-        assertTrue(binding.matches(new DeviceContext("car", "3.0.0")));
+        assertTrue(binding.matches(DeviceContext.of("car", "2.1.0")));
+        assertTrue(binding.matches(DeviceContext.of("car", "3.0.0")));
     }
 
     @Test
     @DisplayName("rejects wrong device type")
     void rejectsWrongDevice() {
         DeviceToolBinding binding = new DeviceToolBinding(
-                "car", VersionRange.any(), simpleTool("car_gps"));
+                "car", VersionRange.all(), simpleTool("car_gps"));
 
-        assertFalse(binding.matches(new DeviceContext("phone", "1.0.0")));
+        assertFalse(binding.matches(DeviceContext.of("phone", "1.0.0")));
     }
 
     @Test
@@ -42,25 +42,25 @@ class DeviceToolBindingTest {
         DeviceToolBinding binding = new DeviceToolBinding(
                 "car", VersionRange.parse(">=2.0.0"), simpleTool("car_gps"));
 
-        assertFalse(binding.matches(new DeviceContext("car", "1.9.0")));
+        assertFalse(binding.matches(DeviceContext.of("car", "1.9.0")));
     }
 
     @Test
     @DisplayName("wildcard device type matches any device")
     void wildcardMatchesAnyDevice() {
         DeviceToolBinding binding = new DeviceToolBinding(
-                DeviceContext.WILDCARD, VersionRange.any(), simpleTool("generic"));
+                DeviceContext.WILDCARD, VersionRange.all(), simpleTool("generic"));
 
-        assertTrue(binding.matches(new DeviceContext("car", "1.0.0")));
-        assertTrue(binding.matches(new DeviceContext("phone", "2.0.0")));
-        assertTrue(binding.matches(new DeviceContext("watch", "3.0.0")));
+        assertTrue(binding.matches(DeviceContext.of("car", "1.0.0")));
+        assertTrue(binding.matches(DeviceContext.of("phone", "2.0.0")));
+        assertTrue(binding.matches(DeviceContext.of("watch", "3.0.0")));
     }
 
     @Test
     @DisplayName("returns false for null context")
     void nullContextReturnsFalse() {
         DeviceToolBinding binding = new DeviceToolBinding(
-                "car", VersionRange.any(), simpleTool("car_gps"));
+                "car", VersionRange.all(), simpleTool("car_gps"));
 
         assertFalse(binding.matches(null));
     }
@@ -69,9 +69,9 @@ class DeviceToolBindingTest {
     @DisplayName("priority is preserved")
     void priorityPreserved() {
         DeviceToolBinding low = new DeviceToolBinding(
-                "car", VersionRange.any(), simpleTool("low"), 1);
+                "car", VersionRange.all(), simpleTool("low"), 1);
         DeviceToolBinding high = new DeviceToolBinding(
-                "car", VersionRange.any(), simpleTool("high"), 10);
+                "car", VersionRange.all(), simpleTool("high"), 10);
 
         assertEquals(1, low.getPriority());
         assertEquals(10, high.getPriority());
@@ -81,7 +81,7 @@ class DeviceToolBindingTest {
     @DisplayName("default priority is 0")
     void defaultPriorityIsZero() {
         DeviceToolBinding binding = new DeviceToolBinding(
-                "car", VersionRange.any(), simpleTool("test"));
+                "car", VersionRange.all(), simpleTool("test"));
 
         assertEquals(0, binding.getPriority());
     }
@@ -91,7 +91,7 @@ class DeviceToolBindingTest {
     void getToolReturnsBound() {
         Tool tool = simpleTool("my_tool");
         DeviceToolBinding binding = new DeviceToolBinding(
-                "car", VersionRange.any(), tool);
+                "car", VersionRange.all(), tool);
 
         assertSame(tool, binding.getTool());
     }
@@ -100,7 +100,7 @@ class DeviceToolBindingTest {
     @DisplayName("getDeviceType() returns the device type")
     void getDeviceTypeWorks() {
         DeviceToolBinding binding = new DeviceToolBinding(
-                "phone", VersionRange.any(), simpleTool("test"));
+                "phone", VersionRange.all(), simpleTool("test"));
 
         assertEquals("phone", binding.getDeviceType());
     }
@@ -109,7 +109,7 @@ class DeviceToolBindingTest {
     @DisplayName("null deviceType throws NPE")
     void nullDeviceTypeThrows() {
         assertThrows(NullPointerException.class, () ->
-                new DeviceToolBinding(null, VersionRange.any(), simpleTool("t")));
+                new DeviceToolBinding(null, VersionRange.all(), simpleTool("t")));
     }
 
     @Test
@@ -123,7 +123,7 @@ class DeviceToolBindingTest {
     @DisplayName("null tool throws NPE")
     void nullToolThrows() {
         assertThrows(NullPointerException.class, () ->
-                new DeviceToolBinding("car", VersionRange.any(), null));
+                new DeviceToolBinding("car", VersionRange.all(), null));
     }
 
     private Tool simpleTool(String name) {
