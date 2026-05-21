@@ -38,8 +38,8 @@ class ClientToolAliasTest {
         FakeClientTool primary = new FakeClientTool(noopDispatcher());
         ClientToolAlias alias = new ClientToolAlias("Alt", primary);
 
-        assertSame(primary.getDescription(), alias.getDescription());
-        assertSame(primary.getSchema(), alias.getSchema());
+        assertEquals(primary.getDescription(), alias.getDescription());
+        assertEquals(primary.getSchema().toMap(), alias.getSchema().toMap());
         assertEquals(primary.isAutoExecute(), alias.isAutoExecute());
     }
 

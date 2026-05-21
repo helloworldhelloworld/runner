@@ -141,7 +141,7 @@ class AgentObserverIntegrationTest {
     }
 
     @Test
-    @DisplayName("onPreToolUse and onPostToolUse fire via CapturingAgentObserver in tool-calling loop")
+    @DisplayName("onPreToolUse and onPostToolUse fire via CapturingAgentObserver in reactive path")
     void toolObserverHooksFireThroughReactivePath() {
         CapturingAgentObserver capturingObserver = new CapturingAgentObserver();
 
@@ -165,7 +165,7 @@ class AgentObserverIntegrationTest {
             .addObserver(capturingObserver)
             .build();
 
-        loop.run("call echo", "s1");
+        loop.runReactive("call echo", "s1").blockLast();
 
         assertFalse(capturingObserver.preCalls().isEmpty(),
             "onPreToolUse must fire at least once through ToolCallingLoop");
@@ -253,7 +253,15 @@ class AgentObserverIntegrationTest {
                 List<ConversationMessage> messages, LLMOptions options,
                 StreamEventHandler handler) {
             LLMResponse response = complete(messages, options);
-            handler.onTextDelta(response.getMessage().getTextContent());
+            String text = response.getMessage().getTextContent();
+            if (text != null && !text.isEmpty()) {
+                handler.onTextDelta(text);
+            }
+            if (response.hasToolCalls()) {
+                for (ToolCall tc : response.getToolCalls()) {
+                    handler.onToolCallDelta(tc);
+                }
+            }
             handler.onComplete(response);
             return CompletableFuture.completedFuture(response);
         }
