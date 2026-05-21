@@ -211,6 +211,11 @@ class AgentObserverIntegrationTest {
         private int callCount = 0;
 
         @Override
+        public String getProviderName() {
+            return "test";
+        }
+
+        @Override
         public LLMResponse complete(List<ConversationMessage> messages, LLMOptions options) {
             if (shouldThrow != null) throw shouldThrow;
             lastMessages.clear();
@@ -241,6 +246,21 @@ class AgentObserverIntegrationTest {
         @Override
         public CompletableFuture<LLMResponse> completeAsync(List<ConversationMessage> messages, LLMOptions options) {
             return CompletableFuture.completedFuture(complete(messages, options));
+        }
+
+        @Override
+        public CompletableFuture<LLMResponse> completeStream(
+                List<ConversationMessage> messages, LLMOptions options,
+                StreamEventHandler handler) {
+            LLMResponse response = complete(messages, options);
+            handler.onTextDelta(response.getMessage().getTextContent());
+            handler.onComplete(response);
+            return CompletableFuture.completedFuture(response);
+        }
+
+        @Override
+        public ModelCapability getModelCapability() {
+            return null;
         }
     }
 
