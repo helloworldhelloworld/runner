@@ -79,10 +79,16 @@ public class WaitSubagentTool implements Tool {
                         case COMPLETED -> result.append("[").append(runId).append("] ")
                                 .append(run.getResult() != null ? run.getResult().getText() : "")
                                 .append(" (").append(run.getDurationMs()).append("ms)\n\n");
-                        case FAILED -> result.append("[").append(runId).append("] FAILED: ")
-                                .append(run.getErrorMessage()).append("\n\n");
-                        case CANCELLED -> result.append("[").append(runId).append("] CANCELLED: ")
-                                .append(run.getErrorMessage()).append("\n\n");
+                        case FAILED -> {
+                            result.append("[").append(runId).append("] FAILED: ")
+                                    .append(run.getErrorMessage()).append("\n\n");
+                            allCompleted = false;
+                        }
+                        case CANCELLED -> {
+                            result.append("[").append(runId).append("] CANCELLED: ")
+                                    .append(run.getErrorMessage()).append("\n\n");
+                            allCompleted = false;
+                        }
                         default -> result.append("[").append(runId).append("] ")
                                 .append(run.getStatus()).append("\n\n");
                     }
