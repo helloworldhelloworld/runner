@@ -86,7 +86,7 @@ class WebSocketLLMProviderTest {
     }
 
     @Test
-    @DisplayName("completeAsync 对非法端口 URL 最终异常完成")
+    @DisplayName("completeAsync 对非法端口 URL 抛出异常（URL 校验阶段）")
     void completeAsyncWithInvalidPortFails() {
         WebSocketLLMProvider provider = new WebSocketLLMProvider("ws://localhost:99999", "test-model");
         List<ConversationMessage> messages = List.of(
@@ -96,9 +96,8 @@ class WebSocketLLMProviderTest {
                         .build()
         );
 
-        var future = provider.completeAsync(messages, null);
-        assertNotNull(future);
-        assertThrows(Exception.class, future::get);
+        assertThrows(IllegalArgumentException.class,
+                () -> provider.completeAsync(messages, null));
         provider.shutdown();
     }
 }
