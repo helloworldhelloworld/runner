@@ -71,9 +71,9 @@ class WebSocketLLMProviderTest {
     }
 
     @Test
-    @DisplayName("complete 在未连接时抛出 RuntimeException")
-    void completeWhenDisconnectedThrows() {
-        WebSocketLLMProvider provider = new WebSocketLLMProvider("ws://invalid:99999", "test-model");
+    @DisplayName("complete 对非法端口 URL 抛出 RuntimeException（OkHttp URL 校验）")
+    void completeWithInvalidPortThrows() {
+        WebSocketLLMProvider provider = new WebSocketLLMProvider("ws://localhost:99999", "test-model");
         List<ConversationMessage> messages = List.of(
                 ConversationMessage.builder()
                         .role(MessageRole.USER)
@@ -86,9 +86,9 @@ class WebSocketLLMProviderTest {
     }
 
     @Test
-    @DisplayName("completeAsync 在未连接时返回 failed future")
-    void completeAsyncWhenDisconnected() {
-        WebSocketLLMProvider provider = new WebSocketLLMProvider("ws://invalid:99999", "test-model");
+    @DisplayName("completeAsync 对非法端口 URL 最终异常完成")
+    void completeAsyncWithInvalidPortFails() {
+        WebSocketLLMProvider provider = new WebSocketLLMProvider("ws://localhost:99999", "test-model");
         List<ConversationMessage> messages = List.of(
                 ConversationMessage.builder()
                         .role(MessageRole.USER)
@@ -98,7 +98,7 @@ class WebSocketLLMProviderTest {
 
         var future = provider.completeAsync(messages, null);
         assertNotNull(future);
-        assertTrue(future.isCompletedExceptionally() || !future.isDone());
+        assertThrows(Exception.class, future::get);
         provider.shutdown();
     }
 }
