@@ -19,10 +19,19 @@ class SkillCreatorSessionTest {
     @Test
     void addMessage() {
         SkillCreatorSession session = new SkillCreatorSession("s1");
-        session.addMessage(ConversationMessage.user("hello"));
-        session.addMessage(ConversationMessage.assistant("hi"));
+        ConversationMessage userMsg = ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.USER)
+                .textContent("hello")
+                .build();
+        ConversationMessage assistantMsg = ConversationMessage.builder()
+                .role(ConversationMessage.MessageRole.ASSISTANT)
+                .textContent("hi")
+                .build();
+        session.addMessage(userMsg);
+        session.addMessage(assistantMsg);
         assertEquals(2, session.getHistory().size());
-        assertEquals("user", session.getHistory().get(0).getRole());
+        assertEquals(ConversationMessage.MessageRole.USER, session.getHistory().get(0).getRole());
+        assertEquals(ConversationMessage.MessageRole.ASSISTANT, session.getHistory().get(1).getRole());
     }
 
     @Test
