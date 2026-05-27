@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolExecutor;
+import com.lightweightai.mcp.transport.WebSocketMcpClientTransport;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
@@ -223,6 +224,12 @@ public class ToolClient implements AutoCloseable {
                 Duration timeout = Duration.ofSeconds(serverConfig.getTimeoutSeconds());
                 addMcpServer(name, transport, timeout);
 
+                if (transport instanceof WebSocketMcpClientTransport
+                        && serverConfig.getToolRefreshIntervalSeconds() > 0) {
+                    mcpClients.get(mcpClients.size() - 1).startToolRefreshPolling(
+                        Duration.ofSeconds(serverConfig.getToolRefreshIntervalSeconds()));
+                }
+
                 logger.info("Added MCP server '{}' from config (transport={})", name, serverConfig.getTransport());
             }
             return this;
@@ -287,6 +294,29 @@ public class ToolClient implements AutoCloseable {
                     }
                 });
                 return builder.build();
+            }
+
+            if ("ws".equalsIgnoreCase(transport)
+                    || "websocket".equalsIgnoreCase(transport)) {
+                if (config.getUrl() == null || config.getUrl().isBlank()) {
+                    throw new IllegalStateException(
+                        "MCP server '" + name + "': WebSocket transport requires 'url'");
+                }
+                String wsUrl = config.getUrl()
+                    .replaceFirst("^http://", "ws://")
+                    .replaceFirst("^https://", "wss://");
+
+                // WebSocket header 仅建连（Upgrade）时使用一次：合并静态配置 + 全局 provider 快照。
+                // 请求级动态信息走 _meta.requestHeaders（McpRequestMetaContext），不在此处。
+                Map<String, String> connectHeaders = resolveHeaders(config, headerProvider);
+
+                var wsBuilder = WebSocketMcpClientTransport.builder(wsUrl)
+                    .connectTimeout(Duration.ofSeconds(config.getTimeoutSeconds()))
+                    .pingInterval(Duration.ofSeconds(config.getPingIntervalSeconds()))
+                    .maxReconnectAttempts(config.getMaxReconnectAttempts())
+                    .reconnectBaseDelay(Duration.ofMillis(config.getReconnectBaseDelayMs()))
+                    .headers(connectHeaders);
+                return wsBuilder.build();
             }
 
             if ("sse".equalsIgnoreCase(transport)) {
