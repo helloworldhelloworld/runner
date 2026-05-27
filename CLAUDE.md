@@ -17,15 +17,6 @@ cd agent-web && mvn spring-boot:run  # Run service
 - **Grep all callers**: Before changing a method signature, `grep -r` across the entire repo.
 - **No module left behind**: Modules without tests (e.g. `agent-demo`) still need `mvn clean compile`.
 
-## Git CI-Results Conflict Resolution
-
-`ci-results/` is auto-updated by GitHub Actions. On conflicts:
-```bash
-git checkout --theirs ci-results/build.log ci-results/latest.json
-git add ci-results/
-git rebase --continue
-```
-
 ## Architecture Knowledge Base
 
 Before making changes, read the relevant docs:

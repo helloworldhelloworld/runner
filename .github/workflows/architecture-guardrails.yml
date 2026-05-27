@@ -39,8 +39,3 @@ jobs:
           cache: maven
       - name: Build and test all modules
         run: mvn clean test -B
-      - name: Save CI results
-        if: always()
-        run: |
-          mkdir -p ci-results
-          echo '{"status":"${{ job.status }}","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","sha":"${{ github.sha }}"}' > ci-results/latest.json
