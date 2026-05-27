@@ -119,7 +119,7 @@ public class McpConfiguration {
      */
     public static class ServerConfig {
 
-        /** 传输类型: "stdio" (默认), "sse", "streamable_http" */
+        /** 传输类型: "stdio" (默认), "sse", "streamable_http", "ws"/"websocket" */
         private String transport = "stdio";
 
         /** STDIO 传输：启动命令 */
@@ -140,8 +140,22 @@ public class McpConfiguration {
         /** 请求超时（秒） */
         private long timeoutSeconds = 30;
 
-        /** HTTP 自定义 Header（SSE / Streamable HTTP 生效，STDIO 忽略） */
+        /** HTTP 自定义 Header（SSE / Streamable HTTP / WebSocket 建连时生效，STDIO 忽略） */
         private Map<String, String> headers = new HashMap<>();
+
+        // ==================== WebSocket 新增字段（仅 transport=ws 时生效） ====================
+
+        /** WebSocket 心跳间隔（秒），默认 30 */
+        private int pingIntervalSeconds = 30;
+
+        /** WebSocket 最大重连次数，默认 10 */
+        private int maxReconnectAttempts = 10;
+
+        /** WebSocket 重连基础延迟（毫秒），默认 1000 */
+        private int reconnectBaseDelayMs = 1000;
+
+        /** WebSocket 工具列表兜底刷新周期（秒），默认 300；<=0 关闭轮询 */
+        private int toolRefreshIntervalSeconds = 300;
 
         public ServerConfig() {}
 
@@ -181,6 +195,18 @@ public class McpConfiguration {
         public static ServerConfig streamableHttp(String url) {
             ServerConfig config = new ServerConfig();
             config.transport = "streamable_http";
+            config.url = url;
+            return config;
+        }
+
+        /**
+         * 创建 WebSocket 传输配置
+         *
+         * @param url 服务端 WebSocket 端点 URL（ws:// 或 wss://，也接受 http(s):// 自动转换）
+         */
+        public static ServerConfig ws(String url) {
+            ServerConfig config = new ServerConfig();
+            config.transport = "ws";
             config.url = url;
             return config;
         }
@@ -256,6 +282,38 @@ public class McpConfiguration {
 
         public void setHeaders(Map<String, String> headers) {
             this.headers = headers;
+        }
+
+        public int getPingIntervalSeconds() {
+            return pingIntervalSeconds;
+        }
+
+        public void setPingIntervalSeconds(int pingIntervalSeconds) {
+            this.pingIntervalSeconds = pingIntervalSeconds;
+        }
+
+        public int getMaxReconnectAttempts() {
+            return maxReconnectAttempts;
+        }
+
+        public void setMaxReconnectAttempts(int maxReconnectAttempts) {
+            this.maxReconnectAttempts = maxReconnectAttempts;
+        }
+
+        public int getReconnectBaseDelayMs() {
+            return reconnectBaseDelayMs;
+        }
+
+        public void setReconnectBaseDelayMs(int reconnectBaseDelayMs) {
+            this.reconnectBaseDelayMs = reconnectBaseDelayMs;
+        }
+
+        public int getToolRefreshIntervalSeconds() {
+            return toolRefreshIntervalSeconds;
+        }
+
+        public void setToolRefreshIntervalSeconds(int toolRefreshIntervalSeconds) {
+            this.toolRefreshIntervalSeconds = toolRefreshIntervalSeconds;
         }
 
         /**

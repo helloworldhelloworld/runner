@@ -115,7 +115,8 @@ public class McpToolWrapper implements Tool, ToolMetadata {
         Mono<McpSchema.CallToolResult> callMono = Mono
             .deferContextual(ctx -> {
                 McpHeaderContext.bind(ctx);
-                return toolClient.callToolReactive(mcpTool.name(), args, progressToken);
+                Map<String, String> requestMeta = McpRequestMetaContext.current(ctx);
+                return toolClient.callToolReactive(mcpTool.name(), args, progressToken, requestMeta);
             })
             .doOnTerminate(() -> {
                 toolClient.getProgressRouter().complete(progressToken);
