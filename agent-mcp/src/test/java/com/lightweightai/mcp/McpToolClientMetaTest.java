@@ -43,4 +43,25 @@ class McpToolClientMetaTest {
         assertNull(meta.get("progressToken"));
         assertTrue(meta.containsKey(McpRequestMetaContext.META_FIELD));
     }
+
+    @Test
+    @DisplayName("mergeRequestMeta: per-call（Reactor Context）覆盖实例级 setRequestMeta 同名 key")
+    void perCallOverridesInstanceDefault() {
+        Map<String, String> base = Map.of("x-uid", "u-default", "x-app", "app-1");
+        Map<String, String> perCall = Map.of("x-uid", "u-call", "x-trace", "t-1");
+
+        Map<String, String> merged = McpToolClient.mergeRequestMeta(base, perCall);
+
+        assertEquals("u-call", merged.get("x-uid"));   // per-call 覆盖
+        assertEquals("app-1", merged.get("x-app"));     // 实例级保留
+        assertEquals("t-1", merged.get("x-trace"));     // per-call 新增
+    }
+
+    @Test
+    @DisplayName("mergeRequestMeta: 任一为空时退化为另一方，全空返回空 map")
+    void mergeHandlesEmpties() {
+        assertEquals(Map.of("a", "1"), McpToolClient.mergeRequestMeta(Map.of("a", "1"), Map.of()));
+        assertEquals(Map.of("b", "2"), McpToolClient.mergeRequestMeta(null, Map.of("b", "2")));
+        assertTrue(McpToolClient.mergeRequestMeta(Map.of(), null).isEmpty());
+    }
 }

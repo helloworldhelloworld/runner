@@ -46,6 +46,8 @@ public class McpToolClient implements ToolSource, AutoCloseable {
     private volatile ToolRegistry registeredRegistry;
     private volatile ToolsChangedListener toolsChangedListener;
     private volatile ScheduledExecutorService refreshScheduler;
+    /** setRequestMeta 设置的实例级请求 metadata（契约 3.3.1），会被 per-call Reactor Context 覆盖 */
+    private volatile Map<String, String> requestMeta = Map.of();
 
     private McpToolClient(Builder builder) {
         this.serverName = builder.serverName;
@@ -184,9 +186,30 @@ public class McpToolClient implements ToolSource, AutoCloseable {
      */
     public Mono<McpSchema.CallToolResult> callToolReactive(
             String name, Map<String, Object> args, String progressToken,
-            Map<String, String> requestMeta) {
+            Map<String, String> perCallMeta) {
+        Map<String, String> effective = mergeRequestMeta(this.requestMeta, perCallMeta);
         return asyncClient.callTool(
-            new McpSchema.CallToolRequest(name, args, buildCallMeta(progressToken, requestMeta)));
+            new McpSchema.CallToolRequest(name, args, buildCallMeta(progressToken, effective)));
+    }
+
+    /**
+     * 合并实例级（setRequestMeta）与 per-call（Reactor Context）的请求 metadata，
+     * per-call 同名 key 优先。
+     */
+    static Map<String, String> mergeRequestMeta(Map<String, String> base, Map<String, String> perCall) {
+        boolean baseEmpty = base == null || base.isEmpty();
+        boolean perCallEmpty = perCall == null || perCall.isEmpty();
+        if (baseEmpty && perCallEmpty) {
+            return Map.of();
+        }
+        Map<String, String> merged = new HashMap<>();
+        if (!baseEmpty) {
+            merged.putAll(base);
+        }
+        if (!perCallEmpty) {
+            merged.putAll(perCall);
+        }
+        return merged;
     }
 
     /**
@@ -225,6 +248,19 @@ public class McpToolClient implements ToolSource, AutoCloseable {
 
     public McpAsyncClient getAsyncClient() {
         return asyncClient;
+    }
+
+    /**
+     * 设置请求级 metadata（契约 3.3.1）。
+     *
+     * <p>作为实例级默认值，会在后续 {@code tools/call} 通过 JSON-RPC 消息的
+     * {@code _meta.requestHeaders} 传递。每次调用可由 Reactor Context
+     * （{@link McpRequestMetaContext}）按调用覆盖同名 key（并发安全，推荐）。
+     *
+     * @param requestMeta 请求级 key-value 元数据，null 视为清空
+     */
+    public void setRequestMeta(Map<String, String> requestMeta) {
+        this.requestMeta = requestMeta != null ? Map.copyOf(requestMeta) : Map.of();
     }
 
     /**
