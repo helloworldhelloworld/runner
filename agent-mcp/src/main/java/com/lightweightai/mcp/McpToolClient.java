@@ -174,17 +174,17 @@ public class McpToolClient implements ToolSource, AutoCloseable {
     }
 
     /**
-     * Reactive 工具调用（含请求级 metadata）
+     * Reactive 工具调用（含请求级 metadata）—— 内部 API，仅供同包 {@link McpToolWrapper} 调用。
      *
-     * <p>{@code requestMeta} 通过 JSON-RPC 消息体的 {@code _meta.requestHeaders} 传递，
-     * 与 progressToken 一并写入 {@code _meta}。对任意 transport 均生效（随消息体传输）。
+     * <p>对外的请求级 metadata 入口是 {@link #setRequestMeta(Map)}（契约）与
+     * {@link McpRequestMetaContext}（per-call，并发安全）。
      *
      * @param name          工具名
      * @param args          参数
      * @param progressToken 进度 token（写入 {@code _meta.progressToken}）
-     * @param requestMeta   请求级 metadata（写入 {@code _meta.requestHeaders}），可为空
+     * @param perCallMeta   per-call metadata（写入 {@code _meta.requestHeaders}），可为空
      */
-    public Mono<McpSchema.CallToolResult> callToolReactive(
+    Mono<McpSchema.CallToolResult> callToolReactive(
             String name, Map<String, Object> args, String progressToken,
             Map<String, String> perCallMeta) {
         Map<String, String> effective = mergeRequestMeta(this.requestMeta, perCallMeta);
@@ -294,8 +294,10 @@ public class McpToolClient implements ToolSource, AutoCloseable {
     /**
      * 启动工具列表定时轮询兜底（当 MCP Server 不推送 tools/list_changed 时）。
      * interval &lt;= 0 时不启动。每次轮询调用 {@link #refreshTools}。
+     *
+     * <p>内部 API，由同包 {@link ToolClient} 根据配置启用。
      */
-    public synchronized void startToolRefreshPolling(Duration interval) {
+    synchronized void startToolRefreshPolling(Duration interval) {
         if (interval == null || interval.isZero() || interval.isNegative()) {
             return;
         }
