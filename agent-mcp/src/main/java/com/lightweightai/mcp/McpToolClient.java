@@ -8,6 +8,9 @@ import io.modelcontextprotocol.client.McpAsyncClient;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.spec.McpClientTransport;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.modelcontextprotocol.spec.McpSchema.ClientCapabilities;
+import io.modelcontextprotocol.spec.McpSchema.CreateMessageRequest;
+import io.modelcontextprotocol.spec.McpSchema.CreateMessageResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -22,6 +25,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -55,7 +59,7 @@ public class McpToolClient implements ToolSource, AutoCloseable {
         this.progressRouter = new ProgressNotificationRouter();
         this.loggingRouter = new LoggingNotificationRouter();
 
-        this.asyncClient = McpClient.async(builder.transport)
+        McpClient.AsyncSpec clientSpec = McpClient.async(builder.transport)
             .requestTimeout(builder.timeout)
             .progressConsumer(notification -> {
                 progressRouter.route(notification);
@@ -68,8 +72,18 @@ public class McpToolClient implements ToolSource, AutoCloseable {
             .toolsChangeConsumer(tools -> {
                 applyToolListChange(tools);
                 return Mono.empty();
-            })
-            .build();
+            });
+
+        // 仅当上层注册了 sampling handler 时才声明 sampling 能力（契约 3.7）。
+        // 同步 handler 在 SDK 的 transport/session 线程上执行，可阻塞等待。
+        Function<CreateMessageRequest, CreateMessageResult> sampling = builder.samplingHandler;
+        if (sampling != null) {
+            clientSpec
+                .capabilities(ClientCapabilities.builder().sampling().build())
+                .sampling(request -> Mono.fromCallable(() -> sampling.apply(request)));
+        }
+
+        this.asyncClient = clientSpec.build();
     }
 
     /**
@@ -393,6 +407,7 @@ public class McpToolClient implements ToolSource, AutoCloseable {
         private String serverName = "mcp-server";
         private McpClientTransport transport;
         private Duration timeout = Duration.ofSeconds(30);
+        private Function<CreateMessageRequest, CreateMessageResult> samplingHandler;
 
         public Builder serverName(String serverName) {
             this.serverName = serverName;
@@ -406,6 +421,23 @@ public class McpToolClient implements ToolSource, AutoCloseable {
 
         public Builder requestTimeout(Duration timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        /**
+         * 注册 sampling handler，处理 MCP Server 发来的 {@code sampling/createMessage} 请求（契约 3.7）。
+         *
+         * <p>当 MCP Server 在 {@code tools/call} 处理过程中需要 Client 协助时（如端侧工具执行），
+         * 会通过 {@code sampling/createMessage} 向 Client 发请求。handler 在 SDK 的
+         * transport 线程上执行，可以阻塞等待。
+         *
+         * <p>仅当 handler 非 null 时，{@link #initialize()} 会向 Server 声明 sampling 能力。
+         *
+         * @param handler 处理 Server 发来的 {@link CreateMessageRequest}，返回 {@link CreateMessageResult}
+         */
+        public Builder samplingHandler(
+                Function<CreateMessageRequest, CreateMessageResult> handler) {
+            this.samplingHandler = handler;
             return this;
         }
 
