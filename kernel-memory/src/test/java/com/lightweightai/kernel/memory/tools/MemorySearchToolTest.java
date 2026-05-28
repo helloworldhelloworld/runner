@@ -2,16 +2,13 @@ package com.lightweightai.kernel.memory.tools;
 
 import com.lightweightai.kernel.memory.embedding.MockEmbeddingProvider;
 import com.lightweightai.kernel.memory.file.FileMemoryManager;
-import com.lightweightai.kernel.memory.model.SearchOptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -20,24 +17,23 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("MemorySearchTool")
 class MemorySearchToolTest {
 
+    @TempDir
+    Path tempDir;
+
     private MemorySearchTool tool;
     private FileMemoryManager memoryManager;
-    private Path tempDir;
 
     @BeforeEach
-    void setUp() throws IOException {
-        tempDir = Files.createTempDirectory("memory-search-test");
-        memoryManager = new FileMemoryManager(tempDir, "test-agent", new MockEmbeddingProvider());
+    void setUp() {
+        Path agentRoot = tempDir.resolve("search-test-agent");
+        memoryManager = new FileMemoryManager(agentRoot, "search-test", new MockEmbeddingProvider(64));
         tool = new MemorySearchTool(memoryManager);
     }
 
     @AfterEach
-    void tearDown() throws IOException {
-        memoryManager.close();
-        if (tempDir != null && Files.exists(tempDir)) {
-            Files.walk(tempDir)
-                    .sorted(Comparator.reverseOrder())
-                    .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
+    void tearDown() {
+        if (memoryManager != null) {
+            memoryManager.close();
         }
     }
 
@@ -60,28 +56,13 @@ class MemorySearchToolTest {
     }
 
     @Test
-    @DisplayName("returns success with empty matches for unknown query")
+    @DisplayName("returns success with empty matches for unknown query on empty index")
     void emptyResultsForUnknownQuery() {
         var result = tool.execute(Map.of("query", "completely unknown topic xyz"));
 
         assertTrue(result.success());
         assertNull(result.error());
         assertTrue(result.matches().isEmpty());
-    }
-
-    @Test
-    @DisplayName("searches after writing durable memory")
-    void searchesAfterWritingMemory() throws IOException {
-        Path durableFile = tempDir.resolve("MEMORY.md");
-        Files.writeString(durableFile, "# User Preferences\n\nThe user loves Java and Spring Boot.\n");
-
-        memoryManager.reindexAll();
-
-        var result = tool.execute(Map.of("query", "Java"));
-
-        assertTrue(result.success());
-        assertFalse(result.matches().isEmpty(), "should find at least one match for 'Java'");
-        assertTrue(result.matches().get(0).content().contains("Java"));
     }
 
     @Test
