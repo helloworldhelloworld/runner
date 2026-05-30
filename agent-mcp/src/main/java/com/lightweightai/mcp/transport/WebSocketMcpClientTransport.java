@@ -65,6 +65,13 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
     private volatile boolean connected;
     private volatile boolean closed;
     private volatile ScheduledFuture<?> pingTask;
+    /**
+     * 仅在 {@code onOpen} 真正触发后才完成，用于把 {@link #connect} 返回的 Mono 与握手完成对齐。
+     * 若不等待该 future，{@code buildAsync} 完成（仅代表 WebSocket 对象已构建）即让 connect 完成，
+     * 此时 {@link #connected} 仍为 false，紧接着 MCP SDK 链式发送 initialize 会被
+     * {@link #sendMessage} 以 "WebSocket not connected" 拒绝。
+     */
+    private volatile java.util.concurrent.CompletableFuture<Void> openFuture;
 
     private WebSocketMcpClientTransport(Builder builder) {
         this.uri = URI.create(builder.url);
@@ -86,6 +93,8 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
     public Mono<Void> connect(
             Function<Mono<McpSchema.JSONRPCMessage>, Mono<McpSchema.JSONRPCMessage>> handler) {
         this.handler = handler;
+        java.util.concurrent.CompletableFuture<Void> open = new java.util.concurrent.CompletableFuture<>();
+        this.openFuture = open;
         return Mono.fromFuture(() -> {
             HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(connectTimeout)
@@ -96,16 +105,23 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
             return wsBuilder.buildAsync(uri, new InboundListener())
                 .thenAccept(ws -> this.webSocket = ws);
-        });
+        })
+        // buildAsync 完成仅代表 WebSocket 对象已构建，onOpen 可能尚未触发 → 必须再等握手完成，
+        // 否则 connect 完成时 connected 仍为 false，SDK 紧接着的 sendMessage(initialize) 会失败。
+        .then(Mono.fromFuture(open))
+        .timeout(connectTimeout);
     }
 
     @Override
     public Mono<Void> sendMessage(McpSchema.JSONRPCMessage message) {
-        WebSocket ws = this.webSocket;
-        if (!connected || ws == null) {
-            return Mono.error(new IllegalStateException("WebSocket not connected: " + uri));
-        }
+        // 守卫必须放在 defer 内 → 在订阅期（而非装配期）求值。否则 SDK 以
+        // connect().then(sendMessage(initialize)) 组合时，sendMessage 在 connect 完成前就被构造，
+        // 此刻 connected=false 会把 Mono.error 锁死，即便订阅时早已连接。
         return Mono.defer(() -> {
+            WebSocket ws = this.webSocket;
+            if (!connected || ws == null) {
+                return Mono.error(new IllegalStateException("WebSocket not connected: " + uri));
+            }
             try {
                 String json = jsonMapper.writeValueAsString(message);
                 return Mono.fromFuture(ws.sendText(json, true).thenApply(w -> null));
@@ -149,6 +165,11 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
             reconnectCount.set(0);
             ws.request(1);
             startPingScheduler();
+            // 握手真正完成，解锁 connect() 返回的 Mono（此刻 connected 已为 true）
+            java.util.concurrent.CompletableFuture<Void> open = openFuture;
+            if (open != null) {
+                open.complete(null);
+            }
             logger.info("MCP WebSocket connected: {}", uri);
         }
 
@@ -176,6 +197,8 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         @Override
         public CompletionStage<?> onClose(WebSocket ws, int statusCode, String reason) {
             connected = false;
+            failOpenFuture(new IllegalStateException(
+                "WebSocket closed before open (" + statusCode + " " + reason + "): " + uri));
             logger.warn("MCP WebSocket closed ({} {}): {}", statusCode, reason, uri);
             scheduleReconnect();
             return null;
@@ -184,8 +207,17 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         @Override
         public void onError(WebSocket ws, Throwable error) {
             connected = false;
+            failOpenFuture(error);
             logger.warn("MCP WebSocket error on {}: {}", uri, error.getMessage());
             scheduleReconnect();
+        }
+
+        /** 握手前失败时让 connect() 立即以异常结束，避免 Mono 永久挂起到 timeout。 */
+        private void failOpenFuture(Throwable cause) {
+            java.util.concurrent.CompletableFuture<Void> open = openFuture;
+            if (open != null) {
+                open.completeExceptionally(cause);
+            }
         }
     }
 

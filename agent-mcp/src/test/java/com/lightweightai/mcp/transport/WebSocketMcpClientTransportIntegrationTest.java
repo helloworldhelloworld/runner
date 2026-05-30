@@ -68,6 +68,52 @@ class WebSocketMcpClientTransportIntegrationTest {
     }
 
     @Test
+    @DisplayName("connect().block() 返回后立即 isConnected 为 true（无需 await） —— 复现 MCP SDK 初始化竞态")
+    void connectMonoCompletesOnlyAfterOnOpen() throws Exception {
+        // MCP SDK 的初始化是 connect().then(sendInitialize())，不会像测试那样插入 await(isConnected)。
+        // 因此 connect() 返回的 Mono 完成时，connected 必须已为 true，否则紧接着的 sendMessage 会
+        // 因 connected=false 抛 IllegalStateException，被 SDK 包成
+        // "Client failed to initialize by explicit API call"。
+        try (MiniWebSocketServer server = new MiniWebSocketServer()) {
+            WebSocketMcpClientTransport transport = WebSocketMcpClientTransport.builder(server.url("/mcp"))
+                .pingInterval(Duration.ZERO)
+                .build();
+
+            transport.connect(in -> Mono.empty()).block(Duration.ofSeconds(5));
+
+            // 关键断言：不插入 await，connect 完成即代表已连接
+            assertTrue(transport.isConnected(),
+                "connect().block() 返回后 isConnected 必须为 true（onOpen 已触发）");
+
+            transport.closeGracefully().block(Duration.ofSeconds(2));
+        }
+    }
+
+    @Test
+    @DisplayName("connect().then(sendMessage) 链式立即发送不抛 not connected —— 模拟 SDK initialize 路径")
+    void connectThenSendImmediatelySucceeds() throws Exception {
+        try (MiniWebSocketServer server = new MiniWebSocketServer()) {
+            WebSocketMcpClientTransport transport = WebSocketMcpClientTransport.builder(server.url("/mcp"))
+                .pingInterval(Duration.ZERO)
+                .build();
+
+            McpSchema.JSONRPCMessage initialize = new McpSchema.JSONRPCRequest(
+                McpSchema.JSONRPC_VERSION, "initialize", "init-1", null);
+
+            // 完全复刻 SDK：connect 之后立刻在同一条反应式链上发送，不等待 isConnected
+            transport.connect(in -> Mono.empty())
+                .then(transport.sendMessage(initialize))
+                .block(Duration.ofSeconds(5));
+
+            await(() -> !server.received.isEmpty(), "server received initialize frame");
+            assertTrue(server.received.get(0).contains("initialize"),
+                "server should receive initialize: " + server.received.get(0));
+
+            transport.closeGracefully().block(Duration.ofSeconds(2));
+        }
+    }
+
+    @Test
     @DisplayName("服务端推送的 text 帧被反序列化并交给 handler")
     void receivesAndDeserializes() throws Exception {
         try (MiniWebSocketServer server = new MiniWebSocketServer()) {
