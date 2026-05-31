@@ -17,6 +17,21 @@ cd agent-web && mvn spring-boot:run  # Run service
 - **Grep all callers**: Before changing a method signature, `grep -r` across the entire repo.
 - **No module left behind**: Modules without tests (e.g. `agent-demo`) still need `mvn clean compile`.
 
+## Public API Stability (ENFORCED)
+
+`Tool`, `ToolSourceProvider` (`com.lightweightai.kernel.agent`) and the `agent-mcp` public types
+(`McpToolClient`, `McpToolWrapper`, `ToolClient`, transport SPIs) are **external contracts — other
+projects depend on them.** Changes here MUST be additive-only:
+
+- **Add, don't break**: new behavior goes in `default` methods, new types, or new enum values.
+  NEVER change an existing public method signature, and NEVER remove a public or `@Deprecated`
+  member (e.g. `AgentResponse.ToolCallRecord(String,String,String)`,
+  `AgentProfile.Builder.toolAllowList/toolDenyList`) — deprecated members stay for compatibility.
+- **New helpers stay package-private** unless the public contract genuinely needs them
+  (cf. `agent-mcp` "keep new meta/polling helpers package-private").
+- **Grep across consuming repos**, not just this one, before touching these types.
+- A "cleanup" PR that deletes a deprecated public member is a breaking change, not a cleanup.
+
 ## Git CI-Results Conflict Resolution
 
 `ci-results/` is auto-updated by GitHub Actions. On conflicts:
@@ -37,6 +52,16 @@ Before making changes, read the relevant docs:
 | Why a design decision was made | [docs/decisions/](docs/decisions/) |
 | A specific module's responsibility | [docs/modules/](docs/modules/) |
 | How to add a provider/tool/skill | [docs/guides/](docs/guides/) |
+
+## Docs-First Workflow (ENFORCED)
+
+**Update the docs BEFORE writing code, not after.** For any change that adds/removes a capability, abstraction, SPI, package, module, or design decision:
+
+1. **First** update the relevant doc(s) — `docs/architecture.md`, `docs/modules/<module>.md`, and add an ADR under `docs/decisions/` for any non-trivial design choice.
+2. **Then** write the code so it matches what the doc now describes.
+3. Keep the two in sync in the same commit — a code change that contradicts the docs is a defect.
+
+Why: the docs are the design's source of truth. Writing them first forces the design to be explicit before implementation, and prevents the doc drift seen when new capabilities (e.g. `ToolPolicy`, `TriggerSource`, the `learn` package) land in code but never reach `docs/architecture.md`.
 
 ## Core Principles
 
