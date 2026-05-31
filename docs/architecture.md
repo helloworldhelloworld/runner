@@ -386,6 +386,27 @@ Skill 懒加载主体：
 
 ---
 
+## Embodiment / Device Layer（Minion 具身化）
+
+把 runner 落成实体小黄人的架构层。详见 [ADR-006](decisions/006-minion-embodiment-architecture.md)、
+[voice-gateway.md](modules/voice-gateway.md)、[minion-body.md](modules/minion-body.md)。核心选型：
+
+```
+脑在云：runner(JVM) 与 LLM/语音服务同侧
+双平面分离（原始音频永不进 JVM）：
+  媒体平面 audio: Device ⟷ Voice Gateway ⟷ 厂商流式 STT/TTS
+  大脑平面 text : Voice Gateway ⟷ runner（纯文本 + 工具 + 事件）
+表情/语音同步：三轨(嘴形 viseme / 情绪 emotion / 手势 bookmark) + 设备端音频时钟 Realizer
+瘦 Pi (Python)：唤醒 + VAD + 音频收发 + Realizer + 舵机/LED/摄像头；动作经 MCP 暴露
+```
+
+runner 侧最小改动：① 可说块边界事件 ② 逐块 emotion ③ barge-in 接线（`InterruptibleRun.interrupt()`）
+④ 多模态接线（`ImageContent` → ClaudeProvider 请求体）⑤ `deviceType="minion"` 运动工具集。
+新增 StreamEvent 类型须遵守 [ADR-005](decisions/005-streamevent-closed-protocol.md) 闭合枚举规约。
+**暂缓**：物理安全、二进制媒体走 runner、重视觉。
+
+---
+
 ## Design Decisions
 
 | ADR | Decision |
@@ -395,3 +416,4 @@ Skill 懒加载主体：
 | [003](decisions/003-agent-loop-over-kernel.md) | AgentLoop over abstract Kernel pattern |
 | [004](decisions/004-multi-agent-orchestrator.md) | Multi-Agent Orchestrator architecture |
 | [005](decisions/005-streamevent-closed-protocol.md) | Keep StreamEvent as a closed enum protocol |
+| [006](decisions/006-minion-embodiment-architecture.md) | Minion 具身化：脑在云 + 媒体/大脑双平面 + Voice Gateway + 瘦 Pi |
