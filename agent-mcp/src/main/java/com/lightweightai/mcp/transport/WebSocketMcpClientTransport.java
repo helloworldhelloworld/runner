@@ -20,7 +20,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
@@ -32,24 +31,24 @@ import java.util.function.Function;
  *
  * <p>消息严格遵循 MCP 协议的 JSON-RPC 2.0 格式，与 Streamable HTTP 完全一致。
  *
- * <p>内置心跳保活（{@code sendPing}）与断连重连（指数退避）。
+ * <p>内置心跳保活（{@code sendPing}）。
  *
- * <h2>限制</h2>
- * 断连重连仅在 transport 层重建 WebSocket 连接；MCP 会话级别的重新 {@code initialize}
- * 不在本实现范围内（v1）。
+ * <h2>断连语义</h2>
+ * 本 transport <b>不在 transport 层自动重连</b>。WebSocket 断开后 {@link #isConnected()}
+ * 返回 false，后续 {@link #sendMessage} 立即以 {@code IllegalStateException} 失败上抛。
+ * 这与官方 transport 一致：transport 只负责一条连接的生命周期；是否重建连接、以及
+ * 重建后必须重新执行 MCP {@code initialize} 握手，都属于会话级关注点，由上层（调用方/
+ * {@code McpToolClient}）显式决定。transport 层静默重连只会重建 TCP/WS 通道，却不会
+ * 重新初始化 MCP 会话，对有状态 server 会造成"看似已连、实则会话已废"的假象。
  */
 public class WebSocketMcpClientTransport implements McpClientTransport {
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketMcpClientTransport.class);
 
-    private static final long MAX_RECONNECT_DELAY_MS = 60_000L;
-
     private final URI uri;
     private final Map<String, String> headers;
     private final Duration connectTimeout;
     private final Duration pingInterval;
-    private final int maxReconnectAttempts;
-    private final Duration reconnectBaseDelay;
     private final McpJsonMapper jsonMapper;
 
     private final ScheduledExecutorService scheduler =
@@ -58,7 +57,6 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
             t.setDaemon(true);
             return t;
         });
-    private final AtomicInteger reconnectCount = new AtomicInteger(0);
 
     private volatile Function<Mono<McpSchema.JSONRPCMessage>, Mono<McpSchema.JSONRPCMessage>> handler;
     private volatile WebSocket webSocket;
@@ -78,8 +76,6 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         this.headers = Map.copyOf(builder.headers);
         this.connectTimeout = builder.connectTimeout;
         this.pingInterval = builder.pingInterval;
-        this.maxReconnectAttempts = builder.maxReconnectAttempts;
-        this.reconnectBaseDelay = builder.reconnectBaseDelay;
         this.jsonMapper = builder.jsonMapper != null ? builder.jsonMapper : McpJsonMapper.getDefault();
     }
 
@@ -114,20 +110,30 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
     @Override
     public Mono<Void> sendMessage(McpSchema.JSONRPCMessage message) {
-        // 守卫必须放在 defer 内 → 在订阅期（而非装配期）求值。否则 SDK 以
-        // connect().then(sendMessage(initialize)) 组合时，sendMessage 在 connect 完成前就被构造，
-        // 此刻 connected=false 会把 Mono.error 锁死，即便订阅时早已连接。
+        // MCP SDK 的 McpClientSession 在构造函数里 connect(handler).subscribe() 是 fire-and-forget，
+        // 不等 connect 的 Mono 完成就立刻 sendRequest("initialize")。因此 sendMessage 被调用时
+        // WebSocket 往往仍在握手中（connected=false）。这里不能硬性拒绝，而要等 openFuture
+        // （onOpen 触发后完成）再发送，否则 initialize 必失败并被 SDK 包成
+        // "Client failed to initialize by explicit API call"。
         return Mono.defer(() -> {
-            WebSocket ws = this.webSocket;
-            if (!connected || ws == null) {
+            java.util.concurrent.CompletableFuture<Void> open = this.openFuture;
+            if (open == null) {
+                // 从未调用过 connect()，没有可等待的握手 → 立即报错
                 return Mono.error(new IllegalStateException("WebSocket not connected: " + uri));
             }
-            try {
-                String json = jsonMapper.writeValueAsString(message);
-                return Mono.fromFuture(ws.sendText(json, true).thenApply(w -> null));
-            } catch (Exception e) {
-                return Mono.error(e);
-            }
+            Mono<Void> send = Mono.defer(() -> {
+                WebSocket ws = this.webSocket;
+                if (!connected || ws == null) {
+                    return Mono.error(new IllegalStateException("WebSocket not connected: " + uri));
+                }
+                try {
+                    String json = jsonMapper.writeValueAsString(message);
+                    return Mono.fromFuture(ws.sendText(json, true).thenApply(w -> (Void) null));
+                } catch (Exception e) {
+                    return Mono.error(e);
+                }
+            });
+            return Mono.fromFuture(open).then(send).timeout(connectTimeout);
         });
     }
 
@@ -161,11 +167,15 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
         @Override
         public void onOpen(WebSocket ws) {
+            // 必须在置 connected / 完成 openFuture 之前赋值 webSocket：onOpen 可能在 buildAsync 的
+            // future 完成（即 thenAccept 里 this.webSocket=ws）之前就触发。openFuture.complete() 会
+            // 同步唤醒正在等待的 sendMessage，若此时 this.webSocket 仍为 null，sendMessage 会误判
+            // "WebSocket not connected"。用回调参数 ws 直接赋值可消除这个时间差。
+            webSocket = ws;
             connected = true;
-            reconnectCount.set(0);
             ws.request(1);
             startPingScheduler();
-            // 握手真正完成，解锁 connect() 返回的 Mono（此刻 connected 已为 true）
+            // 握手真正完成，解锁 connect() 返回的 Mono 与所有等待发送的 sendMessage
             java.util.concurrent.CompletableFuture<Void> open = openFuture;
             if (open != null) {
                 open.complete(null);
@@ -197,19 +207,20 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         @Override
         public CompletionStage<?> onClose(WebSocket ws, int statusCode, String reason) {
             connected = false;
+            cancelPing();
             failOpenFuture(new IllegalStateException(
                 "WebSocket closed before open (" + statusCode + " " + reason + "): " + uri));
+            // 不在 transport 层重连：断连即上抛，重建与重新 initialize 由上层决定（见类注释）。
             logger.warn("MCP WebSocket closed ({} {}): {}", statusCode, reason, uri);
-            scheduleReconnect();
             return null;
         }
 
         @Override
         public void onError(WebSocket ws, Throwable error) {
             connected = false;
+            cancelPing();
             failOpenFuture(error);
             logger.warn("MCP WebSocket error on {}: {}", uri, error.getMessage());
-            scheduleReconnect();
         }
 
         /** 握手前失败时让 connect() 立即以异常结束，避免 Mono 永久挂起到 timeout。 */
@@ -232,8 +243,9 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
             if (connected && ws != null) {
                 ws.sendPing(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)))
                     .exceptionally(ex -> {
+                        // ping 失败视为断连：标记断开并停止心跳，不重连（由上层处置）。
                         connected = false;
-                        scheduleReconnect();
+                        cancelPing();
                         return null;
                     });
             }
@@ -248,41 +260,6 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         }
     }
 
-    private void scheduleReconnect() {
-        if (closed) {
-            return;
-        }
-        cancelPing();
-        int attempt = reconnectCount.incrementAndGet();
-        if (attempt > maxReconnectAttempts) {
-            logger.error("MCP WebSocket exceeded max reconnect attempts ({}) for {}",
-                maxReconnectAttempts, uri);
-            return;
-        }
-        long delay = computeReconnectDelayMillis(attempt);
-        logger.info("MCP WebSocket reconnect attempt {}/{} in {}ms: {}",
-            attempt, maxReconnectAttempts, delay, uri);
-        try {
-            scheduler.schedule(() -> {
-                if (!closed) {
-                    connect(this.handler).subscribe();
-                }
-            }, delay, TimeUnit.MILLISECONDS);
-        } catch (java.util.concurrent.RejectedExecutionException ignored) {
-            // scheduler already shut down via closeGracefully()
-        }
-    }
-
-    long computeReconnectDelayMillis(int attempt) {
-        long base = reconnectBaseDelay.toMillis();
-        int shift = Math.min(attempt - 1, 20);
-        long delay = base * (1L << shift);
-        if (delay <= 0 || delay > MAX_RECONNECT_DELAY_MS) {
-            return MAX_RECONNECT_DELAY_MS;
-        }
-        return delay;
-    }
-
     // ==================== Builder ====================
 
     public static class Builder {
@@ -290,8 +267,6 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         private Map<String, String> headers = Map.of();
         private Duration connectTimeout = Duration.ofSeconds(30);
         private Duration pingInterval = Duration.ofSeconds(30);
-        private int maxReconnectAttempts = 10;
-        private Duration reconnectBaseDelay = Duration.ofMillis(1000);
         private McpJsonMapper jsonMapper;
 
         private Builder(String url) {
@@ -313,16 +288,6 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
         public Builder pingInterval(Duration pingInterval) {
             this.pingInterval = pingInterval;
-            return this;
-        }
-
-        public Builder maxReconnectAttempts(int maxReconnectAttempts) {
-            this.maxReconnectAttempts = maxReconnectAttempts;
-            return this;
-        }
-
-        public Builder reconnectBaseDelay(Duration reconnectBaseDelay) {
-            this.reconnectBaseDelay = reconnectBaseDelay;
             return this;
         }
 

@@ -22,8 +22,6 @@ class WebSocketTransportConfigTest {
         assertEquals("ws", config.getTransport());
         assertEquals("ws://host:6646/mcp", config.getUrl());
         assertEquals(30, config.getPingIntervalSeconds());
-        assertEquals(10, config.getMaxReconnectAttempts());
-        assertEquals(1000, config.getReconnectBaseDelayMs());
         assertEquals(300, config.getToolRefreshIntervalSeconds());
     }
 
