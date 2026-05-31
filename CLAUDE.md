@@ -89,6 +89,22 @@ The pattern behind all four bugs above: **each zero-link works, the chain doesn'
 - Never assume "should work" — actually run it
 - If existing tests fail, fix them BEFORE adding new code
 
+### Integration-seam rules — when our code implements a third-party framework SPI
+
+The UT rules above guard transmission chains *inside* our own stack. This section guards the layer *outside* it: the seam between our code and an external framework (MCP SDK, the Claude/OpenRouter HTTP APIs, the web WebSocket layer). Every bug in the `WebSocketMcpClientTransport` `initialize` saga lived here — each unit was green, but **we assumed how the framework calls us instead of verifying it**, and no test ever let the real framework drive our code. Rules:
+
+1. **Let the framework drive your code — don't call yourself.** Any class implementing a framework SPI (e.g. `McpClientTransport`, an `LLMProvider`) needs ≥1 test where the *real framework* exercises it end-to-end (e.g. drive `WebSocketMcpClientTransport` through a real `McpAsyncClient.initialize()`, not by calling `transport.connect()/sendMessage()` yourself). Hand-rolled calls reproduce *your* assumptions, never the framework's actual orchestration (the `connect().subscribe()` fire-and-forget call that broke initialize was invisible to hand-rolled tests).
+
+2. **Fake the remote peer, not your own layer.** Stand up a faithful fake of the *network peer* (like `MiniWebSocketServer`, a real RFC-6455 server) and keep everything between your code and it real — real SDK, real transport, real JSON-RPC. NEVER mock the SDK or the transport itself; mocking the seam erases the very thing under test.
+
+3. **Derive contract assertions from the framework's own reference implementation.** Before implementing an SPI, read the framework's bundled impls (e.g. `HttpClientSseClientTransport`) and assert the behaviors it actually relies on. For MCP transports the proven contract is: `connect()` is fire-and-forget so `sendMessage` may be called before the link is ready → **`sendMessage` must suspend on a readiness signal, not reject**; the response path must route correlated request→response back to the handler; handshake failure must surface the real cause, not a swallowed timeout.
+
+4. **No test-only waits.** `await(isConnected)` / `Thread.sleep` / retry loops inserted to make a test pass are patches for a wait the real caller never performs — they mask timing bugs (an `await(isConnected)` between `connect()` and `send` hid the race for two iterations). Timing tests assert the post-condition at the instant the operation returns; the only sanctioned `sleep` is a *negative* one ("confirm X still hasn't happened").
+
+5. **Round-trip, not one-way; failure timing, not just happy path.** Integration tests must drive a full request→response round-trip with id correlation (return-path bugs hide in one-way tests), and must cover reverse timing: connect-failure fails fast with the real cause, post-disconnect sends fail fast rather than hang. `WebSocketMcpInitializeRoundTripTest` (real SDK initialize over a fake server) is the canonical template; `MiniWebSocketServer` can auto-answer `initialize` to make these cheap.
+
+Backstop: a faithful fake can still drift from a real server — keep one periodic smoke/contract test against a real peer where feasible.
+
 ## Orchestrator Architecture (4 Layers)
 
 ```

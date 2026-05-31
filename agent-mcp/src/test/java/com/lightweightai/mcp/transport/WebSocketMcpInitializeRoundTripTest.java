@@ -1,13 +1,10 @@
 package com.lightweightai.mcp.transport;
 
 import com.lightweightai.mcp.McpToolClient;
-import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,33 +23,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("WebSocket transport + SDK initialize 往返")
 class WebSocketMcpInitializeRoundTripTest {
 
-    /** 匹配 id（数字或字符串）与 protocolVersion，用于让 mini server 回一个合法 initialize 响应。 */
-    private static final Pattern ID = Pattern.compile("\"id\"\\s*:\\s*(\"[^\"]*\"|\\d+)");
-    private static final Pattern PROTO = Pattern.compile("\"protocolVersion\"\\s*:\\s*\"([^\"]*)\"");
-
     @Test
     @DisplayName("McpToolClient.initialize() 经 WebSocket 完成握手不抛错")
     void initializeCompletesOverWebSocket() throws Exception {
         try (MiniWebSocketServer server = new MiniWebSocketServer()) {
             // 服务端：收到 initialize 请求就回一个合法的 initialize 结果（echo id + protocolVersion）
-            server.onMessage(raw -> {
-                if (raw.contains("\"method\":\"initialize\"") || raw.contains("\"method\": \"initialize\"")) {
-                    Matcher idM = ID.matcher(raw);
-                    Matcher pM = PROTO.matcher(raw);
-                    String id = idM.find() ? idM.group(1) : "\"0\"";
-                    String proto = pM.find() ? pM.group(1) : McpSchema.LATEST_PROTOCOL_VERSION;
-                    String resp = "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":{"
-                        + "\"protocolVersion\":\"" + proto + "\","
-                        + "\"capabilities\":{\"tools\":{\"listChanged\":true}},"
-                        + "\"serverInfo\":{\"name\":\"mini\",\"version\":\"1.0\"}}}";
-                    try {
-                        server.sendText(resp);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                // notifications/initialized 等其余消息忽略
-            });
+            server.autoAnswerInitialize();
 
             WebSocketMcpClientTransport transport = WebSocketMcpClientTransport.builder(server.url("/mcp"))
                 .pingInterval(Duration.ZERO)

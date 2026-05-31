@@ -11,6 +11,8 @@ import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 依赖无关的最小 RFC-6455 WebSocket 测试服务端（仅用于 transport 单元测试）。
@@ -47,6 +49,37 @@ class MiniWebSocketServer implements AutoCloseable {
 
     void onMessage(Consumer<String> handler) {
         this.onMessage = handler;
+    }
+
+    private static final Pattern INIT_METHOD = Pattern.compile("\"method\"\\s*:\\s*\"initialize\"");
+    private static final Pattern INIT_ID = Pattern.compile("\"id\"\\s*:\\s*(\"[^\"]*\"|\\d+)");
+    private static final Pattern INIT_PROTO = Pattern.compile("\"protocolVersion\"\\s*:\\s*\"([^\"]*)\"");
+
+    /**
+     * 安装一个 {@link #onMessage} 处理器：收到 MCP {@code initialize} 请求即回一个合法的
+     * {@code initialize} 响应（echo 请求里的 id 与 protocolVersion，{@code notifications/initialized}
+     * 等其余消息忽略）。让"真实 SDK initialize 往返"集成测试近乎零成本可写
+     * （见 {@code WebSocketMcpInitializeRoundTripTest}）。
+     */
+    void autoAnswerInitialize() {
+        onMessage(raw -> {
+            if (!INIT_METHOD.matcher(raw).find()) {
+                return;
+            }
+            Matcher idM = INIT_ID.matcher(raw);
+            Matcher pM = INIT_PROTO.matcher(raw);
+            String id = idM.find() ? idM.group(1) : "\"0\"";
+            String proto = pM.find() ? pM.group(1) : "2025-06-18";
+            String resp = "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":{"
+                + "\"protocolVersion\":\"" + proto + "\","
+                + "\"capabilities\":{\"tools\":{\"listChanged\":true}},"
+                + "\"serverInfo\":{\"name\":\"mini\",\"version\":\"1.0\"}}}";
+            try {
+                sendText(resp);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     private void run() {
