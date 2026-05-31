@@ -25,7 +25,7 @@ class StreamingToolTest {
 
             @Override
             protected void executeStreaming(Map<String, Object> args, FluxSink<ToolResultChunk> emitter) {
-                emitter.next(ToolResultChunk.progress("counter", 50, "halfway"));
+                emitter.next(ToolResultChunk.progress("counter", "halfway", 50, 100));
                 emitter.next(ToolResultChunk.complete("counter", ToolResult.success("done")));
                 emitter.complete();
             }
@@ -37,7 +37,7 @@ class StreamingToolTest {
                 .assertNext(chunk -> {
                     assertEquals(ToolResultChunk.ChunkType.PROGRESS, chunk.getType());
                     assertEquals("halfway", chunk.getMessage());
-                    assertEquals(50, chunk.getProgress());
+                    assertEquals(50.0, chunk.getProgress());
                 })
                 .assertNext(chunk -> {
                     assertEquals(ToolResultChunk.ChunkType.COMPLETE, chunk.getType());
@@ -56,7 +56,7 @@ class StreamingToolTest {
 
             @Override
             protected void executeStreaming(Map<String, Object> args, FluxSink<ToolResultChunk> emitter) {
-                emitter.next(ToolResultChunk.progress("adder", 100, "computing"));
+                emitter.next(ToolResultChunk.progress("adder", "computing", 100, 100));
                 emitter.next(ToolResultChunk.complete("adder", ToolResult.success("42")));
                 emitter.complete();
             }
@@ -121,7 +121,7 @@ class StreamingToolTest {
 
             @Override
             protected void executeStreaming(Map<String, Object> args, FluxSink<ToolResultChunk> emitter) {
-                emitter.next(ToolResultChunk.progress("empty", 50, "progress only"));
+                emitter.next(ToolResultChunk.progress("empty", "progress only", 50, 100));
                 emitter.complete();
             }
         };
