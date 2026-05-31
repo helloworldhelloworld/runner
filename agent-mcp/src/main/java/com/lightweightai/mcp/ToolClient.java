@@ -313,8 +313,6 @@ public class ToolClient implements AutoCloseable {
                 var wsBuilder = WebSocketMcpClientTransport.builder(wsUrl)
                     .connectTimeout(Duration.ofSeconds(config.getTimeoutSeconds()))
                     .pingInterval(Duration.ofSeconds(config.getPingIntervalSeconds()))
-                    .maxReconnectAttempts(config.getMaxReconnectAttempts())
-                    .reconnectBaseDelay(Duration.ofMillis(config.getReconnectBaseDelayMs()))
                     .headers(connectHeaders);
                 return wsBuilder.build();
             }

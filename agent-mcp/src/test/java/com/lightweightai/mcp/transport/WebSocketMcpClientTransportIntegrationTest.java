@@ -12,6 +12,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -135,6 +136,33 @@ class WebSocketMcpClientTransportIntegrationTest {
 
             transport.closeGracefully().block(Duration.ofSeconds(2));
         }
+    }
+
+    @Test
+    @DisplayName("服务端断连后不在 transport 层自动重连，sendMessage 立即失败上抛")
+    void noAutoReconnectAfterServerClose() throws Exception {
+        MiniWebSocketServer server = new MiniWebSocketServer();
+        WebSocketMcpClientTransport transport = WebSocketMcpClientTransport.builder(server.url("/mcp"))
+            .pingInterval(Duration.ZERO)
+            .build();
+        transport.connect(in -> Mono.empty()).block(Duration.ofSeconds(5));
+        await(transport::isConnected, "transport connected");
+
+        // 服务端关闭连接 → 客户端 onClose 触发
+        server.close();
+        await(() -> !transport.isConnected(), "transport observed disconnect");
+
+        // 选 1 语义：transport 不重连，断连后发送立即失败（由上层决定是否重建并重新 initialize）
+        McpSchema.JSONRPCMessage msg = new McpSchema.JSONRPCRequest(
+            McpSchema.JSONRPC_VERSION, "tools/call", "after-close", null);
+        assertThrows(IllegalStateException.class,
+            () -> transport.sendMessage(msg).block(Duration.ofSeconds(2)));
+
+        // 给潜在的（不应存在的）重连留出时间窗口，确认仍未连接
+        Thread.sleep(300);
+        assertFalse(transport.isConnected(), "断连后不应自动重连");
+
+        transport.closeGracefully().block(Duration.ofSeconds(2));
     }
 
     @Test

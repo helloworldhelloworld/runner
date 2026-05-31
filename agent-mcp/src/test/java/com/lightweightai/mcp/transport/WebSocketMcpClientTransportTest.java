@@ -47,22 +47,6 @@ class WebSocketMcpClientTransportTest {
     }
 
     @Test
-    @DisplayName("computeReconnectDelayMillis 指数退避并封顶 60s")
-    void backoffIsExponentialAndCapped() {
-        WebSocketMcpClientTransport transport = WebSocketMcpClientTransport.builder("ws://localhost:1/mcp")
-            .reconnectBaseDelay(Duration.ofMillis(1000))
-            .build();
-
-        assertEquals(1000L, transport.computeReconnectDelayMillis(1));
-        assertEquals(2000L, transport.computeReconnectDelayMillis(2));
-        assertEquals(4000L, transport.computeReconnectDelayMillis(3));
-        assertEquals(8000L, transport.computeReconnectDelayMillis(4));
-        // 大 attempt 封顶 60_000
-        assertEquals(60_000L, transport.computeReconnectDelayMillis(20));
-        assertEquals(60_000L, transport.computeReconnectDelayMillis(100));
-    }
-
-    @Test
     @DisplayName("unmarshalFrom 委托 jsonMapper 转换")
     void unmarshalFromConverts() {
         WebSocketMcpClientTransport transport =
