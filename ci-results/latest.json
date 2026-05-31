@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "67f46070717ae5fcdbda1021b0c2e49070c740f6",
+  "trigger_sha": "2f24f2bbcf3640f037f45b58b6daa2879506dac3",
   "exit_code": 1,
-  "timestamp": "2026-05-31T19:13:36Z",
+  "timestamp": "2026-05-31T19:15:56Z",
   "branch": "claude/add-ut-critical-coverage-20260531",
-  "run_id": "26721903857",
-  "test_summary": ""
+  "run_id": "26721950946",
+  "test_summary": "[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.073 s - in com.lightweightai.kernel.orchestrator.SubagentRunTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.kernel.orchestrator.SubagentRunTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.kernel.orchestrator.SubagentRunTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.079 s - in com.lightweightai.kernel.orchestrator.SubagentRunTest|[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.kernel.orchestrator.OrchestratorTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.kernel.orchestrator.ToolIsolationAcceptanceTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.459 s - in com.lightweightai.kernel.orchestrator.InterruptibleRunTest|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.instruction.ProviderAdapterFactoryTest|[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.kernel.instruction.InstructionRegistryTest|[ERROR] Tests run: 1002, Failures: 1, Errors: 1, Skipped: 0|"
 }
