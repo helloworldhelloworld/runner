@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 import java.util.Map;
@@ -32,7 +34,7 @@ class ModelConfigControllerTest {
 
     @BeforeEach
     void setUp() {
-        when(initialProvider.getProviderName()).thenReturn("openrouter");
+        lenient().when(initialProvider.getProviderName()).thenReturn("openrouter");
         dynamicProvider = new DynamicLLMProvider(initialProvider);
         controller = new ModelConfigController(dynamicProvider, agentConfig);
     }
