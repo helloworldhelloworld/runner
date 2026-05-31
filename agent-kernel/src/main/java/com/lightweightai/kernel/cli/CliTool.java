@@ -66,6 +66,17 @@ public class CliTool extends StreamingTool {
     @Override
     protected void executeStreaming(Map<String, Object> args, FluxSink<ToolResultChunk> emitter) {
         Path entryPoint = cliDirectory.resolve(manifest.getEntryPoint());
+
+        // Fail-fast pre-flight check: don't spawn a process for a missing entry point.
+        // Restored after the CliExecutor seam extraction dropped it — gives a clear,
+        // platform-independent "not found" error instead of relying on ProcessBuilder's
+        // OS-specific launch-failure message.
+        if (!entryPoint.toFile().exists()) {
+            emitter.next(ToolResultChunk.error(getName(), "CLI entry point not found: " + entryPoint));
+            emitter.complete();
+            return;
+        }
+
         ExecRequest request = new ExecRequest(
                 buildCommand(entryPoint, args),
                 cliDirectory,
