@@ -114,20 +114,30 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
     @Override
     public Mono<Void> sendMessage(McpSchema.JSONRPCMessage message) {
-        // 守卫必须放在 defer 内 → 在订阅期（而非装配期）求值。否则 SDK 以
-        // connect().then(sendMessage(initialize)) 组合时，sendMessage 在 connect 完成前就被构造，
-        // 此刻 connected=false 会把 Mono.error 锁死，即便订阅时早已连接。
+        // MCP SDK 的 McpClientSession 在构造函数里 connect(handler).subscribe() 是 fire-and-forget，
+        // 不等 connect 的 Mono 完成就立刻 sendRequest("initialize")。因此 sendMessage 被调用时
+        // WebSocket 往往仍在握手中（connected=false）。这里不能硬性拒绝，而要等 openFuture
+        // （onOpen 触发后完成）再发送，否则 initialize 必失败并被 SDK 包成
+        // "Client failed to initialize by explicit API call"。
         return Mono.defer(() -> {
-            WebSocket ws = this.webSocket;
-            if (!connected || ws == null) {
+            java.util.concurrent.CompletableFuture<Void> open = this.openFuture;
+            if (open == null) {
+                // 从未调用过 connect()，没有可等待的握手 → 立即报错
                 return Mono.error(new IllegalStateException("WebSocket not connected: " + uri));
             }
-            try {
-                String json = jsonMapper.writeValueAsString(message);
-                return Mono.fromFuture(ws.sendText(json, true).thenApply(w -> null));
-            } catch (Exception e) {
-                return Mono.error(e);
-            }
+            Mono<Void> send = Mono.defer(() -> {
+                WebSocket ws = this.webSocket;
+                if (!connected || ws == null) {
+                    return Mono.error(new IllegalStateException("WebSocket not connected: " + uri));
+                }
+                try {
+                    String json = jsonMapper.writeValueAsString(message);
+                    return Mono.fromFuture(ws.sendText(json, true).thenApply(w -> (Void) null));
+                } catch (Exception e) {
+                    return Mono.error(e);
+                }
+            });
+            return Mono.fromFuture(open).then(send).timeout(connectTimeout);
         });
     }
 
@@ -161,11 +171,16 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
         @Override
         public void onOpen(WebSocket ws) {
+            // 必须在置 connected / 完成 openFuture 之前赋值 webSocket：onOpen 可能在 buildAsync 的
+            // future 完成（即 thenAccept 里 this.webSocket=ws）之前就触发。openFuture.complete() 会
+            // 同步唤醒正在等待的 sendMessage，若此时 this.webSocket 仍为 null，sendMessage 会误判
+            // "WebSocket not connected"。用回调参数 ws 直接赋值可消除这个时间差。
+            webSocket = ws;
             connected = true;
             reconnectCount.set(0);
             ws.request(1);
             startPingScheduler();
-            // 握手真正完成，解锁 connect() 返回的 Mono（此刻 connected 已为 true）
+            // 握手真正完成，解锁 connect() 返回的 Mono 与所有等待发送的 sendMessage
             java.util.concurrent.CompletableFuture<Void> open = openFuture;
             if (open != null) {
                 open.complete(null);
