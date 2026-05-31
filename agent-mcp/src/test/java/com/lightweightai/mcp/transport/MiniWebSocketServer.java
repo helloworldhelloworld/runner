@@ -52,6 +52,7 @@ class MiniWebSocketServer implements AutoCloseable {
     }
 
     private static final Pattern INIT_METHOD = Pattern.compile("\"method\"\\s*:\\s*\"initialize\"");
+    private static final Pattern TOOLS_LIST_METHOD = Pattern.compile("\"method\"\\s*:\\s*\"tools/list\"");
     private static final Pattern INIT_ID = Pattern.compile("\"id\"\\s*:\\s*(\"[^\"]*\"|\\d+)");
     private static final Pattern INIT_PROTO = Pattern.compile("\"protocolVersion\"\\s*:\\s*\"([^\"]*)\"");
 
@@ -63,23 +64,58 @@ class MiniWebSocketServer implements AutoCloseable {
      */
     void autoAnswerInitialize() {
         onMessage(raw -> {
-            if (!INIT_METHOD.matcher(raw).find()) {
-                return;
-            }
-            Matcher idM = INIT_ID.matcher(raw);
-            Matcher pM = INIT_PROTO.matcher(raw);
-            String id = idM.find() ? idM.group(1) : "\"0\"";
-            String proto = pM.find() ? pM.group(1) : "2025-06-18";
-            String resp = "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":{"
-                + "\"protocolVersion\":\"" + proto + "\","
-                + "\"capabilities\":{\"tools\":{\"listChanged\":true}},"
-                + "\"serverInfo\":{\"name\":\"mini\",\"version\":\"1.0\"}}}";
-            try {
-                sendText(resp);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            if (INIT_METHOD.matcher(raw).find()) {
+                sendQuietly(initializeResult(raw));
             }
         });
+    }
+
+    /**
+     * 在 {@link #autoAnswerInitialize()} 基础上额外应答 {@code tools/list}，回 {@code toolNames}
+     * 列表。用于验证 {@code initialize} 之后请求的<b>响应回程</b>（带 id 关联的完整往返）。
+     */
+    void autoAnswerInitializeAndListTools(String... toolNames) {
+        onMessage(raw -> {
+            if (INIT_METHOD.matcher(raw).find()) {
+                sendQuietly(initializeResult(raw));
+            } else if (TOOLS_LIST_METHOD.matcher(raw).find()) {
+                sendQuietly(toolsListResult(extractId(raw), toolNames));
+            }
+        });
+    }
+
+    private static String extractId(String raw) {
+        Matcher idM = INIT_ID.matcher(raw);
+        return idM.find() ? idM.group(1) : "\"0\"";
+    }
+
+    private static String initializeResult(String raw) {
+        Matcher pM = INIT_PROTO.matcher(raw);
+        String proto = pM.find() ? pM.group(1) : "2025-06-18";
+        return "{\"jsonrpc\":\"2.0\",\"id\":" + extractId(raw) + ",\"result\":{"
+            + "\"protocolVersion\":\"" + proto + "\","
+            + "\"capabilities\":{\"tools\":{\"listChanged\":true}},"
+            + "\"serverInfo\":{\"name\":\"mini\",\"version\":\"1.0\"}}}";
+    }
+
+    private static String toolsListResult(String id, String... toolNames) {
+        StringBuilder tools = new StringBuilder();
+        for (int i = 0; i < toolNames.length; i++) {
+            if (i > 0) {
+                tools.append(',');
+            }
+            tools.append("{\"name\":\"").append(toolNames[i])
+                .append("\",\"description\":\"d\",\"inputSchema\":{\"type\":\"object\",\"properties\":{}}}");
+        }
+        return "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":{\"tools\":[" + tools + "]}}";
+    }
+
+    private void sendQuietly(String text) {
+        try {
+            sendText(text);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void run() {

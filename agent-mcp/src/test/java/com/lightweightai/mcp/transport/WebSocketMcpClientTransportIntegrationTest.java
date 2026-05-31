@@ -139,6 +139,42 @@ class WebSocketMcpClientTransportIntegrationTest {
     }
 
     @Test
+    @DisplayName("连接被拒时 connect() 快速失败并带真实原因，而非被吞成超时")
+    void connectFailureFailsFastWithRealCause() {
+        // 契约（规则 3/5）：握手失败必须透出真实 cause、且远早于 connectTimeout 失败，
+        // 不能被 .timeout() 吞成 TimeoutException 或挂到超时。localhost:1 无人监听 → 连接立即被拒。
+        WebSocketMcpClientTransport transport = WebSocketMcpClientTransport.builder("ws://localhost:1/mcp")
+            .connectTimeout(Duration.ofSeconds(10))
+            .pingInterval(Duration.ZERO)
+            .build();
+
+        long start = System.currentTimeMillis();
+        Throwable ex = assertThrows(Throwable.class,
+            () -> transport.connect(in -> Mono.empty()).block(Duration.ofSeconds(15)));
+        long elapsed = System.currentTimeMillis() - start;
+
+        assertTrue(elapsed < 5000,
+            "连接被拒应快速失败（远早于 connectTimeout），实际耗时 " + elapsed + "ms");
+
+        boolean hasConnRefusedCause = false;
+        boolean swallowedAsTimeout = true;
+        for (Throwable t = ex; t != null; t = t.getCause()) {
+            if (t instanceof java.net.ConnectException || t instanceof java.io.IOException) {
+                hasConnRefusedCause = true;
+            }
+            if (t instanceof java.net.ConnectException || t instanceof java.io.IOException
+                    || t instanceof java.nio.channels.ClosedChannelException) {
+                swallowedAsTimeout = false;
+            }
+        }
+        assertTrue(hasConnRefusedCause,
+            "cause 链应包含真实连接错误 (ConnectException/IOException)，实际: " + ex);
+        assertFalse(swallowedAsTimeout,
+            "真实原因不应被 .timeout() 吞成 TimeoutException: " + ex);
+        assertFalse(transport.isConnected());
+    }
+
+    @Test
     @DisplayName("服务端断连后不在 transport 层自动重连，sendMessage 立即失败上抛")
     void noAutoReconnectAfterServerClose() throws Exception {
         MiniWebSocketServer server = new MiniWebSocketServer();
