@@ -15,6 +15,7 @@ public class StreamEvent {
 
     public enum EventType {
         TEXT_DELTA,        // LLM 文本片段
+        SPEAKABLE_CHUNK,   // 可朗读块：按句子边界从 TEXT_DELTA 聚出，供 TTS 边想边说 (R2)
         TOOL_CALL_START,   // LLM 决定调用工具
         TOOL_PROGRESS,     // 工具执行进度 (来自 MCP ProgressNotification)
         TOOL_LOG,          // 工具执行日志 (来自 MCP LoggingNotification)
@@ -92,6 +93,18 @@ public class StreamEvent {
     public static StreamEvent textDelta(String delta, Map<String, Object> metadata) {
         return new StreamEvent(EventType.TEXT_DELTA, delta, null, null, null, null,
                 null, null, metadata != null ? Collections.unmodifiableMap(metadata) : null);
+    }
+
+    /**
+     * 可朗读块 (R2)：从 TEXT_DELTA 流按句子边界聚出的完整小句，供 TTS 流水线边想边说。
+     * text 既放在 textDelta 字段（便于下游沿用文本读取），也放进 data{"text","index"}。
+     *
+     * @param text  本块完整文本
+     * @param index 块序号（从 0 递增）
+     */
+    public static StreamEvent speakableChunk(String text, int index) {
+        return new StreamEvent(EventType.SPEAKABLE_CHUNK, text, null, null, null, null,
+                "speakable", Map.of("text", text, "index", index));
     }
 
     public static StreamEvent toolCallStart(ToolCall call) {
