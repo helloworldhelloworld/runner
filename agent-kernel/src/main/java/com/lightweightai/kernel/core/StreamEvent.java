@@ -103,8 +103,16 @@ public class StreamEvent {
      * @param index 块序号（从 0 递增）
      */
     public static StreamEvent speakableChunk(String text, int index) {
+        return speakableChunk(text, index, "neutral");
+    }
+
+    /**
+     * 带逐块情绪的可朗读块 (R3)。emotion 进 data，供 Voice Gateway 选 TTS 语气、设备驱动表情。
+     */
+    public static StreamEvent speakableChunk(String text, int index, String emotion) {
         return new StreamEvent(EventType.SPEAKABLE_CHUNK, text, null, null, null, null,
-                "speakable", Map.of("text", text, "index", index));
+                "speakable", Map.of("text", text, "index", index,
+                        "emotion", emotion != null ? emotion : "neutral"));
     }
 
     public static StreamEvent toolCallStart(ToolCall call) {

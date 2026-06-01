@@ -28,6 +28,17 @@ public final class SpeakableChunkProcessor implements StreamPostProcessor {
     /** 句子结束符（中英混排）。*/
     private static final String SENTENCE_ENDERS = "。！？!?；;…\n";
 
+    /** 逐块情绪来源（R3），默认中性。*/
+    private final EmotionClassifier emotionClassifier;
+
+    public SpeakableChunkProcessor() {
+        this(EmotionClassifier.NEUTRAL);
+    }
+
+    public SpeakableChunkProcessor(EmotionClassifier emotionClassifier) {
+        this.emotionClassifier = emotionClassifier != null ? emotionClassifier : EmotionClassifier.NEUTRAL;
+    }
+
     @Override
     public String getName() {
         return "speakable-chunk";
@@ -54,7 +65,7 @@ public final class SpeakableChunkProcessor implements StreamPostProcessor {
                     List<StreamEvent> out = new ArrayList<>();
                     String remaining = buffer.toString().trim();
                     if (!remaining.isEmpty()) {
-                        out.add(StreamEvent.speakableChunk(remaining, index.getAndIncrement()));
+                        out.add(emit(remaining, index));
                     }
                     buffer.setLength(0);
                     out.add(event); // chunk 先于 LLM_COMPLETE
@@ -73,9 +84,15 @@ public final class SpeakableChunkProcessor implements StreamPostProcessor {
             String sentence = buffer.substring(0, cut + 1).trim();
             buffer.delete(0, cut + 1);
             if (!sentence.isEmpty()) {
-                out.add(StreamEvent.speakableChunk(sentence, index.getAndIncrement()));
+                out.add(emit(sentence, index));
             }
         }
+    }
+
+    /** 构造一个带逐块情绪的 SPEAKABLE_CHUNK 并自增序号。*/
+    private StreamEvent emit(String sentence, AtomicInteger index) {
+        return StreamEvent.speakableChunk(sentence, index.getAndIncrement(),
+                emotionClassifier.classify(sentence));
     }
 
     /** 返回 buffer 中第一个句子边界字符的下标（含），无则 -1。*/

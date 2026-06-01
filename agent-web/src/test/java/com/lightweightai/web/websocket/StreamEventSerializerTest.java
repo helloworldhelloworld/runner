@@ -86,4 +86,21 @@ class StreamEventSerializerTest {
         assertTrue(resultNode.get("isError").asBoolean(), "错误型 result isError 应为 true");
         assertTrue(resultNode.get("content").asText().contains("boom"));
     }
+
+    @Test
+    @DisplayName("SPEAKABLE_CHUNK 序列化为 type=speakable_chunk，data 含 text/index/emotion (R2+R3)")
+    void speakableChunkIsSerializedWithEmotion() throws Exception {
+        StreamEvent event = StreamEvent.speakableChunk("今天天气不错！", 2, "cheerful");
+
+        String json = StreamEventSerializer.serialize(event);
+
+        assertNotNull(json, "SPEAKABLE_CHUNK 必须放行给客户端");
+        JsonNode node = MAPPER.readTree(json);
+        assertEquals("speakable_chunk", node.get("type").asText());
+        JsonNode data = node.get("data");
+        assertNotNull(data);
+        assertEquals("今天天气不错！", data.get("text").asText());
+        assertEquals(2, data.get("index").asInt());
+        assertEquals("cheerful", data.get("emotion").asText(), "逐块 emotion 应出现在序列化输出");
+    }
 }
