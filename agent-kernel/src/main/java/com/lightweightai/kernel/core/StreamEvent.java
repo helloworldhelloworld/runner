@@ -16,6 +16,7 @@ public class StreamEvent {
     public enum EventType {
         TEXT_DELTA,        // LLM 文本片段
         SPEAKABLE_CHUNK,   // 可朗读块：按句子边界从 TEXT_DELTA 聚出，供 TTS 边想边说 (R2)
+        SPEECH_INTERRUPTED,// barge-in：让设备立即停播音频、丢弃排队的可说块 (R4)
         TOOL_CALL_START,   // LLM 决定调用工具
         TOOL_PROGRESS,     // 工具执行进度 (来自 MCP ProgressNotification)
         TOOL_LOG,          // 工具执行日志 (来自 MCP LoggingNotification)
@@ -113,6 +114,20 @@ public class StreamEvent {
         return new StreamEvent(EventType.SPEAKABLE_CHUNK, text, null, null, null, null,
                 "speakable", Map.of("text", text, "index", index,
                         "emotion", emotion != null ? emotion : "neutral"));
+    }
+
+    /**
+     * barge-in 停播信号 (R4)：用户在小黄人说话时插话，设备据此立即停播已下发但未念完的音频、
+     * 丢弃排队的可说块。区别于 {@link EventType#AGENT_INTERRUPT}（agent run 生命周期）——
+     * 本事件是面向设备音频输出的控制信号。
+     *
+     * @param runId  被打断的 run
+     * @param reason 打断原因（如 "barge-in"）
+     */
+    public static StreamEvent speechInterrupted(String runId, String reason) {
+        return new StreamEvent(EventType.SPEECH_INTERRUPTED, null, null, null, null, null,
+                null, Map.of("runId", runId != null ? runId : "", "reason", reason != null ? reason : ""), null,
+                "speech.interrupted", runId, System.currentTimeMillis());
     }
 
     public static StreamEvent toolCallStart(ToolCall call) {

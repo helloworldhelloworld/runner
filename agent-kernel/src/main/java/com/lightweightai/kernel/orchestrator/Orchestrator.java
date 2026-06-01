@@ -187,9 +187,15 @@ public class Orchestrator implements ChatHandler {
             logger.info("Interrupting active run for session={}", sessionId);
             StreamEvent interruptEvent = existing.interrupt();
 
+            // barge-in：打断成立时，先让设备停播已下发的音频，再接续（R4）
+            StreamEvent speechInterrupted = interruptEvent != null
+                    ? StreamEvent.speechInterrupted(existing.getRunId(), "barge-in")
+                    : null;
+
             return Flux.concat(
                     Flux.just(routeEvent),
                     interruptEvent != null ? Flux.just(interruptEvent) : Flux.empty(),
+                    speechInterrupted != null ? Flux.just(speechInterrupted) : Flux.empty(),
                     existing.execute(request.getMessage())
             );
         }
