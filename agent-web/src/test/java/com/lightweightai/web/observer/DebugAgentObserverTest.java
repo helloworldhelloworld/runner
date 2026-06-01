@@ -4,7 +4,6 @@ import com.lightweightai.kernel.agent.AgentResponse;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ToolResult;
-import com.lightweightai.kernel.prompt.PromptContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
