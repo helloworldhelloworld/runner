@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -90,7 +91,7 @@ class AgentFactoryTransmissionTest {
         AgentProfile profile = AgentProfile.builder()
                 .agentId("web-only")
                 .systemPrompt("You only do web search")
-                .toolAllowList(List.of("web_search"))
+                .toolAllowList(Set.of("web_search"))
                 .build();
 
         AgentFactory factory = new AgentFactory(spy, new StubMemory(), globalRegistry);
@@ -113,7 +114,7 @@ class AgentFactoryTransmissionTest {
         AgentProfile profile = AgentProfile.builder()
                 .agentId("no-db")
                 .systemPrompt("No database access")
-                .toolDenyList(List.of("db_query"))
+                .toolDenyList(Set.of("db_query"))
                 .build();
 
         AgentFactory factory = new AgentFactory(spy, new StubMemory(), globalRegistry);
