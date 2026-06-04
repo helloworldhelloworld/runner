@@ -76,6 +76,28 @@ public class DispatchingTool implements Tool {
         return resolved.executeReactive(args);
     }
 
+    /**
+     * 按所有变体（defaultTool + 各 binding）中的**最高**风险上报。
+     *
+     * 这是权限闸的保守语义：工具名以其最危险的变体被门禁。否则一个 SAFE 默认实现会让
+     * SYSTEM 变体绕过 {@link ToolPolicy#byRiskLevel}（小黄人的运动工具正是 SYSTEM）。
+     */
+    @Override
+    public RiskLevel riskLevel() {
+        RiskLevel max = RiskLevel.SAFE;
+        if (defaultTool != null && defaultTool.riskLevel() != null
+                && defaultTool.riskLevel().ordinal() > max.ordinal()) {
+            max = defaultTool.riskLevel();
+        }
+        for (DeviceToolBinding b : bindings) {
+            RiskLevel lvl = b.getTool() != null ? b.getTool().riskLevel() : null;
+            if (lvl != null && lvl.ordinal() > max.ordinal()) {
+                max = lvl;
+            }
+        }
+        return max;
+    }
+
     // ==================== 设备分发 ====================
 
     /**
