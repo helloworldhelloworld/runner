@@ -147,8 +147,9 @@ class DefaultAgentTest {
                     .claude("test-key")
                     .build();
 
+            StreamCallback noop = new StreamCallback() {};
             assertThrows(UnsupportedOperationException.class,
-                    () -> agent.chatStream("hello", new StreamCallback() {}));
+                    () -> agent.chatStream("hello", noop));
         }
 
         @Test
@@ -159,8 +160,9 @@ class DefaultAgentTest {
                     .build();
 
             ChatOptions opts = ChatOptions.builder().build();
+            StreamCallback noop = new StreamCallback() {};
             assertThrows(UnsupportedOperationException.class,
-                    () -> agent.chatStream("hello", opts, new StreamCallback() {}));
+                    () -> agent.chatStream("hello", opts, noop));
         }
     }
 
