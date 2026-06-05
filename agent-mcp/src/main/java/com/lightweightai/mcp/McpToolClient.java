@@ -90,8 +90,13 @@ public class McpToolClient implements ToolSource, AutoCloseable {
      * 初始化连接并执行 MCP 握手
      */
     public McpToolClient initialize() {
+        // 埋点：initialize().block() 包含 transport connect + MCP initialize 握手
+        // （SDK 在 initialize 时才惰性 connect），是 per-query 建连固定开销的主要一段。
+        long startNanos = System.nanoTime();
         asyncClient.initialize().block();
-        logger.info("MCP client connected to server '{}'", serverName);
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+        logger.info("[mcp-timing] initialize (connect + handshake) for server '{}' took {}ms",
+                serverName, elapsedMs);
         return this;
     }
 
@@ -105,7 +110,11 @@ public class McpToolClient implements ToolSource, AutoCloseable {
     // ==================== MCP 工具发现 ====================
 
     public List<McpToolWrapper> discoverMcpTools() {
+        // 埋点：listTools().block() —— per-query 建连阶段的一个 RTT，用于核对它是否是延迟来源。
+        long startNanos = System.nanoTime();
         McpSchema.ListToolsResult result = asyncClient.listTools().block();
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+        logger.info("[mcp-timing] listTools for server '{}' took {}ms", serverName, elapsedMs);
         discoveredTools = new ArrayList<>();
 
         if (result != null && result.tools() != null) {
@@ -202,8 +211,16 @@ public class McpToolClient implements ToolSource, AutoCloseable {
             String name, Map<String, Object> args, String progressToken,
             Map<String, String> perCallMeta) {
         Map<String, String> effective = mergeRequestMeta(this.requestMeta, perCallMeta);
+        // 埋点：tools/call 往返耗时（从 subscribe 到 success/error）。这段通常是用户感知延迟的主体——
+        // 上游 MCP Server 处理本次调用的真实业务耗时，runner 侧无法优化，但需要测出来与建连开销区分开。
+        long[] startNanos = {0L};
         return asyncClient.callTool(
-            new McpSchema.CallToolRequest(name, args, buildCallMeta(progressToken, effective)));
+                new McpSchema.CallToolRequest(name, args, buildCallMeta(progressToken, effective)))
+            .doOnSubscribe(s -> startNanos[0] = System.nanoTime())
+            .doOnSuccess(r -> logger.info("[mcp-timing] callTool '{}' on '{}' took {}ms",
+                    name, serverName, (System.nanoTime() - startNanos[0]) / 1_000_000))
+            .doOnError(e -> logger.warn("[mcp-timing] callTool '{}' on '{}' failed after {}ms: {}",
+                    name, serverName, (System.nanoTime() - startNanos[0]) / 1_000_000, e.getMessage()));
     }
 
     /**

@@ -91,6 +91,8 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         this.handler = handler;
         java.util.concurrent.CompletableFuture<Void> open = new java.util.concurrent.CompletableFuture<>();
         this.openFuture = open;
+        // 埋点：从 subscribe 到 onOpen（握手完成）的耗时，含 HttpClient 创建 + TCP/WS 升级。
+        long[] startNanos = {0L};
         return Mono.fromFuture(() -> {
             HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(connectTimeout)
@@ -105,7 +107,12 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         // buildAsync 完成仅代表 WebSocket 对象已构建，onOpen 可能尚未触发 → 必须再等握手完成，
         // 否则 connect 完成时 connected 仍为 false，SDK 紧接着的 sendMessage(initialize) 会失败。
         .then(Mono.fromFuture(open))
-        .timeout(connectTimeout);
+        .timeout(connectTimeout)
+        .doFirst(() -> startNanos[0] = System.nanoTime())
+        .doOnSuccess(v -> logger.info("[mcp-timing] WebSocket connect (build + handshake) took {}ms: {}",
+                (System.nanoTime() - startNanos[0]) / 1_000_000, uri))
+        .doOnError(e -> logger.warn("[mcp-timing] WebSocket connect failed after {}ms: {} ({})",
+                (System.nanoTime() - startNanos[0]) / 1_000_000, uri, e.getMessage()));
     }
 
     @Override
