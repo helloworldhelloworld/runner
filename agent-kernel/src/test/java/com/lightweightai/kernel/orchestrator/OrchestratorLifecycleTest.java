@@ -4,6 +4,7 @@ import com.lightweightai.kernel.agent.AgentProfile;
 import com.lightweightai.kernel.agent.AgentRegistry;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.gateway.ChatHandler;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
 import com.lightweightai.kernel.llm.*;
