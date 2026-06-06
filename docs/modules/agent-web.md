@@ -19,6 +19,22 @@ Wires all modules together, provides HTTP/WebSocket endpoints, Spring configurat
 | `.service` | Application services |
 | `.skillcreator` | Skill creation tooling |
 
+## Orchestrator agent assembly
+
+`config/OrchestratorConfig` builds the `AgentRegistry` (enabled via `app.orchestrator.enabled=true`).
+Registered personas:
+
+| agentId | Persona | Tool policy | maxSpawnDepth |
+|---|---|---|---|
+| `default` | 默认助手 | all tools | 1 (may spawn) |
+| `worker` | 专注执行的工作助手 | all tools | 0 |
+| `minion` | 小黄人 — 桌面具身陪伴体（见 [ADR-006](../decisions/006-minion-embodiment-architecture.md) / [minion-body.md](minion-body.md)）| `ToolPolicy.byRiskLevel(SYSTEM)` — 放行 `deviceType="minion"` 的运动/视觉工具（`RiskLevel.SYSTEM`），口语化短回复 | 0 |
+
+The `minion` persona is the runner-side half of R5: its `ToolPolicy.byRiskLevel(SYSTEM)` gate is what
+exposes the Pi's motion/vision MCP tools to the LLM once the device's MCP server is connected (real Pi
+tool接入仍待硬件). The kernel-side risk-gating wiring it relies on is proven by
+`MinionToolWiringAcceptanceTest`; the persona registration here by `MinionPersonaAssemblyTest`.
+
 ## Dependencies
 Depends on ALL other modules — it is the top-level assembly.
 
