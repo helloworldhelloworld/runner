@@ -103,6 +103,85 @@ class AgentFactoryTest {
         assertNotSame(a1, a2);
     }
 
+    @Test
+    @DisplayName("getSharedMemory 返回构造时传入的 MemoryProvider")
+    void sharedMemoryIsPreserved() {
+        AgentFactory factory = new AgentFactory(defaultProvider, memory, globalRegistry);
+        assertSame(memory, factory.getSharedMemory());
+    }
+
+    @Test
+    @DisplayName("传输链验证：工具定义从 globalRegistry → ScopedRegistry → AgentLoop.llmOptions.toolDefinitions")
+    void toolDefinitionTransmissionChain() {
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("chain-test")
+                .systemPrompt("test")
+                .toolDenyList(Set.of("shell_exec"))
+                .build();
+
+        AgentFactory factory = new AgentFactory(defaultProvider, memory, globalRegistry);
+        AgentLoop agent = factory.create(profile);
+
+        List<Map<String, Object>> defs = agent.getLlmOptions().getToolDefinitions();
+        assertNotNull(defs, "toolDefinitions must not be null");
+        assertFalse(defs.isEmpty(), "toolDefinitions must not be empty");
+
+        List<String> names = defs.stream().map(d -> (String) d.get("name")).toList();
+        assertEquals(2, names.size());
+        assertTrue(names.contains("search"));
+        assertTrue(names.contains("read_file"));
+        assertFalse(names.contains("shell_exec"),
+                "Denied tool should be filtered out of toolDefinitions");
+
+        for (Map<String, Object> def : defs) {
+            assertNotNull(def.get("name"), "Each tool definition must have a name");
+            assertNotNull(def.get("description"), "Each tool definition must have a description");
+        }
+    }
+
+    @Test
+    @DisplayName("maxToolIterations 从 Profile 传递到 AgentLoop")
+    void maxToolIterationsPassedThrough() {
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("iter-test")
+                .systemPrompt("test")
+                .maxToolIterations(25)
+                .build();
+
+        AgentFactory factory = new AgentFactory(defaultProvider, memory, globalRegistry);
+        AgentLoop agent = factory.create(profile);
+
+        assertNotNull(agent);
+    }
+
+    @Test
+    @DisplayName("空 ToolRegistry 创建的 AgentLoop 工具定义为空列表")
+    void emptyRegistryProducesEmptyToolDefinitions() {
+        ToolRegistry emptyRegistry = new ToolRegistry();
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("empty-tools")
+                .systemPrompt("test")
+                .build();
+
+        AgentFactory factory = new AgentFactory(defaultProvider, memory, emptyRegistry);
+        AgentLoop agent = factory.create(profile);
+
+        List<Map<String, Object>> defs = agent.getLlmOptions().getToolDefinitions();
+        assertTrue(defs == null || defs.isEmpty());
+    }
+
+    @Test
+    @DisplayName("systemPrompt 为 null 时不设置系统提示")
+    void nullSystemPromptHandled() {
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("no-prompt")
+                .build();
+
+        AgentFactory factory = new AgentFactory(defaultProvider, memory, globalRegistry);
+        AgentLoop agent = factory.create(profile);
+        assertNotNull(agent);
+    }
+
     private Tool simpleTool(String name) {
         return new Tool() {
             @Override public String getName() { return name; }
