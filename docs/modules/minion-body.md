@@ -46,7 +46,10 @@ ADR-006 D4 的"三轨 + 音频时钟"对齐器，**只在设备端**（口型同
 ## 暴露给 runner 的工具（MCP, deviceType="minion"）
 
 `move` / `turn_head` / `set_eyes` / `wave` / `nod` / `look`(capture_image) …
-风险等级 `RiskLevel.SYSTEM`，由 runner 侧 `ToolPolicy` 收口。
+
+风险等级经 MCP 标准 `annotations` 声明（runner 据此恢复 `riskLevel()`，见
+[ADR-007](../decisions/007-risk-level-across-mcp.md)）：物理动作 `destructiveHint=true`→`SYSTEM`，
+`look` `readOnlyHint=true`→`SAFE`，`set_eyes`→`WRITE`。由 runner 侧 `ToolPolicy` 收口。
 
 ## Rules
 
