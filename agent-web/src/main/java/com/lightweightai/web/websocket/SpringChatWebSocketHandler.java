@@ -531,7 +531,6 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private void handleChat(WebSocketSession session, JsonNode payload) {
         String sessionId = payload.path("sessionId").asText(session.getId());
         String message = payload.path("message").asText("").trim();
-        String model = payload.path("model").asText(null);
 
         if (message.isEmpty()) {
             safeSend(session, errorJson("消息不能为空"));
@@ -549,9 +548,8 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        GatewayRequest.Builder builder = GatewayRequest.builder()
-            .sessionId(sessionId).message(message).metadata("protocol", "websocket");
-        if (model != null && !model.isEmpty()) builder.metadata("model", model);
+        // 解析公共字段（含 agentId → metadata，供 MetadataAgentRouter 路由到 persona，如 minion）
+        GatewayRequest.Builder builder = WsChatRequests.baseBuilder(payload, sessionId);
 
         String sid = session.getId();
         Disposable prev = activeStreams.remove(sid);

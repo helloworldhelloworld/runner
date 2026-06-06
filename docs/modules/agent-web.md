@@ -35,6 +35,11 @@ exposes the Pi's motion/vision MCP tools to the LLM once the device's MCP server
 tool接入仍待硬件). The kernel-side risk-gating wiring it relies on is proven by
 `MinionToolWiringAcceptanceTest`; the persona registration here by `MinionPersonaAssemblyTest`.
 
+Both WebSocket handlers (Vert.x + Spring) build the `GatewayRequest` via the shared
+`websocket/WsChatRequests.baseBuilder`, which maps an inbound `agentId` field into
+`metadata("agentId", …)` so `MetadataAgentRouter` routes the turn to that persona (e.g. voice → minion).
+Proven by `WsChatRequestsTest`.
+
 ## Dependencies
 Depends on ALL other modules — it is the top-level assembly.
 
