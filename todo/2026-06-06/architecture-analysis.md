@@ -3,7 +3,7 @@
 ## Research Sources
 
 - **OpenClaw** (GitHub 247K stars): TypeScript AI agent framework, originally "Clawd", built on Pi Agent framework
-- **Claude Code** architecture: Analyzed via arXiv paper 2604.14228 (VILA-Lab), ~512K lines TS
+- **Claude Code** architecture: arXiv 2604.14228 + npm source map leak (v2.1.88, March 2026), ~512K lines TS
 - **Industry best practices**: LangGraph, AutoGen/AG2, CrewAI, OpenHands, SWE-agent, Aider, Magentic-One, Spring AI, LangChain4j
 
 ---
@@ -18,11 +18,14 @@ The core insight: **only 1.6% of Claude Code is AI decision logic; 98.4% is dete
 |---|---|---|
 | Agent Loop | Single-threaded while-loop (~88 lines), flat message history | AgentLoop + ToolCallingLoop, similar pattern |
 | Permission System | 7 modes + ML classifier (deny-first, graduated trust) | No permission system |
-| Context Compaction | 5-layer pipeline, triggers at ~92% usage, proactive | Snip(3) + Micro(2000), 2-layer only |
+| Context Compaction | 3-tier (Micro/AutoCompact/SessionMemory), proactive at ~167K/200K | Snip(3) + Micro(2000), 2-layer only |
+| Prompt Caching | Entire harness designed around cache hits; SEVs on low hit rate | No cache-aware request ordering |
 | Extensibility | 4 mechanisms: MCP, Plugins, Skills, Hooks | MCP + Tools + Skills (deprecated), no Hooks |
-| Tool Execution | Diff-based editing, context-budget-aware outputs | Full output, no windowing |
-| State | Append-oriented session storage, CLAUDE.md memory | MemoryProvider 3-layer, good |
-| Subagents | Worktree isolation, delegation mechanism | SubagentRuntime with depth/concurrency control |
+| Tool Execution | Diff-based editing, context-budget-aware, read-before-edit enforcement | Full output, no windowing, no read guard |
+| Tool Deferral | MCP tools deferred until ToolSearch loads schema; preserves cache prefix | All tool schemas loaded upfront |
+| State | Append-oriented JSONL session storage, CLAUDE.md hierarchy | MemoryProvider 3-layer, good |
+| Subagents | Worktree isolation, coordinator mode, agent teams (2-16), dynamic workflows | SubagentRuntime with depth/concurrency control |
+| Background Daemon | KAIROS: always-on with periodic ticks, 15s budget, append-only audit log | No background execution |
 
 ### 1.2 OpenClaw Key Findings
 
@@ -45,11 +48,16 @@ The core insight: **only 1.6% of Claude Code is AI decision logic; 98.4% is dete
 | Graph-Based Orchestration | LangGraph | Tree-based only | LOW (current approach is fine) |
 | A2A Protocol | Google ADK, Spring AI | Not implemented | MEDIUM |
 | Tool Output Windowing | SWE-agent (ACI design) | Not implemented | HIGH |
-| Proactive Compaction | Claude Code (5-layer pipeline) | Reactive only | HIGH |
+| Proactive Compaction | Claude Code (3-tier pipeline) | Reactive only | HIGH |
+| Prompt Cache-Aware Ordering | Claude Code (SEV on low hit rate) | Not implemented | HIGH |
 | Circuit Breaker / Resilience | Industry standard | Not implemented | HIGH |
 | PageRank Context Selection | Aider (tree-sitter + PageRank) | Not implemented | MEDIUM |
 | Stateless MCP | MCP 2026-07-28 spec RC | Session-based | MEDIUM |
-| Permission System | Claude Code (7 modes + ML) | Missing | HIGH |
+| Permission System | Claude Code (6 modes + ML) | Missing | HIGH |
+| Tool Deferral | Claude Code (ToolSearch on demand) | All loaded upfront | HIGH |
+| Read-Before-Edit | Claude Code (Edit requires prior Read) | Not enforced | MEDIUM |
+| Background Daemon | Claude Code KAIROS / OpenClaw heartbeat | Not implemented | MEDIUM |
+| Dynamic Workflows | Claude Code (JS orchestration scripts) | Static routing only | MEDIUM |
 
 ---
 
@@ -244,6 +252,62 @@ Things the runner does well (keep these):
 - [ ] Channel-specific tool variants (e.g., Slack-specific actions)
 - [ ] Message format normalization across channels
 
+### P0 - Critical (Addendum from Claude Code Leak Analysis)
+
+#### TODO-018: Prompt Cache-Aware Request Ordering
+**Gap**: Runner sends LLM requests without considering prompt caching. No layered ordering.
+**Reference**: Anthropic declares SEVs on low cache hit rates. The entire Claude Code harness is designed around this.
+**Why**: Prompt caching can reduce latency by 80% and cost by 90% on cache hits.
+**Scope**:
+- [ ] Layer request: system prompt (stable) → tool definitions (stable) → project context (semi-stable) → conversation (volatile)
+- [ ] Never modify system prompt or tool definitions mid-session
+- [ ] State transitions as tools, not system prompt changes
+- [ ] Track cache hit rate as a metric
+- [ ] See `todo/2026-06-06/claude-code-deep-dive.md` for full details
+
+### P1 - Important (Addendum)
+
+#### TODO-019: Tool Definition Deferral
+**Gap**: All tool schemas loaded into every LLM request. With MCP servers this bloats the prompt and breaks cache prefix.
+**Reference**: Claude Code defers MCP tool schemas until ToolSearch loads them on demand.
+**Scope**:
+- [ ] `DeferredToolDefinition` — name + description only, no full schema
+- [ ] ToolSearch mechanism to load schema on demand
+- [ ] `alwaysLoad` flag for critical tools
+- [ ] MCP output token limits (warn 10K, max 25K)
+
+#### TODO-020: Ordered Tool Result Emission
+**Gap**: Concurrent tool execution without guaranteed result ordering.
+**Reference**: Claude Code `StreamingToolExecutor` uses `TrackedTool` state machine, emits in request order.
+**Scope**:
+- [ ] `TrackedToolCall` with states: QUEUED → EXECUTING → COMPLETED → YIELDED
+- [ ] Emit results in request order regardless of completion order
+
+### P2 - Medium (Addendum)
+
+#### TODO-021: Read-Before-Edit Enforcement
+**Gap**: No guarantee agent has read a file before editing it.
+**Reference**: Claude Code's Edit tool requires prior Read in conversation + file unchanged on disk since.
+**Scope**:
+- [ ] Track "last read" timestamp per file in session
+- [ ] Edit rejects if not read or if file changed since last read
+
+#### TODO-022: Background Daemon Mode
+**Gap**: Agents only run in foreground sessions.
+**Reference**: Claude Code KAIROS (always-on daemon, periodic ticks, 15s budget, append-only logs). OpenClaw heartbeat.
+**Scope**:
+- [ ] `DaemonRuntime` with periodic tick scheduler
+- [ ] Tick budget, append-only audit log, webhook subscriptions
+- [ ] Subsumes TODO-009 (Heartbeat)
+
+#### TODO-023: Dynamic Workflow Orchestration
+**Gap**: Multi-agent orchestration is static (predefined routing).
+**Reference**: Claude Code dynamically generates JS orchestration scripts for hundreds of parallel subagents.
+**Scope**:
+- [ ] Agent generates orchestration plans as structured data
+- [ ] Workflow engine: parallel fan-out, sequential chains, conditional branches
+- [ ] Each step maps to a subagent spawn
+
 ### P3 - Nice to Have
 
 #### TODO-015: Agent Self-Improvement (Meta-Learning)
@@ -293,27 +357,34 @@ Things the runner does well (keep these):
 
 ## Part 5: Recommended Execution Order
 
-### Phase 1: Foundation (Weeks 1-3)
-- TODO-003: Tool Output Windowing (quick win, prevents context blowup)
+### Phase 1: Foundation & Performance (Weeks 1-3)
+- TODO-018: Prompt Cache-Aware Request Ordering (biggest ROI — 80% latency, 90% cost reduction)
+- TODO-003: Tool Output Windowing (prevents context blowup)
 - TODO-002: Proactive Context Compaction (critical for long sessions)
-- TODO-001: Permission System (security baseline)
 
-### Phase 2: Resilience (Weeks 4-6)
+### Phase 2: Security & Reliability (Weeks 4-6)
+- TODO-001: Permission System (security baseline)
 - TODO-004: Structured Error Recovery (production stability)
+- TODO-019: Tool Definition Deferral (scales to hundreds of MCP tools)
+
+### Phase 3: Core Infrastructure (Weeks 7-10)
 - TODO-005: Event Sourcing (enables everything else)
 - TODO-006: Checkpoint/Resume (crash durability)
+- TODO-020: Ordered Tool Result Emission
 
-### Phase 3: Extensibility (Weeks 7-10)
+### Phase 4: Extensibility (Weeks 11-14)
 - TODO-007: Lifecycle Hooks System
 - TODO-008: Skill System Revival
-- TODO-009: Heartbeat/Scheduled Execution
+- TODO-021: Read-Before-Edit Enforcement
 
-### Phase 4: Interoperability (Weeks 11-14)
+### Phase 5: Interoperability (Weeks 15-18)
 - TODO-012: Stateless MCP Transport
 - TODO-011: A2A Protocol Support
 - TODO-014: Channel Abstraction Layer
 
-### Phase 5: Intelligence (Weeks 15+)
+### Phase 6: Advanced (Weeks 19+)
+- TODO-022: Background Daemon Mode (subsumes TODO-009)
+- TODO-023: Dynamic Workflow Orchestration
 - TODO-010: Dual-Loop Planning
 - TODO-013: Repository-Aware Context Selection
 - TODO-015: Agent Self-Improvement
@@ -322,18 +393,39 @@ Things the runner does well (keep these):
 
 ---
 
+## Supplementary Documents
+
+- [claude-code-deep-dive.md](claude-code-deep-dive.md) — Detailed Claude Code architecture from leaked source analysis
+
 ## References
 
+### Academic Papers
 - [arXiv 2604.14228] Dive into Claude Code: The Design Space of Today's and Future AI Agent Systems
 - [arXiv 2602.23193] ESAA: Event Sourcing for Autonomous Agents
 - [arXiv 2405.15793] SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering
 - [arXiv 2603.05344] Building Effective AI Coding Agents for the Terminal
 - [arXiv 2604.03515] Inside the Scaffold: A Source-Code Taxonomy of Coding Agent Architectures
+- [arXiv 2602.16666] Towards a Science of AI Agent Reliability
+
+### Claude Code Sources
+- Claude Code Official Docs: https://code.claude.com/docs/en/how-claude-code-works
+- Claude Code Source Leak Analysis: https://claudefa.st/blog/guide/mechanics/claude-code-source-leak
+- Claude Code Architecture Deep Dive: https://wavespeed.ai/blog/posts/claude-code-architecture-leaked-source-deep-dive/
+- Claude Code Prompt Caching: https://code.claude.com/docs/en/prompt-caching
+- VILA-Lab/Dive-into-Claude-Code: https://github.com/VILA-Lab/Dive-into-Claude-Code
+- Claw Code (clean-room Rust rewrite): https://claw-code.codes/
+
+### OpenClaw Sources
 - OpenClaw GitHub: https://github.com/openclaw/openclaw
 - OpenClaw Design Patterns (Ken Huang, 7-part series)
-- Claude Code Official Docs: https://code.claude.com/docs/en/how-claude-code-works
+- OpenClaw Architecture Deep Dive: https://deepwiki.com/openclaw/openclaw/15.1-architecture-deep-dive
+- OpenClaw Chinese docs: https://github.com/yeuxuan/openclaw-docs
+
+### Framework & Protocol References
 - MCP 2026-07-28 Release Candidate: https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/
 - Spring AI 1.1 Recursive Advisors: https://spring.io/blog/2025/11/04/spring-ai-recursive-advisors/
 - Spring AI A2A Integration: https://spring.io/blog/2026/01/29/spring-ai-agentic-patterns-a2a-integration/
 - LangChain4j MCP Integration: https://github.com/langchain4j/langchain4j
 - Aider Architecture Analysis: https://emsenn.net/library/domains/engineering/domains/tech/domains/computing/texts/aider-architecture-analysis/
+- Context Engineering for AI Agents (Anthropic): https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
+- Building Agents with Claude Agent SDK: https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk

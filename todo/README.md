@@ -29,4 +29,4 @@ todo/
 
 | Date | TODOs | Focus |
 |---|---|---|
-| 2026-06-06 | 17 items | Initial architecture gap analysis vs OpenClaw/Claude Code/industry |
+| 2026-06-06 | 23 items | Full architecture gap analysis vs OpenClaw/Claude Code leak/industry |
