@@ -109,6 +109,7 @@ Pi 不跑 LLM、不跑 STT/TTS（厂商 API 由 Gateway 调）。Pi 只负责：
 
 - 运动/表情工具是**新写的 `Tool` 实现**；新增能力走 `default` 方法 / 新类型 / 新枚举值，不改既有签名。
 - MCP 在此架构里是被 **消费**（runner 连 Pi 的 MCP server），runner 不改 MCP 接口定义。
+  其**连接方式与 NAT 穿透**（脑在云、Pi 在 NAT 后）见 [ADR-008](008-mcp-transport-cloud-to-pi.md)。
 - 多模态接线只动 `ClaudeProvider`/`OpenRouter` 内部，复用既有 `ContentBlock`/`ImageContent`。
 - 禁止以"清理"名义删除 public / `@Deprecated` 成员。
 

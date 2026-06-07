@@ -55,4 +55,5 @@ ADR-006 D4 的"三轨 + 音频时钟"对齐器，**只在设备端**（口型同
 
 - 不跑 LLM/STT/TTS；保持瘦
 - 物理安全反射（**本期暂缓**，将来务必落本地，不走云）
-- 与 runner 走 MCP（动作）+ device 协议经 Voice Gateway（唤醒/转写/播放/barge-in）
+- 与 runner 走 MCP（动作）+ device 协议经 Voice Gateway（唤醒/转写/播放/barge-in）；
+  MCP 跨 cloud↔Pi 的 transport/NAT 穿透见 [ADR-008](../decisions/008-mcp-transport-cloud-to-pi.md)
