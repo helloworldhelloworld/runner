@@ -8,6 +8,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+
 @DisplayName("ManualToolProvider - 手动工具注册")
 class ManualToolProviderTest {
 
@@ -68,7 +69,7 @@ class ManualToolProviderTest {
         return new Tool() {
             @Override public String getName() { return name; }
             @Override public String getDescription() { return name + " tool"; }
-            @Override public Map<String, Object> getParameterSchema() { return Map.of(); }
+            @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
             @Override public ToolResult execute(Map<String, Object> args) { return ToolResult.success("ok"); }
         };
     }

@@ -24,7 +24,7 @@ class StreamingToolTest {
         @DisplayName("正常流式输出 progress + complete")
         void normalStreamingOutput() {
             StreamingTool tool = new TestStreamingTool("test_tool", (args, emitter) -> {
-                emitter.next(ToolResultChunk.progress("test_tool", 50, "halfway"));
+                emitter.next(ToolResultChunk.progress("test_tool", "halfway", 50, 100));
                 emitter.next(ToolResultChunk.complete("test_tool", ToolResult.success("done")));
                 emitter.complete();
             });
@@ -65,7 +65,7 @@ class StreamingToolTest {
         @DisplayName("收集 COMPLETE chunk 作为结果")
         void collectsCompleteChunk() {
             StreamingTool tool = new TestStreamingTool("tool", (args, emitter) -> {
-                emitter.next(ToolResultChunk.progress("tool", 50, "half"));
+                emitter.next(ToolResultChunk.progress("tool", "half", 50, 100));
                 emitter.next(ToolResultChunk.complete("tool", ToolResult.success("final result")));
                 emitter.complete();
             });
@@ -79,7 +79,7 @@ class StreamingToolTest {
         @DisplayName("只有 progress chunk 时返回 error")
         void noCompleteChunkReturnsError() {
             StreamingTool tool = new TestStreamingTool("tool", (args, emitter) -> {
-                emitter.next(ToolResultChunk.progress("tool", 50, "half"));
+                emitter.next(ToolResultChunk.progress("tool", "half", 50, 100));
                 emitter.complete();
             });
 
@@ -117,7 +117,7 @@ class StreamingToolTest {
 
         @Override public String getName() { return name; }
         @Override public String getDescription() { return "test"; }
-        @Override public Map<String, Object> getParameterSchema() { return Map.of(); }
+        @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
 
         @Override
         protected void executeStreaming(Map<String, Object> args, FluxSink<ToolResultChunk> emitter) {
