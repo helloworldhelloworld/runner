@@ -198,6 +198,81 @@
 
 ---
 
+## Supplementary Findings (Second Research Pass)
+
+### Additional Claude Code Details
+
+- **The core loop**: A single `while(true)` spanning 1,421 lines (lines 307-1728 in `query.ts`). The `QueryEngine` is 46K lines handling the entire LLM interaction lifecycle. A community Rust rewrite proved the core can be expressed in ~1,530 lines across 18 files — all complexity is in surrounding systems.
+- **Tool inventory**: ~19 built-in tools (up to 60+ with extensions). Notable tools not in Runner: `TaskCreate/Get/Update/List/Stop` (parallel processing engine), `SleepTool` (proactive mode), `AskUserQuestionTool`, `LSPTool` (Language Server Protocol), `CronCreateTool` (scheduled triggers).
+- **SSE event types**: 9 types — `message_start`, `content_block_start`, `content_block_delta` (with `text_delta`/`input_json_delta`/`thinking_delta`), `content_block_stop`, `message_delta`, `message_stop`.
+- **Sub-agent cost optimization**: Main session on Opus for complex reasoning, sub-agents on Sonnet for focused tasks. Coordination through shared task list (markdown file) with file locking.
+- **Permission system detail**: 7 permission modes plus ML-based classifier for risky operations. Unicode sanitization against prompt injection. 4-level config scope: Managed (enterprise) > User > Project > Session.
+
+### Additional OpenClaw Details
+
+- **Config-first identity** via multiple markdown files: `SOUL.md` (personality/values), `TOOLS.md` (capabilities), `IDENTITY.md` (personalization), `HEARTBEAT.md` (autonomous schedule). "No Python, no chains, no graphs — just config files."
+- **Heartbeat autonomous loop**: Runs as persistent background daemon (systemd/LaunchAgent) with configurable heartbeat (default 30 min). Fundamentally different from request-response — it's a continuously running process.
+- **ClawHub skill marketplace**: 13,700+ community-published skills. Skills are `SKILL.md` with YAML frontmatter + natural-language instructions.
+- **Memory**: SQLite FTS5 full-text index over local Markdown files. Memory Vault accumulates interaction history across sessions.
+
+### New Industry Patterns (Not in Initial Analysis)
+
+1. **A2A Protocol (Agent-to-Agent)**: Released by Google April 2025, contributed to Linux Foundation June 2025. Uses HTTP + SSE + JSON-RPC 2.0. Agent Cards for capability advertisement. 150+ organizations support it. Sits alongside MCP (agent-to-tool) to form the interoperability stack.
+
+2. **Output Validation Between Agents**: Every agent output validated against typed schema (Pydantic/Zod) before passing to next agent. Missing this causes cascading failures in multi-agent chains.
+
+3. **Eval Gates**: Pair runtime tracing with automated scorers that grade agent outputs, can block regressions or flag quality drops. "Step-level tracing is the minimum viable signal for production agents."
+
+4. **LangGraph State Management Warning**: >60% of production incidents tied to state management. Migration from in-memory to persistent state store is critical for production.
+
+5. **Context Drift**: 65% of enterprise AI failures in 2025 attributed to context drift or memory loss during multi-step reasoning — not raw context exhaustion. This reframes the compaction problem.
+
+6. **Prompt Cache Economics**: Reduces per-call cost 50-90%. Optimization target shifts from "minimize context size" to "maximize cache hit rate."
+
+7. **Failure Rates**: 5-15% agent failure rate is normal in production — plan for it with circuit breakers, fallback agents, and degraded-mode operation.
+
+### Additional TODOs from Supplementary Findings
+
+- [ ] **TODO-013: A2A Protocol Support**
+  - Implement Agent Cards for capability advertisement
+  - Support HTTP + SSE + JSON-RPC 2.0 transport for inter-agent communication
+  - Enable external agent systems to discover and invoke Runner agents
+  - Priority: P2 (future-proofing, emerging standard)
+
+- [ ] **TODO-014: Config-first Agent Identity**
+  - Support markdown-based agent definition files (similar to OpenClaw SOUL.md/TOOLS.md)
+  - AgentProfile loadable from YAML/markdown config without code changes
+  - Hot-reload agent personality/tools/permissions from config directory
+  - Keep Java AgentProfile for programmatic use; markdown as declarative alternative
+  - Priority: P1 (improves extensibility and community adoption)
+
+- [ ] **TODO-015: Output Validation & Typed Handoffs**
+  - Add output schema validation to Tool interface: validate ToolResult against expected schema
+  - Inter-agent handoff validation: typed contracts between agents in orchestrator
+  - Fail-fast on schema mismatch instead of propagating malformed data
+  - Priority: P1 (prevents cascading failures in multi-agent chains)
+
+- [ ] **TODO-016: Sub-agent Model Cost Optimization**
+  - Support per-agent model override (already in AgentProfile.modelOverride — verify it's wired through)
+  - Default strategy: main agent on capable model (Opus), sub-agents on efficient model (Sonnet)
+  - Add cost tracking per agent to CostTracker for visibility
+  - Priority: P1 (direct cost savings)
+
+- [ ] **TODO-017: Eval Gates & Quality Scoring**
+  - Add OutputEvaluator interface: score agent outputs against quality criteria
+  - Configurable gate: block/warn/log when score below threshold
+  - Integrate with AgentObserver.onAgentComplete for non-intrusive scoring
+  - Track quality metrics over time for regression detection
+  - Priority: P2 (production readiness)
+
+- [ ] **TODO-018: Context Drift Detection**
+  - Monitor for context drift during multi-step reasoning (not just token exhaustion)
+  - Track key facts/goals established early in conversation; alert when they're lost after compaction
+  - Implement "anchor facts" that survive all compaction layers
+  - Priority: P1 (addresses the #1 cause of enterprise AI failures)
+
+---
+
 ## Architecture Principles Validated by External Research
 
 The following Runner design decisions are validated as industry best practices:
