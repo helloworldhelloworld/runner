@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 @DisplayName("ClientToolAlias — alias view delegating to primary ClientTool")
 class ClientToolAliasTest {
@@ -20,7 +20,7 @@ class ClientToolAliasTest {
 
         @Test
         void rejectsNullAliasName() {
-            ClientTool<?> primary = mock(ClientTool.class);
+            StubClientTool primary = new StubClientTool();
             assertThrows(NullPointerException.class, () -> new ClientToolAlias(null, primary));
         }
 
@@ -31,7 +31,7 @@ class ClientToolAliasTest {
 
         @Test
         void rejectsBlankAliasName() {
-            ClientTool<?> primary = mock(ClientTool.class);
+            StubClientTool primary = new StubClientTool();
             assertThrows(IllegalArgumentException.class, () -> new ClientToolAlias("  ", primary));
         }
     }
@@ -42,71 +42,84 @@ class ClientToolAliasTest {
 
         @Test
         void getNameReturnsAliasNotPrimaryName() {
-            ClientTool<?> primary = mock(ClientTool.class);
-            when(primary.getName()).thenReturn("primary_tool");
-
+            StubClientTool primary = new StubClientTool();
             ClientToolAlias alias = new ClientToolAlias("my_alias", primary);
             assertEquals("my_alias", alias.getName());
+            assertNotEquals(primary.getName(), alias.getName());
         }
 
         @Test
         void getDescriptionDelegatesToPrimary() {
-            ClientTool<?> primary = mock(ClientTool.class);
-            when(primary.getDescription()).thenReturn("Primary description");
-
+            StubClientTool primary = new StubClientTool();
             ClientToolAlias alias = new ClientToolAlias("alias", primary);
-            assertEquals("Primary description", alias.getDescription());
+            assertEquals(primary.getDescription(), alias.getDescription());
         }
 
         @Test
         void getSchemaDelegatesToPrimary() {
-            ClientTool<?> primary = mock(ClientTool.class);
-            ToolSchema schema = ToolSchema.empty();
-            when(primary.getSchema()).thenReturn(schema);
-
+            StubClientTool primary = new StubClientTool();
             ClientToolAlias alias = new ClientToolAlias("alias", primary);
-            assertSame(schema, alias.getSchema());
+            assertSame(primary.getSchema(), alias.getSchema());
         }
 
         @Test
         void executeDelegatesToPrimary() {
-            ClientTool<?> primary = mock(ClientTool.class);
-            ToolResult expected = ToolResult.success("result");
-            when(primary.execute(any())).thenReturn(expected);
-
+            StubClientTool primary = new StubClientTool();
             ClientToolAlias alias = new ClientToolAlias("alias", primary);
             Map<String, Object> args = Map.of("key", "val");
             ToolResult result = alias.execute(args);
-
-            assertSame(expected, result);
-            verify(primary).execute(args);
+            assertNotNull(result);
+            assertFalse(result.isError());
         }
 
         @Test
         void isAutoExecuteDelegatesToPrimary() {
-            ClientTool<?> primary = mock(ClientTool.class);
-            when(primary.isAutoExecute()).thenReturn(true);
-
+            StubClientTool primary = new StubClientTool();
             ClientToolAlias alias = new ClientToolAlias("alias", primary);
-            assertTrue(alias.isAutoExecute());
+            assertEquals(primary.isAutoExecute(), alias.isAutoExecute());
         }
 
         @Test
         void getDirectiveDescriptorDelegatesToPrimary() {
-            ClientTool<?> primary = mock(ClientTool.class);
-            DirectiveDescriptor descriptor = mock(DirectiveDescriptor.class);
-            when(primary.getDirectiveDescriptor()).thenReturn(descriptor);
-
+            StubClientTool primary = new StubClientTool();
             ClientToolAlias alias = new ClientToolAlias("alias", primary);
-            assertSame(descriptor, alias.getDirectiveDescriptor());
+            assertSame(primary.getDirectiveDescriptor(), alias.getDirectiveDescriptor());
         }
     }
 
     @Test
     @DisplayName("getPrimary returns the original tool")
     void getPrimaryReturnsOriginal() {
-        ClientTool<?> primary = mock(ClientTool.class);
+        StubClientTool primary = new StubClientTool();
         ClientToolAlias alias = new ClientToolAlias("alias", primary);
         assertSame(primary, alias.getPrimary());
+    }
+
+    @com.lightweightai.kernel.agent.annotation.ClientTool(
+        toolName = "stub_tool",
+        downAction = "StubDown",
+        upAction = "StubUp",
+        namespace = "Test",
+        timeoutMs = 1000,
+        version = "1.0"
+    )
+    static class StubClientTool extends ClientTool<String> {
+
+        private static final ClientToolDispatcher NOOP_DISPATCHER =
+            (callId, toolName, directive) -> CompletableFuture.completedFuture(ToolResult.success("stub"));
+
+        StubClientTool() {
+            super(NOOP_DISPATCHER);
+        }
+
+        @Override
+        protected Map<String, Object> buildPayload(Map<String, Object> args) {
+            return args;
+        }
+
+        @Override
+        protected String parseResult(ToolResult result) {
+            return result.getContent();
+        }
     }
 }

@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @DisplayName("DirectiveRegistry — ClientTool directive registry")
 class DirectiveRegistryTest {
@@ -23,9 +21,7 @@ class DirectiveRegistryTest {
     }
 
     private DirectiveDescriptor descriptor(String toolName) {
-        DirectiveDescriptor desc = mock(DirectiveDescriptor.class);
-        when(desc.toToolName()).thenReturn(toolName);
-        return desc;
+        return new DirectiveDescriptor(toolName, "down", "up", "ns", 5000, "1.0");
     }
 
     @Nested
@@ -35,26 +31,26 @@ class DirectiveRegistryTest {
         @Test
         void registerIncrementsSize() {
             assertEquals(0, registry.size());
-            registry.register(descriptor("Camera.TakePhoto"));
+            registry.register(descriptor("TakePhoto"));
             assertEquals(1, registry.size());
         }
 
         @Test
         void registerMakesToolAvailable() {
-            registry.register(descriptor("Camera.TakePhoto"));
-            assertTrue(registry.has("Camera.TakePhoto"));
+            registry.register(descriptor("TakePhoto"));
+            assertTrue(registry.has("TakePhoto"));
         }
 
         @Test
         void registerSameNameOverwrites() {
-            DirectiveDescriptor first = descriptor("Tool.Action");
-            DirectiveDescriptor second = descriptor("Tool.Action");
+            DirectiveDescriptor first = descriptor("ToolA");
+            DirectiveDescriptor second = descriptor("ToolA");
 
             registry.register(first);
             registry.register(second);
 
             assertEquals(1, registry.size());
-            assertSame(second, registry.get("Tool.Action").orElseThrow());
+            assertSame(second, registry.get("ToolA").orElseThrow());
         }
     }
 
@@ -64,9 +60,9 @@ class DirectiveRegistryTest {
 
         @Test
         void unregisterRemovesTool() {
-            registry.register(descriptor("Tool.A"));
-            registry.unregister("Tool.A");
-            assertFalse(registry.has("Tool.A"));
+            registry.register(descriptor("ToolA"));
+            registry.unregister("ToolA");
+            assertFalse(registry.has("ToolA"));
             assertEquals(0, registry.size());
         }
 
@@ -82,10 +78,10 @@ class DirectiveRegistryTest {
 
         @Test
         void getReturnsOptionalWithDescriptor() {
-            DirectiveDescriptor desc = descriptor("Tool.X");
+            DirectiveDescriptor desc = descriptor("ToolX");
             registry.register(desc);
 
-            Optional<DirectiveDescriptor> result = registry.get("Tool.X");
+            Optional<DirectiveDescriptor> result = registry.get("ToolX");
             assertTrue(result.isPresent());
             assertSame(desc, result.get());
         }
