@@ -108,8 +108,15 @@ class ClientToolAliasTest {
         private static final ClientToolDispatcher NOOP_DISPATCHER =
             (callId, toolName, directive) -> CompletableFuture.completedFuture(ToolResult.success("stub"));
 
+        private final ToolSchema schema = ToolSchema.empty();
+
         StubClientTool() {
             super(NOOP_DISPATCHER);
+        }
+
+        @Override
+        public ToolSchema getSchema() {
+            return schema;
         }
 
         @Override
