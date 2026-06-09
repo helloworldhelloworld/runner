@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "f76ee337205932c15f7a396646e4b38424e8ceff",
-  "exit_code": 0,
-  "timestamp": "2026-06-06T13:24:36Z",
-  "branch": "main",
-  "run_id": "27063482975",
-  "test_summary": "[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s - in com.lightweightai.web.postprocess.DeeplinkProcessorTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s - in com.lightweightai.web.postprocess.CardAppendProcessorTest|[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.web.postprocess.SimpleRiskCheckerTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.web.postprocess.SimpleRiskCheckerTest|[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s - in com.lightweightai.web.postprocess.SimpleRiskCheckerTest|[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.web.postprocess.SimpleRiskCheckerTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s - in com.lightweightai.web.postprocess.SimpleRiskCheckerTest|[WARNING] Tests run: 319, Failures: 0, Errors: 0, Skipped: 20|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.056 s - in com.lightweightai.plugin.example.PluginToolTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0|"
+  "trigger_sha": "a1a39c403b66077fdc8fe4f325ba35684fdae1d8",
+  "exit_code": 1,
+  "timestamp": "2026-06-09T19:15:57Z",
+  "branch": "claude/add-critical-path-ut-20260609",
+  "run_id": "27229799288",
+  "test_summary": ""
 }
