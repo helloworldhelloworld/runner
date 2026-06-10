@@ -51,6 +51,12 @@ ADR-006 D4 的"三轨 + 音频时钟"对齐器，**只在设备端**（口型同
 [ADR-007](../decisions/007-risk-level-across-mcp.md)）：物理动作 `destructiveHint=true`→`SYSTEM`，
 `look` `readOnlyHint=true`→`SAFE`，`set_eyes`→`WRITE`。由 runner 侧 `ToolPolicy` 收口。
 
+> runner 侧整条接线（生产 `createTransport` → 真 SDK connect → discover → register →
+> 风险跨 MCP 恢复 → minion persona 的 `byRiskLevel(SYSTEM)` 闸 → 真实 `tools/call` 往返）已由
+> `RunnerToMinionBodyMcpSmokeTest` 对一个 fake Pi（`MiniStreamableHttpMcpServer`）端到端验证——
+> 只 fake 远端树莓派，SDK/transport/JSON-RPC 全真（集成-seam 规则）。B4 接真 Pi 仅需填
+> [application.yml](../../agent-web/src/main/resources/application.yml) 的 `minion` server 条目。
+
 ## Rules
 
 - 不跑 LLM/STT/TTS；保持瘦
