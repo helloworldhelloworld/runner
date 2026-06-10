@@ -70,7 +70,15 @@ runner 经 overlay 地址连 Pi 的 `streamable_http` URL。
 - **Trade-off**：新增一层 overlay 运维（tailnet/隧道 + token + ACL）。断网/重启后需容忍 server
   消失再重连——MCP 客户端应对 server 不可达**快失败**而非挂起（呼应 CLAUDE.md 集成-seam 规则
   "post-disconnect sends fail fast rather than hang"），重连策略待 B4 实测确认。
+- **传输 round-trip 已先验（风险探针，2026-06-11）**：`streamable_http` 生产传输不再只有配置解析断言。
+  `StreamableHttpMcpInitializeRoundTripTest` 经**生产路径** `ToolClient.Builder.createTransport`
+  让真 SDK（`HttpClientStreamableHttpTransport` + `McpAsyncClient`）对一个 fake HTTP MCP peer
+  （`MiniStreamableHttpMcpServer`，JDK `com.sun.net.httpserver`）跑 initialize→tools/list→tools/call
+  完整往返，并覆盖 connect 失败快失败、断连后调用快失败不挂起；同时断言 `destructiveHint`/`readOnlyHint`
+  经真 tools/list 恢复为 `SYSTEM`/`SAFE`（ADR-007）。这把 B4 的传输不确定性提前打掉，对标 WebSocket 的
+  `WebSocketMcpInitializeRoundTripTest`。
 - **Deferred（B4 落地）**：minion-body `main()` 的 transport 开关与 host/port；runner
   `application.yml` 的 `minion` server 条目（`streamable_http` + overlay url + token header）；
-  连接生命周期/重连的集成测试（按 CLAUDE.md "Integration-seam rules"，让真 SDK 跑 round-trip）。
+  对**真 Pi/真 overlay** 的连接生命周期/重连实测（faithful fake 已覆盖协议往返与失败时序，
+  真对端的周期性 smoke 仍按集成-seam 规则保留）。
 - **Deferred**：物理安全反射仍按 ADR-006 D7 落设备端，与本传输层无关。
