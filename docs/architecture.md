@@ -405,6 +405,12 @@ runner 侧最小改动：① 可说块边界事件 ② 逐块 emotion ③ barge-
 新增 StreamEvent 类型须遵守 [ADR-005](decisions/005-streamevent-closed-protocol.md) 闭合枚举规约。
 **暂缓**：物理安全、二进制媒体走 runner、重视觉。
 
+①② 的**生产接线**：`SpeakableChunkProcessor`（含可插拔 `EmotionClassifier`）作为一个
+`StreamPostProcessor` Bean 在 `agent-web` 的 `PostProcessorConfig` 注册，经 `GatewayConfig` 自动汇入
+真 Gateway 后处理管道，由配置开关 `app.voice.speakable-chunk.enabled`（默认 **off**）闸控——
+语音/具身部署打开即在 `LLM_COMPLETE` 前发出带 emotion 的 `SPEAKABLE_CHUNK`，非语音部署不受影响、零额外开销。
+（开关为部署级粒度；当单个 runner 同时服务多 persona 时按 persona 精细闸控需把 persona 上下文透进后处理管道，列为后续。）
+
 ---
 
 ## Design Decisions

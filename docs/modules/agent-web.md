@@ -40,6 +40,27 @@ Both WebSocket handlers (Vert.x + Spring) build the `GatewayRequest` via the sha
 `metadata("agentId", …)` so `MetadataAgentRouter` routes the turn to that persona (e.g. voice → minion).
 Proven by `WsChatRequestsTest`.
 
+## Stream post-processors (`config/PostProcessorConfig`)
+
+`StreamPostProcessor` beans are auto-collected by `GatewayConfig` into the real Gateway pipeline
+(`Gateway.handleStreamReactive` → `stream.transform(pipeline)`). Each is opt-in via a `@ConditionalOn*`
+guard so a deployment only pays for what it declares:
+
+| Bean | Guard | Purpose |
+|---|---|---|
+| `riskControlProcessor` | `@ConditionalOnBean(RiskChecker)` | 风控拦截 |
+| `deeplinkProcessor` / `cardAppendProcessor` | `@ConditionalOnBean(resolver/provider)` | 文本增强 |
+| `tracing*` | `app.tracing.enabled` (default on) | 调用链追踪 |
+| `speakableChunkProcessor` | `app.voice.speakable-chunk.enabled` (default **off**) | Minion R2/R3：在 `LLM_COMPLETE` 前切出带 emotion 的 `SPEAKABLE_CHUNK`，喂下游 Voice Gateway 流式 TTS |
+
+`speakableChunkProcessor` wires the kernel's `SpeakableChunkProcessor` (+ optional `EmotionClassifier`
+bean, defaulting to `EmotionClassifier.NEUTRAL`) into production — without it the processor is never
+instantiated and the real Gateway never emits `SPEAKABLE_CHUNK`. The flag is **off by default** so
+non-voice personas/deployments are unaffected; the voice/minion brain deployment sets it `true`.
+End-to-end wiring (real `GatewayConfig` + `PostProcessorConfig` → `SPEAKABLE_CHUNK` reaches output)
+is proven by `SpeakableChunkWiringAcceptanceTest`. Per-persona gating within a mixed-persona runner
+is a follow-up (requires threading persona context into the post-processor pipeline).
+
 ## Dependencies
 Depends on ALL other modules — it is the top-level assembly.
 
