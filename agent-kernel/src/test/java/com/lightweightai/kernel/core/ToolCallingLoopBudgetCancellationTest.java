@@ -238,7 +238,7 @@ class ToolCallingLoopBudgetCancellationTest {
     static class EchoTool implements Tool {
         @Override public String getName() { return "echo"; }
         @Override public String getDescription() { return "Echoes input"; }
-        @Override public ToolSchema getSchema() { return ToolSchema.builder().name("echo").build(); }
+        @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
         @Override public ToolResult execute(Map<String, Object> args) {
             return ToolResult.success("echo: " + args.getOrDefault("msg", ""));
         }
