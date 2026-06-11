@@ -140,13 +140,18 @@ class AnnotatedToolScannerTest {
         }
 
         @Test
-        @DisplayName("no-param method returns empty schema")
+        @DisplayName("no-param method returns empty object schema (no user-defined properties)")
         void noParamEmptySchema() {
             List<Tool> tools = AnnotatedToolScanner.scan(new SampleTools());
             Tool status = tools.stream().filter(t -> t.getName().equals("get_status")).findFirst().orElseThrow();
 
             var schema = status.getSchema();
-            assertTrue(schema.toMap().isEmpty() || !schema.toMap().containsKey("properties"));
+            assertNotNull(schema);
+            assertEquals("object", schema.toMap().get("type"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> props = (Map<String, Object>) schema.toMap().get("properties");
+            assertTrue(props == null || props.isEmpty(),
+                    "no-param tool should have no user-defined properties");
         }
     }
 

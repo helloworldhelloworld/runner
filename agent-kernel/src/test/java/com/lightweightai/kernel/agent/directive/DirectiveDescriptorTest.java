@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -155,7 +156,7 @@ class DirectiveDescriptorTest {
         @DisplayName("null and blank aliases are filtered out")
         void nullAndBlankAliasesFiltered() {
             DirectiveDescriptor desc = new DirectiveDescriptor(
-                    "tool", List.of(null, "", "  ", "valid"), "down", "up", "ns", 5000, "1.0");
+                    "tool", Arrays.asList(null, "", "  ", "valid"), "down", "up", "ns", 5000, "1.0");
 
             List<String> aliases = desc.getAliases();
             assertEquals(1, aliases.size());
