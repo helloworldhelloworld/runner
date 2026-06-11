@@ -17,7 +17,7 @@ class DeviceToolBindingTest {
         Tool tool = dummyTool("nav");
         DeviceToolBinding binding = new DeviceToolBinding("car", VersionRange.parse("*"), tool);
 
-        assertTrue(binding.matches(new DeviceContext("car", "2.0.0")));
+        assertTrue(binding.matches(DeviceContext.of("car", "2.0.0")));
     }
 
     @Test
@@ -26,7 +26,7 @@ class DeviceToolBindingTest {
         Tool tool = dummyTool("nav");
         DeviceToolBinding binding = new DeviceToolBinding("car", VersionRange.parse("*"), tool);
 
-        assertFalse(binding.matches(new DeviceContext("phone", "2.0.0")));
+        assertFalse(binding.matches(DeviceContext.of("phone", "2.0.0")));
     }
 
     @Test
@@ -36,8 +36,8 @@ class DeviceToolBindingTest {
         DeviceToolBinding binding = new DeviceToolBinding(
                 DeviceContext.WILDCARD, VersionRange.parse("*"), tool);
 
-        assertTrue(binding.matches(new DeviceContext("car", "1.0.0")));
-        assertTrue(binding.matches(new DeviceContext("phone", "3.0.0")));
+        assertTrue(binding.matches(DeviceContext.of("car", "1.0.0")));
+        assertTrue(binding.matches(DeviceContext.of("phone", "3.0.0")));
     }
 
     @Test
@@ -47,9 +47,9 @@ class DeviceToolBindingTest {
         DeviceToolBinding binding = new DeviceToolBinding(
                 "car", VersionRange.parse(">=2.0.0"), tool);
 
-        assertTrue(binding.matches(new DeviceContext("car", "2.0.0")));
-        assertTrue(binding.matches(new DeviceContext("car", "3.0.0")));
-        assertFalse(binding.matches(new DeviceContext("car", "1.0.0")));
+        assertTrue(binding.matches(DeviceContext.of("car", "2.0.0")));
+        assertTrue(binding.matches(DeviceContext.of("car", "3.0.0")));
+        assertFalse(binding.matches(DeviceContext.of("car", "1.0.0")));
     }
 
     @Test
