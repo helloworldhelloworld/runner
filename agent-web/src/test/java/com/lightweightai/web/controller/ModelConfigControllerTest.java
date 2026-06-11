@@ -3,6 +3,7 @@ package com.lightweightai.web.controller;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.web.config.AgentConfig;
 import com.lightweightai.web.config.DynamicLLMProvider;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -10,13 +11,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,7 +59,7 @@ class ModelConfigControllerTest {
         @Test
         @DisplayName("non-admin is rejected with ForbiddenException")
         void nonAdminRejected() {
-            MockHttpServletRequest request = new MockHttpServletRequest();
+            HttpServletRequest request = mockRequest(null);
 
             assertThrows(ModelConfigController.ForbiddenException.class, () ->
                     controller.updateConfig(Map.of("providerType", "claude"), request));
@@ -70,8 +71,7 @@ class ModelConfigControllerTest {
             when(agentConfig.buildProvider(anyString(), anyString(), anyString(), anyString()))
                     .thenReturn(mockProvider);
 
-            MockHttpServletRequest request = new MockHttpServletRequest();
-            request.setAttribute("userRole", "ADMIN");
+            HttpServletRequest request = mockRequest("ADMIN");
 
             Map<String, Object> result = controller.updateConfig(
                     Map.of("providerType", "claude", "apiKey", "sk-test123456", "model", "claude-3"),
@@ -96,7 +96,7 @@ class ModelConfigControllerTest {
         @Test
         @DisplayName("save and list preset")
         void saveAndList() {
-            MockHttpServletRequest request = adminRequest();
+            HttpServletRequest request = mockRequest("ADMIN");
 
             Map<String, Object> result = controller.savePreset(Map.of("name", "fast"), request);
             assertNotNull(result.get("message"));
@@ -112,7 +112,7 @@ class ModelConfigControllerTest {
             when(agentConfig.buildProvider(anyString(), anyString(), anyString(), anyString()))
                     .thenReturn(mockProvider);
 
-            MockHttpServletRequest request = adminRequest();
+            HttpServletRequest request = mockRequest("ADMIN");
             controller.savePreset(Map.of("name", "preset1"), request);
 
             Map<String, Object> result = controller.applyPreset("preset1", request);
@@ -122,7 +122,7 @@ class ModelConfigControllerTest {
         @Test
         @DisplayName("apply non-existent preset throws")
         void applyNonExistentThrows() {
-            MockHttpServletRequest request = adminRequest();
+            HttpServletRequest request = mockRequest("ADMIN");
             assertThrows(IllegalArgumentException.class, () ->
                     controller.applyPreset("ghost", request));
         }
@@ -130,7 +130,7 @@ class ModelConfigControllerTest {
         @Test
         @DisplayName("delete preset removes it")
         void deletePreset() {
-            MockHttpServletRequest request = adminRequest();
+            HttpServletRequest request = mockRequest("ADMIN");
             controller.savePreset(Map.of("name", "to_delete"), request);
 
             controller.deletePreset("to_delete", request);
@@ -141,7 +141,7 @@ class ModelConfigControllerTest {
         @Test
         @DisplayName("delete non-existent preset throws")
         void deleteNonExistentThrows() {
-            MockHttpServletRequest request = adminRequest();
+            HttpServletRequest request = mockRequest("ADMIN");
             assertThrows(IllegalArgumentException.class, () ->
                     controller.deletePreset("ghost", request));
         }
@@ -149,7 +149,7 @@ class ModelConfigControllerTest {
         @Test
         @DisplayName("save preset with blank name throws")
         void blankNameThrows() {
-            MockHttpServletRequest request = adminRequest();
+            HttpServletRequest request = mockRequest("ADMIN");
             assertThrows(IllegalArgumentException.class, () ->
                     controller.savePreset(Map.of("name", "  "), request));
         }
@@ -157,15 +157,15 @@ class ModelConfigControllerTest {
         @Test
         @DisplayName("non-admin cannot save preset")
         void nonAdminCannotSave() {
-            MockHttpServletRequest request = new MockHttpServletRequest();
+            HttpServletRequest request = mockRequest(null);
             assertThrows(ModelConfigController.ForbiddenException.class, () ->
                     controller.savePreset(Map.of("name", "test"), request));
         }
     }
 
-    private MockHttpServletRequest adminRequest() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setAttribute("userRole", "ADMIN");
+    private static HttpServletRequest mockRequest(String role) {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getAttribute("userRole")).thenReturn(role);
         return request;
     }
 }
