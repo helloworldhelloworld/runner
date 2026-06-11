@@ -11,12 +11,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,8 +40,8 @@ class ToolSchemaControllerTest {
         @Test
         @DisplayName("rejects empty file")
         void rejectsEmptyFile() {
-            MockMultipartFile empty = new MockMultipartFile("file", "test.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[0]);
+            MultipartFile empty = mock(MultipartFile.class);
+            when(empty.isEmpty()).thenReturn(true);
 
             ResponseEntity<Map<String, Object>> response = controller.importFromExcel(empty);
 
@@ -51,8 +52,9 @@ class ToolSchemaControllerTest {
         @Test
         @DisplayName("rejects non-xlsx file")
         void rejectsNonXlsx() {
-            MockMultipartFile csv = new MockMultipartFile("file", "test.csv",
-                    "text/csv", "data".getBytes());
+            MultipartFile csv = mock(MultipartFile.class);
+            when(csv.isEmpty()).thenReturn(false);
+            when(csv.getOriginalFilename()).thenReturn("test.csv");
 
             ResponseEntity<Map<String, Object>> response = controller.importFromExcel(csv);
 
