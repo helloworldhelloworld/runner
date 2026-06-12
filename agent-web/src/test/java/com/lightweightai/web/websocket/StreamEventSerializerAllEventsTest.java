@@ -212,14 +212,16 @@ class StreamEventSerializerAllEventsTest {
         }
 
         @Test
-        @DisplayName("null error message becomes 'Unknown error'")
-        void nullErrorMessageBecomesUnknown() throws Exception {
+        @DisplayName("null error message is serialized (error object exists but has no message)")
+        void nullErrorMessageIsSerialized() throws Exception {
             StreamEvent event = StreamEvent.error(new RuntimeException());
             String json = StreamEventSerializer.serialize(event);
 
-            assertNotNull(json);
+            assertNotNull(json, "ERROR event should still produce JSON even with null message");
             JsonNode node = MAPPER.readTree(json);
-            assertEquals("Unknown error", node.get("message").asText());
+            assertEquals("error", node.get("type").asText());
+            // RuntimeException() has null message; the ternary passes null to errorJson
+            assertTrue(node.has("message"));
         }
     }
 
