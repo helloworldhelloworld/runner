@@ -397,7 +397,8 @@ Skill 懒加载主体：
   媒体平面 audio: Device ⟷ Voice Gateway ⟷ 厂商流式 STT/TTS
   大脑平面 text : Voice Gateway ⟷ runner（纯文本 + 工具 + 事件）
 表情/语音同步：三轨(嘴形 viseme / 情绪 emotion / 手势 bookmark) + 设备端音频时钟 Realizer
-瘦 Pi (Python)：唤醒 + VAD + 音频收发 + Realizer + 舵机/LED/摄像头；动作经 MCP 暴露
+瘦 Pi (Python)：唤醒 + VAD + 音频收发 + Realizer + 舵机/摄像头；动作经 MCP 暴露
+  眼睛不在 Pi 渲染：2× ESP32-S3 板载自渲染，Pi 经 USB 串口下 directive（ADR-009）
 ```
 
 runner 侧最小改动：① 可说块边界事件 ② 逐块 emotion ③ barge-in 接线（`InterruptibleRun.interrupt()`）
@@ -423,3 +424,6 @@ runner 侧最小改动：① 可说块边界事件 ② 逐块 emotion ③ barge-
 | [004](decisions/004-multi-agent-orchestrator.md) | Multi-Agent Orchestrator architecture |
 | [005](decisions/005-streamevent-closed-protocol.md) | Keep StreamEvent as a closed enum protocol |
 | [006](decisions/006-minion-embodiment-architecture.md) | Minion 具身化：脑在云 + 媒体/大脑双平面 + Voice Gateway + 瘦 Pi |
+| [007](decisions/007-risk-level-across-mcp.md) | RiskLevel 跨 MCP 边界恢复（annotations + `_meta`）|
+| [008](decisions/008-mcp-transport-cloud-to-pi.md) | cloud↔Pi 的 MCP transport（streamable_http）+ NAT 穿透（Tailscale overlay）|
+| [009](decisions/009-minion-eyes-esp-directive.md) | Minion 眼睛：ESP32-S3 板载自渲染 + Pi 下 USB-串口 directive |

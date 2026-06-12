@@ -67,6 +67,10 @@ STT/TTS **用厂商一体化流式 API**（如 Azure Speech / AWS Polly），不
 **Realizer 必须放设备端**（口型同步要紧贴音频时钟，不能走云往返）。
 眼睛为小黄人主表情通道（圆形 OLED + 动画库如 FluxGarage RoboEyes）。
 
+> **修订（[ADR-009](009-minion-eyes-esp-directive.md)）**：眼睛由"Pi 直驱圆形 OLED"改为
+> **2× ESP32-S3-Touch-AMOLED 板载自渲染**，Pi 经 USB 串口下 **directive**（高层语义，非像素）。
+> 渲染下沉到专用 MCU，免 Pi 卡顿；本节"眼睛=Pi 驱 OLED"以 ADR-009 为准。
+
 ### D5. 树莓派 = 瘦身体，用 Python
 
 Pi 不跑 LLM、不跑 STT/TTS（厂商 API 由 Gateway 调）。Pi 只负责：

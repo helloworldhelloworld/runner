@@ -17,7 +17,7 @@
 | 音频上行 | 麦克风流 → Voice Gateway | sounddevice |
 | 音频下行 | 播放 Gateway 下发的 TTS 音频 | sounddevice |
 | **Realizer** | 按**音频播放时钟**对齐三轨 | 自研轻量状态机 |
-| 眼睛(主表情) | 圆形 OLED 动画，emotion 驱动 | FluxGarage RoboEyes / Adafruit Uncanny Eyes（可下放 MCU）|
+| 眼睛(主表情) | **不在 Pi 渲染**；Pi 经 USB 串口(`/dev/ttyACM*`)下 directive，2× ESP32-S3 板载自渲染（[ADR-009](../decisions/009-minion-eyes-esp-directive.md)）| Pi 侧：`SerialEyesLink` 发 `EMOTION/BLINK/IDLE`；ESP 固件见独立仓 `minion-eyes` |
 | 嘴 | viseme 时间标记 → 嘴形；MVP 用音频包络 | — |
 | 手/头 | bookmark → 挥手/点头/转向 | gpiozero（舵机 PWM）|
 | 摄像头 | `look` 工具触发，按需抓帧 → 降采样 base64 | picamera2 / rpicam-still |
