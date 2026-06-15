@@ -69,6 +69,12 @@ app:
   mcp:
     enabled: ${MCP_ENABLED:false}  # 设置 MCP_ENABLED=true 启用
     servers:
+      # minion 设备（真眼/动作）。Pi 上 streamable-http MCP server（minion-body --eyes）。
+      # 本地 LAN 直连；地址可漂移（DHCP）故用 env 覆盖。生产经 overlay+token（ADR-008）。
+      minion:
+        transport: streamable_http
+        url: ${MINION_MCP_URL:http://192.168.50.247:8765/mcp}
+        timeout: 30
       # 示例：STDIO 本地 MCP Server
       # demo-agent:
       #   command: java

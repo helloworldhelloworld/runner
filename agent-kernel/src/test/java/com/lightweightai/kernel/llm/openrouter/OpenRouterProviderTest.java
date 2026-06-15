@@ -273,11 +273,11 @@ class OpenRouterProviderTest {
         RecordedRequest req = server.takeRequest(5, TimeUnit.SECONDS);
         assertNotNull(req);
 
-        // Custom gateway: api_key header present
+        // Custom/OpenAI-compatible endpoint: api_key header present (兼容自建网关)…
         assertEquals("my-gateway-key", req.getHeader("api_key"));
-        // No Bearer token
-        assertNull(req.getHeader("Authorization"));
-        // No OpenRouter-specific headers
+        // …并发标准 Authorization: Bearer（DashScope 等 OpenAI 兼容端点需要）
+        assertEquals("Bearer my-gateway-key", req.getHeader("Authorization"));
+        // 但不发 OpenRouter 专属头
         assertNull(req.getHeader("HTTP-Referer"));
         assertNull(req.getHeader("X-Title"));
     }

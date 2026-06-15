@@ -63,6 +63,7 @@ const navItems = [
   { path: '/chat', icon: '💬', label: '对话', adminOnly: false },
   { path: '/skills', icon: '🚀', label: '技能管理', adminOnly: false },
   { path: '/memory', icon: '🧠', label: '记忆', adminOnly: false },
+  { path: '/trace', icon: '🔍', label: '调用链', adminOnly: false },
   { path: '/settings', icon: '⚙️', label: '设置', adminOnly: false },
   { path: '/admin', icon: '👤', label: '用户管理', adminOnly: true }
 ]

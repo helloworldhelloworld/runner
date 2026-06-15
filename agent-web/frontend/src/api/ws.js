@@ -25,6 +25,25 @@ function getWebSocketURL() {
   return `${protocol}//${host}:${port}/ws/chat${token ? '?token=' + encodeURIComponent(token) : ''}`
 }
 
+/**
+ * 只读订阅某 session 的实时调用链（全链路 trace viewer）。
+ * 用**独立** WebSocket（与聊天主连接隔离），发 observe 后逐帧回调 onEvent。返回 close 函数。
+ * 后端 fan-out 见 SessionStreamRegistry / SpringChatWebSocketHandler 的 observe 分支。
+ */
+export function observeSession(sessionId, onEvent, onStatus) {
+  const ws = new WebSocket(getWebSocketURL())
+  ws.onopen = () => {
+    onStatus?.('connected')
+    ws.send(JSON.stringify({ type: 'observe', sessionId }))
+  }
+  ws.onmessage = (e) => {
+    try { onEvent(JSON.parse(e.data)) } catch { /* 忽略坏帧 */ }
+  }
+  ws.onclose = () => onStatus?.('closed')
+  ws.onerror = () => onStatus?.('error')
+  return () => { try { ws.close(1000, 'observer done') } catch { /* noop */ } }
+}
+
 export function ensureWebSocket() {
   if (_ws && _ws.readyState === WebSocket.OPEN) return Promise.resolve(_ws)
   if (_wsConnecting) return _wsConnecting

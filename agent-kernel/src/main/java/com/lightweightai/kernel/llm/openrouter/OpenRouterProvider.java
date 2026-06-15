@@ -107,8 +107,11 @@ public class OpenRouterProvider implements LLMProvider {
                 .url(requestUrl)
                 .post(RequestBody.create(requestBody, TEXT_PLAIN));
             if (isCustomBaseUrl()) {
-                // 自定义网关：仅用 api_key header + body 认证，不发 Authorization: Bearer
+                // 自定义/OpenAI 兼容端点（DashScope 兼容模式、vLLM、LocalAI…）：发标准
+                // Authorization: Bearer（这些服务都要 Bearer），同时保留 api_key header
+                // 兼容少数要 body/header 认证的自建网关。
                 if (!apiKey.isEmpty()) {
+                    reqBuilder.header("Authorization", "Bearer " + apiKey);
                     reqBuilder.header("api_key", apiKey);
                 }
             } else {
@@ -164,7 +167,9 @@ public class OpenRouterProvider implements LLMProvider {
                     .url(requestUrl)
                     .post(RequestBody.create(requestBody, TEXT_PLAIN));
                 if (isCustomBaseUrl()) {
+                    // OpenAI 兼容端点（DashScope 等）发标准 Bearer，兼留 api_key header（见非流式分支注释）
                     if (!apiKey.isEmpty()) {
+                        reqBuilder.header("Authorization", "Bearer " + apiKey);
                         reqBuilder.header("api_key", apiKey);
                     }
                 } else {

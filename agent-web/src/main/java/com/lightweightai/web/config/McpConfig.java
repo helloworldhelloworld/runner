@@ -10,6 +10,7 @@ import io.modelcontextprotocol.spec.McpClientTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -17,9 +18,13 @@ import org.springframework.context.annotation.Configuration;
 
 import jakarta.annotation.PreDestroy;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * MCP 远程工具配置 — 启动时自动连接 MCP Server 并注册工具到 ToolRegistry
@@ -112,7 +117,18 @@ public class McpConfig {
 
     private final McpProperties mcpProperties;
     private final McpHeaderProvider headerProvider;
-    private final List<McpToolClient> clients = new ArrayList<>();
+    private final List<McpToolClient> clients = new CopyOnWriteArrayList<>();
+
+    /** 启动时连不上的 server，每隔这么多秒后台重连一次（不依赖重启，见 ADR-011）。 */
+    @Value("${app.mcp.retry-seconds:15}")
+    private long retrySeconds;
+
+    private final ScheduledExecutorService retryScheduler =
+        Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "mcp-retry");
+            t.setDaemon(true);
+            return t;
+        });
 
     /**
      * @param mcpProperties  YAML 类型化绑定（app.mcp.servers → ServerConfig）
@@ -144,18 +160,24 @@ public class McpConfig {
                 continue;
             }
 
-            try {
-                McpToolClient client = connectMcpServer(name, serverConfig);
-                int toolCount = client.registerTools(toolRegistry);
-                clients.add(client);
-
-                List<String> toolNames = client.getDiscoveredTools().stream()
-                    .map(McpToolWrapper::getName).toList();
-                logger.info("MCP server '{}' connected, {} tools registered: {}",
-                    name, toolCount, toolNames);
-            } catch (Exception e) {
-                logger.warn("Failed to connect MCP server '{}': {}", name, e.getMessage());
+            // 每个 server 一个常驻"保活"任务：没连上就连、连上周期探活、断了重连+重注册。
+            // 统一覆盖"启动时没起"和"运行中重启"，全程不需重启 runner（ADR-011）。
+            final McpToolClient[] ref = { tryConnectReturning(name, serverConfig, toolRegistry) };
+            if (ref[0] == null) {
+                logger.warn("MCP server '{}' not reachable yet; (re)connecting every {}s in background",
+                    name, retrySeconds);
             }
+            retryScheduler.scheduleAtFixedRate(() -> {
+                // 必须吞掉一切异常：scheduleAtFixedRate 一旦任务抛异常就**永久停掉后续 tick**，
+                // 那样 server 重启后再也不会自动重连（实测踩到：0 次重连）。
+                try {
+                    ref[0] = healthTick(ref[0],
+                        () -> ref[0].refreshTools(toolRegistry),
+                        () -> tryConnectReturning(name, serverConfig, toolRegistry));
+                } catch (Throwable t) {
+                    logger.warn("MCP '{}' health tick error (will retry next tick): {}", name, t.toString());
+                }
+            }, retrySeconds, retrySeconds, TimeUnit.SECONDS);
         }
 
         logger.info("MCP integration: {} servers connected, tools registered into ToolRegistry",
@@ -185,8 +207,50 @@ public class McpConfig {
         return client;
     }
 
+    /**
+     * 连接 + 注册一次：成功返回 client（并加入 clients 供清理），失败返回 {@code null}（仅记日志）。
+     * 注册进共享 ToolRegistry —— Orchestrator 每请求重新快照 registry，故晚注册的工具下次请求即可见。
+     */
+    McpToolClient tryConnectReturning(String name, McpConfiguration.ServerConfig serverConfig,
+                                      ToolRegistry toolRegistry) {
+        try {
+            McpToolClient client = connectMcpServer(name, serverConfig);
+            int toolCount = client.registerTools(toolRegistry);
+            clients.add(client);
+            List<String> toolNames = client.getDiscoveredTools().stream()
+                .map(McpToolWrapper::getName).toList();
+            logger.info("MCP server '{}' connected, {} tools registered: {}",
+                name, toolCount, toolNames);
+            return client;
+        } catch (Exception e) {
+            logger.warn("Failed to connect MCP server '{}': {}", name, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 一次"保活"判定（可单测）：未连接→连接；已连接→探活；探活抛异常(连接已死)→重连。返回当前(或新)client。
+     *
+     * 统一覆盖两种情况、都不需重启 runner（ADR-011）：① 启动时 server 还没起(current=null→连)；
+     * ② 运行中 server 重启/掉线(probe 抛→重连+重注册)。{@code probe} 用 {@code refreshTools}
+     * （内部 listTools，连接死会抛）；{@code connect} 用 {@code tryConnectReturning}。
+     */
+    static McpToolClient healthTick(McpToolClient current, Runnable probe,
+                                    Supplier<McpToolClient> connect) {
+        if (current == null) {
+            return connect.get();
+        }
+        try {
+            probe.run();
+            return current;
+        } catch (Exception e) {  // 连接死 → 重连
+            return connect.get();
+        }
+    }
+
     @PreDestroy
     public void cleanup() {
+        retryScheduler.shutdownNow();
         for (McpToolClient client : clients) {
             try {
                 client.close();

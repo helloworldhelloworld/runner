@@ -85,6 +85,9 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     public void setSkillTestCaseGenerationService(com.lightweightai.web.skillcreator.SkillTestCaseGenerationService svc) { this.skillTestCaseGenerationService = svc; }
 
     private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
+    // 全链路 trace：把每个 StreamEvent 按 sessionId 广播给只读 viewer（observe）；见 SessionStreamRegistry。
+    private final SessionStreamRegistry streamRegistry = new SessionStreamRegistry();
+    private final Map<String, Disposable> observeStreams = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
     private final Map<String, SpringWebSocketClientToolDispatcher> dispatchers = new ConcurrentHashMap<>();
     private final ClientToolResultRouter clientToolResultRouter;
@@ -179,6 +182,8 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         sessions.remove(session.getId());
         Disposable d = activeStreams.remove(session.getId());
         if (d != null && !d.isDisposed()) d.dispose();
+        Disposable obs = observeStreams.remove(session.getId());  // 清理 trace viewer 订阅
+        if (obs != null && !obs.isDisposed()) obs.dispose();
 
         // 清理 dispatcher
         SpringWebSocketClientToolDispatcher dispatcher = dispatchers.remove(session.getId());
@@ -208,6 +213,20 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                         safeSend(session, errorJson("处理失败: " + e.getMessage()));
                     }
                 });
+                case "observe" -> {
+                    // 只读订阅某 session 的实时调用链（全链路 trace viewer）
+                    String observeSid = payload.path("sessionId").asText("");
+                    Disposable oldObs = observeStreams.remove(session.getId());
+                    if (oldObs != null) oldObs.dispose();
+                    Disposable obs = streamRegistry.observe(observeSid).subscribe(ev -> {
+                        try {
+                            String j = StreamEventSerializer.serialize(ev);
+                            if (j != null) safeSend(session, j);
+                        } catch (Exception e) { /* 单事件序列化失败不断流 */ }
+                    });
+                    observeStreams.put(session.getId(), obs);
+                    sendResponse(session, "observing", requestId, Map.of("sessionId", observeSid));
+                }
                 case "get_history" -> sendResponse(session, "history", requestId,
                     getSessionManager().map(sm -> sm.getSessionHistory(payload.path("sessionId").asText(""))).orElse(List.of()));
                 case "get_summary" -> sendResponse(session, "summary", requestId,
@@ -562,8 +581,8 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
             .doOnError(e -> logger.error("handleChat: flux error session={}", sid, e))
             .subscribe(
                 event -> {
-                    logger.info("handleChat: event type={} session={} thread={}", event.getType(), sid, Thread.currentThread().getName());
                     handleStreamEvent(session, event);
+                    streamRegistry.publish(sessionId, event);  // 广播给 trace viewer（全链路可观测）
                 },
                 error -> {
                     logger.error("handleChat: subscribe error session={}", sid, error);
@@ -577,6 +596,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                         msg.set("meta", MAPPER.createObjectNode().put("emotion", ""));
                         safeSend(session, MAPPER.writeValueAsString(msg));
                     } catch (Exception e) { logger.error("Failed to send stream_end", e); }
+                    streamRegistry.publish(sessionId, StreamEvent.trace("turn", "stream_end"));  // viewer 看轮次边界
                     activeStreams.remove(sid);
                 }
             );

@@ -16,6 +16,7 @@ const routes = [
       { path: 'chat', name: 'Chat', component: () => import('../views/Chat.vue') },
       { path: 'skills', name: 'Skills', component: () => import('../views/Skills.vue') },
       { path: 'memory', name: 'Memory', component: () => import('../views/Memory.vue') },
+      { path: 'trace', name: 'Trace', component: () => import('../views/Trace.vue') },
       { path: 'settings', name: 'Settings', component: () => import('../views/Settings.vue') },
       { path: 'admin', name: 'Admin', component: () => import('../views/Admin.vue'), meta: { requiresAdmin: true } }
     ]
