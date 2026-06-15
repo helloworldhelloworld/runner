@@ -38,8 +38,10 @@ jobs:
         env:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
+      # 仅在 push 事件回写 ci-results：PR 触发时 checkout 的是 pull/<n>/merge 这个
+      # detached HEAD，git push 无分支可推（exit 128）。PR 不该污染 ci-results，故跳过。
       - name: Write CI results back to repo
-        if: always()
+        if: always() && github.event_name == 'push'
         run: |
           mkdir -p ci-results
           [ ! -f ci-results/build.log ] && echo "(build did not start)" > ci-results/build.log
