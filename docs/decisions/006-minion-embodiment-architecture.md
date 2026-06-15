@@ -40,6 +40,9 @@ runner 与 LLM/语音服务同侧，多步工具循环和视觉重提示在服�
 耦合点只有文本：STT 转写文本 → runner 输入；runner `TEXT_DELTA`（可说块）→ TTS 输入。
 **因此放弃"二进制媒体走 runner WebSocket"的方案**——runner 的传输层保持纯文本，不新增二进制帧。
 
+> 大脑平面文本契约（含入站 barge-in）已固化为三仓共享 JSON Schema，见
+> [ADR-012](012-voice-text-plane-contract.md) 与 `contract/minion-voice-text/`。
+
 ### D3. 新增组件：Voice Gateway（独立服务，非 JVM）
 
 承载所有实时音频活，**不放进 runner**：

@@ -213,6 +213,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                         safeSend(session, errorJson("处理失败: " + e.getMessage()));
                     }
                 });
+                case "interrupt", "barge_in" -> handleInterrupt(session, payload);
                 case "observe" -> {
                     // 只读订阅某 session 的实时调用链（全链路 trace viewer）
                     String observeSid = payload.path("sessionId").asText("");
@@ -602,6 +603,27 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
             );
         activeStreams.put(sid, sub);
         logger.info("handleChat: subscribed, disposed={}, session={}", sub.isDisposed(), sid);
+    }
+
+    /**
+     * 入站 barge-in（ADR-012）：用户开口 → 立即停 TTS。
+     *
+     * 打断在途 run（{@link Gateway#interrupt}）+ 取消本 session 的转发订阅 + 下发 SPEECH_INTERRUPTED
+     * 让设备停播。无在途 run（gateway.interrupt 返回 null）时安静返回——重复/空打断不报错。
+     */
+    private void handleInterrupt(WebSocketSession session, JsonNode payload) {
+        String sessionId = payload.path("sessionId").asText(session.getId());
+
+        StreamEvent interrupted = gateway.interrupt(sessionId);
+
+        // 取消转发在途流（停止继续把已打断 run 的事件推给客户端）
+        Disposable sub = activeStreams.remove(session.getId());
+        if (sub != null && !sub.isDisposed()) sub.dispose();
+
+        if (interrupted != null) {
+            handleStreamEvent(session, interrupted);          // → SPEECH_INTERRUPTED 帧
+            streamRegistry.publish(sessionId, interrupted);   // 全链路 trace viewer 可见
+        }
     }
 
     private void handleStreamEvent(WebSocketSession session, StreamEvent event) {

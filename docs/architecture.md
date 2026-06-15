@@ -408,6 +408,12 @@ runner 侧最小改动：① 可说块边界事件 ② 逐块 emotion ③ barge-
 新增 StreamEvent 类型须遵守 [ADR-005](decisions/005-streamevent-closed-protocol.md) 闭合枚举规约。
 **暂缓**：物理安全、二进制媒体走 runner、重视觉。
 
+③ 的**入站口**：Voice Gateway 经 WS 送 `inbound.interrupt`（barge-in 信号，用户一开口即发，
+不等 STT）→ `Gateway.interrupt(sessionId)` → `Orchestrator.interrupt()` 打断在途 run →
+下发 `SPEECH_INTERRUPTED`。大脑平面文本契约（入站 `chat`/`interrupt`、出站
+`token`/`speakable_chunk`/`speech_interrupted`/`stream_end`）固化为三仓共享 JSON Schema，
+见 [ADR-012](decisions/012-voice-text-plane-contract.md) 与 `contract/minion-voice-text/`。
+
 ①② 的**生产接线**：`SpeakableChunkProcessor`（含可插拔 `EmotionClassifier`）作为一个
 `StreamPostProcessor` Bean 在 `agent-web` 的 `PostProcessorConfig` 注册，经 `GatewayConfig` 自动汇入
 真 Gateway 后处理管道，由配置开关 `app.voice.speakable-chunk.enabled`（默认 **off**）闸控——

@@ -239,6 +239,16 @@ public class Gateway {
         return chatHandler;
     }
 
+    /**
+     * 独立打断某会话的在途 run（入站 barge-in，ADR-012）——委托给 {@link ChatHandler#interrupt}。
+     *
+     * @param sessionId 会话标识
+     * @return 打断成立时的 {@code SPEECH_INTERRUPTED} 事件，否则 {@code null}
+     */
+    public com.lightweightai.kernel.core.StreamEvent interrupt(String sessionId) {
+        return chatHandler.interrupt(sessionId);
+    }
+
     // ==================== Builder ====================
 
     public static Builder builder() {

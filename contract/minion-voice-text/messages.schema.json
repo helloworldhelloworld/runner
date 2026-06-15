@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lightweightai.com/contract/minion-voice-text/messages.schema.json",
+  "title": "Minion 大脑平面 / 语音文本契约 (Voice Gateway ⟷ runner WebSocket)",
+  "description": "ADR-006 D2 双平面里的『大脑平面』文本契约：Voice Gateway 把 STT 文本送入 runner，runner 把可朗读块/打断信号送出给 Voice Gateway。三仓（runner / voice-gateway / minion-body）共享此 schema，固化此前隐式的 JSON 约定。详见 docs/decisions/012-voice-text-plane-contract.md。媒体平面（二进制音频）不走此契约（见 ADR-006 D2）。",
+
+  "$defs": {
+
+    "inbound.chat": {
+      "title": "入站：STT 转写文本 → runner",
+      "type": "object",
+      "required": ["type", "message"],
+      "properties": {
+        "type": { "const": "chat" },
+        "sessionId": { "type": "string", "description": "会话标识；缺省时 runner 用 WS 连接 id" },
+        "message": { "type": "string", "description": "STT 转写文本" },
+        "agentId": { "type": "string", "description": "可选 persona 路由键（如 \"minion\"）；缺省走默认 agent" },
+        "requestId": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "inbound.interrupt": {
+      "title": "入站：barge-in 打断信号（用户开口）→ runner",
+      "description": "用户在小黄人说话时插话；Voice Gateway 一检测到语音（VAD）即发此信号，无需等 STT 转写完成。runner 据此打断在途 run 并回 outbound.speech_interrupted。",
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["interrupt", "barge_in"] },
+        "sessionId": { "type": "string", "description": "要打断的会话；缺省时 runner 用 WS 连接 id" },
+        "requestId": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "outbound.token": {
+      "title": "出站：LLM 文本增量（逐字渲染）",
+      "type": "object",
+      "required": ["type", "data"],
+      "properties": {
+        "type": { "const": "token" },
+        "data": { "type": "string", "description": "文本增量片段" }
+      },
+      "additionalProperties": false
+    },
+
+    "outbound.speakable_chunk": {
+      "title": "出站：可朗读块 (R2/R3) → Voice Gateway 流式 TTS",
+      "description": "在 LLM_COMPLETE 前按句切出的可朗读块，带逐块 emotion，供 Voice Gateway 边想边说、设备驱动表情。",
+      "type": "object",
+      "required": ["type", "data"],
+      "properties": {
+        "type": { "const": "speakable_chunk" },
+        "data": {
+          "type": "object",
+          "required": ["text", "index", "emotion"],
+          "properties": {
+            "text": { "type": "string" },
+            "index": { "type": "integer", "minimum": 0, "description": "块序号，从 0 递增" },
+            "emotion": { "type": "string", "description": "情绪标签（如 neutral/excited/cheerful）" }
+          },
+          "additionalProperties": false
+        },
+        "timestamp": { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+
+    "outbound.speech_interrupted": {
+      "title": "出站：barge-in 停播信号 (R4) → 设备",
+      "description": "设备据此立即停播已下发但未念完的音频、丢弃排队的可说块。区别于 agent_interrupt（run 生命周期）。",
+      "type": "object",
+      "required": ["type", "data"],
+      "properties": {
+        "type": { "const": "speech_interrupted" },
+        "data": {
+          "type": "object",
+          "required": ["runId", "reason"],
+          "properties": {
+            "runId": { "type": "string", "description": "被打断的 run" },
+            "reason": { "type": "string", "description": "打断原因，如 \"barge-in\"" }
+          },
+          "additionalProperties": false
+        },
+        "timestamp": { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+
+    "outbound.stream_end": {
+      "title": "出站：本轮流式结束",
+      "type": "object",
+      "required": ["type", "meta"],
+      "properties": {
+        "type": { "const": "stream_end" },
+        "meta": {
+          "type": "object",
+          "required": ["emotion"],
+          "properties": {
+            "emotion": { "type": "string", "description": "整轮情绪（可空串）" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
