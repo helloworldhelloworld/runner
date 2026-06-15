@@ -233,6 +233,33 @@ public class Orchestrator implements ChatHandler {
         );
     }
 
+    /**
+     * 独立打断会话的在途 run（入站 barge-in，ADR-012）。
+     *
+     * 与 {@link #chatStreamReactive} 里"新消息到达时隐式打断"语义一致，但不需要新消息——
+     * 供 Voice Gateway 在用户一开口时立即停播。打断成立则返回面向设备的
+     * {@code SPEECH_INTERRUPTED}；无在途 run 返回 {@code null}。
+     *
+     * 被打断的 run 留在 {@code activeRuns}（phase=INTERRUPTED），后续新 chat 走新建分支覆盖之，
+     * 与既有 interrupt/resume 状态机一致。
+     */
+    @Override
+    public StreamEvent interrupt(String sessionId) {
+        if (sessionId == null) {
+            return null;
+        }
+        InterruptibleRun existing = activeRuns.get(sessionId);
+        if (existing == null || !existing.isRunning()) {
+            return null;
+        }
+        logger.info("Standalone barge-in interrupting active run for session={}", sessionId);
+        StreamEvent interruptEvent = existing.interrupt();
+        if (interruptEvent == null) {
+            return null;  // 打断未成立（竞态：run 恰好已结束）
+        }
+        return StreamEvent.speechInterrupted(existing.getRunId(), "barge-in");
+    }
+
     private String resolveSessionKey(String agentId, String sessionId) {
         // 命名空间化：agent:<agentId>:main:<sessionId>
         return "agent:" + agentId + ":main:" + sessionId;
