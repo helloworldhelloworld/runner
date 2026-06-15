@@ -134,8 +134,7 @@ public class ToolCallingLoop {
 
             // Add tool results as user messages to conversation
             for (ToolResult toolResult : toolResults) {
-                ConversationMessage toolResultMessage = createToolResultMessage(toolResult);
-                conversation.add(toolResultMessage);
+                appendToolResultMessages(conversation, toolResult);
             }
 
             iteration++;
@@ -203,9 +202,7 @@ public class ToolCallingLoop {
                         conversation.add(enrichWithToolCalls(response));
 
                         for (ToolResult toolResult : toolResults) {
-                            ConversationMessage toolResultMessage =
-                                createToolResultMessage(toolResult);
-                            conversation.add(toolResultMessage);
+                            appendToolResultMessages(conversation, toolResult);
                         }
 
                         // Step 5: Recursively continue the conversation (async)
@@ -359,7 +356,7 @@ public class ToolCallingLoop {
                         .collectList()
                         .flatMapMany(results -> {
                             for (ToolResult result : results) {
-                                conversation.add(createToolResultMessage(result));
+                                appendToolResultMessages(conversation, result);
                             }
                             tracer.endSpan(iterationSpan);
                             return executeReactiveLoop(conversation, options, iteration + 1);
@@ -385,6 +382,39 @@ public class ToolCallingLoop {
             .metadata(original.getMetadata())
             .addMetadata("tool_calls", response.getToolCalls())
             .build();
+    }
+
+    /**
+     * 把一个工具结果回灌进对话。
+     *
+     * 先加 {@link MessageRole#TOOL} 文本消息（既有 tool_result 线格式不变）；
+     * 若结果带图像帧（视觉回灌链，ADR-010），再追加一条 {@link MessageRole#USER}
+     * 多模态消息承载帧，让下一轮 LLM 请求体出现 image block。
+     *
+     * 为何另起 USER 消息而非塞进 TOOL 消息：OpenAI/OpenRouter 的 {@code role:"tool"}
+     * 消息不支持图像（provider 走 tool 分支只发文本），独立 USER 消息是对 Claude /
+     * OpenRouter 都正确的单一路径，且命中两者已验证的 buildContentBlocks 序列化。
+     */
+    private void appendToolResultMessages(List<ConversationMessage> conversation, ToolResult toolResult) {
+        conversation.add(createToolResultMessage(toolResult));
+        if (toolResult.hasImages()) {
+            conversation.add(createImageFeedbackMessage(toolResult));
+        }
+    }
+
+    /**
+     * 构造承载工具帧的 USER 多模态消息（caption + image blocks）。
+     */
+    private ConversationMessage createImageFeedbackMessage(ToolResult toolResult) {
+        ConversationMessage.Builder builder = ConversationMessage.builder()
+            .role(MessageRole.USER)
+            .textContent("(以下为上一步工具返回的图像)")
+            .addMetadata("tool_use_id", toolResult.getToolUseId())
+            .addMetadata("image_feedback", true);
+        for (com.lightweightai.kernel.llm.ImageContent image : toolResult.getImages()) {
+            builder.addContent(image);
+        }
+        return builder.build();
     }
 
     /**

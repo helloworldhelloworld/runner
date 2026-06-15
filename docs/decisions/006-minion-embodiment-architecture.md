@@ -85,7 +85,10 @@ Pi 不跑 LLM、不跑 STT/TTS（厂商 API 由 Gateway 调）。Pi 只负责：
 ### D6. 视觉 = 按需抓帧的多模态
 
 不做连续视频流。LLM 调 `look`/`capture_image` 工具 → Pi 抓一帧 → 降采样 base64 →
-经现有 `ImageContent` 进多模态消息。**需补：ClaudeProvider/OpenRouter 真正把 image block 写进请求体**（接口已有，实现缺）。
+经现有 `ImageContent` 进多模态消息。
+provider 序列化已补（`buildContentBlocks` 真把 image block 写进请求体）；
+**完整回灌链（工具帧 → `ImageContent` → 下一轮多模态消息）见 [ADR-010](010-visual-feedback-chain.md)**——
+`ToolResult` 增图像通道 + `ToolCallingLoop` 追加 USER 帧消息，已闭环。
 
 ### D7. 暂缓项
 

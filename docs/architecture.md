@@ -71,6 +71,8 @@ ToolCallingLoop (reactive TAOR loop)
   ├── AgentObserver.onPreToolUse()     ← hook: 工具调用前
   ├── ToolExecutor → parallel execution
   ├── AgentObserver.onPostToolUse()    ← hook: 工具调用后
+  ├── 视觉回灌：工具结果带 ImageContent 时，除 TOOL 文本消息外追加一条
+  │   USER 多模态消息承载帧 → 下一轮 LLM 请求体含 image block（ADR-010）
   └── Recursive LLM calls until no more tool_use
   ↓
 Flux<StreamEvent> → StreamEventSerializer → WebSocket / SSE → Client

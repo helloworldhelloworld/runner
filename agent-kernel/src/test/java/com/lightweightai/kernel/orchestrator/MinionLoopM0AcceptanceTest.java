@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * 验证契约（真 Pi body / Voice Gateway 待建，这里用 fakes 锁定接口）：
  *  - minion 路由 + SYSTEM 运动工具经风险闸放行并真正执行（舵机日志被写）
- *  - look 的"固定图"结果回流（摄像头→LLM 路径）
+ *  - look 抓到的<b>真实图像帧</b>（ImageContent）回灌进下一轮多模态消息（视觉回灌链，ADR-010）
  *  - 多句应答被切成有序、带 emotion 的 SPEAKABLE_CHUNK，且都在 LLM_COMPLETE 之前
  */
 @DisplayName("M0 Acceptance: 小黄人全仿真闭环")
@@ -43,18 +43,26 @@ class MinionLoopM0AcceptanceTest {
     private final List<String> servoLog = new CopyOnWriteArrayList<>();
     private ToolRegistry global;
 
-    private static final String FIXED_IMAGE = "[image:minion-sees-a-cat]";
+    /** 真实"帧"字节（不是文本！）——look 抓到的图像，用于核实它经 ImageContent 回灌。*/
+    private static final byte[] FRAME_BYTES = "fake-jpeg-cat-frame".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    private static final String LOOK_CAPTION = "captured 1 frame";
+    /** round-2 LLM 收到的对话里是否真的含回灌的图像帧。*/
+    private final java.util.concurrent.atomic.AtomicBoolean frameReachedRound2 =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     @BeforeEach
     void setUp() {
         servoLog.clear();
+        frameReachedRound2.set(false);
         global = new ToolRegistry();
-        // look：假摄像头，按需抓帧返回固定"图"（SAFE）
+        // look：假摄像头，抓一帧返回<b>真实 ImageContent</b>（SAFE）
         global.register(new Tool() {
             @Override public String getName() { return "look"; }
             @Override public String getDescription() { return "看一眼/抓帧"; }
             @Override public ToolSchema getSchema() { return ToolSchema.empty(); }
-            @Override public ToolResult execute(Map<String, Object> a) { return ToolResult.success(FIXED_IMAGE); }
+            @Override public ToolResult execute(Map<String, Object> a) {
+                return ToolResult.image(LOOK_CAPTION, new ImageContent(FRAME_BYTES, "image/jpeg"));
+            }
         });
         // move：按设备分发到假舵机（SYSTEM）
         DispatchingTool move = new DispatchingTool("move");
@@ -100,12 +108,9 @@ class MinionLoopM0AcceptanceTest {
         // 1) 路由到 minion
         assertTrue(types.contains(EventType.AGENT_ROUTE), "应路由: " + types);
 
-        // 2) look 的固定图结果回流（摄像头→LLM）
-        boolean sawImage = events.stream()
-                .filter(e -> e.getType() == EventType.TOOL_RESULT && e.getChunk() != null)
-                .anyMatch(e -> FIXED_IMAGE.equals(e.getChunk().getResult() != null
-                        ? e.getChunk().getResult().getContent() : null));
-        assertTrue(sawImage, "look 应返回固定图并回流: " + events);
+        // 2) look 抓到的真实帧（ImageContent）回灌进下一轮喂给 LLM 的对话（视觉回灌链）
+        assertTrue(frameReachedRound2.get(),
+                "look 抓到的图像帧应经 ImageContent 回灌进 round-2 对话（不是文本冒充）");
 
         // 3) move 真正驱动了假舵机（SYSTEM 工具经风险闸放行 + 执行）
         assertEquals(List.of("wave:hand"), servoLog, "假舵机应被挥手一次");
@@ -132,6 +137,13 @@ class MinionLoopM0AcceptanceTest {
             @Override
             public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> msgs, LLMOptions opts) {
                 int r = round.incrementAndGet();
+                if (r == 2) {
+                    // 核实 look 抓到的帧真的经 ImageContent 回灌到了本轮对话
+                    boolean hasFrame = msgs.stream().flatMap(m -> m.getContent().stream())
+                            .anyMatch(b -> b instanceof ImageContent ic
+                                    && java.util.Arrays.equals(ic.getData(), FRAME_BYTES));
+                    frameReachedRound2.set(hasFrame);
+                }
                 if (r == 1) {
                     ToolCall look = new ToolCall("c1", "look", Map.of());
                     ToolCall move = new ToolCall("c2", "move", Map.of("gesture", "hand"));
