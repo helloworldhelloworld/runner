@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Skill 规范 (OpenClaw 风格)
@@ -22,7 +23,8 @@ public class Skill {
 
     private final String name;
     private final String description;
-    private final String systemPrompt;
+    private final Supplier<String> systemPromptLoader;
+    private volatile String cachedSystemPrompt;  // 首次 getSystemPrompt() 后填充
     private final List<ToolDefinition> tools;
     private final List<Tool> toolInstances; // 原始 Tool 实例
     private final List<String> triggers;
@@ -32,7 +34,9 @@ public class Skill {
     private Skill(Builder builder) {
         this.name = Objects.requireNonNull(builder.name, "Skill name required");
         this.description = builder.description != null ? builder.description : "";
-        this.systemPrompt = builder.systemPrompt != null ? builder.systemPrompt : "";
+        this.systemPromptLoader = builder.systemPromptLoader != null
+                ? builder.systemPromptLoader
+                : () -> builder.systemPrompt != null ? builder.systemPrompt : "";
         this.tools = new ArrayList<>(builder.tools);
         this.toolInstances = new ArrayList<>(builder.toolInstances);
         this.triggers = new ArrayList<>(builder.triggers);
@@ -44,7 +48,20 @@ public class Skill {
 
     public String getName() { return name; }
     public String getDescription() { return description; }
-    public String getSystemPrompt() { return systemPrompt; }
+
+    /**
+     * 获取 System Prompt 主体。
+     *
+     * 若 Skill 用 {@link Builder#lazyBody(Supplier)} 注册,首次调用时才执行 supplier;
+     * 结果缓存以保证幂等。eager 入口 {@link Builder#systemPrompt(String)} 表现等价。
+     */
+    public String getSystemPrompt() {
+        if (cachedSystemPrompt == null) {
+            String loaded = systemPromptLoader.get();
+            cachedSystemPrompt = loaded != null ? loaded : "";
+        }
+        return cachedSystemPrompt;
+    }
     public List<ToolDefinition> getTools() { return new ArrayList<>(tools); }
     public List<Tool> getToolInstances() { return new ArrayList<>(toolInstances); }
     public List<String> getTriggers() { return new ArrayList<>(triggers); }
@@ -97,6 +114,7 @@ public class Skill {
         private String name;
         private String description;
         private String systemPrompt;
+        private Supplier<String> systemPromptLoader;  // 优先于 systemPrompt(若非 null)
         private List<ToolDefinition> tools = new ArrayList<>();
         private List<Tool> toolInstances = new ArrayList<>();
         private List<String> triggers = new ArrayList<>();
@@ -115,6 +133,17 @@ public class Skill {
 
         public Builder systemPrompt(String systemPrompt) {
             this.systemPrompt = systemPrompt;
+            return this;
+        }
+
+        /**
+         * 用 Supplier 提供 System Prompt 主体,仅在 Skill 被实际激活(显式或触发)时
+         * 才会调用。首次调用结果会被 Skill 内部缓存。
+         *
+         * 适合大型 markdown 文档、远程拉取等需要延迟加载的场景。
+         */
+        public Builder lazyBody(Supplier<String> loader) {
+            this.systemPromptLoader = loader;
             return this;
         }
 

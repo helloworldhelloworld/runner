@@ -71,6 +71,8 @@ ToolCallingLoop (reactive TAOR loop)
   ├── AgentObserver.onPreToolUse()     ← hook: 工具调用前
   ├── ToolExecutor → parallel execution
   ├── AgentObserver.onPostToolUse()    ← hook: 工具调用后
+  ├── 视觉回灌：工具结果带 ImageContent 时，除 TOOL 文本消息外追加一条
+  │   USER 多模态消息承载帧 → 下一轮 LLM 请求体含 image block（ADR-010）
   └── Recursive LLM calls until no more tool_use
   ↓
 Flux<StreamEvent> → StreamEventSerializer → WebSocket / SSE → Client
@@ -99,15 +101,57 @@ Flux<StreamEvent> → StreamEventSerializer → WebSocket / SSE → Client
 ├─────────────────────────────────────────────────────┤
 │ Layer 1: AgentRegistry + ScopedToolRegistry         │
 │   Agent 注册/查找/default fallback                   │
-│   工具权限: deny list > allow list > 全部放行         │
+│   工具权限由 ToolPolicy 决策(见下),非字符串名单      │
 │   ScopedToolRegistry overrides: get/has/isEnabled/   │
 │     getEnabled/getAll/getToolDefinitions/size         │
 ├─────────────────────────────────────────────────────┤
 │ Layer 0: AgentProfile                               │
 │   agentId, systemPrompt, modelOverride              │
-│   toolAllowList, toolDenyList                       │
+│   toolPolicy(优先) 或 toolAllowList/toolDenyList     │
 │   maxToolIterations, maxSpawnDepth                  │
 └─────────────────────────────────────────────────────┘
+```
+
+### Tool Permission — ToolPolicy + RiskLevel
+
+工具权限从早期的 `Set<String>` allow/deny 名单升级为可组合的 **`ToolPolicy`** 三值决策：
+
+```
+ToolPolicy.evaluate(req) → Decision {ALLOW, DENY, ABSTAIN}
+  - ABSTAIN 让 chain 继续到下一层；全员 ABSTAIN 时由 ScopedToolRegistry 决定默认动作
+  - ToolPolicyRequest 携带 (toolName, Tool 实例, args, AgentProfile)
+    → 既能按名字判断，也能按 Tool.riskLevel() 等元数据判断
+    → args 列举阶段为 null、执行前已知，同一接口兼顾两段
+
+工厂: allowAll() / denyList(names) / allowList(names) / byRiskLevel(max) / chain(...)
+
+多层组合示例:
+  ToolPolicy.chain(
+    denyList(Set.of("dangerous_tool")),   // 全局硬拒
+    byRiskLevel(RiskLevel.WRITE),         // 风险上限
+    allowList(agentWhitelist))            // per-agent 白名单
+
+RiskLevel 序: SAFE < WRITE < SYSTEM（Tool.riskLevel() 暴露）
+  - SAFE   只读无副作用（search / read_file）
+  - WRITE  改自有 scope 状态（write_file / send_email）
+  - SYSTEM 任意命令或 spawn（shell_exec / spawn_subagent）
+  典型: 主 agent 放开 SYSTEM、subagent 限到 WRITE；生产收紧到 SAFE
+```
+
+`AgentProfile` 归一优先级：显式 `toolPolicy` > 由 allow/deny list 合成的策略 > `allowAll`（向后兼容旧 Profile）。
+
+### Proactive Trigger — TriggerSource SPI
+
+Orchestrator 不再只被动接收 Gateway 推送的请求，可订阅主动触发源：
+
+```
+orchestrator.subscribeTriggerSource(source)   // source: TriggerSource
+  TriggerSource.name()        — 日志 / unsubscribe 的稳定标识
+  TriggerSource.requests()    — 持续推送的 Flux<GatewayRequest>
+                                Flux 完成 = 该 source 不再产生 request
+orchestrator.unsubscribeTriggerSource(name)   // 终止该 source
+
+实现示例: 定时心跳 / cron 调度 / 外部 webhook(GitHub·Slack 事件转 GatewayRequest)
 ```
 
 ### Full-Duplex Interrupt & Resume
@@ -165,6 +209,29 @@ ToolCallingLoop lifecycle:
   onToolCall(toolName, args, result) ← 通用工具调用事件（兼容）
 ```
 
+### Self-Improving — learn 包（Hermes 风格）
+
+`SkillGeneratorObserver` 是 `AgentObserver` 的一个实现，把成功完成的执行轨迹自动萃取成新 `Skill`：
+
+```
+onAgentStart   → 重置状态，记录 userInput / sessionId
+onPostToolUse  → 累积 Trajectory.Step(toolName, args, result)
+onError        → 标记 errored=true（后续 complete 不萃取）
+onAgentComplete→ 构造 Trajectory → SkillExtractor.extract()
+                 → 若 present，Consumer<Skill>.accept(skill)（典型: engine.registerSkill）
+
+SkillExtractor          — 萃取 SPI（HeuristicSkillExtractor 为默认启发式实现）
+Trajectory / Trajectory.Step — 不可变轨迹载体（userInput·steps·finalText·stopReason·errored）
+
+线程模型: 单条进行中轨迹 → 一次 AgentLoop 配一个 observer 实例。
+AgentFactory 已按 AgentProfile 创建独立 AgentLoop，天然满足；
+切勿把同一实例挂在多个并行 AgentLoop 上（步骤会串台）。
+```
+
+> 萃取的输入依赖结构化轨迹：`AgentResponse.ToolCallRecord` 现保留类型化
+> `Map<String,Object> args` + `ToolResult`（旧 String 构造 `@Deprecated`，
+> 仍逐字回放兼容）；`ToolCallingLoop` 按 callId 把原始 args 配回 PostToolUse。
+
 ### Session Key Namespace
 
 ```
@@ -207,6 +274,7 @@ ToolSourceProvider（统一接口，带 start/stop 生命周期）
      ├── 扫描 cli-plugins/ 目录
      ├── 解析 cli-manifest.json（name, description, entry_point, output_format）
      ├── CliTool extends StreamingTool → stdout 逐行推送 PROGRESS → COMPLETE/ERROR
+     ├── 进程 I/O 经 CliExecutor 接缝（LocalProcessExecutor 实跑 / FakeCliExecutor 可测）
      ├── 超时: process.destroyForcibly()，stdout 读取在 daemon 线程中
      └── ToolRegistry.search(keyword) 支持按 description 模糊检索
 
@@ -274,6 +342,11 @@ Skill 激活方式：
   - 显式指定：PromptRequest.addActiveSkill("name")
   - 自动检测：Skill.triggers 匹配用户消息
   - 按 priority 排序
+
+Skill 懒加载主体：
+  - Skill.Builder.lazyBody(Supplier<String>) 注册的 Skill，
+    仅在被实际激活（显式或触发）时才执行 supplier 加载 system prompt 主体，
+    避免为未命中的 Skill 预先读盘 / 拼接长文本。
 ```
 
 ---
@@ -284,14 +357,15 @@ Skill 激活方式：
 
 | Package | Purpose | Status |
 |---------|---------|--------|
-| `.agent` | Tool, ToolRegistry, AgentLoop, AgentProfile, AgentRegistry, ScopedToolRegistry, AgentObserver | Active |
+| `.agent` | Tool (含 riskLevel), ToolRegistry, AgentLoop, AgentProfile, AgentRegistry, ScopedToolRegistry, AgentObserver, ToolPolicy, RiskLevel | Active |
 | `.agent.annotation` | `@ToolFunction`, `@ToolParam`, `@ClientTool` | Active |
 | `.agent.directive` | Directive system | Active |
-| `.cli` | CliTool, CliManifest, CliToolSourceProvider | Active |
+| `.cli` | CliTool, CliManifest, CliToolSourceProvider, CliExecutor (LocalProcessExecutor) | Active |
 | `.context` | ContextCompactor, SnipCompactor, MicroCompactor, CompactionChain, CostTracker | Active |
 | `.core` | ToolCallingLoop, ToolExecutor, StreamEvent, ToolResultChunk, CancellationToken | Active |
 | `.core.postprocess` | StreamPostProcessor pipeline | Active |
-| `.orchestrator` | Orchestrator, AgentRouter, AgentFactory, InterruptibleRun, SubagentRuntime, SpawnSubagentTool, WaitSubagentTool, ListSubagentsTool | Active |
+| `.learn` | SkillGeneratorObserver, SkillExtractor, HeuristicSkillExtractor, Trajectory (self-improving skill 萃取) | Active |
+| `.orchestrator` | Orchestrator, AgentRouter, AgentFactory, InterruptibleRun, SubagentRuntime, SpawnSubagentTool, WaitSubagentTool, ListSubagentsTool, TriggerSource | Active |
 | `.gateway` | Gateway, ChatHandler, GatewayRequest/Response, SessionManager | Active |
 | `.llm` | LLMProvider, LLMProviderSpi, LLMOptions (含 maxBudgetTokens), ConversationMessage, ToolCall | Active |
 | `.llm.claude` | ClaudeProvider, ClaudeProProvider, ClaudeProviderSpi | Active |
@@ -314,6 +388,34 @@ Skill 激活方式：
 
 ---
 
+## Embodiment / Device Layer（Minion 具身化）
+
+把 runner 落成实体小黄人的架构层。详见 [ADR-006](decisions/006-minion-embodiment-architecture.md)、
+[voice-gateway.md](modules/voice-gateway.md)、[minion-body.md](modules/minion-body.md)。核心选型：
+
+```
+脑在云：runner(JVM) 与 LLM/语音服务同侧
+双平面分离（原始音频永不进 JVM）：
+  媒体平面 audio: Device ⟷ Voice Gateway ⟷ 厂商流式 STT/TTS
+  大脑平面 text : Voice Gateway ⟷ runner（纯文本 + 工具 + 事件）
+表情/语音同步：三轨(嘴形 viseme / 情绪 emotion / 手势 bookmark) + 设备端音频时钟 Realizer
+瘦 Pi (Python)：唤醒 + VAD + 音频收发 + Realizer + 舵机/摄像头；动作经 MCP 暴露
+  眼睛不在 Pi 渲染：2× ESP32-S3 板载自渲染，Pi 经 USB 串口下 directive（ADR-009）
+```
+
+runner 侧最小改动：① 可说块边界事件 ② 逐块 emotion ③ barge-in 接线（`InterruptibleRun.interrupt()`）
+④ 多模态接线（`ImageContent` → ClaudeProvider 请求体）⑤ `deviceType="minion"` 运动工具集。
+新增 StreamEvent 类型须遵守 [ADR-005](decisions/005-streamevent-closed-protocol.md) 闭合枚举规约。
+**暂缓**：物理安全、二进制媒体走 runner、重视觉。
+
+①② 的**生产接线**：`SpeakableChunkProcessor`（含可插拔 `EmotionClassifier`）作为一个
+`StreamPostProcessor` Bean 在 `agent-web` 的 `PostProcessorConfig` 注册，经 `GatewayConfig` 自动汇入
+真 Gateway 后处理管道，由配置开关 `app.voice.speakable-chunk.enabled`（默认 **off**）闸控——
+语音/具身部署打开即在 `LLM_COMPLETE` 前发出带 emotion 的 `SPEAKABLE_CHUNK`，非语音部署不受影响、零额外开销。
+（开关为部署级粒度；当单个 runner 同时服务多 persona 时按 persona 精细闸控需把 persona 上下文透进后处理管道，列为后续。）
+
+---
+
 ## Design Decisions
 
 | ADR | Decision |
@@ -322,3 +424,8 @@ Skill 激活方式：
 | [002](decisions/002-tool-over-plugin.md) | Tool interface over Plugin system |
 | [003](decisions/003-agent-loop-over-kernel.md) | AgentLoop over abstract Kernel pattern |
 | [004](decisions/004-multi-agent-orchestrator.md) | Multi-Agent Orchestrator architecture |
+| [005](decisions/005-streamevent-closed-protocol.md) | Keep StreamEvent as a closed enum protocol |
+| [006](decisions/006-minion-embodiment-architecture.md) | Minion 具身化：脑在云 + 媒体/大脑双平面 + Voice Gateway + 瘦 Pi |
+| [007](decisions/007-risk-level-across-mcp.md) | RiskLevel 跨 MCP 边界恢复（annotations + `_meta`）|
+| [008](decisions/008-mcp-transport-cloud-to-pi.md) | cloud↔Pi 的 MCP transport（streamable_http）+ NAT 穿透（Tailscale overlay）|
+| [009](decisions/009-minion-eyes-esp-directive.md) | Minion 眼睛：ESP32-S3 板载自渲染 + Pi 下 USB-串口 directive |

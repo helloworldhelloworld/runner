@@ -251,7 +251,6 @@ public class VertxChatWebSocketHandler {
         String socketId = ws.textHandlerID();
         String sessionId = payload.path("sessionId").asText(socketId);
         String message = payload.path("message").asText("").trim();
-        String model = payload.path("model").asText(null);
         boolean useReactive = payload.path("reactive").asBoolean(true);
 
         if (message.isEmpty()) {
@@ -266,14 +265,8 @@ public class VertxChatWebSocketHandler {
             return;
         }
 
-        // 通过 Gateway 委托业务逻辑
-        GatewayRequest.Builder builder = GatewayRequest.builder()
-            .sessionId(sessionId)
-            .message(message)
-            .metadata("protocol", "websocket");
-        if (model != null && !model.isEmpty()) {
-            builder.metadata("model", model);
-        }
+        // 解析公共字段（含 agentId → metadata，供 MetadataAgentRouter 路由到 persona，如 minion）
+        GatewayRequest.Builder builder = WsChatRequests.baseBuilder(payload, socketId);
         // 注入设备上下文（从端侧 Manifest 提取）
         VertxWebSocketClientToolDispatcher dispatcher = dispatchers.get(ws.textHandlerID());
         if (dispatcher != null && dispatcher.hasManifest()) {

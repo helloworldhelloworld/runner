@@ -375,7 +375,8 @@ public class AgentConfig {
     }
 
     @Bean
-    public ToolRegistry toolRegistry(SessionAwareClientToolDispatcher clientToolDispatcher) {
+    public ToolRegistry toolRegistry(SessionAwareClientToolDispatcher clientToolDispatcher,
+                                     com.lightweightai.kernel.memory.tools.MemoryToolkit memoryToolkit) {
         ToolRegistry registry = new ToolRegistry();
 
         if (!toolsEnabled) {
@@ -392,7 +393,8 @@ public class AgentConfig {
             // 2. 手动注册（需要构造参数 / 运行时绑定的工具）
             new ManualToolProvider()
                 .addAnnotated(new WebTools(webSearchApiKey, webSearchMaxResults))
-                .addTool(new GetPositionTool(clientToolDispatcher)),
+                .addTool(new GetPositionTool(clientToolDispatcher))
+                .addTool(new MemoryWriteTool(memoryToolkit)),  // write_memory → LLM 可写长期记忆
             // 3. 动态插件（监听 plugins/ 目录，支持热加载 jar）
             dynamicPluginProvider()
         ));

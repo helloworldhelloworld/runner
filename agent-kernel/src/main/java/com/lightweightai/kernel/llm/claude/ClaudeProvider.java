@@ -4,12 +4,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.lightweightai.kernel.llm.ContentBlock;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
+import com.lightweightai.kernel.llm.ImageContent;
 import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.llm.TextContent;
 import com.lightweightai.kernel.llm.ToolCall;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -22,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -323,13 +327,58 @@ public class ClaudeProvider implements LLMProvider {
             ObjectNode messageNode = objectMapper.createObjectNode();
             messageNode.put("role", convertRole(msg.getRole()));
 
-            // Content
-            messageNode.put("content", msg.getTextContent());
+            // Content: 纯文本走字符串（向后兼容）；含图片等非文本块时走 content 数组
+            if (hasNonTextContent(msg)) {
+                messageNode.set("content", buildContentBlocks(msg));
+            } else {
+                messageNode.put("content", msg.getTextContent());
+            }
 
             array.add(messageNode);
         }
 
         return array;
+    }
+
+    private boolean hasNonTextContent(ConversationMessage msg) {
+        for (ContentBlock block : msg.getContent()) {
+            if (!(block instanceof TextContent)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 把多模态 content 块翻译成 Claude content 数组。
+     * 当前支持 text 与 image（base64 / url source）；未识别的块按文本降级处理。
+     */
+    private ArrayNode buildContentBlocks(ConversationMessage msg) {
+        ArrayNode blocks = objectMapper.createArrayNode();
+        for (ContentBlock block : msg.getContent()) {
+            if (block instanceof TextContent text) {
+                ObjectNode node = objectMapper.createObjectNode();
+                node.put("type", "text");
+                node.put("text", text.getText());
+                blocks.add(node);
+            } else if (block instanceof ImageContent image) {
+                ObjectNode node = objectMapper.createObjectNode();
+                node.put("type", "image");
+                ObjectNode source = objectMapper.createObjectNode();
+                if (image.isUrl()) {
+                    source.put("type", "url");
+                    source.put("url", image.getUrl());
+                } else {
+                    source.put("type", "base64");
+                    source.put("media_type", image.getMimeType());
+                    source.put("data", Base64.getEncoder().encodeToString(image.getData()));
+                }
+                node.set("source", source);
+                blocks.add(node);
+            }
+            // 其他类型（AUDIO/VIDEO 等）暂不支持，跳过；后续按需扩展
+        }
+        return blocks;
     }
 
     /**

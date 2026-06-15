@@ -69,6 +69,12 @@ app:
   mcp:
     enabled: ${MCP_ENABLED:false}  # 设置 MCP_ENABLED=true 启用
     servers:
+      # minion 设备（真眼/动作）。Pi 上 streamable-http MCP server（minion-body --eyes）。
+      # 本地 LAN 直连；地址可漂移（DHCP）故用 env 覆盖。生产经 overlay+token（ADR-008）。
+      minion:
+        transport: streamable_http
+        url: ${MINION_MCP_URL:http://192.168.50.247:8765/mcp}
+        timeout: 30
       # 示例：STDIO 本地 MCP Server
       # demo-agent:
       #   command: java
@@ -92,6 +98,17 @@ app:
       #   transport: streamable_http
       #   url: http://auth-server:8080/mcp
       #   timeout: 30
+      #
+      # 示例：minion 设备（脑在云连 NAT 后的 Pi，见 ADR-008）。Pi 把 MCP server 起在
+      # streamable-http 端口，经 overlay(Tailscale 100.x) 由 runner 外连；bearer token 鉴权。
+      # 运行时链路（discover→register→risk 闸→调用）已由 RunnerToMinionBodyMcpSmokeTest 对 fake Pi 验证；
+      # B4 接真 Pi 时填入真实 overlay 地址与 token 即可（runner 侧纯配置，零代码改动）。
+      # minion:
+      #   transport: streamable_http
+      #   url: http://100.x.y.z:8765/mcp        # Pi 的 tailnet 地址
+      #   timeout: 30
+      #   headers:
+      #     Authorization: "Bearer ${MINION_MCP_TOKEN:}"
 
   # Skill Creator 配置
   skill-creator:

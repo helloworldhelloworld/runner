@@ -32,6 +32,10 @@ public class StreamEventSerializer {
                 case TOOL_RESULT -> toolResultJson(event);
                 case TOOL_ERROR -> toolErrorJson(event);
                 case POST_PROCESS_DATA -> postProcessJson(event);
+                // 可朗读块 (R2)：带 {text,index,emotion} 下发，供 Voice Gateway 流式 TTS
+                case SPEAKABLE_CHUNK -> eventWithDataJson(eventTypeName(event.getType()), event);
+                // barge-in 停播信号 (R4)：设备据此停播 + 丢弃排队音频
+                case SPEECH_INTERRUPTED -> eventWithDataJson(eventTypeName(event.getType()), event);
                 case TRACE -> traceJson(event);
                 case ERROR -> errorJson(event.getError() != null ? event.getError().getMessage() : "Unknown error");
 

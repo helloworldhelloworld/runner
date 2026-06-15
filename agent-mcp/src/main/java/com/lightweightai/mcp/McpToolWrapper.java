@@ -1,5 +1,6 @@
 package com.lightweightai.mcp;
 
+import com.lightweightai.kernel.agent.RiskLevel;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolSchema;
@@ -177,6 +178,65 @@ public class McpToolWrapper implements Tool, ToolMetadata {
                 return ToolResult.error(c.getMessage());
             })
             .block();
+    }
+
+    /** _meta key carrying an explicit RiskLevel (see ADR-007). */
+    static final String META_RISK_KEY = "com.lightweightai.kernel/riskLevel";
+
+    /**
+     * 恢复远程工具的风险等级（ADR-007）。
+     *
+     * MCP 协议无原生 risk 字段，故按优先级从工具定义恢复：
+     * <ol>
+     *   <li>{@code _meta["com.lightweightai.kernel/riskLevel"]} 显式声明（大小写不敏感）；</li>
+     *   <li>标准 annotations 推导：readOnlyHint→SAFE，destructiveHint→SYSTEM，
+     *       否则（annotations 存在但非只读非破坏）→WRITE；</li>
+     *   <li>兜底 {@link RiskLevel#SAFE}（无注解的旧 server 行为不变）。</li>
+     * </ol>
+     */
+    @Override
+    public RiskLevel riskLevel() {
+        RiskLevel explicit = riskFromMeta(mcpTool.meta());
+        if (explicit != null) {
+            return explicit;
+        }
+        RiskLevel fromAnnotations = riskFromAnnotations(mcpTool.annotations());
+        if (fromAnnotations != null) {
+            return fromAnnotations;
+        }
+        return RiskLevel.SAFE;
+    }
+
+    /** 从 _meta 读显式风险；缺失或非法返回 null（交由后续规则）。 */
+    private RiskLevel riskFromMeta(Map<String, Object> meta) {
+        if (meta == null) {
+            return null;
+        }
+        Object value = meta.get(META_RISK_KEY);
+        if (!(value instanceof String s) || s.isBlank()) {
+            return null;
+        }
+        try {
+            return RiskLevel.valueOf(s.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            logger.warn("MCP tool '{}' has invalid {}='{}', ignoring", getName(), META_RISK_KEY, s);
+            return null;
+        }
+    }
+
+    /** 用 MCP 标准 annotation hints 推导风险；无 annotations 返回 null。 */
+    private static RiskLevel riskFromAnnotations(McpSchema.ToolAnnotations annotations) {
+        if (annotations == null) {
+            return null;
+        }
+        if (Boolean.TRUE.equals(annotations.readOnlyHint())) {
+            return RiskLevel.SAFE;
+        }
+        if (Boolean.TRUE.equals(annotations.destructiveHint())) {
+            return RiskLevel.SYSTEM;
+        }
+        // annotations 存在但非只读、非破坏：有副作用但不破坏 → WRITE
+        return RiskLevel.WRITE;
     }
 
     @Override

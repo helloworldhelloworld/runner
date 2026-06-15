@@ -306,6 +306,12 @@ public class AgentLoop {
 
         // System prompt
         StringBuilder systemContent = new StringBuilder(systemPrompt);
+        // 确定性注入长期记忆(durable)——不靠模糊搜索/embedding(mock embedding 语义召回基本失效)，
+        // 只要写进 durable 就一定在每轮上文里，跨会话可靠记得用户(名字/喜好)。
+        String durable = readDurableSafe();
+        if (!durable.isBlank()) {
+            systemContent.append("\n\n长期记忆（关于用户，回答时务必参考）:\n").append(durable);
+        }
         if (!memoryContext.isEmpty()) {
             systemContent.append("\n\n相关记忆:\n").append(memoryContext);
         }
@@ -322,6 +328,19 @@ public class AgentLoop {
         }
 
         return messages;
+    }
+
+    /** 读 durable 长期记忆（容错 + 截断防过长），用于每轮确定性注入系统提示。 */
+    private String readDurableSafe() {
+        try {
+            String d = memoryProvider.readDurable();
+            if (d == null || d.isBlank()) {
+                return "";
+            }
+            return d.length() > 2000 ? d.substring(0, 2000) : d;
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private String formatMemoryContext(List<MemorySearchResult> results) {

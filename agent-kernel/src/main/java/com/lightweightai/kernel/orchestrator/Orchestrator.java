@@ -11,6 +11,7 @@ import com.lightweightai.kernel.gateway.GatewayResponse;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
 import java.util.Map;
@@ -41,6 +42,9 @@ public class Orchestrator implements ChatHandler {
     // per-session 的活跃执行
     private final Map<String, InterruptibleRun> activeRuns = new ConcurrentHashMap<>();
 
+    // 已订阅的主动触发源
+    private final Map<String, Disposable> activeTriggers = new ConcurrentHashMap<>();
+
     // TTL 清理：超过此时间的非 RUNNING run 会被自动移除
     private static final long RUN_TTL_MS = 60 * 60 * 1000; // 1 hour
     private static final long CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -65,11 +69,49 @@ public class Orchestrator implements ChatHandler {
     }
 
     /**
-     * 关闭清理线程 — 防止线程池泄漏
+     * 关闭清理线程 — 防止线程池泄漏。同时取消所有已订阅的 TriggerSource。
      */
     public void shutdown() {
         cleanupExecutor.shutdown();
+        activeTriggers.values().forEach(Disposable::dispose);
+        activeTriggers.clear();
         logger.info("Orchestrator cleanup executor shut down");
+    }
+
+    /**
+     * 订阅一个 {@link TriggerSource},把每条 request 喂给 {@link #chatStreamReactive}。
+     *
+     * 同名 source 重复订阅会取消旧的。事件流上的错误不会中断订阅 — 仅记录日志。
+     */
+    public void subscribeTriggerSource(TriggerSource source) {
+        Disposable previous = activeTriggers.remove(source.name());
+        if (previous != null) {
+            previous.dispose();
+            logger.info("Replacing existing TriggerSource: {}", source.name());
+        }
+        Disposable d = source.requests()
+                .flatMap(req -> chatStreamReactive(req)
+                        .onErrorResume(e -> {
+                            logger.warn("Trigger '{}' run failed: {}", source.name(), e.getMessage());
+                            return Flux.empty();
+                        }))
+                .subscribe(
+                        ev -> { /* 主动循环触发的事件不回传给原始调用者 */ },
+                        err -> logger.warn("TriggerSource '{}' subscription error: {}", source.name(), err.getMessage())
+                );
+        activeTriggers.put(source.name(), d);
+        logger.info("Subscribed TriggerSource: {}", source.name());
+    }
+
+    /**
+     * 取消订阅指定 source。已发出但还未消费完的 request 不保证被处理。
+     */
+    public void unsubscribeTriggerSource(String name) {
+        Disposable d = activeTriggers.remove(name);
+        if (d != null) {
+            d.dispose();
+            logger.info("Unsubscribed TriggerSource: {}", name);
+        }
     }
 
     private void cleanupStaleRuns() {
@@ -145,9 +187,15 @@ public class Orchestrator implements ChatHandler {
             logger.info("Interrupting active run for session={}", sessionId);
             StreamEvent interruptEvent = existing.interrupt();
 
+            // barge-in：打断成立时，先让设备停播已下发的音频，再接续（R4）
+            StreamEvent speechInterrupted = interruptEvent != null
+                    ? StreamEvent.speechInterrupted(existing.getRunId(), "barge-in")
+                    : null;
+
             return Flux.concat(
                     Flux.just(routeEvent),
                     interruptEvent != null ? Flux.just(interruptEvent) : Flux.empty(),
+                    speechInterrupted != null ? Flux.just(speechInterrupted) : Flux.empty(),
                     existing.execute(request.getMessage())
             );
         }

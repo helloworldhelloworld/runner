@@ -134,8 +134,7 @@ public class ToolCallingLoop {
 
             // Add tool results as user messages to conversation
             for (ToolResult toolResult : toolResults) {
-                ConversationMessage toolResultMessage = createToolResultMessage(toolResult);
-                conversation.add(toolResultMessage);
+                appendToolResultMessages(conversation, toolResult);
             }
 
             iteration++;
@@ -203,9 +202,7 @@ public class ToolCallingLoop {
                         conversation.add(enrichWithToolCalls(response));
 
                         for (ToolResult toolResult : toolResults) {
-                            ConversationMessage toolResultMessage =
-                                createToolResultMessage(toolResult);
-                            conversation.add(toolResultMessage);
+                            appendToolResultMessages(conversation, toolResult);
                         }
 
                         // Step 5: Recursively continue the conversation (async)
@@ -307,18 +304,19 @@ public class ToolCallingLoop {
                         toolCalls.stream().map(ToolCall::getName).toList());
                     conversation.add(enrichWithToolCalls(response));
 
+                    // 本轮 call id → 原始 args 的映射,用于把结构化参数透传到 PostToolUse
+                    java.util.Map<String, Map<String, Object>> argsByCallId = new java.util.concurrent.ConcurrentHashMap<>();
+                    for (ToolCall tc : toolCalls) {
+                        if (tc.getId() != null) {
+                            argsByCallId.put(tc.getId(),
+                                    tc.getArguments() != null ? tc.getArguments() : Map.of());
+                        }
+                    }
+
                     // Step 3a: 发出 TOOL_CALL_START 事件 + PreToolUse hooks
                     Flux<StreamEvent> toolStartEvents = Flux.fromIterable(toolCalls)
                         .doOnNext(tc -> firePreToolUse(tc.getName(), tc.getArguments()))
                         .map(StreamEvent::toolCallStart);
-
-                    // 旁路 map：按 toolCallId 记下本轮的 args，供 PostToolUse 对齐。
-                    // 不改 ToolResultChunk 的字段（避免扩散到 ToolExecutor / MCP adapter 等下游）。
-                    java.util.Map<String, Map<String, Object>> argsByCallId = new java.util.HashMap<>();
-                    for (ToolCall tc : toolCalls) {
-                        argsByCallId.put(tc.getId(),
-                                tc.getArguments() != null ? tc.getArguments() : Map.of());
-                    }
 
                     // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
                     Flux<ToolResultChunk> sharedToolExec = toolExecutor
@@ -358,7 +356,7 @@ public class ToolCallingLoop {
                         .collectList()
                         .flatMapMany(results -> {
                             for (ToolResult result : results) {
-                                conversation.add(createToolResultMessage(result));
+                                appendToolResultMessages(conversation, result);
                             }
                             tracer.endSpan(iterationSpan);
                             return executeReactiveLoop(conversation, options, iteration + 1);
@@ -384,6 +382,39 @@ public class ToolCallingLoop {
             .metadata(original.getMetadata())
             .addMetadata("tool_calls", response.getToolCalls())
             .build();
+    }
+
+    /**
+     * 把一个工具结果回灌进对话。
+     *
+     * 先加 {@link MessageRole#TOOL} 文本消息（既有 tool_result 线格式不变）；
+     * 若结果带图像帧（视觉回灌链，ADR-010），再追加一条 {@link MessageRole#USER}
+     * 多模态消息承载帧，让下一轮 LLM 请求体出现 image block。
+     *
+     * 为何另起 USER 消息而非塞进 TOOL 消息：OpenAI/OpenRouter 的 {@code role:"tool"}
+     * 消息不支持图像（provider 走 tool 分支只发文本），独立 USER 消息是对 Claude /
+     * OpenRouter 都正确的单一路径，且命中两者已验证的 buildContentBlocks 序列化。
+     */
+    private void appendToolResultMessages(List<ConversationMessage> conversation, ToolResult toolResult) {
+        conversation.add(createToolResultMessage(toolResult));
+        if (toolResult.hasImages()) {
+            conversation.add(createImageFeedbackMessage(toolResult));
+        }
+    }
+
+    /**
+     * 构造承载工具帧的 USER 多模态消息（caption + image blocks）。
+     */
+    private ConversationMessage createImageFeedbackMessage(ToolResult toolResult) {
+        ConversationMessage.Builder builder = ConversationMessage.builder()
+            .role(MessageRole.USER)
+            .textContent("(以下为上一步工具返回的图像)")
+            .addMetadata("tool_use_id", toolResult.getToolUseId())
+            .addMetadata("image_feedback", true);
+        for (com.lightweightai.kernel.llm.ImageContent image : toolResult.getImages()) {
+            builder.addContent(image);
+        }
+        return builder.build();
     }
 
     /**

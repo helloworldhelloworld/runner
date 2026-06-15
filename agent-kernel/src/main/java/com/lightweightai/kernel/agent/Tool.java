@@ -64,4 +64,16 @@ public interface Tool {
     default boolean isAutoExecute() {
         return true;
     }
+
+    /**
+     * 工具风险等级(默认 {@link RiskLevel#SAFE})。
+     *
+     * 只读工具保持默认;会改状态的覆写为 {@link RiskLevel#WRITE};
+     * 能跑任意命令或 spawn 新 agent 的覆写为 {@link RiskLevel#SYSTEM}。
+     *
+     * 供 {@link ToolPolicy#byRiskLevel} 等策略做分级过滤。
+     */
+    default RiskLevel riskLevel() {
+        return RiskLevel.SAFE;
+    }
 }

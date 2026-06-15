@@ -5,12 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.llm.ContentBlock;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ConversationMessage.MessageRole;
+import com.lightweightai.kernel.llm.ImageContent;
 import com.lightweightai.kernel.llm.LLMOptions;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ModelCapability;
+import com.lightweightai.kernel.llm.TextContent;
 import com.lightweightai.kernel.llm.ToolCall;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -26,6 +29,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -103,8 +107,11 @@ public class OpenRouterProvider implements LLMProvider {
                 .url(requestUrl)
                 .post(RequestBody.create(requestBody, TEXT_PLAIN));
             if (isCustomBaseUrl()) {
-                // 自定义网关：仅用 api_key header + body 认证，不发 Authorization: Bearer
+                // 自定义/OpenAI 兼容端点（DashScope 兼容模式、vLLM、LocalAI…）：发标准
+                // Authorization: Bearer（这些服务都要 Bearer），同时保留 api_key header
+                // 兼容少数要 body/header 认证的自建网关。
                 if (!apiKey.isEmpty()) {
+                    reqBuilder.header("Authorization", "Bearer " + apiKey);
                     reqBuilder.header("api_key", apiKey);
                 }
             } else {
@@ -160,7 +167,9 @@ public class OpenRouterProvider implements LLMProvider {
                     .url(requestUrl)
                     .post(RequestBody.create(requestBody, TEXT_PLAIN));
                 if (isCustomBaseUrl()) {
+                    // OpenAI 兼容端点（DashScope 等）发标准 Bearer，兼留 api_key header（见非流式分支注释）
                     if (!apiKey.isEmpty()) {
+                        reqBuilder.header("Authorization", "Bearer " + apiKey);
                         reqBuilder.header("api_key", apiKey);
                     }
                 } else {
@@ -353,6 +362,9 @@ public class OpenRouterProvider implements LLMProvider {
                 if (metadata.containsKey("tool_use_id")) {
                     messageNode.put("tool_call_id", (String) metadata.get("tool_use_id"));
                 }
+            } else if (hasNonTextContent(msg)) {
+                // Normal message with multimodal content (text + image)
+                messageNode.set("content", buildContentBlocks(msg));
             } else {
                 // Normal message
                 messageNode.put("content", msg.getTextContent());
@@ -362,6 +374,45 @@ public class OpenRouterProvider implements LLMProvider {
         }
 
         return array;
+    }
+
+    private boolean hasNonTextContent(ConversationMessage msg) {
+        for (ContentBlock block : msg.getContent()) {
+            if (!(block instanceof TextContent)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 把多模态 content 块翻译成 OpenAI 风格 content 数组。
+     * 当前支持 text 与 image（image_url，base64 转 data URI / 直接 url）；未识别的块跳过。
+     */
+    private ArrayNode buildContentBlocks(ConversationMessage msg) {
+        ArrayNode blocks = objectMapper.createArrayNode();
+        for (ContentBlock block : msg.getContent()) {
+            if (block instanceof TextContent text) {
+                ObjectNode node = objectMapper.createObjectNode();
+                node.put("type", "text");
+                node.put("text", text.getText());
+                blocks.add(node);
+            } else if (block instanceof ImageContent image) {
+                ObjectNode node = objectMapper.createObjectNode();
+                node.put("type", "image_url");
+                ObjectNode imageUrl = objectMapper.createObjectNode();
+                if (image.isUrl()) {
+                    imageUrl.put("url", image.getUrl());
+                } else {
+                    imageUrl.put("url", "data:" + image.getMimeType() + ";base64,"
+                            + Base64.getEncoder().encodeToString(image.getData()));
+                }
+                node.set("image_url", imageUrl);
+                blocks.add(node);
+            }
+            // 其他类型（AUDIO/VIDEO 等）暂不支持
+        }
+        return blocks;
     }
 
     /**

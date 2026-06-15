@@ -32,10 +32,16 @@ public class CliToolSourceProvider implements ToolSourceProvider {
     private static final String MANIFEST_FILE = "cli-manifest.json";
 
     private final Path cliPluginsDir;
+    private final CliExecutor executor;
     private final List<CliTool> registeredTools = new ArrayList<>();
 
     public CliToolSourceProvider(Path cliPluginsDir) {
+        this(cliPluginsDir, new LocalProcessExecutor());
+    }
+
+    public CliToolSourceProvider(Path cliPluginsDir, CliExecutor executor) {
         this.cliPluginsDir = cliPluginsDir;
+        this.executor = executor;
     }
 
     @Override
@@ -59,7 +65,7 @@ public class CliToolSourceProvider implements ToolSourceProvider {
 
                 try {
                     CliManifest manifest = CliManifest.load(manifestPath);
-                    CliTool tool = new CliTool(manifest, cliDir);
+                    CliTool tool = new CliTool(manifest, cliDir, executor);
                     registry.register(tool);
                     registeredTools.add(tool);
                     logger.info("Registered CLI tool: {} ({})", manifest.getName(), manifest.getDescription());
