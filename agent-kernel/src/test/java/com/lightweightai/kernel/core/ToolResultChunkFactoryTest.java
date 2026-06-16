@@ -46,9 +46,9 @@ class ToolResultChunkFactoryTest {
     class LogTests {
 
         @Test
-        @DisplayName("formats log message with level and logger")
+        @DisplayName("formats log message with level, logger, and meta")
         void formatsWithLevelAndLogger() {
-            ToolResultChunk chunk = ToolResultChunk.log("tool", "INFO", "my.logger", "started");
+            ToolResultChunk chunk = ToolResultChunk.log("tool", "INFO", "my.logger", "started", null);
             assertEquals(ToolResultChunk.ChunkType.LOG, chunk.getType());
             assertTrue(chunk.getMessage().contains("INFO"));
             assertTrue(chunk.getMessage().contains("my.logger"));

@@ -176,6 +176,11 @@ class GatewayEventDispatchTest {
             }
 
             @Override
+            public CompletableFuture<GatewayResponse> chatStream(GatewayRequest request, StreamCallback callback) {
+                return CompletableFuture.completedFuture(chat(request));
+            }
+
+            @Override
             public Flux<StreamEvent> chatStreamReactive(GatewayRequest request) {
                 return events;
             }
