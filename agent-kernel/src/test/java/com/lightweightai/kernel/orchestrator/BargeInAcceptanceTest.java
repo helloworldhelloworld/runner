@@ -13,7 +13,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -48,20 +47,19 @@ class BargeInAcceptanceTest {
         toolRegistry = new ToolRegistry();
     }
 
-    private LLMProvider slowThenFast(AtomicInteger callCount) {
+    /**
+     * 第 1 轮发首个 delta 后挂住（{@link Flux#never()}，run 稳定停在 RUNNING 直到被打断）；
+     * 第 2 轮（resume）秒回 "收到"。取代原 delayElements(100ms)+Thread.sleep(150) 时序（L-3 去 flake）：
+     * 测试 await 首个 delta 的 latch（真信号）即知 run 在途，无需猜 sleep 时长。
+     */
+    private LLMProvider runningThenResume(AtomicInteger callCount) {
         return new LLMProvider() {
             @Override
             public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> msgs, LLMOptions opts) {
                 int call = callCount.incrementAndGet();
                 if (call == 1) {
-                    return Flux.just("你好", "，我", "正在", "说话", "呢")
-                            .delayElements(Duration.ofMillis(100))
-                            .map(StreamEvent::textDelta)
-                            .concatWith(Flux.just(StreamEvent.llmComplete(LLMResponse.builder()
-                                    .message(ConversationMessage.builder()
-                                            .role(ConversationMessage.MessageRole.ASSISTANT)
-                                            .textContent("你好，我正在说话呢").build())
-                                    .stopReason("end_turn").build())));
+                    return Flux.<StreamEvent>just(StreamEvent.textDelta("你好"))
+                            .concatWith(Flux.never());
                 }
                 return Flux.just(StreamEvent.textDelta("收到"),
                         StreamEvent.llmComplete(LLMResponse.builder()
@@ -80,7 +78,33 @@ class BargeInAcceptanceTest {
             @Override public CompletableFuture<LLMResponse> completeStream(List<ConversationMessage> m, LLMOptions o, StreamEventHandler h) {
                 return CompletableFuture.completedFuture(complete(m, o)); }
             @Override public ModelCapability getModelCapability() { return null; }
-            @Override public String getProviderName() { return "slow-then-fast"; }
+            @Override public String getProviderName() { return "running-then-resume"; }
+        };
+    }
+
+    /** 单轮就完成（delta + llmComplete）——freshSession 无打断场景用，collectList().block() 能正常返回。 */
+    private LLMProvider completingLlm() {
+        return new LLMProvider() {
+            @Override
+            public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> msgs, LLMOptions opts) {
+                return Flux.just(StreamEvent.textDelta("你好"),
+                        StreamEvent.llmComplete(LLMResponse.builder()
+                                .message(ConversationMessage.builder()
+                                        .role(ConversationMessage.MessageRole.ASSISTANT)
+                                        .textContent("你好").build())
+                                .stopReason("end_turn").build()));
+            }
+            @Override public LLMResponse complete(List<ConversationMessage> m, LLMOptions o) {
+                return LLMResponse.builder().stopReason("end_turn")
+                        .message(ConversationMessage.builder().role(ConversationMessage.MessageRole.ASSISTANT)
+                                .textContent("你好").build()).build();
+            }
+            @Override public CompletableFuture<LLMResponse> completeAsync(List<ConversationMessage> m, LLMOptions o) {
+                return CompletableFuture.completedFuture(complete(m, o)); }
+            @Override public CompletableFuture<LLMResponse> completeStream(List<ConversationMessage> m, LLMOptions o, StreamEventHandler h) {
+                return CompletableFuture.completedFuture(complete(m, o)); }
+            @Override public ModelCapability getModelCapability() { return null; }
+            @Override public String getProviderName() { return "completing"; }
         };
     }
 
@@ -88,15 +112,15 @@ class BargeInAcceptanceTest {
     @DisplayName("说话中被插话 → 发出 SPEECH_INTERRUPTED，且在 AGENT_RESUME 之前")
     void bargeInEmitsSpeechInterrupted() throws InterruptedException {
         AtomicInteger callCount = new AtomicInteger(0);
-        AgentFactory factory = new AgentFactory(slowThenFast(callCount), memory, toolRegistry);
+        AgentFactory factory = new AgentFactory(runningThenResume(callCount), memory, toolRegistry);
         Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
 
         CountDownLatch streaming = new CountDownLatch(1);
         orchestrator.chatStreamReactive(GatewayRequest.builder().sessionId("s1").message("讲个笑话").build())
                 .doOnNext(e -> { if (e.getType() == EventType.TEXT_DELTA) streaming.countDown(); })
                 .subscribe();
-        assertTrue(streaming.await(3, TimeUnit.SECONDS), "应先开始流式输出");
-        Thread.sleep(150);
+        assertTrue(streaming.await(3, TimeUnit.SECONDS), "应先开始流式输出（首个 delta 到=run 确定在 RUNNING）");
+        // 不再 Thread.sleep：首个 delta 已到即证明 run 在途，无需猜时序（L-3）
 
         // 用户插话（barge-in）
         List<StreamEvent> evB = orchestrator.chatStreamReactive(
@@ -119,8 +143,7 @@ class BargeInAcceptanceTest {
     @Test
     @DisplayName("普通新会话（无活跃 run）→ 不发 SPEECH_INTERRUPTED")
     void freshSessionDoesNotEmitSpeechInterrupted() {
-        AtomicInteger callCount = new AtomicInteger(0);
-        AgentFactory factory = new AgentFactory(slowThenFast(callCount), memory, toolRegistry);
+        AgentFactory factory = new AgentFactory(completingLlm(), memory, toolRegistry);
         Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
 
         List<StreamEvent> ev = orchestrator.chatStreamReactive(
