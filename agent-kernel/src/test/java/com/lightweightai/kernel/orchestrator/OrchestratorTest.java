@@ -172,7 +172,9 @@ class OrchestratorTest {
         AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
         Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
 
-        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        // latch 在 provider 被调用时触发（而非 source flux 完成时）
+        java.util.concurrent.CountDownLatch providerCalled = new java.util.concurrent.CountDownLatch(1);
+        provider.onCall = providerCalled::countDown;
 
         TriggerSource source = new TriggerSource() {
             @Override public String name() { return "test-trigger"; }
@@ -180,16 +182,14 @@ class OrchestratorTest {
                 return Flux.just(GatewayRequest.builder()
                         .sessionId("trigger-sess")
                         .message("triggered")
-                        .build())
-                    .doOnComplete(() -> latch.countDown());
+                        .build());
             }
         };
 
         orchestrator.subscribeTriggerSource(source);
-        latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+        boolean called = providerCalled.await(5, java.util.concurrent.TimeUnit.SECONDS);
 
-        // provider 应被调用过（trigger 产生的请求走了 agent loop）
-        assertTrue(provider.callCount > 0, "TriggerSource should have caused at least one LLM call");
+        assertTrue(called, "TriggerSource should have caused at least one LLM call within timeout");
 
         orchestrator.shutdown();
     }
@@ -265,23 +265,31 @@ class OrchestratorTest {
     private static class CountingProvider implements LLMProvider {
         private final String response;
         private int callCount = 0;
+        volatile Runnable onCall;
 
         CountingProvider(String response) { this.response = response; }
+
+        private LLMResponse buildResponse() {
+            return LLMResponse.builder()
+                    .message(ConversationMessage.builder()
+                            .role(ConversationMessage.MessageRole.ASSISTANT)
+                            .textContent(response).build())
+                    .stopReason("end_turn").build();
+        }
 
         @Override
         public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> m, LLMOptions o) {
             callCount++;
+            if (onCall != null) onCall.run();
             return Flux.just(
                     StreamEvent.textDelta(response),
-                    StreamEvent.llmComplete(LLMResponse.builder()
-                            .message(ConversationMessage.builder()
-                                    .role(ConversationMessage.MessageRole.ASSISTANT)
-                                    .textContent(response).build())
-                            .stopReason("end_turn").build()));
+                    StreamEvent.llmComplete(buildResponse()));
         }
 
         @Override public LLMResponse complete(List<ConversationMessage> m, LLMOptions o) {
-            return LLMResponse.builder().stopReason("end_turn").build();
+            callCount++;
+            if (onCall != null) onCall.run();
+            return buildResponse();
         }
         @Override public CompletableFuture<LLMResponse> completeAsync(List<ConversationMessage> m, LLMOptions o) {
             return CompletableFuture.completedFuture(complete(m, o));
