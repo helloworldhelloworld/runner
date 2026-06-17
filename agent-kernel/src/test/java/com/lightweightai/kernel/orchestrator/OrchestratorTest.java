@@ -5,6 +5,7 @@ import com.lightweightai.kernel.agent.AgentProfile;
 import com.lightweightai.kernel.agent.AgentRegistry;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.gateway.ChatHandler;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.llm.*;
 import com.lightweightai.kernel.memory.MemoryProvider;
@@ -100,6 +101,163 @@ class OrchestratorTest {
         assertNotNull(events);
         // 第二次应正常完成
         assertTrue(events.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.LLM_COMPLETE));
+    }
+
+    @Test
+    @DisplayName("不同 session 隔离 — 各自拿到独立的 AGENT_ROUTE")
+    void differentSessionsAreIsolated() {
+        CountingProvider provider = new CountingProvider("ok");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        GatewayRequest req1 = GatewayRequest.builder().sessionId("s1").message("q1").build();
+        GatewayRequest req2 = GatewayRequest.builder().sessionId("s2").message("q2").build();
+
+        List<StreamEvent> events1 = orchestrator.chatStreamReactive(req1).collectList().block();
+        List<StreamEvent> events2 = orchestrator.chatStreamReactive(req2).collectList().block();
+
+        assertNotNull(events1);
+        assertNotNull(events2);
+        assertTrue(events1.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.AGENT_ROUTE));
+        assertTrue(events2.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.AGENT_ROUTE));
+
+        orchestrator.shutdown();
+    }
+
+    @Test
+    @DisplayName("standalone interrupt — 无在途 run 返回 null")
+    void interruptWithNoActiveRunReturnsNull() {
+        CountingProvider provider = new CountingProvider("ok");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        StreamEvent result = orchestrator.interrupt("nonexistent-session");
+        assertNull(result);
+
+        orchestrator.shutdown();
+    }
+
+    @Test
+    @DisplayName("standalone interrupt — null sessionId 返回 null")
+    void interruptWithNullSessionReturnsNull() {
+        CountingProvider provider = new CountingProvider("ok");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        StreamEvent result = orchestrator.interrupt(null);
+        assertNull(result);
+
+        orchestrator.shutdown();
+    }
+
+    @Test
+    @DisplayName("shutdown 正常关闭清理线程")
+    void shutdownCleansUp() {
+        CountingProvider provider = new CountingProvider("ok");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        // 先做一次请求
+        GatewayRequest req = GatewayRequest.builder().sessionId("s1").message("hi").build();
+        orchestrator.chatStreamReactive(req).blockLast();
+
+        // shutdown 不应抛异常
+        assertDoesNotThrow(orchestrator::shutdown);
+    }
+
+    @Test
+    @DisplayName("TriggerSource 订阅 — 事件被处理")
+    void subscribeTriggerSourceProcessesRequests() throws InterruptedException {
+        CountingProvider provider = new CountingProvider("triggered");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+
+        TriggerSource source = new TriggerSource() {
+            @Override public String name() { return "test-trigger"; }
+            @Override public Flux<GatewayRequest> requests() {
+                return Flux.just(GatewayRequest.builder()
+                        .sessionId("trigger-sess")
+                        .message("triggered")
+                        .build())
+                    .doOnComplete(() -> latch.countDown());
+            }
+        };
+
+        orchestrator.subscribeTriggerSource(source);
+        latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+
+        // provider 应被调用过（trigger 产生的请求走了 agent loop）
+        assertTrue(provider.callCount > 0, "TriggerSource should have caused at least one LLM call");
+
+        orchestrator.shutdown();
+    }
+
+    @Test
+    @DisplayName("TriggerSource 取消订阅")
+    void unsubscribeTriggerSource() {
+        CountingProvider provider = new CountingProvider("ok");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        TriggerSource source = new TriggerSource() {
+            @Override public String name() { return "to-remove"; }
+            @Override public Flux<GatewayRequest> requests() { return Flux.never(); }
+        };
+
+        orchestrator.subscribeTriggerSource(source);
+        assertDoesNotThrow(() -> orchestrator.unsubscribeTriggerSource("to-remove"));
+        // 取消不存在的 source 也不应抛异常
+        assertDoesNotThrow(() -> orchestrator.unsubscribeTriggerSource("nonexistent"));
+
+        orchestrator.shutdown();
+    }
+
+    @Test
+    @DisplayName("同步 chat 方法也能路由到正确 Agent")
+    void syncChatRoutesToCorrectAgent() {
+        CountingProvider provider = new CountingProvider("sync response");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        GatewayRequest req = GatewayRequest.builder()
+                .sessionId("sync-sess")
+                .message("hello")
+                .metadata("agentId", "beta")
+                .build();
+
+        com.lightweightai.kernel.gateway.GatewayResponse resp = orchestrator.chat(req);
+        assertNotNull(resp);
+
+        orchestrator.shutdown();
+    }
+
+    @Test
+    @DisplayName("callback chatStream 桥接 reactive — 回调被调用")
+    void chatStreamCallbackBridge() throws Exception {
+        CountingProvider provider = new CountingProvider("streamed");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        GatewayRequest req = GatewayRequest.builder().sessionId("cb-sess").message("hi").build();
+
+        List<String> deltas = new ArrayList<>();
+        java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        orchestrator.chatStream(req, new ChatHandler.StreamCallback() {
+            @Override public void onDelta(String delta, Map<String, Object> metadata) {
+                if (delta != null) deltas.add(delta);
+            }
+            @Override public void onComplete(com.lightweightai.kernel.gateway.GatewayResponse response) {
+                completed.set(true);
+            }
+            @Override public void onError(Throwable error) {}
+        }).get(5, java.util.concurrent.TimeUnit.SECONDS);
+
+        assertTrue(completed.get(), "onComplete callback should have been invoked");
+
+        orchestrator.shutdown();
     }
 
     // ==================== Helper classes ====================

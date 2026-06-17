@@ -159,6 +159,78 @@ class InterruptibleRunTest {
         assertTrue(events.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.AGENT_RESUME));
     }
 
+    @Test
+    @DisplayName("execute 在 RUNNING 状态下抛 IllegalStateException")
+    void doubleExecuteThrows() {
+        LLMProvider slowProvider = new SlowStreamProvider(List.of("a", "b", "c", "d", "e"), 200);
+        agent = buildAgent(slowProvider);
+
+        InterruptibleRun run = new InterruptibleRun("run-1", "sess-1", agent, memory);
+
+        // 启动异步执行
+        run.execute("first").subscribe();
+        sleep(50); // 让流启动
+
+        // 在 RUNNING 状态下再次 execute 应抛异常
+        assertThrows(Exception.class, () ->
+                run.execute("second").blockLast());
+    }
+
+    @Test
+    @DisplayName("interrupt 非 RUNNING 状态返回 null")
+    void interruptWhenNotRunningReturnsNull() {
+        LLMProvider provider = new SimpleMockProvider("ok");
+        agent = buildAgent(provider);
+
+        InterruptibleRun run = new InterruptibleRun("run-1", "sess-1", agent, memory);
+
+        // NEW 状态下 interrupt
+        StreamEvent result = run.interrupt();
+        assertNull(result);
+    }
+
+    @Test
+    @DisplayName("COMPLETED 后可以再次 execute（复用）")
+    void executeAfterCompletedIsAllowed() {
+        LLMProvider provider = new SimpleMockProvider("ok");
+        agent = buildAgent(provider);
+
+        InterruptibleRun run = new InterruptibleRun("run-1", "sess-1", agent, memory);
+
+        // 第一次执行直到完成
+        run.execute("q1").blockLast();
+        assertEquals(InterruptibleRun.RunPhase.COMPLETED, run.getPhase());
+
+        // 再次执行应正常
+        List<StreamEvent> events = run.execute("q2").collectList().block();
+        assertNotNull(events);
+        assertFalse(events.isEmpty());
+    }
+
+    @Test
+    @DisplayName("getRunId 返回构造时的 runId")
+    void runIdAccessor() {
+        LLMProvider provider = new SimpleMockProvider("ok");
+        agent = buildAgent(provider);
+
+        InterruptibleRun run = new InterruptibleRun("my-run-id", "sess-1", agent, memory);
+        assertEquals("my-run-id", run.getRunId());
+    }
+
+    @Test
+    @DisplayName("getCreatedAt 返回构造时间戳")
+    void createdAtAccessor() {
+        LLMProvider provider = new SimpleMockProvider("ok");
+        agent = buildAgent(provider);
+
+        long before = System.currentTimeMillis();
+        InterruptibleRun run = new InterruptibleRun("r1", "s1", agent, memory);
+        long after = System.currentTimeMillis();
+
+        assertTrue(run.getCreatedAt() >= before);
+        assertTrue(run.getCreatedAt() <= after);
+    }
+
     // ==================== Helper classes ====================
 
     private void sleep(long ms) {
