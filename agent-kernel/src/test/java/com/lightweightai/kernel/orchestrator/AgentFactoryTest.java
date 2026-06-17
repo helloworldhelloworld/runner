@@ -33,22 +33,9 @@ class AgentFactoryTest {
         defaultProvider = new StubLLMProvider();
     }
 
-    @Test
-    @DisplayName("创建的 AgentLoop 使用 ScopedToolRegistry 过滤工具")
-    void createsAgentWithScopedTools() {
-        AgentProfile profile = AgentProfile.builder()
-                .agentId("safe-agent")
-                .systemPrompt("你是安全助手")
-                .toolDenyList(Set.of("shell_exec"))
-                .build();
-
-        AgentFactory factory = new AgentFactory(defaultProvider, memory, globalRegistry);
-        AgentLoop agent = factory.create(profile);
-
-        assertNotNull(agent);
-        // AgentLoop 内部使用的 ToolRegistry 应该是 scoped 的
-        // 我们通过执行来间接验证：工具定义中不应包含 shell_exec
-    }
+    // 注：原 createsAgentWithScopedTools 删除（L-1）——它以 assertNotNull(agent) + "通过执行间接验证"
+    // 注释收尾，是 CLAUDE.md UT 规则 4 点名的 ceremony-only 反模式。其载荷断言已由紧邻的
+    // createdAgentExposesScopedToolDefinitions（断言 toolDefinitions 不含 shell_exec）完整覆盖。
 
     @Test
     @DisplayName("创建的 AgentLoop 暴露受 deny/allow 过滤的 toolDefinitions")

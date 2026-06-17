@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -103,6 +104,41 @@ class ClaudeProviderMultimodalTest {
         JsonNode content = capturing.lastBodyJson(mapper).get("messages").get(0).get("content");
         assertTrue(content.isTextual(), "纯文本应保持字符串形态；实际: " + content);
         assertEquals("hi", content.asText());
+    }
+
+    /**
+     * L-2：流式发射路径同样把 image block 写进请求体。
+     *
+     * 此前只断言了同步 complete()；completeStream()（completeStreamReactive 默认桥接它）走
+     * buildRequestBody + {@code stream:true} 经 newCall().execute() 发出——之前无断言。
+     * 断言：流式 body 的 messages[0].content 含 image(base64 source) 且 root.stream==true。
+     */
+    @Test
+    @DisplayName("流式路径 completeStream → 请求体含 image(base64) block 且 stream=true")
+    void streamingPathAlsoSerializesImageBlock() throws Exception {
+        byte[] pixels = "fake-jpeg-bytes".getBytes(StandardCharsets.UTF_8);
+        ConversationMessage msg = ConversationMessage.builder()
+                .role(MessageRole.USER)
+                .textContent("这是什么?")
+                .addContent(new ImageContent(pixels, "image/jpeg"))
+                .build();
+
+        // handler=null：stub 响应非 SSE，解析器跳过所有行→空文本完成；body 已在 newCall 捕获。
+        provider.completeStream(List.of(msg), LLMOptions.builder().maxTokens(128).build(), null)
+                .get(5, TimeUnit.SECONDS);
+
+        JsonNode body = capturing.lastBodyJson(mapper);
+        assertTrue(body.get("stream").asBoolean(), "流式请求体应带 stream=true");
+
+        JsonNode content = body.get("messages").get(0).get("content");
+        assertTrue(content.isArray(), "含图片的消息 content 应为数组；实际: " + content);
+        JsonNode image = content.get(1);
+        assertEquals("image", image.get("type").asText());
+        JsonNode source = image.get("source");
+        assertEquals("base64", source.get("type").asText());
+        assertEquals("image/jpeg", source.get("media_type").asText());
+        assertEquals(Base64.getEncoder().encodeToString(pixels), source.get("data").asText(),
+                "流式路径也应把图片字节 base64 进 data");
     }
 
     /** Captures the outgoing Request body, returns a minimal 200 response so complete() succeeds. */
