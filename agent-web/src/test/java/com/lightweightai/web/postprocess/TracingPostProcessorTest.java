@@ -70,6 +70,31 @@ class TracingPostProcessorTest {
     }
 
     @Test
+    @DisplayName("首个 SPEAKABLE_CHUNK 应注入 speakable.first_chunk trace 并携带延迟，仅一次")
+    void shouldEmitFirstSpeakableChunkTraceWithLatency() {
+        TracingPostProcessor processor = new TracingPostProcessor();
+
+        Flux<StreamEvent> input = Flux.just(
+            StreamEvent.textDelta("你好。"),
+            StreamEvent.speakableChunk("你好。", 0, "neutral"),
+            StreamEvent.speakableChunk("再见！", 1, "neutral")
+        );
+
+        List<StreamEvent> result = input.transform(processor).collectList().block();
+        assertNotNull(result);
+
+        List<StreamEvent> traces = result.stream()
+            .filter(e -> e.getType() == StreamEvent.EventType.TRACE
+                && "speakable.first_chunk".equals(e.getTracePhase()))
+            .toList();
+
+        assertEquals(1, traces.size(), "speakable.first_chunk 只在首个可说块时注入一次");
+        assertNotNull(traces.get(0).getData());
+        assertTrue(traces.get(0).getData().containsKey("latencyMs"),
+            "应携带从订阅起算的 chunk_form 延迟");
+    }
+
+    @Test
     @DisplayName("工具调用应注入 tool.start trace 并携带参数")
     void shouldEmitToolStartTraceWithArguments() {
         TracingPostProcessor processor = new TracingPostProcessor();

@@ -101,4 +101,48 @@ class SpeakableChunkProcessorTest {
                 .toList();
         assertEquals(List.of(0, 1), indices);
     }
+
+    // ==================== 首块早发策略（首响延迟杠杆）====================
+
+    private List<String> speakableTexts(Flux<StreamEvent> input, SpeakableChunkProcessor p) {
+        return input.transform(p).collectList().block().stream()
+                .filter(e -> e.getType() == EventType.SPEAKABLE_CHUNK)
+                .map(e -> (String) e.getData().get("text"))
+                .toList();
+    }
+
+    @Test
+    @DisplayName("eager：首块在首个子句边界(逗号)提前切，其余仍按句末；默认则整句")
+    void eagerFirstChunkCutsAtClause() {
+        Flux<StreamEvent> in = Flux.just(
+                StreamEvent.textDelta("你好，我是小黄人。"),
+                StreamEvent.textDelta("今天天气不错！"),
+                StreamEvent.llmComplete(LLMResponse.builder().build()));
+
+        // 默认（句末）：首块要等整句
+        assertEquals(List.of("你好，我是小黄人。", "今天天气不错！"),
+                speakableTexts(Flux.just(
+                        StreamEvent.textDelta("你好，我是小黄人。"),
+                        StreamEvent.textDelta("今天天气不错！"),
+                        StreamEvent.llmComplete(LLMResponse.builder().build())),
+                        new SpeakableChunkProcessor()));
+
+        // eager：首块在第一个逗号就切，后续回到句末
+        SpeakableChunkProcessor eager = new SpeakableChunkProcessor(
+                EmotionClassifier.NEUTRAL,
+                SpeakableChunkProcessor.FirstChunkPolicy.eager("，", 0));
+        assertEquals(List.of("你好，", "我是小黄人。", "今天天气不错！"), speakableTexts(in, eager));
+    }
+
+    @Test
+    @DisplayName("eager：无句末/子句边界时，达 maxChars 字符硬切首块")
+    void eagerFirstChunkCutsAtMaxChars() {
+        SpeakableChunkProcessor eager = new SpeakableChunkProcessor(
+                EmotionClassifier.NEUTRAL,
+                SpeakableChunkProcessor.FirstChunkPolicy.eager("", 5));
+        // "abcdefg" 无任何边界：首块按 5 字符硬切，余下随 complete flush
+        assertEquals(List.of("abcde", "fg"), speakableTexts(Flux.just(
+                StreamEvent.textDelta("abcdefg"),
+                StreamEvent.llmComplete(LLMResponse.builder().build())), eager));
+    }
 }
