@@ -1,6 +1,6 @@
 package com.lightweightai.mcp;
 
-import io.modelcontextprotocol.spec.McpClientTransport;
+import com.lightweightai.mcp.transport.WebSocketMcpClientTransport;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,7 +11,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
 
 /**
  * McpToolClient Builder、配置、静态工具方法的全面测试。
@@ -21,7 +20,9 @@ import static org.mockito.Mockito.mock;
 @DisplayName("McpToolClient - Builder, config & utility methods")
 class McpToolClientBuilderTest {
 
-    private final McpClientTransport mockTransport = mock(McpClientTransport.class);
+    private static WebSocketMcpClientTransport transport() {
+        return WebSocketMcpClientTransport.builder("ws://localhost:1/mcp").build();
+    }
 
     // ==================== Builder ====================
 
@@ -30,7 +31,7 @@ class McpToolClientBuilderTest {
     void builderWithTransportSucceeds() {
         McpToolClient client = McpToolClient.builder()
                 .serverName("my-server")
-                .transport(mockTransport)
+                .transport(transport())
                 .build();
 
         assertEquals("my-server", client.getServerName());
@@ -42,7 +43,7 @@ class McpToolClientBuilderTest {
     @DisplayName("Builder default serverName is 'mcp-server'")
     void builderDefaultServerName() {
         McpToolClient client = McpToolClient.builder()
-                .transport(mockTransport)
+                .transport(transport())
                 .build();
 
         assertEquals("mcp-server", client.getServerName());
@@ -53,7 +54,7 @@ class McpToolClientBuilderTest {
     void builderWithCustomTimeout() {
         McpToolClient client = McpToolClient.builder()
                 .serverName("timeout-test")
-                .transport(mockTransport)
+                .transport(transport())
                 .requestTimeout(Duration.ofSeconds(60))
                 .build();
 
@@ -61,17 +62,22 @@ class McpToolClientBuilderTest {
     }
 
     @Test
-    @DisplayName("Builder with sampling handler compiles")
+    @DisplayName("Builder with sampling handler declares sampling capability")
     void builderWithSamplingHandler() {
         McpToolClient client = McpToolClient.builder()
                 .serverName("sampling-test")
-                .transport(mockTransport)
-                .samplingHandler(req -> new McpSchema.CreateMessageResult(
-                        new McpSchema.TextContent("echo"), "assistant",
-                        new McpSchema.CreateMessageResult.StopReason("endTurn")))
+                .transport(transport())
+                .samplingHandler(req -> McpSchema.CreateMessageResult.builder()
+                        .role(McpSchema.Role.ASSISTANT)
+                        .content(new McpSchema.TextContent("echo"))
+                        .model("test-model")
+                        .stopReason(McpSchema.CreateMessageResult.StopReason.END_TURN)
+                        .build())
                 .build();
 
-        assertNotNull(client);
+        assertNotNull(client.getAsyncClient().getClientCapabilities());
+        assertNotNull(client.getAsyncClient().getClientCapabilities().sampling(),
+                "sampling capability must be declared when handler is present");
     }
 
     // ==================== getDiscoveredTools before discover ====================
@@ -80,7 +86,7 @@ class McpToolClientBuilderTest {
     @DisplayName("getDiscoveredTools returns empty list before discovery")
     void discoveredToolsEmptyBeforeDiscover() {
         McpToolClient client = McpToolClient.builder()
-                .transport(mockTransport)
+                .transport(transport())
                 .build();
 
         assertTrue(client.getDiscoveredTools().isEmpty());
@@ -89,13 +95,14 @@ class McpToolClientBuilderTest {
     // ==================== isConnected ====================
 
     @Test
-    @DisplayName("isConnected returns true for non-WebSocket transport")
-    void isConnectedTrueForNonWebSocket() {
+    @DisplayName("isConnected returns false for unconnected WebSocket transport")
+    void isConnectedFalseForUnconnectedWebSocket() {
         McpToolClient client = McpToolClient.builder()
-                .transport(mockTransport)
+                .transport(transport())
                 .build();
 
-        assertTrue(client.isConnected(), "Non-WebSocket transport should always report connected");
+        assertFalse(client.isConnected(),
+                "WebSocket transport not yet connected should report false");
     }
 
     // ==================== setRequestMeta ====================
@@ -104,12 +111,11 @@ class McpToolClientBuilderTest {
     @DisplayName("setRequestMeta(null) clears to empty map — subsequent merge should be no-op")
     void setRequestMetaNullClearsToEmpty() {
         McpToolClient client = McpToolClient.builder()
-                .transport(mockTransport)
+                .transport(transport())
                 .build();
 
         client.setRequestMeta(Map.of("k", "v"));
         client.setRequestMeta(null);
-        // After clearing, merge with empty perCall should return empty
         Map<String, String> merged = McpToolClient.mergeRequestMeta(Map.of(), Map.of());
         assertTrue(merged.isEmpty());
     }
@@ -177,10 +183,10 @@ class McpToolClientBuilderTest {
     // ==================== onToolsChanged listener ====================
 
     @Test
-    @DisplayName("onToolsChanged listener is invoked on tool list change notification")
+    @DisplayName("onToolsChanged listener is registerable")
     void toolsChangedListenerIsRegisterable() {
         McpToolClient client = McpToolClient.builder()
-                .transport(mockTransport)
+                .transport(transport())
                 .build();
 
         AtomicReference<Set<String>> capturedAdded = new AtomicReference<>();
@@ -191,7 +197,6 @@ class McpToolClientBuilderTest {
             capturedRemoved.set(removed);
         });
 
-        // Listener registered but not yet invoked — just verifying registration compiles
         assertNull(capturedAdded.get());
     }
 
@@ -201,7 +206,7 @@ class McpToolClientBuilderTest {
     @DisplayName("close on freshly built client does not throw")
     void closeOnFreshClientDoesNotThrow() {
         McpToolClient client = McpToolClient.builder()
-                .transport(mockTransport)
+                .transport(transport())
                 .build();
 
         assertDoesNotThrow(client::close);
