@@ -27,8 +27,8 @@ class SessionStreamRegistryExtendedTest {
 
         assertEquals(1, got1.size());
         assertEquals(1, got2.size());
-        assertEquals("hello", got1.get(0).getDelta());
-        assertEquals("hello", got2.get(0).getDelta());
+        assertEquals("hello", got1.get(0).getTextDelta());
+        assertEquals("hello", got2.get(0).getTextDelta());
 
         d1.dispose();
         d2.dispose();
@@ -47,7 +47,7 @@ class SessionStreamRegistryExtendedTest {
         reg.publish("s1", StreamEvent.textDelta("after"));
 
         assertEquals(1, got.size(), "Should only see event published after subscription");
-        assertEquals("after", got.get(0).getDelta());
+        assertEquals("after", got.get(0).getTextDelta());
 
         d.dispose();
     }
@@ -92,9 +92,9 @@ class SessionStreamRegistryExtendedTest {
         reg.publish("b", StreamEvent.textDelta("for-b"));
 
         assertEquals(1, gotA.size());
-        assertEquals("for-a", gotA.get(0).getDelta());
+        assertEquals("for-a", gotA.get(0).getTextDelta());
         assertEquals(1, gotB.size());
-        assertEquals("for-b", gotB.get(0).getDelta());
+        assertEquals("for-b", gotB.get(0).getTextDelta());
 
         dA.dispose();
         dB.dispose();

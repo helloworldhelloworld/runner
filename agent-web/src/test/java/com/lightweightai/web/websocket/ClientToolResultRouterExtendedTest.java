@@ -49,7 +49,7 @@ class ClientToolResultRouterExtendedTest {
             verify(dispatcher).completeCall(eq("c-1"), captor.capture());
             ToolResult captured = captor.getValue();
             assertEquals("42", captured.getContent());
-            assertTrue(captured.isSuccess());
+            assertFalse(captured.isError());
         }
 
         @Test
@@ -66,7 +66,7 @@ class ClientToolResultRouterExtendedTest {
 
             ArgumentCaptor<ToolResult> captor = ArgumentCaptor.forClass(ToolResult.class);
             verify(dispatcher).completeCall(eq("c-err"), captor.capture());
-            assertFalse(captor.getValue().isSuccess());
+            assertTrue(captor.getValue().isError());
         }
 
         @Test
@@ -105,7 +105,7 @@ class ClientToolResultRouterExtendedTest {
 
             ArgumentCaptor<ToolResult> captor = ArgumentCaptor.forClass(ToolResult.class);
             verify(dispatcher).completeCall(eq("c-2"), captor.capture());
-            assertTrue(captor.getValue().isSuccess());
+            assertFalse(captor.getValue().isError());
         }
 
         @Test
@@ -163,7 +163,7 @@ class ClientToolResultRouterExtendedTest {
             ArgumentCaptor<ToolResult> captor = ArgumentCaptor.forClass(ToolResult.class);
             verify(dispatcher).completeCall(eq("d-json"), captor.capture());
             ToolResult result = captor.getValue();
-            assertTrue(result.isSuccess());
+            assertFalse(result.isError());
             assertNotNull(result.getStructuredContent(), "JSON content should be parsed into structuredContent");
             assertTrue(result.getStructuredContent().containsKey("header"));
         }
@@ -199,7 +199,7 @@ class ClientToolResultRouterExtendedTest {
 
             ArgumentCaptor<ToolResult> captor = ArgumentCaptor.forClass(ToolResult.class);
             verify(dispatcher).completeCall(eq("d-fail"), captor.capture());
-            assertFalse(captor.getValue().isSuccess());
+            assertTrue(captor.getValue().isError());
         }
 
         @Test
@@ -244,7 +244,7 @@ class ClientToolResultRouterExtendedTest {
 
             ArgumentCaptor<ToolResult> captor = ArgumentCaptor.forClass(ToolResult.class);
             verify(dispatcher).completeCall(eq("d-empty"), captor.capture());
-            assertTrue(captor.getValue().isSuccess());
+            assertFalse(captor.getValue().isError());
         }
     }
 
