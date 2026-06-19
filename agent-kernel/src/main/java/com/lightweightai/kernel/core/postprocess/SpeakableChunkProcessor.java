@@ -15,6 +15,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 注入 {@link EventType#SPEAKABLE_CHUNK} 事件，让下游 Voice Gateway 能"第一句还没说完就
  * 开始合成下一句"（首响低延迟，对话自然流畅的关键）。
  *
+ * <p><b>边界（重要）</b>：切块只作用于 LLM 的<b>输出</b>文本流，产物 {@code SPEAKABLE_CHUNK} 发给
+ * 下游 <b>TTS 播放</b>；<b>不</b>回灌给 LLM、<b>不</b>进对话历史 / 下一轮 prompt（那里始终是
+ * {@code LLM_COMPLETE} 携带的完整响应）。因此即使 eager 把首块在子句处切碎，模型侧与记忆侧
+ * 的语义始终完整——切碎只可能影响 TTS 首句韵律与该块的 emotion 判断，不影响"模型怎么理解"。
+ *
  * 行为：
  * - 原始 TEXT_DELTA 原样透传（不破坏既有文本流 / UI 逐字渲染）。
  * - 命中句子结束符（。！？!?；;…\n 及英文 . 后接空白）即切出一个可说块。
