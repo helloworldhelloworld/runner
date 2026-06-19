@@ -328,7 +328,8 @@ class ModelConfigControllerTest {
             // Now change config to something else
             LLMProvider otherProvider = mock(LLMProvider.class);
             when(otherProvider.getProviderName()).thenReturn("mock");
-            when(agentConfig.buildProvider("mock", "", "mock-model", ""))
+            // apiKey="" triggers the controller to keep the existing key ("sk-preset-key12")
+            when(agentConfig.buildProvider("mock", "sk-preset-key12", "mock-model", ""))
                     .thenReturn(otherProvider);
 
             Map<String, String> otherBody = new HashMap<>();
