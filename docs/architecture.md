@@ -421,6 +421,11 @@ runner 侧最小改动：① 可说块边界事件 ② 逐块 emotion ③ barge-
 语音/具身部署打开即在 `LLM_COMPLETE` 前发出带 emotion 的 `SPEAKABLE_CHUNK`，非语音部署不受影响、零额外开销。
 （开关为部署级粒度；当单个 runner 同时服务多 persona 时按 persona 精细闸控需把 persona 上下文透进后处理管道，列为后续。）
 
+**首响延迟杠杆**：`FirstChunkPolicy` 控制**首个**可说块多早成形（chunk_form，喂 TTS 的起点）。
+默认 `sentenceOnly()` 等整句；`eager` 给首块三条内容维度提前切边界（子句末 / `maxChars` 硬切 / 与句末取最早），
+外加 `maxWaitMillis` 时间维度兜底——自首个 `TEXT_DELTA` 起墙钟到点即整段 flush 首块，约束慢 token 下的 TTFA，
+见 [ADR-013](decisions/013-first-chunk-timed-flush.md)。是否接生产由延迟 spike bench 数据定（`docs/latency-spike-results.md`）。
+
 **脑 = 可切换 `ChatHandler`（[ADR-014](decisions/014-brain-swappable-chathandler-openclaw.md)）**：大脑平面的耦合点是
 `ChatHandler.chatStreamReactive` 产出的 `Flux<StreamEvent>` 与 `interrupt(sessionId)`；上面 ①②③ 的语音平面
 （可说块/emotion/序列化/WS/barge-in 入口）对 `ChatHandler` 实现**泛型无关**。故脑可切换：`Orchestrator`(native) /
@@ -445,4 +450,5 @@ loop/工具/compaction/历史归 OpenClaw，Pi 设备 MCP（ADR-008）挂 OpenCl
 | [010](decisions/010-visual-feedback-chain.md) | 视觉回灌链：tool frame → ImageContent → 下一轮多模态消息 |
 | [011](decisions/011-mcp-connection-resilience.md) | MCP 连接韧性：后台重连 + 自动注册（不依赖重启）|
 | [012](decisions/012-voice-text-plane-contract.md) | 语音文本平面契约 + 入站 barge-in（Voice Gateway ⟷ runner WS）|
+| [013](decisions/013-first-chunk-timed-flush.md) | 首块早发的时间维度兜底（max-wait timed flush）|
 | [014](decisions/014-brain-swappable-chathandler-openclaw.md) | 脑=可切换 ChatHandler SPI + OpenClaw 完整大脑适配 |

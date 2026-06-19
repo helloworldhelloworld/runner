@@ -6,7 +6,9 @@ import com.lightweightai.kernel.llm.LLMResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -144,5 +146,64 @@ class SpeakableChunkProcessorTest {
         assertEquals(List.of("abcde", "fg"), speakableTexts(Flux.just(
                 StreamEvent.textDelta("abcdefg"),
                 StreamEvent.llmComplete(LLMResponse.builder().build())), eager));
+    }
+
+    // ==================== 首块 max-wait 时间维度兜底（ADR-013）====================
+
+    @Test
+    @DisplayName("eager+maxWait：慢 token 无边界，到 maxWait 墙钟即整段 flush 首块（虚拟时钟）")
+    void eagerMaxWaitFlushesFirstChunkAfterTimeout() {
+        SpeakableChunkProcessor p = new SpeakableChunkProcessor(
+                EmotionClassifier.NEUTRAL,
+                // 子句符/字符上限都不命中，只剩时间兜底（maxWait=250ms）
+                SpeakableChunkProcessor.FirstChunkPolicy.eager("", 0, 250));
+
+        StepVerifier.withVirtualTime(() ->
+                        Flux.concat(
+                                Flux.just(StreamEvent.textDelta("我觉得")), // 无边界、未到字符上限
+                                Flux.<StreamEvent>never())                 // 静默：token 没续上
+                                .transform(p))
+                .expectNextMatches(e -> e.getType() == EventType.TEXT_DELTA)  // 原样透传
+                .expectNoEvent(Duration.ofMillis(249))                       // 还没到 maxWait，不发块
+                .thenAwait(Duration.ofMillis(1))                             // 跨过 250ms
+                .expectNextMatches(e -> e.getType() == EventType.SPEAKABLE_CHUNK
+                        && "我觉得".equals(e.getData().get("text"))
+                        && Integer.valueOf(0).equals(e.getData().get("index")))
+                .thenCancel()
+                .verify(Duration.ofSeconds(5));
+    }
+
+    @Test
+    @DisplayName("eager+maxWait：首块在 maxWait 前由子句边界切出 → 定时器取消、不重复发（虚拟时钟）")
+    void eagerMaxWaitCancelledWhenClauseHitsFirst() {
+        SpeakableChunkProcessor p = new SpeakableChunkProcessor(
+                EmotionClassifier.NEUTRAL,
+                SpeakableChunkProcessor.FirstChunkPolicy.eager("，", 0, 250));
+
+        StepVerifier.withVirtualTime(() ->
+                        Flux.concat(
+                                Flux.just(StreamEvent.textDelta("你好，")), // 子句边界即切首块
+                                Flux.<StreamEvent>never())
+                                .transform(p))
+                .expectNextMatches(e -> e.getType() == EventType.TEXT_DELTA)
+                .expectNextMatches(e -> e.getType() == EventType.SPEAKABLE_CHUNK
+                        && "你好，".equals(e.getData().get("text")))
+                .expectNoEvent(Duration.ofMillis(500)) // 跨过 maxWait，无重复 timeout 块
+                .thenCancel()
+                .verify(Duration.ofSeconds(5));
+    }
+
+    @Test
+    @DisplayName("maxWait 设了但边界都先到：结果与不设一致，时间兜底不误触、不挂尾延迟")
+    void maxWaitNoOpWhenBoundariesArriveFirst() {
+        SpeakableChunkProcessor p = new SpeakableChunkProcessor(
+                EmotionClassifier.NEUTRAL,
+                SpeakableChunkProcessor.FirstChunkPolicy.eager("，", 0, 250));
+        // 同步流、立即 complete：每个边界在 t≈0 命中，定时器（250ms）发火前即被取消
+        assertEquals(List.of("你好，", "我是小黄人。", "今天天气不错！"),
+                speakableTexts(Flux.just(
+                        StreamEvent.textDelta("你好，我是小黄人。"),
+                        StreamEvent.textDelta("今天天气不错！"),
+                        StreamEvent.llmComplete(LLMResponse.builder().build())), p));
     }
 }

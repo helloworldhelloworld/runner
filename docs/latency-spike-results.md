@@ -43,6 +43,8 @@ bench：`agent-kernel/src/test/java/com/lightweightai/kernel/bench/LatencySpikeB
 ## 杠杆增益（运行后填）
 
 - **首块 eager 早发**（子句/24 字符）：chunk_form P50 _默认 → eager_，降 _N_ ms。
+- **首块 max-wait 时间兜底**（[ADR-013](decisions/013-first-chunk-timed-flush.md)，`FirstChunkPolicy.eager(clause,maxChars,maxWaitMillis)`）：
+  慢 token / 长间隔下给首块墙钟上限；bench 默认未开（`maxWaitMillis=0`，保对比纯净），是否接生产看本表 chunk_form 是否主导。
 - 判断：首响主导段是 _（LLM_TTFT / chunk_form）_；要达 TTFA<1.3s，需 _（裁上下文/小模型/co-location / 全链 harness 验 STT+TTS）_。
 
 ## 结论与下一步（运行后填）
