@@ -2,7 +2,6 @@ package com.lightweightai.kernel.learn;
 
 import com.lightweightai.kernel.llm.ToolResult;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,98 +9,111 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("Trajectory - agent execution trace record")
+@DisplayName("Trajectory — immutable run trace record")
 class TrajectoryTest {
 
-    @Nested
-    @DisplayName("Record construction")
-    class Construction {
+    @Test
+    @DisplayName("record stores all fields correctly")
+    void storesAllFields() {
+        Trajectory.Step step = new Trajectory.Step("tool1", Map.of("k", "v"), ToolResult.success("ok"));
+        Trajectory t = new Trajectory("input", "sess-1", List.of(step), "final", "end_turn", false);
 
-        @Test
-        @DisplayName("stores all fields correctly")
-        void storesAllFields() {
-            var step = new Trajectory.Step("weather", Map.of("city", "Beijing"), ToolResult.success("sunny"));
-            var trajectory = new Trajectory("查天气", "session-1", List.of(step),
-                "北京今天晴天", "end_turn", false);
-
-            assertEquals("查天气", trajectory.userInput());
-            assertEquals("session-1", trajectory.sessionId());
-            assertEquals(1, trajectory.steps().size());
-            assertEquals("北京今天晴天", trajectory.finalText());
-            assertEquals("end_turn", trajectory.stopReason());
-            assertFalse(trajectory.errored());
-        }
-
-        @Test
-        @DisplayName("null steps becomes empty immutable list")
-        void nullStepsBecomesEmptyList() {
-            var trajectory = new Trajectory("input", "s1", null, "text", "end_turn", false);
-            assertNotNull(trajectory.steps());
-            assertTrue(trajectory.steps().isEmpty());
-        }
-
-        @Test
-        @DisplayName("steps list is defensively copied (immutable)")
-        void stepsListIsImmutable() {
-            var step = new Trajectory.Step("echo", Map.of("msg", "hi"), ToolResult.success("hi"));
-            var trajectory = new Trajectory("input", "s1", List.of(step), "text", "end_turn", false);
-
-            assertThrows(UnsupportedOperationException.class,
-                () -> trajectory.steps().add(new Trajectory.Step("x", Map.of(), ToolResult.success("y"))));
-        }
+        assertEquals("input", t.userInput());
+        assertEquals("sess-1", t.sessionId());
+        assertEquals(1, t.steps().size());
+        assertEquals("final", t.finalText());
+        assertEquals("end_turn", t.stopReason());
+        assertFalse(t.errored());
     }
 
-    @Nested
-    @DisplayName("Step record")
-    class StepTests {
+    @Test
+    @DisplayName("steps list is immutable copy")
+    void stepsImmutable() {
+        Trajectory.Step step = new Trajectory.Step("tool1", Map.of(), ToolResult.success("ok"));
+        Trajectory t = new Trajectory("input", "s", List.of(step), "done", "end_turn", false);
 
-        @Test
-        @DisplayName("stores tool name, arguments, and result")
-        void storesFields() {
-            var step = new Trajectory.Step("search",
-                Map.of("query", "java"), ToolResult.success("found 10 results"));
+        assertThrows(UnsupportedOperationException.class,
+                () -> t.steps().add(new Trajectory.Step("injected", Map.of(), ToolResult.success("bad"))));
+    }
 
-            assertEquals("search", step.toolName());
-            assertEquals("java", step.arguments().get("query"));
-            assertEquals("found 10 results", step.result().getContent());
-            assertFalse(step.isError());
-        }
+    @Test
+    @DisplayName("null steps becomes empty list")
+    void nullStepsBecomesEmpty() {
+        Trajectory t = new Trajectory("input", "s", null, "done", "end_turn", false);
+        assertNotNull(t.steps());
+        assertTrue(t.steps().isEmpty());
+    }
 
-        @Test
-        @DisplayName("null arguments becomes empty immutable map")
-        void nullArgumentsBecomesEmptyMap() {
-            var step = new Trajectory.Step("noop", null, ToolResult.success("ok"));
-            assertNotNull(step.arguments());
-            assertTrue(step.arguments().isEmpty());
-        }
+    @Test
+    @DisplayName("Step arguments are immutable copy")
+    void stepArgumentsImmutable() {
+        Trajectory.Step step = new Trajectory.Step("tool", Map.of("k", "v"), ToolResult.success("ok"));
+        assertThrows(UnsupportedOperationException.class,
+                () -> step.arguments().put("injected", "bad"));
+    }
 
-        @Test
-        @DisplayName("arguments map is defensively copied (immutable)")
-        void argumentsMapIsImmutable() {
-            var step = new Trajectory.Step("echo", Map.of("x", "1"), ToolResult.success("ok"));
-            assertThrows(UnsupportedOperationException.class,
-                () -> step.arguments().put("new", "value"));
-        }
+    @Test
+    @DisplayName("null arguments becomes empty map")
+    void nullArgumentsBecomesEmpty() {
+        Trajectory.Step step = new Trajectory.Step("tool", null, ToolResult.success("ok"));
+        assertNotNull(step.arguments());
+        assertTrue(step.arguments().isEmpty());
+    }
 
-        @Test
-        @DisplayName("isError returns true for error result")
-        void isErrorForErrorResult() {
-            var step = new Trajectory.Step("fail", Map.of(), ToolResult.error("boom"));
-            assertTrue(step.isError());
-        }
+    @Test
+    @DisplayName("Step.isError returns true when result is error")
+    void stepIsErrorTrue() {
+        Trajectory.Step step = new Trajectory.Step("tool", Map.of(), ToolResult.error("boom"));
+        assertTrue(step.isError());
+    }
 
-        @Test
-        @DisplayName("isError returns true for null result")
-        void isErrorForNullResult() {
-            var step = new Trajectory.Step("broken", Map.of(), null);
-            assertTrue(step.isError());
-        }
+    @Test
+    @DisplayName("Step.isError returns false when result is success")
+    void stepIsErrorFalse() {
+        Trajectory.Step step = new Trajectory.Step("tool", Map.of(), ToolResult.success("ok"));
+        assertFalse(step.isError());
+    }
 
-        @Test
-        @DisplayName("isError returns false for success result")
-        void isErrorForSuccessResult() {
-            var step = new Trajectory.Step("ok", Map.of(), ToolResult.success("done"));
-            assertFalse(step.isError());
-        }
+    @Test
+    @DisplayName("Step.isError returns true when result is null")
+    void stepIsErrorNullResult() {
+        Trajectory.Step step = new Trajectory.Step("tool", Map.of(), null);
+        assertTrue(step.isError());
+    }
+
+    @Test
+    @DisplayName("multiple steps preserve order")
+    void multipleStepsPreserveOrder() {
+        Trajectory.Step s1 = new Trajectory.Step("first", Map.of(), ToolResult.success("1"));
+        Trajectory.Step s2 = new Trajectory.Step("second", Map.of(), ToolResult.success("2"));
+        Trajectory.Step s3 = new Trajectory.Step("third", Map.of(), ToolResult.success("3"));
+
+        Trajectory t = new Trajectory("input", "s", List.of(s1, s2, s3), "done", "end_turn", false);
+
+        assertEquals("first", t.steps().get(0).toolName());
+        assertEquals("second", t.steps().get(1).toolName());
+        assertEquals("third", t.steps().get(2).toolName());
+    }
+
+    @Test
+    @DisplayName("errored=true flags the trajectory as failed")
+    void erroredFlag() {
+        Trajectory t = new Trajectory("input", "s", List.of(), "done", "end_turn", true);
+        assertTrue(t.errored());
+    }
+
+    @Test
+    @DisplayName("Step preserves complex arguments")
+    void stepComplexArguments() {
+        Map<String, Object> args = Map.of(
+                "text", "hello",
+                "count", 5,
+                "tags", List.of("a", "b")
+        );
+        Trajectory.Step step = new Trajectory.Step("tool", args, ToolResult.success("ok"));
+
+        assertEquals("hello", step.arguments().get("text"));
+        assertEquals(5, step.arguments().get("count"));
+        assertEquals(List.of("a", "b"), step.arguments().get("tags"));
     }
 }
