@@ -63,8 +63,15 @@ app:
 - 真 client：**faithful fake WS 对端**（RFC6455，仿 agent-mcp `MiniWebSocketServer`），真 client 端到端往返 + 失败时序；
   **不 mock 自己层**。
 
-## 开放问题（全在 OpenClaw 侧）
+## 已查证的 OpenClaw 协议（docs.openclaw.ai，2026-06-21）
 
-1. ACP 是否支持「无新输入纯取消在途 run」→ barge-in 真打断 vs 假停（续烧 token）。
-2. OpenClaw 事件流 / 线格式 → 定 `OpenClawEvent` 与 `WebSocketOpenClawClient`。
-3. OpenClaw MCP 挂 Pi 设备 server + agent 配置 API。
+JSON-RPC over WS（`wss://host:18789`，帧 `req`/`res`/`event`）：
+- 连接 `connect`（v3/4 + `auth.token` + scopes `operator.read/write` + 设备签名）。
+- 起 run：`chat.send {sessionKey, text, agentId}`。
+- token 流：`event` 帧 `event:"chat"` payload `{deltaText, message}`（v4）→ TEXT_DELTA。
+- **barge-in 真打断**：`chat.abort {sessionKey}` / `sessions.abort {key, runId?}`，协作式不拆 session（开放问题①✅）。
+- MCP 挂 Pi：`mcp.servers.<name>.{url, transport:"streamable-http"}`（ADR-008 直接对上，开放问题③✅）。
+- persona：agent workspace 引导文件 `SOUL.md`/`AGENTS.md`（无 per-agent `systemPrompt` 键）；agent 配置 `agents.list[].{id,model,tools.allow/deny/profile,skills}`。
+
+**残留（阻塞阶段3）**：run 开始/结束/取消、tool_use/tool_result 的确切事件名不在顶层 `frames.ts`，
+在 feature-specific（chat）schema 模块 —— 需读它把 `OpenClawEvent` 映射与 `RunEnd→LLM_COMPLETE` 坐实。

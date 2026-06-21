@@ -33,8 +33,9 @@ post-process 管道、barge-in 入口 R4）对 `ChatHandler` 的**具体实现�
 4. **不新增 StreamEvent 枚举**（守 ADR-005）：OpenClaw 内部事件在适配器内映射为既有 `TEXT_DELTA` / `LLM_COMPLETE`
    （以及可选的既有 tool 生命周期事件 / `TRACE`）。OpenClaw 的内部事件类型 `OpenClawEvent` 仅模块内可见，绝不外泄为 `StreamEvent` 枚举。
 
-5. **工具 / persona 让位 OpenClaw**：minion persona = OpenClaw agent 配置；Pi 设备 MCP（ADR-008 streamable_http：舵机/眼睛/摄像头）
-   挂 OpenClaw 的 MCP toolset。openclaw 模式下 runner 的 `ScopedToolRegistry` / risk policy 让位。
+5. **工具 / persona 让位 OpenClaw**：minion persona 落成 OpenClaw agent workspace 的引导文件 `SOUL.md`/`AGENTS.md`
+   （OpenClaw 无 per-agent `systemPrompt` 键，见开放问题③）；Pi 设备 MCP（ADR-008 streamable_http：舵机/眼睛/摄像头）
+   配 `mcp.servers.<name>.{url, transport:"streamable-http"}`。openclaw 模式下 runner 的 `ScopedToolRegistry` / risk policy 让位。
 
 6. **会话历史 / compaction 归 OpenClaw**：openclaw 模式下 runner 聊天环不写 `MemoryProvider`；runner 仅以 `sessionId` 映射
    OpenClaw session（`agent:minion:main:<sessionId>` ↔ OpenClaw session）。
@@ -46,9 +47,9 @@ post-process 管道、barge-in 入口 R4）对 `ChatHandler` 的**具体实现�
 - ✅ config 一键切；语音平面 / 序列化 / WS / barge-in 入口 / 安全检测**零改动**；拿到 OpenClaw runtime 红利
   （compaction / subagent / feature-flag / 多渠道 inbox）。
 - ✅ 适配器可在**不连真 OpenClaw** 时用 fake client 完整测通（缝 + 映射 + barge-in + 切换），与外部依赖解耦推进。
-- ⚠️ barge-in 真打断依赖 OpenClaw ACP「无新输入纯取消在途 run」；未证实则**降级**为停转发但 OpenClaw 续烧 token（开放问题①）。
+- ✅ barge-in 真打断成立：OpenClaw `chat.abort`/`sessions.abort` 协作式取消在途 run、不拆 session（开放问题①已查证）。
 - ⚠️ openclaw 模式下 runner 的工具治理 / risk policy 让位，移交 OpenClaw（取舍：通用度 ↔ 专用治理）。
-- ⚠️ 两脑契约对齐靠**假对端接缝测试**防漂；OpenClaw 事件流 / 取消语义是外部依赖（开放问题①②）。
+- ⚠️ 两脑契约对齐靠**假对端接缝测试**防漂；run-end/工具事件的确切名待读 OpenClaw chat schema 模块坐实（开放问题②残留）。
 - ⚠️ 历史归 OpenClaw → runner 侧记忆 / 学习链在 openclaw 模式下不积累（如需，另设单向同步，超本 ADR）。
 
 ## Alternatives rejected
@@ -59,8 +60,20 @@ post-process 管道、barge-in 入口 R4）对 `ChatHandler` 的**具体实现�
 
 （两方案对比详见 [architecture-todos/2026-06-19-openclaw-brain-swap.md](../../architecture-todos/2026-06-19-openclaw-brain-swap.md) §4。）
 
-## 开放问题（全在 OpenClaw 侧，阻塞真实现阶段，不阻塞适配器 + 假对端）
+## 开放问题（已查官方文档 docs.openclaw.ai，2026-06-21）
 
-1. OpenClaw ACP 是否支持「无新输入纯取消在途 run」→ 决定 barge-in 真打断 vs 假停。
-2. OpenClaw 事件流 / 线格式（token 增量 + run 开始 / 结束 / 取消）→ 定 `OpenClawEvent` 与 `WebSocketOpenClawClient`。
-3. OpenClaw MCP 挂 Pi 设备 server + agent 配置 API → 决定 §5 端到端。
+OpenClaw Gateway 是 **JSON-RPC over WebSocket**（`wss://host:18789`），帧 `req`/`res`/`event`；
+连接走 `connect`（protocol v3/4 + `auth.token` + scopes `operator.read/write` + 设备签名）。
+
+1. **✅ 已解：barge-in 真打断成立。** ACP `cancel` → Gateway `chat.abort {sessionKey}` / `sessions.abort {key, runId?}`，
+   **协作式、非破坏**：取消在途 run、把挂起 prompt 解析为 cancelled，session 不拆。无需发新消息。
+   → `OpenClawClient.cancel(runId)` 映射 `chat.abort`/`sessions.abort`，barge-in 是真打断不是假停。
+2. **🟡 部分解：线骨架清楚，run-end/工具事件名待定。** 起 run = `chat.send {sessionKey, text, agentId}`；
+   token 流 = `event` 帧 `event:"chat"`，payload `{deltaText（增量）, message（累计）}`（v4）；另有
+   `session.message`/`session.operation`/`session.tool`（transcript + 工具）+ `tick` keepalive。
+   **残留**：run 开始/结束/取消、tool_use/tool_result 的确切事件名不在顶层 `frames.ts`，在"feature-specific schema 模块"
+   （chat 模块）—— 阶段 3 实现前需读该模块把 `OpenClawEvent`/映射坐实（权威源：`packages/gateway-protocol`）。
+3. **✅ 已解：Pi MCP + persona 路径清楚。** MCP 挂载 = `mcp.servers.<name>.{url, transport:"streamable-http", timeout, toolFilter}`
+   —— Pi 设备 server（ADR-008 streamable_http）直接对上。agent 配置 = `agents.list[].{id, model, name, identity, tools.allow/deny/profile, skills}`；
+   **persona 不是 config 里的 systemPrompt 键**，而是 agent workspace 的引导文件 **`SOUL.md`/`AGENTS.md`** —— minion persona 要落成这两个文件（影响 §5/阶段4）。
+   agent 选择走 `bindings`（channel/account/peer 匹配）或 `chat.send` 的 `agentId`。
