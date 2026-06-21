@@ -17,7 +17,7 @@ final class FakeOpenClawClient implements OpenClawClient {
 
     private final Sinks.Many<OpenClawEvent> sink = Sinks.many().multicast().onBackpressureBuffer();
 
-    final List<String> cancelledRunIds = new CopyOnWriteArrayList<>();
+    final List<String> cancelled = new CopyOnWriteArrayList<>();   // 记录被 cancel 的 sessionId
     volatile OpenClawChatRequest lastRequest;
 
     @Override
@@ -27,8 +27,8 @@ final class FakeOpenClawClient implements OpenClawClient {
     }
 
     @Override
-    public void cancel(String openClawRunId) {
-        cancelledRunIds.add(openClawRunId);
+    public void cancel(String sessionId) {
+        cancelled.add(sessionId);
     }
 
     // ── 测试驱动 ──

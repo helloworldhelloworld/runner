@@ -101,8 +101,8 @@ class OpenClawChatHandlerAcceptanceTest {
         assertEquals(EventType.SPEECH_INTERRUPTED, interrupted.getType());
         assertEquals("r1", interrupted.getData().get("runId"));
         assertEquals("barge-in", interrupted.getData().get("reason"));
-        // (b) ACP cancel 真发给 OpenClaw（携正确 runId）
-        assertTrue(fake.cancelledRunIds.contains("r1"), "应向 OpenClaw 发 cancel(r1)");
+        // (b) ACP cancel 真发给 OpenClaw（按 sessionKey，chat.abort）
+        assertTrue(fake.cancelled.contains("s1"), "应向 OpenClaw 发 cancel(sessionId=s1)");
         // (c) 在途订阅已 dispose：后续 OpenClaw 事件不再到达下游
         fake.emit(new OpenClawEvent.Token("继续讲……"));
         assertEquals(before, out.size(), "打断后不应再转发 OpenClaw token");
@@ -115,6 +115,6 @@ class OpenClawChatHandlerAcceptanceTest {
         FakeOpenClawClient fake = new FakeOpenClawClient();
         OpenClawChatHandler handler = new OpenClawChatHandler(fake);
         assertNull(handler.interrupt("nope"));
-        assertTrue(fake.cancelledRunIds.isEmpty());
+        assertTrue(fake.cancelled.isEmpty());
     }
 }

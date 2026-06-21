@@ -30,19 +30,19 @@ class OpenClawRunTest {
         StreamEvent ev = run.interrupt(client);
 
         assertEquals(OpenClawRun.Phase.INTERRUPTED, run.phase());
-        assertTrue(client.cancelledRunIds.contains("r1"), "应 ACP cancel(r1)");
+        assertTrue(client.cancelled.contains("s1"), "应 chat.abort(sessionId=s1)");
         assertTrue(disposed.get(), "应 dispose 上游订阅");
         assertEquals(EventType.SPEECH_INTERRUPTED, ev.getType());
-        assertEquals("r1", ev.getData().get("runId"));
+        assertEquals("r1", ev.getData().get("runId"), "speech_interrupted 携 best-effort runId");
         assertEquals("barge-in", ev.getData().get("reason"));
     }
 
     @Test
-    @DisplayName("cancelUpstream 幂等：runId 为空 / 订阅已 dispose 不报错")
-    void cancelUpstreamIdempotent() {
+    @DisplayName("cancelUpstream 按 sessionId 取消、无订阅也不报错（幂等）")
+    void cancelUpstreamBySessionIdAndIdempotent() {
         FakeOpenClawClient client = new FakeOpenClawClient();
-        OpenClawRun run = new OpenClawRun("s1");   // 未设 runId / subscription
+        OpenClawRun run = new OpenClawRun("s1");   // 未设 subscription
         assertDoesNotThrow(() -> run.cancelUpstream(client));
-        assertTrue(client.cancelledRunIds.isEmpty(), "runId 为空时不应发 cancel");
+        assertTrue(client.cancelled.contains("s1"), "应按 sessionId 发 chat.abort");
     }
 }

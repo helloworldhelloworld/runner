@@ -3,52 +3,122 @@ package com.lightweightai.openclaw.ws;
 import com.lightweightai.openclaw.OpenClawChatRequest;
 import com.lightweightai.openclaw.OpenClawClient;
 import com.lightweightai.openclaw.OpenClawEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.WebSocket;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
- * 真实 OpenClaw 客户端：WS 连 OpenClaw Gateway，讲 ACP/Gateway 协议（ADR-014 阶段 3）。
+ * 真实 OpenClaw 客户端：WS 连 OpenClaw Gateway，讲其 JSON-RPC 协议（ADR-014 阶段3）。
+ * 用 JDK {@link java.net.http.WebSocket}（无额外依赖，同 agent-mcp 的真 WS transport），帧编解码见
+ * {@link OpenClawProtocol}。
  *
- * <p><b>骨架占位</b>：协议已查证（docs.openclaw.ai），仅剩一个残留挡住落地。本类<b>构造时不连接</b>（只存 url），
- * {@link #chat}/{@link #cancel} 在真实现前抛 {@link UnsupportedOperationException}，以便 {@code BrainConfig}
- * 在 {@code app.brain.type=openclaw} 时能装配 + 容器测试选脑，而不误连。
+ * <p><b>一轮一连接</b>：{@link #chat} 每轮开一条 WS，{@code connect} → {@code chat.send} → 流式
+ * {@code event:"chat"}（{@link OpenClawProtocol#parseEvent state 机}）→ {@code RunEnd} 收尾即完成关连接。
+ * {@link #cancel} 按 sessionId 在该连接上发 {@code chat.abort}（barge-in）。
  *
- * <p><b>已查证的协议</b>（JSON-RPC over WS，帧 {@code req}/{@code res}/{@code event}，{@code wss://host:18789}）：
- * <ul>
- *   <li>连接：{@code connect}（protocol v3/4 + {@code auth.token} + scopes {@code operator.read/write} + 设备签名）。</li>
- *   <li>起 run：{@code chat.send {sessionKey, text, agentId}}。</li>
- *   <li>run 生命周期：{@code event} 帧 {@code event:"chat"} payload 带 {@code state} 判别（{@code logs-chat.ts}）：
- *       {@code "delta"}{@code {deltaText,message?,replace?}}→{@code Token}/TEXT_DELTA；
- *       {@code "final"}{@code {stopReason?}}→{@code RunEnd}/LLM_COMPLETE；
- *       {@code "error"}{@code {errorKind}}→{@code ErrorEvent}；{@code "aborted"}→终态。</li>
- *   <li>打断（barge-in）：{@code chat.abort {sessionKey, agentId?, runId?}}（runId 可选，可仅凭 sessionKey），协作式不拆 session。</li>
- * </ul>
- * <p><b>残留（不阻塞语音路径）</b>：{@code session.tool}（tool_use/tool_result）payload 在别处 —— 仅影响可选
- * {@code forwardToolTrace} 观测；语音路径默认隐藏工具事件，故 {@code chat} 的 state 机已足够实现 RunEnd→LLM_COMPLETE。
- *
- * <p>实现要点（ADR-014 / docs/modules/agent-openclaw.md）：复用 agent-mcp WS transport + ADR-011 连接韧性
- * （后台重连、send 前就绪信号、不静默吞超时）；用 faithful fake 对端做往返 + 失败时序接缝测试。
+ * <p><b>简化点（TODO 真网关）</b>：{@code connect} 省 challenge-response + 设备签名；
+ * 持久连接复用 + ADR-011 重连韧性为后续优化（当前一轮一连接，验证语义为先）。本版对忠实假对端
+ * （{@code FakeOpenClawServer}）打通往返/打断/失败时序；真网关 auth 待补。
  */
 public final class WebSocketOpenClawClient implements OpenClawClient {
 
-    private final String url;
+    private static final Logger log = LoggerFactory.getLogger(WebSocketOpenClawClient.class);
+
+    private final URI uri;
+    private final String token;
+    private final HttpClient http = HttpClient.newHttpClient();
+    private final ConcurrentHashMap<String, WebSocket> activeBySession = new ConcurrentHashMap<>();
+    private final AtomicLong ids = new AtomicLong();
 
     public WebSocketOpenClawClient(String url) {
-        this.url = url;   // 不在构造时连接
+        this(url, null);
     }
 
-    public String url() {
-        return url;
-    }
-
-    @Override
-    public Flux<OpenClawEvent> chat(OpenClawChatRequest request) {
-        return Flux.error(new UnsupportedOperationException(
-                "WebSocketOpenClawClient 真协议未实现（ADR-014 阶段 3，待 OpenClaw 侧开放问题解掉）"));
+    public WebSocketOpenClawClient(String url, String token) {
+        this.uri = URI.create(url);
+        this.token = token;
     }
 
     @Override
-    public void cancel(String openClawRunId) {
-        throw new UnsupportedOperationException(
-                "WebSocketOpenClawClient 真协议未实现（ADR-014 阶段 3）");
+    public Flux<OpenClawEvent> chat(OpenClawChatRequest req) {
+        return Flux.create(sink -> {
+            StringBuilder buf = new StringBuilder();   // 重组可能分片的 text 帧
+            WebSocket.Listener listener = new WebSocket.Listener() {
+                @Override
+                public void onOpen(WebSocket ws) {
+                    ws.request(1);
+                }
+
+                @Override
+                public CompletionStage<?> onText(WebSocket ws, CharSequence data, boolean last) {
+                    buf.append(data);
+                    if (last) {
+                        String msg = buf.toString();
+                        buf.setLength(0);
+                        OpenClawProtocol.parseEvent(msg).ifPresent(ev -> {
+                            if (ev instanceof OpenClawEvent.ErrorEvent e) {
+                                sink.error(e.cause());
+                            } else {
+                                sink.next(ev);
+                                if (ev instanceof OpenClawEvent.RunEnd) {
+                                    sink.complete();   // run 结束 → 流完成（下游收 LLM_COMPLETE 后停）
+                                }
+                            }
+                        });
+                    }
+                    ws.request(1);
+                    return null;
+                }
+
+                @Override
+                public CompletionStage<?> onClose(WebSocket ws, int statusCode, String reason) {
+                    sink.complete();
+                    return null;
+                }
+
+                @Override
+                public void onError(WebSocket ws, Throwable error) {
+                    sink.error(error);
+                }
+            };
+
+            http.newWebSocketBuilder().buildAsync(uri, listener).whenComplete((ws, err) -> {
+                if (err != null) {
+                    sink.error(err);   // connect 失败 → 快失败带真因
+                    return;
+                }
+                activeBySession.put(req.sessionId(), ws);
+                ws.sendText(OpenClawProtocol.connect(nextId(), token, 3, 4), true)
+                        .thenCompose(w -> w.sendText(OpenClawProtocol.chatSend(nextId(), req), true))
+                        .exceptionally(t -> { sink.error(t); return null; });
+            });
+
+            // 下游取消 / 完成 / 出错 → 摘除并关连接（barge-in 时 cancel 已先发过 chat.abort）
+            sink.onDispose(() -> {
+                WebSocket ws = activeBySession.remove(req.sessionId());
+                if (ws != null && !ws.isOutputClosed()) {
+                    ws.sendClose(WebSocket.NORMAL_CLOSURE, "done");
+                }
+            });
+        });
+    }
+
+    @Override
+    public void cancel(String sessionId) {
+        WebSocket ws = activeBySession.get(sessionId);
+        if (ws != null && !ws.isOutputClosed()) {
+            ws.sendText(OpenClawProtocol.chatAbort(nextId(), sessionId), true);   // chat.abort {sessionKey}
+        }
+    }
+
+    private String nextId() {
+        return Long.toString(ids.incrementAndGet());
     }
 }

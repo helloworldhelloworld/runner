@@ -21,9 +21,12 @@ public interface OpenClawClient {
     Flux<OpenClawEvent> chat(OpenClawChatRequest request);
 
     /**
-     * 取消在途 run（ACP cancel）。幂等；未知 / 已结束的 runId 应静默无副作用。
+     * 取消某会话的在途 run（OpenClaw {@code chat.abort {sessionKey}}）。幂等；无在途 run 应静默无副作用。
      *
-     * @param openClawRunId {@link OpenClawEvent.RunStarted} 携带的 runId
+     * <p><b>按 sessionId 取消，而非 runId</b>：OpenClaw 的 {@code chat.abort} 以 {@code sessionKey} 打断
+     * （{@code runId} 可选），见 ADR-014 开放问题①。
+     *
+     * @param sessionId 会话标识（= OpenClaw {@code sessionKey}）
      */
-    void cancel(String openClawRunId);
+    void cancel(String sessionId);
 }

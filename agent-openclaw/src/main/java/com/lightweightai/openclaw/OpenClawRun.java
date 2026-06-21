@@ -41,10 +41,7 @@ final class OpenClawRun {
 
     /** 取消上游 OpenClaw run + dispose 订阅（幂等）。下游取消（WS 断）时也走此路，省 token。 */
     void cancelUpstream(OpenClawClient client) {
-        String runId = openClawRunId;
-        if (runId != null) {
-            client.cancel(runId);
-        }
+        client.cancel(sessionId);   // OpenClaw 按 sessionKey 打断（chat.abort），runId 可选
         Disposable d = subscription;
         if (d != null && !d.isDisposed()) {
             d.dispose();

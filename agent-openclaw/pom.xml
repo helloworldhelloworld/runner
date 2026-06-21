@@ -30,6 +30,12 @@
             <artifactId>reactor-core</artifactId>
         </dependency>
 
+        <!-- JSON 编解码（OpenClaw 线协议） -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>

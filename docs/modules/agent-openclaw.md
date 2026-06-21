@@ -73,5 +73,15 @@ JSON-RPC over WS（`wss://host:18789`，帧 `req`/`res`/`event`）：
 - MCP 挂 Pi：`mcp.servers.<name>.{url, transport:"streamable-http"}`（ADR-008 直接对上，开放问题③✅）。
 - persona：agent workspace 引导文件 `SOUL.md`/`AGENTS.md`（无 per-agent `systemPrompt` 键）；agent 配置 `agents.list[].{id,model,tools.allow/deny/profile,skills}`。
 
-**残留（阻塞阶段3）**：run 开始/结束/取消、tool_use/tool_result 的确切事件名不在顶层 `frames.ts`，
-在 feature-specific（chat）schema 模块 —— 需读它把 `OpenClawEvent` 映射与 `RunEnd→LLM_COMPLETE` 坐实。
+run 生命周期 = `event:"chat"` 的 `state`（`logs-chat.ts`）：`delta{deltaText}`→Token、`final{stopReason?}`→RunEnd、
+`error{errorKind}`→ErrorEvent、`aborted`→终态。编解码见 `ws/OpenClawProtocol`。
+
+## 实现状态（阶段3，2026-06-21）
+
+- ✅ `OpenClawProtocol`（codec，Jackson，纯函数单测）+ `WebSocketOpenClawClient`（JDK `java.net.http.WebSocket`，
+  一轮一连接：connect→chat.send→chat state 流→RunEnd 完成；cancel 按 sessionKey 发 chat.abort）。
+- ✅ 接缝测试 `WebSocketOpenClawRoundTripTest`：真客户端 ⟷ 假对端 `FakeOpenClawServer`（真 RFC-6455 + chat 协议）——
+  往返、barge-in（含经 handler 端到端）、连接失败快失败。
+- ⏳ **真用待补**（非本仓代码）：① 真 OpenClaw Gateway 实例；② `connect` 的 auth 握手（challenge + 设备签名，当前简化）；
+  ③ `session.tool` payload（仅 `forwardToolTrace` 观测用）；④ 持久连接复用 + ADR-011 重连韧性（当前一轮一连接）；
+  ⑤ persona `SOUL.md`/`AGENTS.md` + Pi MCP 挂载（OpenClaw 仓）。建议保留一个对真网关的周期 smoke 作 backstop。

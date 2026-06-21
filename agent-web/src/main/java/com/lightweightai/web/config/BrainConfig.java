@@ -28,12 +28,15 @@ public class BrainConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(BrainConfig.class);
 
-    /** OpenClaw 客户端（仅 openclaw 模式装配）。真协议为 ADR-014 阶段 3 占位骨架。 */
+    /**
+     * OpenClaw 客户端（仅 openclaw 模式装配，ADR-014 阶段3）。WS/JSON-RPC 真协议已实现并对忠实假对端验证；
+     * <b>真用需一个真 OpenClaw Gateway 在 {@code app.openclaw.url} + 补 auth 握手（challenge/设备签名）</b>，否则 chat 连接报错。
+     */
     @Bean
     @ConditionalOnProperty(name = "app.brain.type", havingValue = "openclaw")
     public OpenClawClient openClawClient(@Value("${app.openclaw.url:ws://127.0.0.1:18789}") String url) {
-        logger.warn("Brain = OpenClaw（app.brain.type=openclaw）：WebSocketOpenClawClient 真协议为阶段3占位，"
-                + "chat 落地前会报错。url={}", url);
+        logger.info("Brain = OpenClaw（app.brain.type=openclaw）：WebSocketOpenClawClient → {}"
+                + "（真协议已实现/假对端验证；真网关需 auth 握手）", url);
         return new WebSocketOpenClawClient(url);
     }
 
