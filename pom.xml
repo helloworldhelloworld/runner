@@ -75,6 +75,11 @@
             </dependency>
             <dependency>
                 <groupId>com.lightweightai</groupId>
+                <artifactId>agent-openclaw</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.lightweightai</groupId>
                 <artifactId>agent-sdk</artifactId>
                 <version>${project.version}</version>
             </dependency>
