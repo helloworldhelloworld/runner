@@ -16,11 +16,14 @@ import reactor.core.publisher.Flux;
  * <ul>
  *   <li>连接：{@code connect}（protocol v3/4 + {@code auth.token} + scopes {@code operator.read/write} + 设备签名）。</li>
  *   <li>起 run：{@code chat.send {sessionKey, text, agentId}}。</li>
- *   <li>token 流：{@code event} 帧 {@code event:"chat"}，payload {@code {deltaText（增量）, message（累计）}}（v4）→ 映射 TEXT_DELTA。</li>
- *   <li>打断（barge-in）：{@code chat.abort {sessionKey}} / {@code sessions.abort {key, runId?}}，协作式、不拆 session。</li>
+ *   <li>run 生命周期：{@code event} 帧 {@code event:"chat"} payload 带 {@code state} 判别（{@code logs-chat.ts}）：
+ *       {@code "delta"}{@code {deltaText,message?,replace?}}→{@code Token}/TEXT_DELTA；
+ *       {@code "final"}{@code {stopReason?}}→{@code RunEnd}/LLM_COMPLETE；
+ *       {@code "error"}{@code {errorKind}}→{@code ErrorEvent}；{@code "aborted"}→终态。</li>
+ *   <li>打断（barge-in）：{@code chat.abort {sessionKey, agentId?, runId?}}（runId 可选，可仅凭 sessionKey），协作式不拆 session。</li>
  * </ul>
- * <p><b>残留（阻塞落地）</b>：run 开始/结束/取消、tool_use/tool_result 的确切事件名不在顶层 {@code frames.ts}，
- * 在 OpenClaw 的 feature-specific（chat）schema 模块；需读该模块把 {@link OpenClawEvent} 映射坐实，才能可靠发 {@code RunEnd→LLM_COMPLETE}。
+ * <p><b>残留（不阻塞语音路径）</b>：{@code session.tool}（tool_use/tool_result）payload 在别处 —— 仅影响可选
+ * {@code forwardToolTrace} 观测；语音路径默认隐藏工具事件，故 {@code chat} 的 state 机已足够实现 RunEnd→LLM_COMPLETE。
  *
  * <p>实现要点（ADR-014 / docs/modules/agent-openclaw.md）：复用 agent-mcp WS transport + ADR-011 连接韧性
  * （后台重连、send 前就绪信号、不静默吞超时）；用 faithful fake 对端做往返 + 失败时序接缝测试。

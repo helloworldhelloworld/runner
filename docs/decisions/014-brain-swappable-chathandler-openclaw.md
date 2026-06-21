@@ -68,11 +68,14 @@ OpenClaw Gateway 是 **JSON-RPC over WebSocket**（`wss://host:18789`），帧 `
 1. **✅ 已解：barge-in 真打断成立。** ACP `cancel` → Gateway `chat.abort {sessionKey}` / `sessions.abort {key, runId?}`，
    **协作式、非破坏**：取消在途 run、把挂起 prompt 解析为 cancelled，session 不拆。无需发新消息。
    → `OpenClawClient.cancel(runId)` 映射 `chat.abort`/`sessions.abort`，barge-in 是真打断不是假停。
-2. **🟡 部分解：线骨架清楚，run-end/工具事件名待定。** 起 run = `chat.send {sessionKey, text, agentId}`；
-   token 流 = `event` 帧 `event:"chat"`，payload `{deltaText（增量）, message（累计）}`（v4）；另有
-   `session.message`/`session.operation`/`session.tool`（transcript + 工具）+ `tick` keepalive。
-   **残留**：run 开始/结束/取消、tool_use/tool_result 的确切事件名不在顶层 `frames.ts`，在"feature-specific schema 模块"
-   （chat 模块）—— 阶段 3 实现前需读该模块把 `OpenClawEvent`/映射坐实（权威源：`packages/gateway-protocol`）。
+2. **✅ 已解（语音路径）：run 生命周期由 `chat` 事件的 `state` 判别承载。** 起 run = `chat.send {sessionKey, text, agentId}`；
+   `event` 帧 `event:"chat"` payload 带 `state`（源：`gateway-protocol/src/schema/logs-chat.ts`）：
+   - `state:"delta"` → `{deltaText, message?, replace?, usage?}` → `Token` → **TEXT_DELTA**
+   - `state:"final"` → `{message?, usage?, stopReason?}` → `RunEnd` → **LLM_COMPLETE**
+   - `state:"error"` → `{errorMessage?, errorKind: refusal|timeout|rate_limit|context_length|unknown}` → `ErrorEvent`
+   - `state:"aborted"` → 打断后的终态
+   打断：`chat.abort {sessionKey, agentId?, runId?}`（**runId 可选** → 可仅凭 sessionKey 打断）。`session.operation` 仅 `compact` 的 start/end（compaction，非 run 生命周期，无关）。
+   **残留（非阻塞语音）**：`session.tool`（tool_use/tool_result）payload 定义在别处 —— 仅影响可选 `forwardToolTrace` 观测，语音路径默认隐藏工具事件,不阻塞。
 3. **✅ 已解：Pi MCP + persona 路径清楚。** MCP 挂载 = `mcp.servers.<name>.{url, transport:"streamable-http", timeout, toolFilter}`
    —— Pi 设备 server（ADR-008 streamable_http）直接对上。agent 配置 = `agents.list[].{id, model, name, identity, tools.allow/deny/profile, skills}`；
    **persona 不是 config 里的 systemPrompt 键**，而是 agent workspace 的引导文件 **`SOUL.md`/`AGENTS.md`** —— minion persona 要落成这两个文件（影响 §5/阶段4）。
