@@ -9,6 +9,8 @@ import com.lightweightai.kernel.testsupport.CapturingLLMProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -164,9 +166,14 @@ class AgentLoopToolDefinitionTransmissionTest {
     }
 
     private static class NoOpMemory implements MemoryProvider {
-        @Override public void addMessage(String sessionId, Message message) {}
-        @Override public List<Message> getHistory(String sessionId, int limit) { return List.of(); }
-        @Override public void clearSession(String sessionId) {}
+        private final List<Message> messages = Collections.synchronizedList(new ArrayList<>());
+
+        @Override public void addMessage(String sessionId, Message message) { messages.add(message); }
+        @Override public List<Message> getHistory(String sessionId, int limit) {
+            int start = Math.max(0, messages.size() - limit);
+            return new ArrayList<>(messages.subList(start, messages.size()));
+        }
+        @Override public void clearSession(String sessionId) { messages.clear(); }
         @Override public void writeEphemeral(String content) {}
         @Override public void writeDurable(String section, String content) {}
         @Override public List<MemorySearchResult> search(String query) { return List.of(); }
