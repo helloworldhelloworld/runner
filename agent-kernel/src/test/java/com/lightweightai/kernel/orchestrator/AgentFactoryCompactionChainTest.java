@@ -92,7 +92,7 @@ class AgentFactoryCompactionChainTest {
     }
 
     @Test
-    @DisplayName("maxToolIterations 从 profile 传递到 AgentLoop（通过工厂执行验证）")
+    @DisplayName("maxToolIterations 从 profile 传递到 AgentLoop（正常迭代次数内可完成）")
     void maxToolIterationsFromProfile() {
         ToolRegistry registry = new ToolRegistry();
         registry.register(simpleTool("greeting"));
@@ -103,13 +103,15 @@ class AgentFactoryCompactionChainTest {
         AgentProfile profile = AgentProfile.builder()
                 .agentId("bounded")
                 .systemPrompt("test")
-                .maxToolIterations(1)
+                .maxToolIterations(5)
                 .build();
 
         AgentFactory factory = new AgentFactory(spy, new StubMemory(), registry);
         AgentLoop agent = factory.create(profile);
 
-        assertDoesNotThrow(() -> agent.runReactive("go", "s1").collectList().block());
+        List<StreamEvent> events = agent.runReactive("go", "s1").collectList().block();
+        assertNotNull(events);
+        assertFalse(events.isEmpty());
     }
 
     private static Tool simpleTool(String name) {

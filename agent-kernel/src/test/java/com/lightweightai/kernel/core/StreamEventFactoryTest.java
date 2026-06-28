@@ -106,21 +106,22 @@ class StreamEventFactoryTest {
     }
 
     @Test
-    @DisplayName("speakableChunk 事件带 emotion")
+    @DisplayName("speakableChunk 事件带 emotion（存储在 data map 中）")
     void speakableChunkWithEmotion() {
         StreamEvent event = StreamEvent.speakableChunk("Hello world", 0, "excited");
         assertEquals(StreamEvent.EventType.SPEAKABLE_CHUNK, event.getType());
         assertEquals("Hello world", event.getTextDelta());
-        assertEquals("excited", event.getMetadata().get("emotion"));
-        assertEquals(0, event.getMetadata().get("index"));
+        assertEquals("excited", event.getData().get("emotion"));
+        assertEquals(0, event.getData().get("index"));
+        assertEquals("speakable", event.getCategory());
     }
 
     @Test
-    @DisplayName("speakableChunk 默认 emotion 为 neutral")
+    @DisplayName("speakableChunk 默认 emotion 为 neutral（存储在 data map 中）")
     void speakableChunkDefaultEmotion() {
         StreamEvent event = StreamEvent.speakableChunk("text", 1);
-        assertEquals("neutral", event.getMetadata().get("emotion"));
-        assertEquals(1, event.getMetadata().get("index"));
+        assertEquals("neutral", event.getData().get("emotion"));
+        assertEquals(1, event.getData().get("index"));
     }
 
     @Test
@@ -151,11 +152,10 @@ class StreamEventFactoryTest {
     }
 
     @Test
-    @DisplayName("getData() 对 null data 返回空 map")
-    void getDataReturnsEmptyMapForNull() {
+    @DisplayName("getData() 对无 data 的事件返回 null（与 getMetadata 不同）")
+    void getDataReturnsNullWhenNotSet() {
         StreamEvent event = StreamEvent.textDelta("hi");
-        Map<String, Object> data = event.getData();
-        assertNotNull(data);
+        assertNull(event.getData());
     }
 
     @Test
