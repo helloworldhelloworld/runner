@@ -5,7 +5,9 @@ import com.lightweightai.user.model.SoulUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,14 +15,18 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("UserService - 业务逻辑验证")
 class UserServiceBusinessLogicTest {
 
-    private InMemoryUserRepository userRepo;
-    private InMemoryEmotionRepository emotionRepo;
+    private UserRepository userRepo;
+    private EmotionRepository emotionRepo;
     private UserService service;
+
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void setUp() {
-        userRepo = new InMemoryUserRepository();
-        emotionRepo = new InMemoryEmotionRepository();
+        String dbPath = tempDir.resolve("biz_test.db").toString();
+        userRepo = new UserRepository(dbPath);
+        emotionRepo = new EmotionRepository(dbPath);
         service = new UserService(userRepo, emotionRepo);
     }
 
@@ -174,21 +180,5 @@ class UserServiceBusinessLogicTest {
     void findByUsernameNotFound() {
         Optional<SoulUser> found = service.findByUsername("nonexistent");
         assertFalse(found.isPresent());
-    }
-
-    // ==================== In-memory test doubles ====================
-
-    static class InMemoryUserRepository extends UserRepository {
-        private final Map<String, SoulUser> store = new LinkedHashMap<>();
-
-        InMemoryUserRepository() {
-            super(":memory:");
-        }
-    }
-
-    static class InMemoryEmotionRepository extends EmotionRepository {
-        InMemoryEmotionRepository() {
-            super(":memory:");
-        }
     }
 }
