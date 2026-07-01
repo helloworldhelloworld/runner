@@ -252,7 +252,11 @@ class OrchestratorTest {
         }
 
         @Override public LLMResponse complete(List<ConversationMessage> m, LLMOptions o) {
-            return LLMResponse.builder().stopReason("end_turn").build();
+            return LLMResponse.builder()
+                    .message(ConversationMessage.builder()
+                            .role(ConversationMessage.MessageRole.ASSISTANT)
+                            .textContent(response).build())
+                    .stopReason("end_turn").build();
         }
         @Override public CompletableFuture<LLMResponse> completeAsync(List<ConversationMessage> m, LLMOptions o) {
             return CompletableFuture.completedFuture(complete(m, o));

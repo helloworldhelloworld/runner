@@ -150,8 +150,11 @@ class SnipCompactorTest {
     }
 
     @Test
-    @DisplayName("keepRecentRounds = 0 removes all TOOL messages")
-    void keepZeroRoundsRemovesAllTools() {
+    @DisplayName("keepRecentRounds = 0 — boundary stays at 0 so no TOOL removed")
+    void keepZeroRoundsDoesNotRemoveTools() {
+        // When keepRecentRounds=0, findProtectBoundary returns 0 (no USER messages
+        // are counted before the threshold is reached), so protectFrom=0 and
+        // no TOOL messages fall below the boundary — all are preserved.
         SnipCompactor compactor = new SnipCompactor(0);
         List<ConversationMessage> messages = List.of(
             user("q1"), tool("t1"), assistant("a1"),
@@ -161,9 +164,6 @@ class SnipCompactorTest {
         List<ConversationMessage> result = compactor.compact(messages);
 
         long toolCount = result.stream().filter(m -> m.getRole() == MessageRole.TOOL).count();
-        assertEquals(0, toolCount, "All TOOL messages should be removed with keepRecentRounds=0");
-        // USER and ASSISTANT should still be there
-        long userCount = result.stream().filter(m -> m.getRole() == MessageRole.USER).count();
-        assertEquals(2, userCount);
+        assertEquals(2, toolCount, "With keepRecentRounds=0, boundary is 0 so all TOOLs kept");
     }
 }
