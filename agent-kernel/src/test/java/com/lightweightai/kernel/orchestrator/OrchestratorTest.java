@@ -5,7 +5,9 @@ import com.lightweightai.kernel.agent.AgentProfile;
 import com.lightweightai.kernel.agent.AgentRegistry;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.gateway.ChatHandler;
 import com.lightweightai.kernel.gateway.GatewayRequest;
+import com.lightweightai.kernel.gateway.GatewayResponse;
 import com.lightweightai.kernel.llm.*;
 import com.lightweightai.kernel.memory.MemoryProvider;
 import com.lightweightai.kernel.memory.MemorySearchResult;
@@ -19,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -100,6 +103,132 @@ class OrchestratorTest {
         assertNotNull(events);
         // 第二次应正常完成
         assertTrue(events.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.LLM_COMPLETE));
+    }
+
+    @Test
+    @DisplayName("interrupt on unknown session returns null")
+    void interruptUnknownSessionReturnsNull() {
+        CountingProvider provider = new CountingProvider("ok");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        StreamEvent result = orchestrator.interrupt("nonexistent-session");
+
+        assertNull(result, "interrupt on unknown session should return null");
+    }
+
+    @Test
+    @DisplayName("interrupt with null sessionId returns null")
+    void interruptNullSessionReturnsNull() {
+        CountingProvider provider = new CountingProvider("ok");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        StreamEvent result = orchestrator.interrupt(null);
+
+        assertNull(result, "interrupt with null sessionId should return null");
+    }
+
+    @Test
+    @DisplayName("chatStreamReactive emits TEXT_DELTA and LLM_COMPLETE events")
+    void chatStreamReactiveEmitsTextAndComplete() {
+        CountingProvider provider = new CountingProvider("hello world");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        GatewayRequest request = GatewayRequest.builder()
+                .sessionId("sess-4")
+                .message("test")
+                .build();
+
+        List<StreamEvent> events = orchestrator.chatStreamReactive(request).collectList().block();
+
+        assertNotNull(events);
+        assertTrue(events.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.TEXT_DELTA),
+                "Should emit TEXT_DELTA");
+        assertTrue(events.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.LLM_COMPLETE),
+                "Should emit LLM_COMPLETE");
+    }
+
+    @Test
+    @DisplayName("sync chat returns GatewayResponse with text")
+    void syncChatReturnsGatewayResponse() {
+        CountingProvider provider = new CountingProvider("sync response");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        GatewayRequest request = GatewayRequest.builder()
+                .sessionId("sess-5")
+                .requestId("req-1")
+                .message("sync test")
+                .build();
+
+        var response = orchestrator.chat(request);
+
+        assertNotNull(response);
+        assertEquals("req-1", response.getRequestId());
+    }
+
+    @Test
+    @DisplayName("subscribeTriggerSource and unsubscribe lifecycle")
+    void triggerSourceLifecycle() {
+        CountingProvider provider = new CountingProvider("ok");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        TriggerSource source = new TriggerSource() {
+            @Override public String name() { return "test-trigger"; }
+            @Override public reactor.core.publisher.Flux<GatewayRequest> requests() {
+                return reactor.core.publisher.Flux.empty();
+            }
+        };
+
+        // subscribe should not throw
+        orchestrator.subscribeTriggerSource(source);
+        // unsubscribe should not throw
+        orchestrator.unsubscribeTriggerSource("test-trigger");
+        // unsubscribing again should be a no-op
+        orchestrator.unsubscribeTriggerSource("test-trigger");
+    }
+
+    @Test
+    @DisplayName("shutdown completes without error")
+    void shutdownCompletesCleanly() {
+        CountingProvider provider = new CountingProvider("ok");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        assertDoesNotThrow(orchestrator::shutdown);
+    }
+
+    @Test
+    @DisplayName("chatStream callback bridge delivers response and text")
+    void chatStreamCallbackBridgeDeliversResponse() throws Exception {
+        CountingProvider provider = new CountingProvider("callback response");
+        AgentFactory factory = new AgentFactory(provider, memory, toolRegistry);
+        Orchestrator orchestrator = new Orchestrator(registry, factory, new MetadataAgentRouter(registry));
+
+        GatewayRequest request = GatewayRequest.builder()
+                .sessionId("sess-6")
+                .requestId("req-cb")
+                .message("callback test")
+                .build();
+
+        StringBuilder receivedText = new StringBuilder();
+
+        CompletableFuture<GatewayResponse> future =
+                orchestrator.chatStream(request, new ChatHandler.StreamCallback() {
+                    @Override public void onDelta(String delta, Map<String, Object> metadata) {
+                        if (delta != null) receivedText.append(delta);
+                    }
+                    @Override public void onComplete(GatewayResponse response) {}
+                    @Override public void onError(Throwable error) {}
+                });
+
+        GatewayResponse result = future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+
+        assertNotNull(result);
+        assertEquals("req-cb", result.getRequestId());
     }
 
     // ==================== Helper classes ====================

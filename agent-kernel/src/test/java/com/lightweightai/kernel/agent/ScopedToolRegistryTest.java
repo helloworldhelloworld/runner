@@ -106,6 +106,78 @@ class ScopedToolRegistryTest {
         assertFalse(scoped.has("shell_exec"));
     }
 
+    @Test
+    @DisplayName("isEnabled() respects deny list — critical: ToolExecutor uses isEnabled()")
+    void isEnabledRespectsDeny() {
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("exec-check")
+                .toolDenyList(Set.of("shell_exec"))
+                .build();
+        ScopedToolRegistry scoped = new ScopedToolRegistry(parent, profile);
+
+        assertTrue(scoped.isEnabled("search"), "Allowed tool should be enabled");
+        assertFalse(scoped.isEnabled("shell_exec"), "Denied tool should NOT be enabled");
+    }
+
+    @Test
+    @DisplayName("isEnabled() returns false for tools not in parent registry")
+    void isEnabledFalseForUnknownTool() {
+        AgentProfile profile = AgentProfile.builder().agentId("check").build();
+        ScopedToolRegistry scoped = new ScopedToolRegistry(parent, profile);
+
+        assertFalse(scoped.isEnabled("nonexistent_tool"));
+    }
+
+    @Test
+    @DisplayName("getAll() respects allow list filtering")
+    void getAllRespectsAllowList() {
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("restricted")
+                .toolAllowList(Set.of("search", "read_email"))
+                .build();
+        ScopedToolRegistry scoped = new ScopedToolRegistry(parent, profile);
+
+        assertEquals(2, scoped.getAll().size());
+        assertTrue(scoped.getAll().stream().allMatch(t ->
+                "search".equals(t.getName()) || "read_email".equals(t.getName())));
+    }
+
+    @Test
+    @DisplayName("size() reflects filtered count")
+    void sizeReflectsFilteredCount() {
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("sized")
+                .toolAllowList(Set.of("search"))
+                .build();
+        ScopedToolRegistry scoped = new ScopedToolRegistry(parent, profile);
+
+        assertEquals(1, scoped.size());
+    }
+
+    @Test
+    @DisplayName("enabledCount() reflects filtered count")
+    void enabledCountReflectsFilteredCount() {
+        AgentProfile profile = AgentProfile.builder()
+                .agentId("counted")
+                .toolDenyList(Set.of("shell_exec", "send_email"))
+                .build();
+        ScopedToolRegistry scoped = new ScopedToolRegistry(parent, profile);
+
+        assertEquals(3, scoped.enabledCount());
+    }
+
+    @Test
+    @DisplayName("register() delegates to parent and is immediately visible through scoped")
+    void registerDelegatesToParent() {
+        AgentProfile profile = AgentProfile.builder().agentId("registering").build();
+        ScopedToolRegistry scoped = new ScopedToolRegistry(parent, profile);
+
+        scoped.register(simpleTool("new_tool"));
+
+        assertTrue(scoped.has("new_tool"), "Newly registered tool should be visible");
+        assertTrue(parent.has("new_tool"), "Tool should be registered in parent");
+    }
+
     private Tool simpleTool(String name) {
         return new Tool() {
             @Override public String getName() { return name; }

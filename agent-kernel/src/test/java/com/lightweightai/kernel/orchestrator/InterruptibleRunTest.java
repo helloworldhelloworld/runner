@@ -159,6 +159,100 @@ class InterruptibleRunTest {
         assertTrue(events.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.AGENT_RESUME));
     }
 
+    @Test
+    @DisplayName("interrupt when not running returns null")
+    void interruptWhenNotRunningReturnsNull() {
+        LLMProvider provider = new SimpleMockProvider("ok");
+        agent = buildAgent(provider);
+
+        InterruptibleRun run = new InterruptibleRun("run-1", "sess-1", agent, memory);
+        // phase is NEW, not RUNNING
+        StreamEvent event = run.interrupt();
+
+        assertNull(event, "interrupt on NEW phase should return null");
+    }
+
+    @Test
+    @DisplayName("interrupt after completion returns null")
+    void interruptAfterCompletionReturnsNull() {
+        LLMProvider provider = new SimpleMockProvider("ok");
+        agent = buildAgent(provider);
+
+        InterruptibleRun run = new InterruptibleRun("run-1", "sess-1", agent, memory);
+        run.execute("test").blockLast();
+
+        assertEquals(InterruptibleRun.RunPhase.COMPLETED, run.getPhase());
+        StreamEvent event = run.interrupt();
+        assertNull(event, "interrupt after COMPLETED should return null");
+    }
+
+    @Test
+    @DisplayName("execute on RUNNING phase returns error Flux")
+    void executeWhileRunningReturnsError() {
+        LLMProvider slowProvider = new SlowStreamProvider(List.of("a", "b", "c"), 200);
+        agent = buildAgent(slowProvider);
+
+        InterruptibleRun run = new InterruptibleRun("run-1", "sess-1", agent, memory);
+
+        // Start first execution asynchronously
+        run.execute("first").subscribe();
+        sleep(50);
+
+        // Try to execute again while still running
+        assertThrows(IllegalStateException.class, () -> {
+            run.execute("second").blockLast();
+        }, "Should throw when executing on RUNNING run");
+
+        run.interrupt(); // clean up
+    }
+
+    @Test
+    @DisplayName("getRunId returns the id passed at construction")
+    void getRunIdReturnsConstructedId() {
+        LLMProvider provider = new SimpleMockProvider("ok");
+        agent = buildAgent(provider);
+
+        InterruptibleRun run = new InterruptibleRun("my-run-42", "sess-1", agent, memory);
+
+        assertEquals("my-run-42", run.getRunId());
+    }
+
+    @Test
+    @DisplayName("phase transitions: NEW → RUNNING → COMPLETED")
+    void phaseTransitionsNormalFlow() {
+        LLMProvider provider = new SimpleMockProvider("ok");
+        agent = buildAgent(provider);
+
+        InterruptibleRun run = new InterruptibleRun("run-1", "sess-1", agent, memory);
+
+        assertEquals(InterruptibleRun.RunPhase.NEW, run.getPhase());
+
+        run.execute("test").blockLast();
+
+        assertEquals(InterruptibleRun.RunPhase.COMPLETED, run.getPhase());
+        assertFalse(run.isRunning());
+    }
+
+    @Test
+    @DisplayName("completed run can be re-executed (starts fresh)")
+    void completedRunCanBeReExecuted() {
+        LLMProvider provider = new SimpleMockProvider("round2");
+        agent = buildAgent(provider);
+
+        InterruptibleRun run = new InterruptibleRun("run-1", "sess-1", agent, memory);
+
+        // First execution
+        run.execute("first").blockLast();
+        assertEquals(InterruptibleRun.RunPhase.COMPLETED, run.getPhase());
+
+        // Second execution on completed run should start fresh
+        List<StreamEvent> events = run.execute("second").collectList().block();
+
+        assertNotNull(events);
+        assertTrue(events.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.TEXT_DELTA));
+        assertEquals(InterruptibleRun.RunPhase.COMPLETED, run.getPhase());
+    }
+
     // ==================== Helper classes ====================
 
     private void sleep(long ms) {
