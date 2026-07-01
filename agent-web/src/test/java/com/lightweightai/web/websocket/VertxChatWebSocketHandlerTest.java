@@ -93,7 +93,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("onConnect increments active connection count")
     void onConnectIncrementsCount() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
 
         handler.onConnect(ws);
@@ -104,7 +103,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("onClose decrements active connection count and cleans up")
     void onCloseDecrementsCountAndCleanup() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
 
         handler.onConnect(ws);
@@ -117,7 +115,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("onError cleans up connection resources")
     void onErrorCleansUp() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
 
         handler.onConnect(ws);
@@ -127,12 +124,8 @@ class VertxChatWebSocketHandlerTest {
     }
 
     @Test
-    @DisplayName("onConnect rejects when max connections reached")
-    void onConnectRejectsAtMaxConnections() {
-        // VertxChatWebSocketHandler.MAX_CONNECTIONS is 10000,
-        // but we can still verify the reject mechanism via the code path.
-        // Instead, test that accept is called on normal connect.
-        when(ws.accept()).thenReturn(ws);
+    @DisplayName("onConnect accepts and does not reject under normal conditions")
+    void onConnectAcceptsNormally() {
         when(ws.textHandlerID()).thenReturn("socket-1");
 
         handler.onConnect(ws);
@@ -146,7 +139,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("health message returns UP status with skills and tools count")
     void healthMessageReturnsStatus() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
         when(ws.isClosed()).thenReturn(false);
         when(ws.writeTextMessage(anyString())).thenReturn(Future.succeededFuture());
@@ -171,7 +163,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("get_skills returns available skills")
     void getSkillsReturnsAvailableSkills() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
         when(ws.isClosed()).thenReturn(false);
         when(ws.writeTextMessage(anyString())).thenReturn(Future.succeededFuture());
@@ -195,7 +186,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("get_tools returns available tools")
     void getToolsReturnsAvailableTools() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
         when(ws.isClosed()).thenReturn(false);
         when(ws.writeTextMessage(anyString())).thenReturn(Future.succeededFuture());
@@ -219,7 +209,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("chat message triggers crisis detection and sends alert on crisis")
     void chatMessageTriggersCrisisAlert() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
         when(ws.isClosed()).thenReturn(false);
         when(ws.writeTextMessage(anyString())).thenReturn(Future.succeededFuture());
@@ -240,7 +229,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("chat with empty message sends error")
     void chatWithEmptyMessageSendsError() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
         when(ws.isClosed()).thenReturn(false);
         when(ws.writeTextMessage(anyString())).thenReturn(Future.succeededFuture());
@@ -262,7 +250,6 @@ class VertxChatWebSocketHandlerTest {
     void clearSessionDelegatesToSessionManager() {
         SessionManager sm = mock(SessionManager.class);
         when(gateway.getSessionManager()).thenReturn(sm);
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
         when(ws.isClosed()).thenReturn(false);
         when(ws.writeTextMessage(anyString())).thenReturn(Future.succeededFuture());
@@ -278,7 +265,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("message counters track received and sent messages")
     void messageCountersWork() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
         when(ws.isClosed()).thenReturn(false);
         when(ws.writeTextMessage(anyString())).thenReturn(Future.succeededFuture());
@@ -299,7 +285,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("closeAll resets all state and closes all connections")
     void closeAllResetsState() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
         when(ws.isClosed()).thenReturn(false);
         when(ws.writeTextMessage(anyString())).thenReturn(Future.succeededFuture());
@@ -318,7 +303,6 @@ class VertxChatWebSocketHandlerTest {
     @Test
     @DisplayName("reactive chat subscribes to gateway stream and sends events")
     void reactiveChatStreamsEvents() {
-        when(ws.accept()).thenReturn(ws);
         when(ws.textHandlerID()).thenReturn("socket-1");
         when(ws.isClosed()).thenReturn(false);
         when(ws.writeTextMessage(anyString())).thenReturn(Future.succeededFuture());
