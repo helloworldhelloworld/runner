@@ -135,8 +135,7 @@ class MemorySearchToolTest {
     @Test
     @DisplayName("search returns matches after writing durable memory")
     void searchReturnsMatchesAfterWriting() {
-        memoryManager.writeDurable("preferences", "User prefers dark mode and large fonts");
-        memoryManager.writeDurable("schedule", "User has meetings on Monday mornings");
+        memoryManager.writeDurable("User prefers dark mode and large fonts\nUser has meetings on Monday mornings");
 
         MemorySearchResult result = searchTool.execute(Map.of("query", "dark mode"));
 
