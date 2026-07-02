@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "0d670971fbf2c99749bcf985cb5071c7a87f8f44",
-  "exit_code": 0,
-  "timestamp": "2026-06-19T03:14:12Z",
-  "branch": "main",
-  "run_id": "27803074584",
-  "test_summary": "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s - in com.lightweightai.web.gateway.GatewayControllerTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.073 s - in com.lightweightai.web.gateway.GatewayControllerTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.041 s - in com.lightweightai.web.controller.ChatControllerTest|[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.web.controller.ChatControllerTest|[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s - in com.lightweightai.web.controller.ChatControllerTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s - in com.lightweightai.web.controller.ChatControllerTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.057 s - in com.lightweightai.web.controller.ChatControllerTest|[WARNING] Tests run: 381, Failures: 0, Errors: 0, Skipped: 20|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.032 s - in com.lightweightai.plugin.example.PluginToolTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0|"
+  "trigger_sha": "2b457c3f09088432f056edd9497ce86e4d6df424",
+  "exit_code": 1,
+  "timestamp": "2026-07-02T19:20:27Z",
+  "branch": "claude/critical-path-ut-1783020003",
+  "run_id": "28615723002",
+  "test_summary": ""
 }
