@@ -34,8 +34,8 @@ class DirectiveRegistryTest {
         Optional<DirectiveDescriptor> result = registry.get("Camera.TakePhoto");
         assertTrue(result.isPresent(), "Descriptor should be found after registration");
         assertEquals("Camera.TakePhoto", result.get().getTool());
-        assertEquals("takePhoto_down", result.get().getDownAction());
-        assertEquals("takePhoto_up", result.get().getUpAction());
+        assertEquals("camera_takephoto_down", result.get().getDownAction());
+        assertEquals("camera_takephoto_up", result.get().getUpAction());
     }
 
     @Test
