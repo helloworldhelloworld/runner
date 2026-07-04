@@ -124,16 +124,18 @@ public final class SpeakableChunkProcessor implements StreamPostProcessor {
 
             return Flux.merge(events, timeout).concatMap(event -> {
                 if (event == FIRST_CHUNK_TIMEOUT) {
-                    List<StreamEvent> out = new ArrayList<>();
-                    if (index.get() == 0) { // 首块仍未发 → 到点整段 flush（首响优先，宁可切碎）
-                        String s = buffer.toString().trim();
-                        if (!s.isEmpty()) {
-                            out.add(emit(s, index));
-                            buffer.setLength(0);
-                        }
+                    // 走到这里 timeout 定时器已发火并完成,无需再 cancel（review #184-4）;
+                    // 首块已发（index!=0）时直接空发,不分配 list（review #184-5）。
+                    if (index.get() != 0) {
+                        return Flux.empty();
                     }
-                    cancelTimer.run();
-                    return Flux.fromIterable(out);
+                    String s = buffer.toString().trim();
+                    if (s.isEmpty()) {
+                        return Flux.empty();
+                    }
+                    StreamEvent chunk = emit(s, index);   // 首块仍未发 → 到点整段 flush（首响优先，宁可切碎）
+                    buffer.setLength(0);
+                    return Flux.just(chunk);
                 }
                 return handleEvent(event, buffer, index, cancelTimer);
             });

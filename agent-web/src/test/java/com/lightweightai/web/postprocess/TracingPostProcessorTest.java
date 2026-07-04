@@ -2,6 +2,7 @@ package com.lightweightai.web.postprocess;
 
 import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.core.ToolResultChunk;
+import com.lightweightai.kernel.core.postprocess.SpeakableChunkProcessor;
 import com.lightweightai.kernel.llm.LLMResponse;
 import com.lightweightai.kernel.llm.ConversationMessage;
 import com.lightweightai.kernel.llm.ToolCall;
@@ -37,9 +38,10 @@ class TracingPostProcessorTest {
             .toList();
 
         assertEquals(1, traces.size(), "Should have exactly one first_token trace");
-        // data 应包含 latencyMs
+        // data 应包含非负 latencyMs（断言值,非仅 containsKey;review #184-3）
         assertNotNull(traces.get(0).getData());
-        assertTrue(traces.get(0).getData().containsKey("latencyMs"));
+        assertTrue(traces.get(0).getData().get("latencyMs") instanceof Long, "latencyMs 应为 Long");
+        assertTrue(((Long) traces.get(0).getData().get("latencyMs")) >= 0, "latencyMs 应非负");
 
         // 原始事件应保留
         List<StreamEvent> textEvents = result.stream()
@@ -90,8 +92,36 @@ class TracingPostProcessorTest {
 
         assertEquals(1, traces.size(), "speakable.first_chunk 只在首个可说块时注入一次");
         assertNotNull(traces.get(0).getData());
-        assertTrue(traces.get(0).getData().containsKey("latencyMs"),
-            "应携带从订阅起算的 chunk_form 延迟");
+        assertTrue(traces.get(0).getData().get("latencyMs") instanceof Long, "latencyMs 应为 Long");
+        assertTrue(((Long) traces.get(0).getData().get("latencyMs")) >= 0,
+            "应携带从订阅起算的非负 chunk_form 延迟（review #184-3）");
+    }
+
+    @Test
+    @DisplayName("真链路 transmission：SpeakableChunkProcessor 产出的 SPEAKABLE_CHUNK 被 TracingPostProcessor 观测并打 speakable.first_chunk")
+    void speakableChunkProducerToTracingConsumerTransmission() {
+        // 真实处理器链（切块器 order=100 先于 tracing order>=900,与生产管道一致）；
+        // 不手工构造中间 SPEAKABLE_CHUNK —— 若两处理器顺序被改反,本测试转红而两个单测仍绿（review #184-2,CLAUDE.md UT 规则3）。
+        SpeakableChunkProcessor speakable = new SpeakableChunkProcessor();
+        TracingPostProcessor tracing = new TracingPostProcessor();
+
+        Flux<StreamEvent> input = Flux.just(
+            StreamEvent.textDelta("你好，"),
+            StreamEvent.textDelta("我是小黄人。"),
+            StreamEvent.llmComplete(LLMResponse.builder().build())
+        );
+
+        List<StreamEvent> result = input.transform(speakable).transform(tracing).collectList().block();
+        assertNotNull(result);
+
+        assertTrue(result.stream().anyMatch(e -> e.getType() == StreamEvent.EventType.SPEAKABLE_CHUNK),
+            "SpeakableChunkProcessor 应真产出 SPEAKABLE_CHUNK");
+        List<StreamEvent> firstChunkTraces = result.stream()
+            .filter(e -> e.getType() == StreamEvent.EventType.TRACE
+                && "speakable.first_chunk".equals(e.getTracePhase()))
+            .toList();
+        assertEquals(1, firstChunkTraces.size(),
+            "真链路里首个 SPEAKABLE_CHUNK 应触发恰好一条 speakable.first_chunk trace");
     }
 
     @Test

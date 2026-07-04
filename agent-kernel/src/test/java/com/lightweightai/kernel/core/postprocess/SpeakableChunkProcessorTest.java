@@ -174,22 +174,22 @@ class SpeakableChunkProcessorTest {
     }
 
     @Test
-    @DisplayName("eager+maxWait：首块在 maxWait 前由子句边界切出 → 定时器取消、不重复发（虚拟时钟）")
+    @DisplayName("eager+maxWait：首块由子句边界切出 → 定时器真被取消（上游完成即完成流,不等 maxWait）")
     void eagerMaxWaitCancelledWhenClauseHitsFirst() {
         SpeakableChunkProcessor p = new SpeakableChunkProcessor(
                 EmotionClassifier.NEUTRAL,
                 SpeakableChunkProcessor.FirstChunkPolicy.eager("，", 0, 250));
 
+        // 上游发完即 complete。关键在末尾 expectComplete 前**不** thenAwait(250)：
+        // 若 takeUntilOther 没真取消 timeout 定时器,merge 会挂在未发火的 Mono.delay(250) 上,
+        // 流在虚拟 t=0 不会完成 → expectComplete 超时转红。故本断言真正证明了"定时器被取消",
+        // 而非旧版被 index==0 守卫吞掉、无论取消与否都绿（review #184-1）。
         StepVerifier.withVirtualTime(() ->
-                        Flux.concat(
-                                Flux.just(StreamEvent.textDelta("你好，")), // 子句边界即切首块
-                                Flux.<StreamEvent>never())
-                                .transform(p))
+                        Flux.just(StreamEvent.textDelta("你好，")).transform(p))
                 .expectNextMatches(e -> e.getType() == EventType.TEXT_DELTA)
                 .expectNextMatches(e -> e.getType() == EventType.SPEAKABLE_CHUNK
                         && "你好，".equals(e.getData().get("text")))
-                .expectNoEvent(Duration.ofMillis(500)) // 跨过 maxWait，无重复 timeout 块
-                .thenCancel()
+                .expectComplete()
                 .verify(Duration.ofSeconds(5));
     }
 
