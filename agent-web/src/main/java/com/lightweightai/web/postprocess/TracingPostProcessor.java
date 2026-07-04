@@ -46,6 +46,7 @@ public class TracingPostProcessor implements StreamPostProcessor {
     @Override
     public Flux<StreamEvent> apply(Flux<StreamEvent> source) {
         AtomicBoolean firstToken = new AtomicBoolean(false);
+        AtomicBoolean firstChunk = new AtomicBoolean(false);
         AtomicLong subscribeTime = new AtomicLong(0);
         StringBuilder outputAccumulator = new StringBuilder();
 
@@ -63,6 +64,16 @@ public class TracingPostProcessor implements StreamPostProcessor {
                             long elapsed = System.currentTimeMillis() - subscribeTime.get();
                             events.add(StreamEvent.trace("llm.first_token",
                                 "First token received, latency=" + elapsed + "ms",
+                                Map.of("latencyMs", elapsed)));
+                        }
+                    }
+                    // 首个可说块延迟（chunk_form）：首响关键段，与 llm.first_token 同口径（从订阅起算）。
+                    // SpeakableChunkProcessor(order=100) 在本处理器(order=1000)之前注入 SPEAKABLE_CHUNK，故此处可见。
+                    case SPEAKABLE_CHUNK -> {
+                        if (firstChunk.compareAndSet(false, true)) {
+                            long elapsed = System.currentTimeMillis() - subscribeTime.get();
+                            events.add(StreamEvent.trace("speakable.first_chunk",
+                                "First speakable chunk, latency=" + elapsed + "ms",
                                 Map.of("latencyMs", elapsed)));
                         }
                     }
