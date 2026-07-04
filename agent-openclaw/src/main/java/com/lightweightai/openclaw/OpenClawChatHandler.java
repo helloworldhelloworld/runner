@@ -55,11 +55,12 @@ public final class OpenClawChatHandler implements ChatHandler {
         OpenClawChatRequest req = toRequest(request);
 
         return Flux.create(sink -> {
+            run.setSink(sink);   // 最早记外层 sink,供 interrupt 自终止外层流（review #183-1）
             // 实订阅上游、捕获 Disposable 存入 run（仿 InterruptibleRun.activeSubscription），供 interrupt 停转发
             Disposable d = client.chat(req).subscribe(
                     ev -> mapInto(ev, run, sink),
                     err -> { activeRuns.remove(sessionId, run); sink.error(err); },
-                    () -> { run.markDone(); activeRuns.remove(sessionId, run); sink.complete(); });
+                    () -> { activeRuns.remove(sessionId, run); sink.complete(); });
             run.setSubscription(d);
             // 下游取消（WS 断 / barge-in dispose）→ 真停 OpenClaw run，省 token
             sink.onCancel(() -> run.cancelUpstream(client));
@@ -77,8 +78,11 @@ public final class OpenClawChatHandler implements ChatHandler {
         return run.interrupt(client);
     }
 
-    /** {@link OpenClawEvent} → {@code StreamEvent}，注入 sink。 */
+    /** {@link OpenClawEvent} → {@code StreamEvent}，注入 sink。打断后丢弃后续事件（review #183-3）。 */
     private void mapInto(OpenClawEvent ev, OpenClawRun run, FluxSink<StreamEvent> sink) {
+        if (!run.isRunning()) {
+            return;   // 已 barge-in 打断:不再转发上游 token（防打断后仍出声）
+        }
         switch (ev) {
             case OpenClawEvent.RunStarted s -> {
                 run.setOpenClawRunId(s.runId());

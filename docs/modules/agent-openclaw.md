@@ -19,21 +19,21 @@ OpenClaw 大脑适配模块。把外部 **OpenClaw**（TS agent runtime）作为
 
 | 类型 | 角色 |
 |---|---|
-| `OpenClawClient`（interface, SPI） | 讲 OpenClaw Gateway/ACP 协议：`Flux<OpenClawEvent> chat(req)` + `void cancel(runId)`。藏在接口后便于 fake。|
+| `OpenClawClient`（interface, SPI） | 讲 OpenClaw Gateway/ACP 协议：`Flux<OpenClawEvent> chat(req)` + `void cancel(sessionId)`（OpenClaw 按 sessionKey 打断,runId 可选）。藏在接口后便于 fake。|
 | `OpenClawEvent`（sealed） | 内部事件：`RunStarted/Token/ToolUse/ToolResult/RunEnd/ErrorEvent`。**仅模块内可见，绝不外泄为 StreamEvent 枚举**（守 ADR-005）。|
 | `OpenClawChatRequest` | `{sessionId, agentId, message}`。|
 | `OpenClawChatHandler implements ChatHandler` | 核心适配器：事件映射 + `activeRuns` + barge-in。|
-| `OpenClawRun` | `InterruptibleRun` 等价：持 `openClawRunId`/`subscription`/phase；`interrupt()` = `client.cancel` + `dispose`。|
+| `OpenClawRun` | `InterruptibleRun` 等价：持 `subscription`/外层 `sink`/phase；`interrupt()` = `client.cancel(sessionId)` + `dispose` + 自终止外层流。|
 | `ws.WebSocketOpenClawClient` | 真实 WS 实现（仿 agent-mcp transport + ADR-011 连接韧性）。|
 
 ## 事件映射（`OpenClawEvent → StreamEvent`）
 
 | OpenClawEvent | StreamEvent |
 |---|---|
-| `RunStarted(runId)` | —（记 `OpenClawRun.openClawRunId`，供取消用，不外发） |
+| `RunStarted(runId)` | —（记 `OpenClawRun.openClawRunId`，供停播帧 runId 用,不外发） |
 | `Token(text)` | `StreamEvent.textDelta(text)` → 下游 `SpeakableChunkProcessor` |
 | `RunEnd` | `StreamEvent.llmComplete(...)`（触发末块 flush + `stream_end`） |
-| `ToolUse`/`ToolResult` | 默认隐藏；`forwardToolTrace` 时转既有 `toolCallStart/toolResult`（仅 trace） |
+| `ToolUse`/`ToolResult` | 默认隐藏；`forwardToolTrace` 时映射为既有 `TRACE` 事件（phase=`openclaw.tool`，非 toolCallStart/toolResult） |
 | `ErrorEvent` | `Flux.error` |
 
 ## barge-in

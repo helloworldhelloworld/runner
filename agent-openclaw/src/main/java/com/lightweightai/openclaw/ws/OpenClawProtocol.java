@@ -52,7 +52,7 @@ final class OpenClawProtocol {
         if (r.agentId() != null && !r.agentId().isBlank()) {
             p.put("agentId", r.agentId());
         }
-        p.put("message", r.message());
+        p.put("text", r.message());   // OpenClaw chat.send 用字段名 "text"（非 "message";review #183-5）
         return write(root);
     }
 

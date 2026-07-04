@@ -28,7 +28,7 @@ class OpenClawProtocolTest {
     // ── 出站帧 ──
 
     @Test
-    @DisplayName("chat.send：method + sessionKey/agentId/message")
+    @DisplayName("chat.send：method + sessionKey/agentId/text")
     void chatSendFrame() {
         JsonNode n = parse(OpenClawProtocol.chatSend("1",
                 new OpenClawChatRequest("s1", "minion", "你好")));
@@ -38,7 +38,8 @@ class OpenClawProtocolTest {
         JsonNode p = n.get("params");
         assertEquals("s1", p.get("sessionKey").asText());
         assertEquals("minion", p.get("agentId").asText());
-        assertEquals("你好", p.get("message").asText());
+        assertEquals("你好", p.get("text").asText(), "用户消息在 text 字段（OpenClaw chat.send 规范）");
+        assertFalse(p.has("message"), "不应用 message 字段（review #183-5）");
     }
 
     @Test

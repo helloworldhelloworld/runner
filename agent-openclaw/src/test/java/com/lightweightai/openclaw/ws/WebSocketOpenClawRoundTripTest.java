@@ -1,5 +1,7 @@
 package com.lightweightai.openclaw.ws;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.core.StreamEvent.EventType;
 import com.lightweightai.kernel.gateway.GatewayRequest;
@@ -14,6 +16,7 @@ import reactor.test.StepVerifier;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -26,10 +29,18 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("集成: WebSocketOpenClawClient ⟷ 假 OpenClaw 对端")
 class WebSocketOpenClawRoundTripTest {
 
+    private static final ObjectMapper M = new ObjectMapper();
+
+    /** 取一帧 JSON 的 params 节点（用于归因到具体帧断言字段）。 */
+    private static JsonNode param(String frame) throws Exception {
+        assertNotNull(frame, "期望的帧未收到");
+        return M.readTree(frame).get("params");
+    }
+
     @Test
-    @DisplayName("往返：connect+chat.send 出站，chat:delta×N + chat:final 入站 → Token×N + RunEnd")
+    @DisplayName("往返：connect + chat.send(sessionKey/text) 出站，chat:delta×N + chat:final(stopReason) → Token×N + RunEnd")
     void roundTripTokensThenFinal() throws Exception {
-        try (FakeOpenClawServer server = new FakeOpenClawServer().reply("你好，", "我是小黄人。")) {
+        try (FakeOpenClawServer server = new FakeOpenClawServer().reply("你好，", "我是小黄人。").stopReason("done")) {
             WebSocketOpenClawClient client = new WebSocketOpenClawClient(server.url());
 
             List<OpenClawEvent> events = client.chat(new OpenClawChatRequest("s1", "minion", "hi"))
@@ -40,10 +51,16 @@ class WebSocketOpenClawRoundTripTest {
                     .filter(e -> e instanceof OpenClawEvent.Token)
                     .map(e -> ((OpenClawEvent.Token) e).text()).toList();
             assertEquals(List.of("你好，", "我是小黄人。"), tokens);
-            assertInstanceOf(OpenClawEvent.RunEnd.class, events.get(events.size() - 1));
-            // 出站：connect + 带 sessionKey 的 chat.send
-            assertTrue(server.received("\"method\":\"chat.send\""), "应发 chat.send");
-            assertTrue(server.received("\"sessionKey\":\"s1\""), "chat.send 应带 sessionKey");
+            OpenClawEvent lastEv = events.get(events.size() - 1);
+            assertInstanceOf(OpenClawEvent.RunEnd.class, lastEv);
+            assertEquals("done", ((OpenClawEvent.RunEnd) lastEv).stopReason(), "RunEnd 应携端到端 stopReason");
+            // 出站 connect 真发出（review #183-4）
+            assertNotNull(server.lastFrameWithMethod("connect"), "应先发 connect 帧");
+            // chat.send 帧携正确字段：sessionKey + text（非 message）（review #183-5）
+            JsonNode send = param(server.lastFrameWithMethod("chat.send"));
+            assertEquals("s1", send.get("sessionKey").asText());
+            assertEquals("hi", send.get("text").asText(), "用户消息应在 text 字段");
+            assertFalse(send.has("message"), "不应用 message 字段");
         }
     }
 
@@ -58,7 +75,9 @@ class WebSocketOpenClawRoundTripTest {
             awaitUntil(() -> got.stream().anyMatch(e -> e instanceof OpenClawEvent.Token), 5000);
             client.cancel("s1");
             awaitUntil(() -> server.received("\"method\":\"chat.abort\""), 5000);
-            assertTrue(server.received("\"sessionKey\":\"s1\""), "chat.abort 应带 sessionKey");
+            // 归因到具体 chat.abort 帧断言其 params.sessionKey（review #183-2；不被前面 chat.send 假满足）
+            JsonNode abort = param(server.lastFrameWithMethod("chat.abort"));
+            assertEquals("s1", abort.get("sessionKey").asText(), "chat.abort 应带正确 sessionKey");
             sub.dispose();
         }
     }
@@ -71,8 +90,10 @@ class WebSocketOpenClawRoundTripTest {
             OpenClawChatHandler handler = new OpenClawChatHandler(client);
 
             List<StreamEvent> out = new CopyOnWriteArrayList<>();
+            AtomicBoolean completed = new AtomicBoolean(false);
             Disposable sub = handler.chatStreamReactive(
-                    GatewayRequest.builder().sessionId("s1").message("讲故事").build()).subscribe(out::add);
+                    GatewayRequest.builder().sessionId("s1").message("讲故事").build())
+                    .subscribe(out::add, e -> {}, () -> completed.set(true));
 
             awaitUntil(() -> out.stream().anyMatch(e -> e.getType() == EventType.TEXT_DELTA), 5000);
             StreamEvent interrupted = handler.interrupt("s1");
@@ -80,6 +101,9 @@ class WebSocketOpenClawRoundTripTest {
             assertNotNull(interrupted);
             assertEquals(EventType.SPEECH_INTERRUPTED, interrupted.getType());
             awaitUntil(() -> server.received("\"method\":\"chat.abort\""), 5000);
+            // 打断后外层语音流应自终止,不挂尾（review #183-1）
+            awaitUntil(completed::get, 5000);
+            assertTrue(completed.get(), "interrupt 后外层流应 complete");
             sub.dispose();
         }
     }

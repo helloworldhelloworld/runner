@@ -88,7 +88,9 @@ class OpenClawChatHandlerAcceptanceTest {
         OpenClawChatHandler handler = new OpenClawChatHandler(fake);
 
         List<StreamEvent> out = new CopyOnWriteArrayList<>();
-        Disposable sub = handler.chatStreamReactive(req("s1", "讲个长故事")).subscribe(out::add);
+        AtomicBoolean completed = new AtomicBoolean(false);
+        Disposable sub = handler.chatStreamReactive(req("s1", "讲个长故事"))
+                .subscribe(out::add, e -> {}, () -> completed.set(true));
 
         fake.emit(new OpenClawEvent.RunStarted("r1"));
         fake.emit(new OpenClawEvent.Token("从前有座山，"));
@@ -103,7 +105,9 @@ class OpenClawChatHandlerAcceptanceTest {
         assertEquals("barge-in", interrupted.getData().get("reason"));
         // (b) ACP cancel 真发给 OpenClaw（按 sessionKey，chat.abort）
         assertTrue(fake.cancelled.contains("s1"), "应向 OpenClaw 发 cancel(sessionId=s1)");
-        // (c) 在途订阅已 dispose：后续 OpenClaw 事件不再到达下游
+        // (c) 外层语音流被自终止：不挂尾（review #183-1）
+        assertTrue(completed.get(), "interrupt 后外层流应 complete");
+        // (d) 在途订阅已 dispose：后续 OpenClaw 事件不再到达下游
         fake.emit(new OpenClawEvent.Token("继续讲……"));
         assertEquals(before, out.size(), "打断后不应再转发 OpenClaw token");
         sub.dispose();

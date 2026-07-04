@@ -57,8 +57,15 @@ class OpenClawEventMappingTest {
         fake.emit(new OpenClawEvent.RunEnd("end_turn"));
         fake.complete();
 
-        assertTrue(out.stream().filter(e -> e.getType() == EventType.TRACE).count() >= 3,
-                "run.started + tool.use + tool.result 应各转一条 TRACE");
+        // 断言恰好三条 TRACE,且各自内容/顺序对应 run.started / tool.use / tool.result（review #183-9,非仅计数）
+        List<StreamEvent> traces = out.stream().filter(e -> e.getType() == EventType.TRACE).toList();
+        assertEquals(3, traces.size(), "应恰好三条 TRACE");
+        assertEquals("openclaw.run", traces.get(0).getTracePhase());
+        assertTrue(traces.get(0).getTraceMessage().contains("started"), "第一条应为 run.started");
+        assertEquals("openclaw.tool", traces.get(1).getTracePhase());
+        assertTrue(traces.get(1).getTraceMessage().contains("use look"), "第二条应为 tool.use look");
+        assertEquals("openclaw.tool", traces.get(2).getTracePhase());
+        assertTrue(traces.get(2).getTraceMessage().contains("result look"), "第三条应为 tool.result look");
         sub.dispose();
     }
 

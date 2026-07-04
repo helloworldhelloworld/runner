@@ -57,12 +57,30 @@ final class FakeOpenClawServer implements AutoCloseable {
         return this;
     }
 
+    /** final 帧回的 stopReason（供端到端断言 RunEnd.stopReason,review #183-13）。 */
+    FakeOpenClawServer stopReason(String reason) {
+        this.stopReason = reason;
+        return this;
+    }
+
     String url() {
         return "ws://localhost:" + serverSocket.getLocalPort() + "/gateway";
     }
 
     boolean received(String methodOrSubstring) {
         return received.stream().anyMatch(f -> f.contains(methodOrSubstring));
+    }
+
+    /** 返回最后一条 method 为指定值的收帧（供归因到具体帧的断言,review #183-2）;无则 null。 */
+    String lastFrameWithMethod(String method) {
+        String needle = "\"method\":\"" + method + "\"";
+        String found = null;
+        for (String f : received) {
+            if (f.contains(needle)) {
+                found = f;
+            }
+        }
+        return found;
     }
 
     // ── OpenClaw 协议行为 ──
