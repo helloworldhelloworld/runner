@@ -27,6 +27,11 @@ logging:
 
 # 应用配置
 app:
+  # 脑选择（ADR-014）：native = runner 自研 Orchestrator；openclaw = OpenClaw 完整大脑适配
+  brain:
+    type: ${BRAIN_TYPE:native}   # native | openclaw（默认 native）
+  openclaw:
+    url: ${OPENCLAW_URL:ws://127.0.0.1:18789}   # 仅 brain.type=openclaw 时生效（真协议为阶段3）
   websocket:
     # spring = Tomcat内置WebSocket(同端口8080), vertx = Vert.x独立端口(8081)
     provider: ${WS_PROVIDER:spring}

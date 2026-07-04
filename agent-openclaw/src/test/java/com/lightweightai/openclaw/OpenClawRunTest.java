@@ -1,0 +1,48 @@
+package com.lightweightai.openclaw;
+
+import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.StreamEvent.EventType;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import reactor.core.Disposable;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/** OpenClawRun 取消路径单测：interrupt = ACP cancel + dispose 订阅 + 转 INTERRUPTED + 返回 SPEECH_INTERRUPTED。 */
+@DisplayName("OpenClawRun - 取消路径")
+class OpenClawRunTest {
+
+    @Test
+    @DisplayName("interrupt() 取消 OpenClaw run、dispose 上游订阅、转 INTERRUPTED、返回 SPEECH_INTERRUPTED")
+    void interruptCancelsDisposesAndReturnsSpeechInterrupted() {
+        FakeOpenClawClient client = new FakeOpenClawClient();
+        OpenClawRun run = new OpenClawRun("s1");
+        run.setOpenClawRunId("r1");
+
+        AtomicBoolean disposed = new AtomicBoolean(false);
+        run.setSubscription(new Disposable() {
+            @Override public void dispose() { disposed.set(true); }
+            @Override public boolean isDisposed() { return disposed.get(); }
+        });
+
+        StreamEvent ev = run.interrupt(client);
+
+        assertEquals(OpenClawRun.Phase.INTERRUPTED, run.phase());
+        assertTrue(client.cancelled.contains("s1"), "应 chat.abort(sessionId=s1)");
+        assertTrue(disposed.get(), "应 dispose 上游订阅");
+        assertEquals(EventType.SPEECH_INTERRUPTED, ev.getType());
+        assertEquals("r1", ev.getData().get("runId"), "speech_interrupted 携 best-effort runId");
+        assertEquals("barge-in", ev.getData().get("reason"));
+    }
+
+    @Test
+    @DisplayName("cancelUpstream 按 sessionId 取消、无订阅也不报错（幂等）")
+    void cancelUpstreamBySessionIdAndIdempotent() {
+        FakeOpenClawClient client = new FakeOpenClawClient();
+        OpenClawRun run = new OpenClawRun("s1");   // 未设 subscription
+        assertDoesNotThrow(() -> run.cancelUpstream(client));
+        assertTrue(client.cancelled.contains("s1"), "应按 sessionId 发 chat.abort");
+    }
+}

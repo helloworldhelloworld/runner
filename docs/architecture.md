@@ -19,6 +19,7 @@ agent-web (Spring Boot + Vert.x WebSocket, assembles everything)
 ├── agent-kernel     (core: Orchestrator, AgentLoop, Gateway, LLM, Prompt, CLI)
 ├── agent-tools      (tool implementations) → depends on agent-kernel
 ├── agent-mcp        (MCP protocol bridge) → depends on agent-kernel
+├── agent-openclaw   (OpenClaw 大脑适配：ChatHandler 实现) → depends on agent-kernel
 ├── kernel-memory    (file/SQLite memory, BM25+vector) → depends on agent-kernel
 ├── agent-sdk        (public SDK API) → depends on agent-kernel
 ├── soul-safety      (crisis detection) → depends on agent-kernel
@@ -35,7 +36,7 @@ agent-plugin-example (plugin example) → depends on agent-kernel
 2. **soul-user depends on nothing** internally. It is standalone.
 3. **No circular dependencies**. Dependency flows strictly downward.
 4. **agent-web is the only assembly module** — no other module should depend on agent-web.
-5. **Business modules don't depend on each other** — agent-tools, agent-mcp, kernel-memory, agent-sdk, soul-safety are independent peers.
+5. **Business modules don't depend on each other** — agent-tools, agent-mcp, agent-openclaw, kernel-memory, agent-sdk, soul-safety are independent peers.
 6. **Exception**: soul-assessment depends on soul-user.
 
 ---
@@ -420,6 +421,12 @@ runner 侧最小改动：① 可说块边界事件 ② 逐块 emotion ③ barge-
 语音/具身部署打开即在 `LLM_COMPLETE` 前发出带 emotion 的 `SPEAKABLE_CHUNK`，非语音部署不受影响、零额外开销。
 （开关为部署级粒度；当单个 runner 同时服务多 persona 时按 persona 精细闸控需把 persona 上下文透进后处理管道，列为后续。）
 
+**脑 = 可切换 `ChatHandler`（[ADR-014](decisions/014-brain-swappable-chathandler-openclaw.md)）**：大脑平面的耦合点是
+`ChatHandler.chatStreamReactive` 产出的 `Flux<StreamEvent>` 与 `interrupt(sessionId)`；上面 ①②③ 的语音平面
+（可说块/emotion/序列化/WS/barge-in 入口）对 `ChatHandler` 实现**泛型无关**。故脑可切换：`Orchestrator`(native) /
+`OpenClawChatHandler`(openclaw，模块 `agent-openclaw`)，由 `app.brain.type` + `@Primary` 选。openclaw 模式下
+loop/工具/compaction/历史归 OpenClaw，Pi 设备 MCP（ADR-008）挂 OpenClaw；安全检测仍在脑之前，语音平面零改动。
+
 ---
 
 ## Design Decisions
@@ -435,3 +442,7 @@ runner 侧最小改动：① 可说块边界事件 ② 逐块 emotion ③ barge-
 | [007](decisions/007-risk-level-across-mcp.md) | RiskLevel 跨 MCP 边界恢复（annotations + `_meta`）|
 | [008](decisions/008-mcp-transport-cloud-to-pi.md) | cloud↔Pi 的 MCP transport（streamable_http）+ NAT 穿透（Tailscale overlay）|
 | [009](decisions/009-minion-eyes-esp-directive.md) | Minion 眼睛：ESP32-S3 板载自渲染 + Pi 下 USB-串口 directive |
+| [010](decisions/010-visual-feedback-chain.md) | 视觉回灌链：tool frame → ImageContent → 下一轮多模态消息 |
+| [011](decisions/011-mcp-connection-resilience.md) | MCP 连接韧性：后台重连 + 自动注册（不依赖重启）|
+| [012](decisions/012-voice-text-plane-contract.md) | 语音文本平面契约 + 入站 barge-in（Voice Gateway ⟷ runner WS）|
+| [014](decisions/014-brain-swappable-chathandler-openclaw.md) | 脑=可切换 ChatHandler SPI + OpenClaw 完整大脑适配 |

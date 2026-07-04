@@ -34,6 +34,11 @@
 
         <dependency>
             <groupId>com.lightweightai</groupId>
+            <artifactId>agent-openclaw</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.lightweightai</groupId>
             <artifactId>agent-sdk</artifactId>
         </dependency>
 

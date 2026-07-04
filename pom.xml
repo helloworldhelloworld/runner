@@ -17,6 +17,7 @@
         <module>agent-kernel</module>
         <module>agent-tools</module>
         <module>agent-mcp</module>
+        <module>agent-openclaw</module>
         <module>kernel-memory</module>
         <module>agent-sdk</module>
         <module>soul-safety</module>
@@ -70,6 +71,11 @@
             <dependency>
                 <groupId>com.lightweightai</groupId>
                 <artifactId>agent-mcp</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.lightweightai</groupId>
+                <artifactId>agent-openclaw</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
