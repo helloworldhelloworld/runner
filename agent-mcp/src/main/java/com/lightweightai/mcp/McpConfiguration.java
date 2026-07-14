@@ -148,12 +148,6 @@ public class McpConfiguration {
         /** WebSocket 心跳间隔（秒），默认 30 */
         private int pingIntervalSeconds = 30;
 
-        /** WebSocket 最大重连次数，默认 10 */
-        private int maxReconnectAttempts = 10;
-
-        /** WebSocket 重连基础延迟（毫秒），默认 1000 */
-        private int reconnectBaseDelayMs = 1000;
-
         /** WebSocket 工具列表兜底刷新周期（秒），默认 300；<=0 关闭轮询 */
         private int toolRefreshIntervalSeconds = 300;
 
@@ -290,22 +284,6 @@ public class McpConfiguration {
 
         public void setPingIntervalSeconds(int pingIntervalSeconds) {
             this.pingIntervalSeconds = pingIntervalSeconds;
-        }
-
-        public int getMaxReconnectAttempts() {
-            return maxReconnectAttempts;
-        }
-
-        public void setMaxReconnectAttempts(int maxReconnectAttempts) {
-            this.maxReconnectAttempts = maxReconnectAttempts;
-        }
-
-        public int getReconnectBaseDelayMs() {
-            return reconnectBaseDelayMs;
-        }
-
-        public void setReconnectBaseDelayMs(int reconnectBaseDelayMs) {
-            this.reconnectBaseDelayMs = reconnectBaseDelayMs;
         }
 
         public int getToolRefreshIntervalSeconds() {
