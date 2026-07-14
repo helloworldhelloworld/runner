@@ -395,6 +395,7 @@ public class McpToolClient implements ToolSource, AutoCloseable {
         if (scheduler != null) {
             scheduler.shutdownNow();
         }
+        progressRouter.shutdown();
         asyncClient.close();
         logger.info("MCP client for server '{}' closed", serverName);
     }

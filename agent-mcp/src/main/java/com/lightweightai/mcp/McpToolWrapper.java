@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +30,13 @@ import java.util.UUID;
 public class McpToolWrapper implements Tool, ToolMetadata {
 
     private static final Logger logger = LoggerFactory.getLogger(McpToolWrapper.class);
+
+    /**
+     * 进度终帧(progress&gt;=total)晚于 result 到达时的有界等待窗口（issue #197）。
+     * 仅在「有进度活动但尚未见终帧」时才生效，给晚到的终帧留出 route 时间；
+     * 终帧先到或无进度活动时立即完成，不引入延迟。
+     */
+    private static final Duration PROGRESS_TERMINAL_GRACE = Duration.ofMillis(200);
 
     private final McpToolClient toolClient;
     private final McpSchema.Tool mcpTool;
@@ -119,7 +127,10 @@ public class McpToolWrapper implements Tool, ToolMetadata {
                 return toolClient.callToolReactive(mcpTool.name(), args, progressToken, requestMeta);
             })
             .doOnTerminate(() -> {
-                toolClient.getProgressRouter().complete(progressToken);
+                // 进度终帧(progress>=total)可能晚于 result 到达：用 grace 收口避免终帧被抢跑的
+                // complete 丢弃(issue #197)；无进度/无终帧/出错时立即或有界完成，不挂死。
+                toolClient.getProgressRouter()
+                    .completeAfterTerminalOrGrace(progressToken, PROGRESS_TERMINAL_GRACE);
                 toolClient.getLoggingRouter().complete(progressToken);
             })
             .cache();
