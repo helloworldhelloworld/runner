@@ -105,7 +105,14 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         // buildAsync 完成仅代表 WebSocket 对象已构建，onOpen 可能尚未触发 → 必须再等握手完成，
         // 否则 connect 完成时 connected 仍为 false，SDK 紧接着的 sendMessage(initialize) 会失败。
         .then(Mono.fromFuture(open))
-        .timeout(connectTimeout);
+        .timeout(connectTimeout)
+        // WebSocket 打不开（升级被拒 / 连接被拒 / 建连超时）时，buildAsync 在任何 listener 回调
+        // （onOpen/onClose/onError → failOpenFuture）之前就异常，openFuture 会一直悬着。而 MCP SDK
+        // 以 fire-and-forget 订阅 connect()，这里的错误被丢弃；同时 sendMessage(initialize) 正阻塞在
+        // openFuture 上 → 一直挂到 requestTimeout / SDK 的 initialize 超时，真实原因被吞成
+        // "Client failed to initialize by explicit API call"。故在此显式把失败传导给 openFuture，
+        // 令等待中的 sendMessage 立即以真实原因失败（issue #195）。已完成则为 no-op（onOpen 先赢无害）。
+        .doOnError(open::completeExceptionally);
     }
 
     @Override
