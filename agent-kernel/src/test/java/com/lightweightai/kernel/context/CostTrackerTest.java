@@ -66,4 +66,63 @@ class CostTrackerTest {
         tracker.record(999999, 999999);
         assertFalse(tracker.isOverBudget());
     }
+
+    @Test
+    @DisplayName("无限预算 remainingTokens 返回 Integer.MAX_VALUE")
+    void unlimitedBudgetRemainingTokens() {
+        CostTracker tracker = new CostTracker(0);
+        tracker.record(100, 100);
+        assertEquals(Integer.MAX_VALUE, tracker.remainingTokens());
+    }
+
+    @Test
+    @DisplayName("负预算值也被视为无限")
+    void negativeBudgetTreatedAsUnlimited() {
+        CostTracker tracker = new CostTracker(-1);
+        tracker.record(999999, 999999);
+        assertFalse(tracker.isOverBudget());
+    }
+
+    @Test
+    @DisplayName("恰好等于预算时不超（差一语义）")
+    void exactlyAtBudgetNotOver() {
+        CostTracker tracker = new CostTracker(1000);
+        tracker.record(500, 500);
+        assertFalse(tracker.isOverBudget());
+        assertEquals(0, tracker.remainingTokens());
+    }
+
+    @Test
+    @DisplayName("并发 record 线程安全 — 总数不丢")
+    void concurrentRecordSafety() throws InterruptedException {
+        CostTracker tracker = new CostTracker(0);
+        int threads = 10;
+        int recordsPerThread = 1000;
+
+        Thread[] workers = new Thread[threads];
+        for (int i = 0; i < threads; i++) {
+            workers[i] = new Thread(() -> {
+                for (int j = 0; j < recordsPerThread; j++) {
+                    tracker.record(1, 1);
+                }
+            });
+            workers[i].start();
+        }
+
+        for (Thread w : workers) {
+            w.join();
+        }
+
+        int expected = threads * recordsPerThread;
+        assertEquals(expected, tracker.getConsumedInputTokens());
+        assertEquals(expected, tracker.getConsumedOutputTokens());
+        assertEquals(expected * 2, tracker.getTotalConsumed());
+    }
+
+    @Test
+    @DisplayName("getMaxBudgetTokens 返回构造时的值")
+    void maxBudgetTokensAccessor() {
+        CostTracker tracker = new CostTracker(42);
+        assertEquals(42, tracker.getMaxBudgetTokens());
+    }
 }
