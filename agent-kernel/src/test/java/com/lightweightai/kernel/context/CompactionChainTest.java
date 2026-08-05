@@ -82,4 +82,72 @@ class CompactionChainTest {
         long toolCount = result.stream().filter(m -> m.getRole() == MessageRole.TOOL).count();
         assertEquals(1, toolCount);
     }
+
+    @Test
+    @DisplayName("chain preserves message order after compaction")
+    void chainPreservesMessageOrder() {
+        SnipCompactor snip = new SnipCompactor(1);
+        MicroCompactor micro = new MicroCompactor(50, 10);
+        CompactionChain chain = new CompactionChain(snip, micro);
+
+        List<ConversationMessage> messages = List.of(
+            user("q1"), tool("old-tool"), assistant("a1"),
+            user("q2"), assistant("a2")
+        );
+
+        List<ConversationMessage> result = chain.compact(messages);
+
+        // Verify user messages stay in order
+        List<String> userTexts = result.stream()
+            .filter(m -> m.getRole() == MessageRole.USER)
+            .map(ConversationMessage::getTextContent)
+            .toList();
+        assertEquals(List.of("q1", "q2"), userTexts, "User messages should maintain order");
+    }
+
+    @Test
+    @DisplayName("chain with three stages applies all in sequence")
+    void threeStageChain() {
+        SnipCompactor snip = new SnipCompactor(1);
+        MicroCompactor micro1 = new MicroCompactor(100, 20);
+        MicroCompactor micro2 = new MicroCompactor(50, 10);
+        CompactionChain chain = new CompactionChain(snip, micro1, micro2);
+
+        String longText = "R".repeat(200);
+        List<ConversationMessage> messages = List.of(
+            user("q1"), tool("old"), assistant("a1"),
+            user("q2"), tool(longText), assistant("a2")
+        );
+
+        List<ConversationMessage> result = chain.compact(messages);
+
+        // Old tool removed by snip, long tool truncated by micro stages
+        boolean hasOldTool = result.stream()
+            .anyMatch(m -> m.getRole() == MessageRole.TOOL && "old".equals(m.getTextContent()));
+        assertFalse(hasOldTool, "Old tool should be removed");
+
+        // Remaining tool should be truncated by the second micro
+        ConversationMessage remainingTool = result.stream()
+            .filter(m -> m.getRole() == MessageRole.TOOL)
+            .findFirst()
+            .orElseThrow();
+        assertTrue(remainingTool.getTextContent().length() < 200,
+            "Tool content should be truncated by micro compactors");
+    }
+
+    @Test
+    @DisplayName("chain handles messages with no TOOL messages")
+    void chainWithNoToolMessages() {
+        SnipCompactor snip = new SnipCompactor(1);
+        MicroCompactor micro = new MicroCompactor(50, 10);
+        CompactionChain chain = new CompactionChain(snip, micro);
+
+        List<ConversationMessage> messages = List.of(
+            user("q1"), assistant("a1"),
+            user("q2"), assistant("a2")
+        );
+
+        List<ConversationMessage> result = chain.compact(messages);
+        assertEquals(4, result.size(), "All messages should be preserved when no TOOL messages");
+    }
 }

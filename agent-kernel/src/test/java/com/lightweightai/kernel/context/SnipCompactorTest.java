@@ -113,4 +113,57 @@ class SnipCompactorTest {
         List<ConversationMessage> result = compactor.compact(messages);
         assertEquals(messages.size(), result.size());
     }
+
+    @Test
+    @DisplayName("multiple TOOL messages per round — old round's tools all removed")
+    void multipleToolsPerRound() {
+        SnipCompactor compactor = new SnipCompactor(1);
+        List<ConversationMessage> messages = List.of(
+            user("q1"), tool("t1a"), tool("t1b"), assistant("a1"),  // old round
+            user("q2"), tool("t2"), assistant("a2")                  // recent round
+        );
+
+        List<ConversationMessage> result = compactor.compact(messages);
+
+        boolean hasOldToolA = result.stream()
+            .anyMatch(m -> m.getRole() == MessageRole.TOOL && "t1a".equals(m.getTextContent()));
+        boolean hasOldToolB = result.stream()
+            .anyMatch(m -> m.getRole() == MessageRole.TOOL && "t1b".equals(m.getTextContent()));
+        assertFalse(hasOldToolA, "Old tool t1a should be removed");
+        assertFalse(hasOldToolB, "Old tool t1b should be removed");
+
+        boolean hasRecentTool = result.stream()
+            .anyMatch(m -> m.getRole() == MessageRole.TOOL && "t2".equals(m.getTextContent()));
+        assertTrue(hasRecentTool, "Recent tool should be preserved");
+    }
+
+    @Test
+    @DisplayName("messages without any USER → returns unchanged (no rounds to count)")
+    void noUserMessages() {
+        SnipCompactor compactor = new SnipCompactor(1);
+        List<ConversationMessage> messages = List.of(
+            system("prompt"), assistant("hello"), tool("t1")
+        );
+
+        List<ConversationMessage> result = compactor.compact(messages);
+        assertEquals(messages.size(), result.size());
+    }
+
+    @Test
+    @DisplayName("keepRecentRounds = 0 — boundary stays at 0 so no TOOL removed")
+    void keepZeroRoundsDoesNotRemoveTools() {
+        // When keepRecentRounds=0, findProtectBoundary returns 0 (no USER messages
+        // are counted before the threshold is reached), so protectFrom=0 and
+        // no TOOL messages fall below the boundary — all are preserved.
+        SnipCompactor compactor = new SnipCompactor(0);
+        List<ConversationMessage> messages = List.of(
+            user("q1"), tool("t1"), assistant("a1"),
+            user("q2"), tool("t2"), assistant("a2")
+        );
+
+        List<ConversationMessage> result = compactor.compact(messages);
+
+        long toolCount = result.stream().filter(m -> m.getRole() == MessageRole.TOOL).count();
+        assertEquals(2, toolCount, "With keepRecentRounds=0, boundary is 0 so all TOOLs kept");
+    }
 }
