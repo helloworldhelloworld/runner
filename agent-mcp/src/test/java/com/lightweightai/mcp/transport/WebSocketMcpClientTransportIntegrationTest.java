@@ -1,10 +1,12 @@
 package com.lightweightai.mcp.transport;
 
+import com.lightweightai.mcp.McpHttpClients;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 
+import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -12,6 +14,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -213,6 +216,44 @@ class WebSocketMcpClientTransportIntegrationTest {
 
             transport.closeGracefully().block(Duration.ofSeconds(2));
             assertFalse(transport.isConnected());
+        }
+    }
+
+    @Test
+    @DisplayName("closeGracefully 不 shutdown 注入的 HttpClient")
+    void closeDoesNotShutdownInjectedHttpClient() throws Exception {
+        HttpClient dedicated = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+        try (MiniWebSocketServer server = new MiniWebSocketServer()) {
+            WebSocketMcpClientTransport transport = WebSocketMcpClientTransport.builder(server.url("/mcp"))
+                .httpClient(dedicated)
+                .pingInterval(Duration.ZERO)
+                .build();
+            transport.connect(in -> Mono.empty()).block(Duration.ofSeconds(5));
+
+            transport.closeGracefully().block(Duration.ofSeconds(2));
+
+            assertSame(dedicated, transport.httpClient());
+            assertFalse(dedicated.isTerminated(),
+                "注入的 HttpClient 生命周期由调用方管理，closeGracefully 不得 shutdown");
+        }
+    }
+
+    @Test
+    @DisplayName("默认共享 HttpClient 在 closeGracefully 后仍可用")
+    void closeDoesNotShutdownDefaultSharedHttpClient() throws Exception {
+        try (MiniWebSocketServer server = new MiniWebSocketServer()) {
+            WebSocketMcpClientTransport transport = WebSocketMcpClientTransport.builder(server.url("/mcp"))
+                .pingInterval(Duration.ZERO)
+                .build();
+            transport.connect(in -> Mono.empty()).block(Duration.ofSeconds(5));
+            assertSame(McpHttpClients.shared(), transport.httpClient());
+
+            transport.closeGracefully().block(Duration.ofSeconds(2));
+
+            assertFalse(McpHttpClients.shared().isTerminated(),
+                "进程级共享 HttpClient 不得被单条 transport close 关掉");
         }
     }
 }

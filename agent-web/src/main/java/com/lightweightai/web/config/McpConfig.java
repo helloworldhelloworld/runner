@@ -144,8 +144,9 @@ public class McpConfig {
                 continue;
             }
 
+            McpToolClient client = null;
             try {
-                McpToolClient client = connectMcpServer(name, serverConfig);
+                client = connectMcpServer(name, serverConfig);
                 int toolCount = client.registerTools(toolRegistry);
                 clients.add(client);
 
@@ -154,6 +155,7 @@ public class McpConfig {
                 logger.info("MCP server '{}' connected, {} tools registered: {}",
                     name, toolCount, toolNames);
             } catch (Exception e) {
+                closeQuietly(client);
                 logger.warn("Failed to connect MCP server '{}': {}", name, e.getMessage());
             }
         }
@@ -181,8 +183,24 @@ public class McpConfig {
             .transport(transport)
             .requestTimeout(timeout)
             .build();
-        client.initialize();
-        return client;
+        try {
+            client.initialize();
+            return client;
+        } catch (RuntimeException e) {
+            closeQuietly(client);
+            throw e;
+        }
+    }
+
+    private static void closeQuietly(McpToolClient client) {
+        if (client == null) {
+            return;
+        }
+        try {
+            client.close();
+        } catch (Exception closeEx) {
+            logger.warn("Failed to close MCP client '{}': {}", client.getServerName(), closeEx.getMessage());
+        }
     }
 
     @PreDestroy

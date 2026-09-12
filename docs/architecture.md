@@ -322,3 +322,4 @@ Skill 激活方式：
 | [002](decisions/002-tool-over-plugin.md) | Tool interface over Plugin system |
 | [003](decisions/003-agent-loop-over-kernel.md) | AgentLoop over abstract Kernel pattern |
 | [004](decisions/004-multi-agent-orchestrator.md) | Multi-Agent Orchestrator architecture |
+| [015](decisions/015-mcp-shared-httpclient.md) | MCP transport 默认共享 JDK HttpClient，避免 per-request SelectorManager 泄漏 |

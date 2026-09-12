@@ -149,6 +149,7 @@ public class ToolClient implements AutoCloseable {
         private final List<McpToolClient> mcpClients = new ArrayList<>();
         private boolean autoScan = false;
         private McpHeaderProvider headerProvider;
+        private java.net.http.HttpClient sharedHttpClient;
 
         /**
          * 注册本地注解工具（@ToolFunction）
@@ -194,6 +195,15 @@ public class ToolClient implements AutoCloseable {
         }
 
         /**
+         * 覆盖 {@link #fromConfig} 使用的 HttpClient。未设置时用 {@link McpHttpClients#shared()}。
+         * {@link ToolClient#close()} 不关闭该实例。
+         */
+        public Builder sharedHttpClient(java.net.http.HttpClient httpClient) {
+            this.sharedHttpClient = httpClient;
+            return this;
+        }
+
+        /**
          * 启用 SPI 自动扫描
          */
         public Builder autoScan() {
@@ -220,7 +230,8 @@ public class ToolClient implements AutoCloseable {
                 String name = entry.getKey();
                 McpConfiguration.ServerConfig serverConfig = entry.getValue();
 
-                McpClientTransport transport = createTransport(name, serverConfig, headerProvider);
+                McpClientTransport transport = createTransport(
+                    name, serverConfig, headerProvider, sharedHttpClient);
                 Duration timeout = Duration.ofSeconds(serverConfig.getTimeoutSeconds());
                 addMcpServer(name, transport, timeout);
 
@@ -260,6 +271,20 @@ public class ToolClient implements AutoCloseable {
         public static McpClientTransport createTransport(String name,
                                                     McpConfiguration.ServerConfig config,
                                                     McpHeaderProvider headerProvider) {
+            return createTransport(name, config, headerProvider, McpHttpClients.shared());
+        }
+
+        /**
+         * 与三参数工厂相同，但 HTTP / SSE / WS transport 使用指定 {@link java.net.http.HttpClient}。
+         * {@code sharedHttpClient} 为 null 时回退 {@link McpHttpClients#shared()}。
+         */
+        public static McpClientTransport createTransport(String name,
+                                                    McpConfiguration.ServerConfig config,
+                                                    McpHeaderProvider headerProvider,
+                                                    java.net.http.HttpClient sharedHttpClient) {
+            java.net.http.HttpClient httpClient = sharedHttpClient != null
+                ? sharedHttpClient
+                : McpHttpClients.shared();
             String transport = config.getTransport();
 
             if ("streamable_http".equalsIgnoreCase(transport)
@@ -280,7 +305,8 @@ public class ToolClient implements AutoCloseable {
                     ? Map.copyOf(config.getHeaders()) : Map.of();
 
                 var builder = HttpClientStreamableHttpTransport.builder(baseUrl)
-                    .endpoint(endpoint);
+                    .endpoint(endpoint)
+                    .clientBuilder(McpHttpClients.sharing(httpClient));
 
                 // customizeRequest 每次 HTTP 请求回调 — 三层 header 合并
                 builder.customizeRequest(reqBuilder -> {
@@ -313,7 +339,8 @@ public class ToolClient implements AutoCloseable {
                 var wsBuilder = WebSocketMcpClientTransport.builder(wsUrl)
                     .connectTimeout(Duration.ofSeconds(config.getTimeoutSeconds()))
                     .pingInterval(Duration.ofSeconds(config.getPingIntervalSeconds()))
-                    .headers(connectHeaders);
+                    .headers(connectHeaders)
+                    .httpClient(httpClient);
                 return wsBuilder.build();
             }
 
@@ -326,7 +353,8 @@ public class ToolClient implements AutoCloseable {
                 // 只合并静态 config headers + 全局 provider（启动时确定）
                 Map<String, String> headers = resolveHeaders(config, headerProvider);
                 var sseBuilder = HttpClientSseClientTransport.builder(config.getUrl())
-                    .sseEndpoint("/sse");
+                    .sseEndpoint("/sse")
+                    .clientBuilder(McpHttpClients.sharing(httpClient));
                 if (!headers.isEmpty()) {
                     java.net.http.HttpRequest.Builder reqBuilder = java.net.http.HttpRequest.newBuilder();
                     headers.forEach(reqBuilder::header);
