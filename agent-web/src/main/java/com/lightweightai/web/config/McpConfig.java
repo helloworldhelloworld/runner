@@ -203,8 +203,13 @@ public class McpConfig {
             .transport(transport)
             .requestTimeout(timeout)
             .build();
-        client.initialize();
-        return client;
+        try {
+            client.initialize();
+            return client;
+        } catch (RuntimeException e) {
+            closeQuietly(client);
+            throw e;
+        }
     }
 
     /**
@@ -213,8 +218,9 @@ public class McpConfig {
      */
     McpToolClient tryConnectReturning(String name, McpConfiguration.ServerConfig serverConfig,
                                       ToolRegistry toolRegistry) {
+        McpToolClient client = null;
         try {
-            McpToolClient client = connectMcpServer(name, serverConfig);
+            client = connectMcpServer(name, serverConfig);
             int toolCount = client.registerTools(toolRegistry);
             clients.add(client);
             List<String> toolNames = client.getDiscoveredTools().stream()
@@ -223,6 +229,7 @@ public class McpConfig {
                 name, toolCount, toolNames);
             return client;
         } catch (Exception e) {
+            closeQuietly(client);
             logger.warn("Failed to connect MCP server '{}': {}", name, e.getMessage());
             return null;
         }
@@ -243,8 +250,20 @@ public class McpConfig {
         try {
             probe.run();
             return current;
-        } catch (Exception e) {  // 连接死 → 重连
+        } catch (Exception e) {  // 连接死 → 先关旧 client 再重连
+            closeQuietly(current);
             return connect.get();
+        }
+    }
+
+    private static void closeQuietly(McpToolClient client) {
+        if (client == null) {
+            return;
+        }
+        try {
+            client.close();
+        } catch (Exception closeEx) {
+            logger.warn("Failed to close MCP client '{}': {}", client.getServerName(), closeEx.getMessage());
         }
     }
 

@@ -452,3 +452,4 @@ loop/工具/compaction/历史归 OpenClaw，Pi 设备 MCP（ADR-008）挂 OpenCl
 | [012](decisions/012-voice-text-plane-contract.md) | 语音文本平面契约 + 入站 barge-in（Voice Gateway ⟷ runner WS）|
 | [013](decisions/013-first-chunk-timed-flush.md) | 首块早发的时间维度兜底（max-wait timed flush）|
 | [014](decisions/014-brain-swappable-chathandler-openclaw.md) | 脑=可切换 ChatHandler SPI + OpenClaw 完整大脑适配 |
+| [015](decisions/015-mcp-shared-httpclient.md) | MCP transport 默认共享 JDK HttpClient，避免 per-request SelectorManager 泄漏 |

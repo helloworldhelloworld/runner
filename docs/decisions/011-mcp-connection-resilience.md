@@ -18,7 +18,9 @@
   `app.mcp.retry-seconds`（默认 15s）跑一次 **`healthTick`**：
   - `current==null`（没连上）→ 连接；
   - `current!=null` → 用 `client.refreshTools(registry)` **探活**（内部 listTools，连接死会抛）→
-    成功保持；**抛异常(连接死)→ 重连+重注册**。
+    成功保持；**抛异常(连接死)→ 先 `current.close()` 再重连+重注册**（避免旧 session /
+    非共享资源在重连后悬空，见 [ADR-015](015-mcp-shared-httpclient.md) D4）。
+    `initialize` / `registerTools` 失败同样 close 刚建的 client。
 - 这样既覆盖"Pi 的 MCP server 在 runner 之后才起"（startup retry），也覆盖"server 中途重启/掉线"
   （mid-run reconnect）——都自动恢复。
 - 注册进**共享 `ToolRegistry`**；`Orchestrator` 每请求重新快照 registry，故晚注册/重注册的工具

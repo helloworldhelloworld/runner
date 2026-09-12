@@ -8,7 +8,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 /**
  * ADR-011：MCP 连接保活——{@link McpConfig#healthTick} 统一处理"启动没起→连""运行掉线→重连"，
@@ -41,10 +44,11 @@ class McpConfigHealthTest {
 
         assertSame(cur, r);
         assertEquals(0, connects.get(), "探活成功不该重连");
+        verify(cur, never()).close();
     }
 
     @Test
-    @DisplayName("已连接 + 探活抛异常(连接死) → 重连返回新 client")
+    @DisplayName("已连接 + 探活抛异常(连接死) → 先 close 旧 client 再重连")
     void reconnectsWhenProbeThrows() {
         McpToolClient cur = mock(McpToolClient.class);
         McpToolClient fresh = mock(McpToolClient.class);
@@ -54,5 +58,21 @@ class McpConfigHealthTest {
             () -> fresh);
 
         assertSame(fresh, r, "探活失败应重连成新 client");
+        verify(cur).close();
+    }
+
+    @Test
+    @DisplayName("重连前 close 抛异常仍继续 connect")
+    void reconnectsEvenWhenCloseThrows() {
+        McpToolClient cur = mock(McpToolClient.class);
+        doThrow(new RuntimeException("close failed")).when(cur).close();
+        McpToolClient fresh = mock(McpToolClient.class);
+
+        McpToolClient r = McpConfig.healthTick(cur,
+            () -> { throw new RuntimeException("connection dead"); },
+            () -> fresh);
+
+        assertSame(fresh, r);
+        verify(cur).close();
     }
 }

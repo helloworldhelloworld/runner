@@ -1,5 +1,6 @@
 package com.lightweightai.mcp.transport;
 
+import com.lightweightai.mcp.McpHttpClients;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.json.TypeRef;
 import io.modelcontextprotocol.spec.McpClientTransport;
@@ -50,6 +51,8 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
     private final Duration connectTimeout;
     private final Duration pingInterval;
     private final McpJsonMapper jsonMapper;
+    /** 共享或调用方注入的 HttpClient；本 transport 不负责 shutdown。 */
+    private final HttpClient httpClient;
 
     private final ScheduledExecutorService scheduler =
         Executors.newSingleThreadScheduledExecutor(r -> {
@@ -77,6 +80,7 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         this.connectTimeout = builder.connectTimeout;
         this.pingInterval = builder.pingInterval;
         this.jsonMapper = builder.jsonMapper != null ? builder.jsonMapper : McpJsonMapper.getDefault();
+        this.httpClient = builder.httpClient != null ? builder.httpClient : McpHttpClients.shared();
     }
 
     public static Builder builder(String url) {
@@ -91,13 +95,9 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         this.handler = handler;
         java.util.concurrent.CompletableFuture<Void> open = new java.util.concurrent.CompletableFuture<>();
         this.openFuture = open;
-        // 埋点：从 subscribe 到 onOpen（握手完成）的耗时，含 HttpClient 创建 + TCP/WS 升级。
+        // 埋点：从 subscribe 到 onOpen（握手完成）的耗时，含 TCP/WS 升级（HttpClient 默认进程共享）。
         long[] startNanos = {0L};
         return Mono.fromFuture(() -> {
-            HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(connectTimeout)
-                .build();
-
             WebSocket.Builder wsBuilder = httpClient.newWebSocketBuilder();
             headers.forEach(wsBuilder::header);
 
@@ -165,6 +165,14 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
     public boolean isConnected() {
         return connected;
+    }
+
+    /**
+     * 本 transport 使用的 {@link HttpClient}（默认 {@link McpHttpClients#shared()}）。
+     * 包内可见，供同包测试断言共享实例传到了下游。
+     */
+    HttpClient httpClient() {
+        return httpClient;
     }
 
     // ==================== 内部机制 ====================
@@ -275,6 +283,7 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         private Duration connectTimeout = Duration.ofSeconds(30);
         private Duration pingInterval = Duration.ofSeconds(30);
         private McpJsonMapper jsonMapper;
+        private HttpClient httpClient;
 
         private Builder(String url) {
             if (url == null || url.isBlank()) {
@@ -300,6 +309,15 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
         public Builder jsonMapper(McpJsonMapper jsonMapper) {
             this.jsonMapper = jsonMapper;
+            return this;
+        }
+
+        /**
+         * 注入 HttpClient。未调用时默认 {@link McpHttpClients#shared()}。
+         * {@link #closeGracefully()} 不会 shutdown 该实例。
+         */
+        public Builder httpClient(HttpClient httpClient) {
+            this.httpClient = httpClient;
             return this;
         }
 
