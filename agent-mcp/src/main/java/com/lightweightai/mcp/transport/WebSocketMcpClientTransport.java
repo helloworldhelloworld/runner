@@ -50,6 +50,7 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
     private final Duration connectTimeout;
     private final Duration pingInterval;
     private final McpJsonMapper jsonMapper;
+    private final HttpClient httpClient;
 
     private final ScheduledExecutorService scheduler =
         Executors.newSingleThreadScheduledExecutor(r -> {
@@ -77,6 +78,7 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         this.connectTimeout = builder.connectTimeout;
         this.pingInterval = builder.pingInterval;
         this.jsonMapper = builder.jsonMapper != null ? builder.jsonMapper : McpJsonMapper.getDefault();
+        this.httpClient = builder.httpClient != null ? builder.httpClient : McpHttpClients.shared();
     }
 
     public static Builder builder(String url) {
@@ -92,10 +94,6 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         java.util.concurrent.CompletableFuture<Void> open = new java.util.concurrent.CompletableFuture<>();
         this.openFuture = open;
         return Mono.fromFuture(() -> {
-            HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(connectTimeout)
-                .build();
-
             WebSocket.Builder wsBuilder = httpClient.newWebSocketBuilder();
             headers.forEach(wsBuilder::header);
 
@@ -112,7 +110,10 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         // openFuture 上 → 一直挂到 requestTimeout / SDK 的 initialize 超时，真实原因被吞成
         // "Client failed to initialize by explicit API call"。故在此显式把失败传导给 openFuture，
         // 令等待中的 sendMessage 立即以真实原因失败（issue #195）。已完成则为 no-op（onOpen 先赢无害）。
-        .doOnError(open::completeExceptionally);
+        .doOnError(error -> {
+            open.completeExceptionally(error);
+            closeResources();
+        });
     }
 
     @Override
@@ -146,16 +147,7 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
     @Override
     public Mono<Void> closeGracefully() {
-        return Mono.fromRunnable(() -> {
-            closed = true;
-            connected = false;
-            cancelPing();
-            scheduler.shutdownNow();
-            WebSocket ws = this.webSocket;
-            if (ws != null) {
-                ws.sendClose(WebSocket.NORMAL_CLOSURE, "");
-            }
-        });
+        return Mono.fromRunnable(this::closeResources);
     }
 
     @Override
@@ -267,6 +259,17 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         }
     }
 
+    private void closeResources() {
+        closed = true;
+        connected = false;
+        cancelPing();
+        scheduler.shutdownNow();
+        WebSocket ws = this.webSocket;
+        if (ws != null) {
+            ws.sendClose(WebSocket.NORMAL_CLOSURE, "");
+        }
+    }
+
     // ==================== Builder ====================
 
     public static class Builder {
@@ -275,6 +278,7 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
         private Duration connectTimeout = Duration.ofSeconds(30);
         private Duration pingInterval = Duration.ofSeconds(30);
         private McpJsonMapper jsonMapper;
+        private HttpClient httpClient;
 
         private Builder(String url) {
             if (url == null || url.isBlank()) {
@@ -300,6 +304,12 @@ public class WebSocketMcpClientTransport implements McpClientTransport {
 
         public Builder jsonMapper(McpJsonMapper jsonMapper) {
             this.jsonMapper = jsonMapper;
+            return this;
+        }
+
+        /** Supplies the caller-owned HTTP client for this WebSocket transport. */
+        public Builder httpClient(HttpClient httpClient) {
+            this.httpClient = httpClient;
             return this;
         }
 

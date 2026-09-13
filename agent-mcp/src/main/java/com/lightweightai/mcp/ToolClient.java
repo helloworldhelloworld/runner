@@ -5,6 +5,7 @@ import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.ToolExecutor;
 import com.lightweightai.mcp.transport.WebSocketMcpClientTransport;
+import com.lightweightai.mcp.transport.McpHttpClients;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
@@ -260,6 +261,16 @@ public class ToolClient implements AutoCloseable {
         public static McpClientTransport createTransport(String name,
                                                     McpConfiguration.ServerConfig config,
                                                     McpHeaderProvider headerProvider) {
+            return createTransport(name, config, headerProvider, McpHttpClients.shared());
+        }
+
+        /** Creates a transport using a caller-owned HTTP client. */
+        public static McpClientTransport createTransport(String name,
+                                                    McpConfiguration.ServerConfig config,
+                                                    McpHeaderProvider headerProvider,
+                                                    java.net.http.HttpClient httpClient) {
+            java.net.http.HttpClient effectiveHttpClient = httpClient != null
+                ? httpClient : McpHttpClients.shared();
             String transport = config.getTransport();
 
             if ("streamable_http".equalsIgnoreCase(transport)
@@ -280,7 +291,8 @@ public class ToolClient implements AutoCloseable {
                     ? Map.copyOf(config.getHeaders()) : Map.of();
 
                 var builder = HttpClientStreamableHttpTransport.builder(baseUrl)
-                    .endpoint(endpoint);
+                    .endpoint(endpoint)
+                    .clientBuilder(McpHttpClients.sharing(effectiveHttpClient));
 
                 // customizeRequest 每次 HTTP 请求回调 — 三层 header 合并
                 builder.customizeRequest(reqBuilder -> {
@@ -313,7 +325,8 @@ public class ToolClient implements AutoCloseable {
                 var wsBuilder = WebSocketMcpClientTransport.builder(wsUrl)
                     .connectTimeout(Duration.ofSeconds(config.getTimeoutSeconds()))
                     .pingInterval(Duration.ofSeconds(config.getPingIntervalSeconds()))
-                    .headers(connectHeaders);
+                    .headers(connectHeaders)
+                    .httpClient(effectiveHttpClient);
                 return wsBuilder.build();
             }
 
@@ -326,7 +339,8 @@ public class ToolClient implements AutoCloseable {
                 // 只合并静态 config headers + 全局 provider（启动时确定）
                 Map<String, String> headers = resolveHeaders(config, headerProvider);
                 var sseBuilder = HttpClientSseClientTransport.builder(config.getUrl())
-                    .sseEndpoint("/sse");
+                    .sseEndpoint("/sse")
+                    .clientBuilder(McpHttpClients.sharing(effectiveHttpClient));
                 if (!headers.isEmpty()) {
                     java.net.http.HttpRequest.Builder reqBuilder = java.net.http.HttpRequest.newBuilder();
                     headers.forEach(reqBuilder::header);
