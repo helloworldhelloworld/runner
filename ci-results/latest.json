@@ -1,8 +1,8 @@
 {
-  "trigger_sha": "f4f6e110b2d2869151f754f14b66eb5371cec8ff",
-  "exit_code": 0,
-  "timestamp": "2026-08-02T03:54:16Z",
+  "trigger_sha": "388147f7da58d58bbd5608ca3cc5da69a4da1dfa",
+  "exit_code": 1,
+  "timestamp": "2026-10-18T03:53:57Z",
   "branch": "main",
-  "run_id": "30731391119",
-  "test_summary": "[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.web.gateway.UnifiedChatResponseTest|[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s - in com.lightweightai.web.gateway.UnifiedChatResponseTest|[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s - in com.lightweightai.web.gateway.UnifiedChatResponseTest|[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.web.gateway.UnifiedChatResponseTest|[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.web.gateway.UnifiedChatResponseTest|[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s - in com.lightweightai.web.gateway.UnifiedChatResponseTest|[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.01 s - in com.lightweightai.web.gateway.UnifiedChatResponseTest|[WARNING] Tests run: 386, Failures: 0, Errors: 0, Skipped: 20|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.06 s - in com.lightweightai.plugin.example.PluginToolTest|[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0|"
+  "run_id": "39095202090",
+  "test_summary": ""
 }
