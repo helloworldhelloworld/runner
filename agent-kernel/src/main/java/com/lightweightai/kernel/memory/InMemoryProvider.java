@@ -14,8 +14,47 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * 用于测试和轻量级场景，不持久化到磁盘。
  * 支持 BM25 风格的关键词搜索。
+ * 所有读写由实例锁保护，避免并发 Agent 修改检索正在遍历的列表。
  */
 public class InMemoryProvider implements MemoryProvider {
+    private final Map<List<String>, MemoryProvider> scopedMemory = new ConcurrentHashMap<>();
+    private final Map<String, InMemoryProvider> sessionJournals = new ConcurrentHashMap<>();
+
+    @Override public MemoryProvider forScope(String principalId, String agentId) {
+        if (principalId == null) return this;
+        return scopedMemory.computeIfAbsent(List.of(principalId, agentId), key -> new InMemoryProvider());
+    }
+
+    @Override public void clearExecutionTree(String principalId, String agentId, String sessionId) {
+        if (principalId == null) {
+            clearSession(sessionId);
+            return;
+        }
+        scopedMemory.forEach((scope, memory) -> {
+            if (scope.getFirst().equals(principalId)) memory.clearSession(sessionId);
+        });
+    }
+
+    @Override public synchronized MemoryProvider forSession(String sessionId) {
+        InMemoryProvider owner = this;
+        InMemoryProvider journal = sessionJournals.computeIfAbsent(sessionId, key -> new InMemoryProvider());
+        return new MemoryProvider() {
+            private void live() {
+                if (sessionJournals.get(sessionId) != journal) throw new IllegalStateException("Session was cleared; stale writes are rejected");
+            }
+            public void addMessage(String session, Message message) {
+                if (!sessionId.equals(session)) throw new IllegalArgumentException("Memory view belongs to another session");
+                synchronized (owner) { live(); owner.addMessage(session, message); }
+            }
+            public List<Message> getHistory(String session, int limit) { return owner.getHistory(session, limit); }
+            public void clearSession(String session) { owner.clearSession(session); }
+            public void writeEphemeral(String content) { synchronized (owner) { live(); journal.writeEphemeral(content); } }
+            public void writeDurable(String section, String content) { synchronized (owner) { live(); owner.writeDurable(section, content); } }
+            public List<MemorySearchResult> search(String query) { return owner.search(query); }
+            public String readDurable() { return owner.readDurable(); }
+            public String readTodayEphemeral() { return owner.readTodayEphemeral(); }
+        };
+    }
 
     // 会话历史：sessionId -> 消息列表
     private final Map<String, List<Message>> sessions = new ConcurrentHashMap<>();
@@ -29,12 +68,12 @@ public class InMemoryProvider implements MemoryProvider {
     // ==================== 会话记忆 ====================
 
     @Override
-    public void addMessage(String sessionId, Message message) {
+    public synchronized void addMessage(String sessionId, Message message) {
         sessions.computeIfAbsent(sessionId, k -> new ArrayList<>()).add(message);
     }
 
     @Override
-    public List<Message> getHistory(String sessionId, int limit) {
+    public synchronized List<Message> getHistory(String sessionId, int limit) {
         List<Message> history = sessions.getOrDefault(sessionId, Collections.emptyList());
 
         if (history.size() <= limit) {
@@ -46,34 +85,33 @@ public class InMemoryProvider implements MemoryProvider {
     }
 
     @Override
-    public void clearSession(String sessionId) {
-        sessions.remove(sessionId);
+    public synchronized void clearSession(String sessionId) {
+        sessions.keySet().removeIf(key -> key.equals(sessionId) || key.startsWith(sessionId + ":subagent:"));
+        sessionJournals.keySet().removeIf(key -> key.equals(sessionId) || key.startsWith(sessionId + ":subagent:"));
     }
 
     // ==================== 持久化记忆 ====================
 
     @Override
-    public void writeEphemeral(String content) {
+    public synchronized void writeEphemeral(String content) {
         LocalDate today = LocalDate.now();
         ephemeralMemory.computeIfAbsent(today, k -> new ArrayList<>()).add(content);
     }
 
     @Override
-    public void writeDurable(String section, String content) {
+    public synchronized void writeDurable(String section, String content) {
         durableMemory.computeIfAbsent(section, k -> new ArrayList<>()).add(content);
     }
 
     @Override
-    public String readTodayEphemeral() {
-        List<String> today = ephemeralMemory.get(LocalDate.now());
-        if (today == null || today.isEmpty()) {
-            return "";
-        }
+    public synchronized String readTodayEphemeral() {
+        List<String> today = new ArrayList<>(ephemeralMemory.getOrDefault(LocalDate.now(), List.of()));
+        sessionJournals.values().forEach(journal -> today.add(journal.readTodayEphemeral()));
         return String.join("\n", today);
     }
 
     @Override
-    public String readDurable() {
+    public synchronized String readDurable() {
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, List<String>> entry : durableMemory.entrySet()) {
             sb.append("## ").append(entry.getKey()).append("\n\n");
@@ -88,7 +126,7 @@ public class InMemoryProvider implements MemoryProvider {
     // ==================== 记忆检索 ====================
 
     @Override
-    public List<MemorySearchResult> search(String query) {
+    public synchronized List<MemorySearchResult> search(String query) {
         if (query == null || query.trim().isEmpty()) {
             return Collections.emptyList();
         }
@@ -124,6 +162,7 @@ public class InMemoryProvider implements MemoryProvider {
             }
         }
 
+        sessionJournals.values().forEach(journal -> results.addAll(journal.search(query)));
         // 按相关性排序
         results.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
 
@@ -167,14 +206,14 @@ public class InMemoryProvider implements MemoryProvider {
     /**
      * 获取所有会话 ID
      */
-    public Set<String> getAllSessionIds() {
+    public synchronized Set<String> getAllSessionIds() {
         return new HashSet<>(sessions.keySet());
     }
 
     /**
      * 获取统计信息
      */
-    public Map<String, Object> getStats() {
+    public synchronized Map<String, Object> getStats() {
         return Map.of(
             "sessions", sessions.size(),
             "ephemeralDays", ephemeralMemory.size(),
@@ -186,8 +225,10 @@ public class InMemoryProvider implements MemoryProvider {
     /**
      * 清空所有记忆
      */
-    public void clearAll() {
+    public synchronized void clearAll() {
         sessions.clear();
+        sessionJournals.clear();
+        scopedMemory.clear();
         ephemeralMemory.clear();
         durableMemory.clear();
     }

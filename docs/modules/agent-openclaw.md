@@ -6,6 +6,10 @@ OpenClaw 大脑适配模块。把外部 **OpenClaw**（TS agent runtime）作为
 
 ## 职责边界
 
+ADR-025 要求对服务器绑定主体的请求明确拒绝，直到远端 workspace/长期记忆隔离及会话管理
+通过真实验收。仅修改 sessionKey 不足以证明隔离；旧无主体 SDK 的受信直接调用继续保留。
+该限制必须在调用远端或修改活跃运行槽位前生效，不能让拒绝的请求中断既有运行。
+
 - **做**：实现 `ChatHandler`（大脑平面 SPI），把 OpenClaw 的事件流映射成 runner 的 `Flux<StreamEvent>`
   （`TEXT_DELTA` / `LLM_COMPLETE`），并实现 barge-in 的 `interrupt(sessionId)` 契约。
 - **不做**：可说块切分 / emotion / 序列化 / WS / 安全检测 —— 这些是**语音平面**，对 `ChatHandler` 泛型无关、保持在

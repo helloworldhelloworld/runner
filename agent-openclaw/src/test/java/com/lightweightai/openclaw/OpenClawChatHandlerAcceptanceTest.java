@@ -23,6 +23,23 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("OpenClawChatHandler - 完整大脑适配 acceptance")
 class OpenClawChatHandlerAcceptanceTest {
 
+    @Test
+    void authenticatedInputDoesNotReachAnUnisolatedRemoteOrInterruptAnExistingRun() {
+        FakeOpenClawClient remote = new FakeOpenClawClient();
+        OpenClawChatHandler handler = new OpenClawChatHandler(remote);
+        Disposable legacy = handler.chatStreamReactive(req("same", "legacy input")).subscribe();
+        var error = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        Disposable rejected = handler.chatStreamReactive(GatewayRequest.builder().sessionId("same")
+                .principalId("alice").message("private input").build()).subscribe(event -> {}, error::set);
+        try {
+            assertEquals("legacy input", remote.lastRequest.message(), "Private input reached an unisolated backend");
+            assertTrue(remote.cancelled.isEmpty(), "A rejected request interrupted an unrelated execution");
+            assertInstanceOf(UnsupportedOperationException.class, error.get());
+        } finally {
+            rejected.dispose(); legacy.dispose();
+        }
+    }
+
     private static GatewayRequest req(String sessionId, String message) {
         return GatewayRequest.builder().sessionId(sessionId).message(message).build();
     }

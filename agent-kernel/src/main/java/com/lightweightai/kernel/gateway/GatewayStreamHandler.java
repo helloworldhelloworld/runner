@@ -51,6 +51,9 @@ public interface GatewayStreamHandler {
      */
     void onError(Throwable error);
 
+    /** Execution stopped before a model request could be admitted. */
+    default void onBudgetStopped(Map<String, Object> usage) {}
+
     // ==================== 工具事件回调（默认空实现，向后兼容） ====================
 
     /**

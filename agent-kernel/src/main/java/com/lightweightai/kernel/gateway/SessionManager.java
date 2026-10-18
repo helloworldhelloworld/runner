@@ -13,6 +13,14 @@ import java.util.Map;
  * - onSessionStop:  会话主动关闭或超时清理时调用
  */
 public interface SessionManager {
+    default SessionManager forScope(String principalId, String agentId) {
+        if (principalId == null) return this;
+        throw new UnsupportedOperationException("Authenticated session management is unsupported");
+    }
+
+    default com.lightweightai.kernel.memory.MemoryProvider getMemoryProvider() {
+        throw new UnsupportedOperationException("This session manager does not expose scoped memory");
+    }
 
     /**
      * 获取会话历史

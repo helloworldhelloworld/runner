@@ -1,6 +1,6 @@
 package com.lightweightai.kernel.core;
 
-import com.lightweightai.kernel.agent.DeviceContext;
+import com.lightweightai.kernel.agent.ContextAwareTool;
 import com.lightweightai.kernel.agent.DispatchingTool;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -137,45 +138,7 @@ public class ToolExecutor {
      * @return ToolResult with the execution result or error
      */
     public ToolResult executeToolCall(ToolCall toolCall) {
-        if (toolCall == null) {
-            throw new IllegalArgumentException("ToolCall cannot be null");
-        }
-
-        try {
-            // Check ToolRegistry first (preferred path)
-            if (toolRegistry.has(toolCall.getName()) && toolRegistry.isEnabled(toolCall.getName())) {
-                Tool tool = toolRegistry.get(toolCall.getName()).orElse(null);
-                if (tool != null) {
-                    return tool.execute(toolCall.getArguments())
-                        .withToolUseId(toolCall.getId());
-                }
-            }
-
-            // Fall back to legacy function registry
-            PluginFunction function = functionRegistry.get(toolCall.getName());
-            if (function == null) {
-                return ToolResult.error(
-                    toolCall.getId(),
-                    "Tool not found: " + toolCall.getName()
-                );
-            }
-
-            // Execute the function
-            FunctionResult result = function.execute(toolCall.getArguments());
-
-            // Convert to ToolResult
-            if (result.isSuccess()) {
-                return ToolResult.success(toolCall.getId(), result.getValue());
-            } else {
-                return ToolResult.error(toolCall.getId(), result.getError());
-            }
-
-        } catch (Exception e) {
-            return ToolResult.error(
-                toolCall.getId(),
-                "Execution failed: " + e.getMessage()
-            );
-        }
+        return executeToolCall(toolCall, null);
     }
 
     // ==================== 带 Context 的执行（支持客户端工具路由）====================
@@ -197,19 +160,22 @@ public class ToolExecutor {
         }
 
         try {
-            // Check if this tool should be dispatched to client
-            if (context != null && context.hasClientDispatcher()) {
-                Tool tool = resolveTool(toolCall.getName(), context);
-                if (tool != null && isClientSideTool(tool)) {
+            Tool tool = resolveTool(toolCall.getName(), context);
+            if ((context != null && context.getCancellationToken() != null && context.getCancellationToken().isCancelled())
+                    || !toolRegistry.isExecutionAllowed(toolCall.getName(), tool, toolCall.getArguments(), context)) {
+                return ToolResult.error(toolCall.getId(), "Tool execution denied: " + toolCall.getName());
+            }
+            if (tool != null) {
+                if (!toolRegistry.isEnabled(toolCall.getName())) {
+                    return ToolResult.error(toolCall.getId(), "Tool not found: " + toolCall.getName());
+                }
+                if (context != null && tool instanceof ContextAwareTool contextual) {
+                    return contextual.execute(toolCall.getArguments(), context).withToolUseId(toolCall.getId());
+                }
+                if (context != null && context.hasClientDispatcher() && isClientSideTool(tool)) {
                     return executeOnClient(toolCall, context);
                 }
-            }
-
-            // Resolve tool with device context if available
-            Tool tool = resolveTool(toolCall.getName(), context);
-            if (tool != null && toolRegistry.isEnabled(toolCall.getName())) {
-                return tool.execute(toolCall.getArguments())
-                    .withToolUseId(toolCall.getId());
+                return tool.execute(toolCall.getArguments()).withToolUseId(toolCall.getId());
             }
 
             // Fall back to legacy function registry
@@ -263,15 +229,11 @@ public class ToolExecutor {
     /**
      * 解析工具实例，支持 DispatchingTool 设备分发
      *
-     * 如果注册表中是 DispatchingTool 且上下文有设备信息，
-     * 则 resolve 到具体的设备实现；否则直接返回注册表中的 Tool。
+     * 注册表解析设备变体；执行快照直接返回之前选择的实现，保留原 Tool 类型与上下文路由。
      */
     private Tool resolveTool(String toolName, ToolExecutionContext context) {
-        Tool tool = toolRegistry.get(toolName).orElse(null);
-        if (tool instanceof DispatchingTool dt && context != null) {
-            return dt.resolve(context.getDeviceContext());
-        }
-        return tool;
+        return toolRegistry.resolveForExecution(toolName, context != null
+                ? context.getDeviceContext() : com.lightweightai.kernel.agent.DeviceContext.DEFAULT);
     }
 
     /**
@@ -288,6 +250,7 @@ public class ToolExecutor {
         String callId = UUID.randomUUID().toString();
         logger.info("Dispatching to client: {} (callId={})", toolCall.getName(), callId);
 
+        CompletableFuture<ToolResult> pending = null;
         try {
             Directive directive = Directive.fromToolName(
                 callId,
@@ -295,9 +258,8 @@ public class ToolExecutor {
                 toolCall.getArguments(),
                 context.getClientToolTimeoutMs()
             );
-            ToolResult result = context.getClientDispatcher()
-                .dispatch(callId, toolCall.getName(), directive)
-                .get(context.getClientToolTimeoutMs(), TimeUnit.MILLISECONDS);
+            pending = context.getClientDispatcher().dispatch(callId, toolCall.getName(), directive);
+            ToolResult result = pending.get(context.getClientToolTimeoutMs(), TimeUnit.MILLISECONDS);
             return result.withToolUseId(toolCall.getId());
 
         } catch (TimeoutException e) {
@@ -314,6 +276,8 @@ public class ToolExecutor {
             logger.error("Client tool failed: {} (callId={})", toolCall.getName(), callId, e);
             return ToolResult.error(toolCall.getId(),
                 "Client tool failed: " + e.getMessage());
+        } finally {
+            if (pending != null && !pending.isDone()) pending.cancel(true);
         }
     }
 
@@ -362,17 +326,7 @@ public class ToolExecutor {
      * 单工具 reactive 调用，返回流式工具结果事件
      */
     public Flux<ToolResultChunk> executeToolCallReactive(ToolCall toolCall) {
-        if (toolCall == null) {
-            return Flux.error(new IllegalArgumentException("ToolCall cannot be null"));
-        }
-        Tool tool = toolRegistry.get(toolCall.getName()).orElse(null);
-        if (tool == null || !toolRegistry.isEnabled(toolCall.getName())) {
-            return Flux.just(ToolResultChunk.error(toolCall.getName(),
-                    "Tool not found: " + toolCall.getName())
-                .withToolCallId(toolCall.getId()));
-        }
-        return tool.executeReactive(toolCall.getArguments())
-            .map(chunk -> chunk.withToolCallId(toolCall.getId()));
+        return executeToolCallReactive(toolCall, null);
     }
 
     /**
@@ -395,14 +349,31 @@ public class ToolExecutor {
         if (toolCall == null) {
             return Flux.error(new IllegalArgumentException("ToolCall cannot be null"));
         }
-        Tool tool = resolveTool(toolCall.getName(), context);
-        if (tool == null || !toolRegistry.isEnabled(toolCall.getName())) {
-            return Flux.just(ToolResultChunk.error(toolCall.getName(),
-                    "Tool not found: " + toolCall.getName())
-                .withToolCallId(toolCall.getId()));
-        }
-        return tool.executeReactive(toolCall.getArguments())
-            .map(chunk -> chunk.withToolCallId(toolCall.getId()));
+        return Flux.defer(() -> {
+            Tool tool = resolveTool(toolCall.getName(), context);
+            if ((context != null && context.getCancellationToken() != null && context.getCancellationToken().isCancelled())
+                    || !toolRegistry.isExecutionAllowed(toolCall.getName(), tool, toolCall.getArguments(), context)) {
+                return Flux.just(ToolResultChunk.error(toolCall.getName(),
+                        "Tool execution denied: " + toolCall.getName()));
+            }
+            if (tool == null || !toolRegistry.isEnabled(toolCall.getName())) {
+                return Flux.just(ToolResultChunk.error(toolCall.getName(),
+                        "Tool not found: " + toolCall.getName()));
+            }
+            if (context != null && tool instanceof ContextAwareTool contextual) {
+                return contextual.executeReactive(toolCall.getArguments(), context);
+            }
+            if (context != null && context.hasClientDispatcher() && isClientSideTool(tool)) {
+                String callId = UUID.randomUUID().toString();
+                Directive directive = Directive.fromToolName(callId, toolCall.getName(),
+                        toolCall.getArguments(), context.getClientToolTimeoutMs());
+                return Mono.fromFuture(() -> context.getClientDispatcher().dispatch(callId, toolCall.getName(), directive))
+                        .timeout(Duration.ofMillis(context.getClientToolTimeoutMs()))
+                        .map(result -> ToolResultChunk.complete(toolCall.getName(), result)).flux();
+            }
+            return tool.executeReactive(toolCall.getArguments());
+        }).onErrorResume(e -> Flux.just(ToolResultChunk.error(toolCall.getName(), "Execution failed: " + e.getMessage())))
+                .map(chunk -> chunk.withToolCallId(toolCall.getId()));
     }
 
     /**

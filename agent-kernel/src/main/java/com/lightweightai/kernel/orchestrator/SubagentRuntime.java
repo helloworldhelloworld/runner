@@ -4,10 +4,14 @@ import com.lightweightai.kernel.agent.AgentLoop;
 import com.lightweightai.kernel.agent.AgentProfile;
 import com.lightweightai.kernel.agent.AgentRegistry;
 import com.lightweightai.kernel.agent.AgentResponse;
+import com.lightweightai.kernel.agent.ToolPolicy;
 import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.CancellationToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -64,24 +68,34 @@ public class SubagentRuntime {
         AgentProfile profile = agentRegistry.get(agentId)
                 .orElseThrow(() -> new IllegalArgumentException("Agent '" + agentId + "' not found"));
 
-        // 2. 深度检查
         int currentDepth = request.currentDepth();
-        if (profile.getMaxSpawnDepth() <= 0) {
-            throw new IllegalStateException(
-                    "Agent '" + agentId + "' cannot spawn subagents (maxSpawnDepth=0)");
-        }
-        if (currentDepth >= profile.getMaxSpawnDepth()) {
-            throw new IllegalStateException(
-                    "Spawn depth limit reached: current=" + currentDepth
-                    + ", max=" + profile.getMaxSpawnDepth());
+        if (request.inheritedPolicy() == null) {
+            // Preserve the legacy direct API's target-profile depth rules.
+            if (profile.getMaxSpawnDepth() <= 0) {
+                throw new IllegalStateException("Agent '" + agentId + "' cannot spawn subagents (maxSpawnDepth=0)");
+            }
+            if (currentDepth >= profile.getMaxSpawnDepth()) {
+                throw new IllegalStateException("Spawn depth limit reached: current=" + currentDepth
+                        + ", max=" + profile.getMaxSpawnDepth());
+            }
+        } else if (request.remainingSpawnDepth() == null || request.remainingSpawnDepth() < 0) {
+            throw new IllegalStateException("Spawn depth limit reached");
         }
 
         // 3. 并发检查 + 注册（原子操作，防止竞态）
         String runId = UUID.randomUUID().toString().substring(0, 8);
         String sessionKey = request.getParentSessionKey() + ":subagent:" + runId;
         SubagentRun run = new SubagentRun(runId, sessionKey, request);
+        CancellationToken foreground = request.executionContext() != null
+                ? request.executionContext().getCancellationToken() : null;
 
         synchronized (activeRuns) {
+            if (foreground != null && foreground.isCancelled()) {
+                throw new IllegalStateException("Foreground execution is cancelled");
+            }
+            if (request.parentRun() != null && !request.parentRun().isRunning()) {
+                throw new IllegalStateException("Parent task is no longer running");
+            }
             if (activeRuns.size() >= maxConcurrent) {
                 throw new IllegalStateException(
                         "Max concurrent subagents reached: " + maxConcurrent);
@@ -92,40 +106,82 @@ public class SubagentRuntime {
         logger.info("Spawning subagent: runId={}, agent={}, depth={}, task={}",
                 runId, agentId, currentDepth + 1, request.getTask());
 
-        // 4. 发出 SUBAGENT_SPAWN 事件
-        announcer.accept(StreamEvent.subagentSpawn(runId, agentId, request.getTask()));
-
-        // 5. 构建子 AgentLoop
-        AgentLoop childAgent = agentFactory.create(profile);
-
-        // 7. 异步执行
-        Future<?> future = executor.submit(() -> {
-            try {
-                AgentResponse result = childAgent.run(request.getTask(), sessionKey);
-                run.complete(result);
-
-                String resultText = result != null ? result.getText() : null;
-                logger.info("Subagent completed: runId={}, duration={}ms, result={}",
-                        runId, run.getDurationMs(),
-                        com.lightweightai.kernel.util.TextTruncator.truncate(resultText, 500));
-                announcer.accept(StreamEvent.subagentComplete(
-                        runId,
-                        result != null ? result.getText() : "",
-                        run.getDurationMs(),
-                        0  // tokenUsage — 后续接入 CostTracker
-                ));
-            } catch (Exception e) {
-                run.fail(e);
-                logger.error("Subagent failed: runId={}", runId, e);
-                announcer.accept(StreamEvent.subagentError(runId, e.getMessage()));
-            } finally {
-                activeRuns.remove(runId);
-                cacheCompleted(runId, run);
+        announce(announcer, StreamEvent.subagentSpawn(runId, agentId, request.getTask()));
+        try {
+            if (foreground != null) {
+                run.setCancellationRegistration(foreground.onCancel(() -> stop(runId, announcer)));
             }
-        });
+            if (!run.isRunning()) return runId;
+            AgentLoop childAgent = request.inheritedPolicy() == null
+                    ? agentFactory.create(profile)
+                    : createAgent(agentFactory, profile, sessionKey, request.inheritedPolicy(),
+                            Math.min(request.remainingSpawnDepth(), Math.max(0, profile.getMaxSpawnDepth())), run);
+            Future<?> future = executor.submit(() -> {
+                try {
+                    if (!run.isRunning()) return;
+                    AgentResponse result = request.executionContext() == null
+                            ? childAgent.run(request.getTask(), sessionKey)
+                            : childAgent.run(request.getTask(), sessionKey, request.executionContext());
+                    if (result != null && "budget_exhausted".equals(result.getStopReason())) {
+                        throw new IllegalStateException("budget_exhausted: shared root budget cannot admit another model call");
+                    }
+                    if (run.tryComplete(result)) {
+                        announce(announcer, StreamEvent.subagentComplete(runId,
+                                result != null ? result.getText() : "", run.getDurationMs(), 0));
+                    }
+                } catch (Exception e) {
+                    if (run.tryFail(e)) announce(announcer, StreamEvent.subagentError(runId, run.getErrorMessage()));
+                } finally {
+                    finish(run);
+                }
+            });
+            run.setFuture(future);
+            return runId;
+        } catch (RuntimeException e) {
+            if (run.tryFail(e)) announce(announcer, StreamEvent.subagentError(runId, run.getErrorMessage()));
+            finish(run);
+            throw e;
+        }
+    }
 
-        run.setFuture(future);
-        return runId;
+    AgentLoop createRootAgent(AgentFactory factory, AgentProfile profile, String sessionKey) {
+        return createAgent(factory, profile, sessionKey, ToolPolicy.allowAll(), Math.max(0, profile.getMaxSpawnDepth()), null);
+    }
+
+    private AgentLoop createAgent(AgentFactory factory, AgentProfile profile, String sessionKey,
+                                  ToolPolicy inherited, int remainingDepth, SubagentRun run) {
+        ToolPolicy ownPolicy = request -> profile.getToolPolicy().evaluate(new ToolPolicy.ToolPolicyRequest(
+                request.toolName(), request.tool(), request.args(), profile, request.executionContext()));
+        ToolPolicy effective = ToolPolicy.intersection(inherited, ownPolicy,
+                remainingDepth > 0 ? ToolPolicy.allowAll() : ToolPolicy.denyList(Set.of("spawn_subagent")));
+        // Current task liveness must not be inherited: an independent descendant
+        // may legitimately outlive the parent that spawned it.
+        ToolPolicy executionPolicy = ToolPolicy.intersection(effective,
+                request -> run == null || run.isRunning() ? ToolPolicy.Decision.ABSTAIN : ToolPolicy.Decision.DENY);
+        TaskScope scope = run == null ? TaskScope.root(sessionKey)
+                : run.getRequest().ownerScope().child(run.getRunId());
+        return factory.create(profile, List.of(
+                new SpawnSubagentTool(this, sessionKey, event -> logger.debug("Subagent event: {}", event.getType()),
+                        effective, remainingDepth, run, scope),
+                new WaitSubagentTool(this, scope),
+                new ListSubagentsTool(this, scope),
+                new StopSubagentTool(this, scope)), executionPolicy);
+    }
+
+    private void announce(Consumer<StreamEvent> announcer, StreamEvent event) {
+        try {
+            if (announcer != null) announcer.accept(event);
+        } catch (RuntimeException e) {
+            logger.warn("Subagent event consumer failed for {}", event.getType(), e);
+        }
+    }
+
+    private void finish(SubagentRun run) {
+        run.releaseCancellationRegistration();
+        synchronized (activeRuns) {
+            cacheCompleted(run.getRunId(), run);
+            activeRuns.remove(run.getRunId(), run);
+        }
     }
 
     /**
@@ -139,37 +195,78 @@ public class SubagentRuntime {
      * 级联停止（带事件回调）
      */
     public void stop(String runId, Consumer<StreamEvent> announcer) {
-        SubagentRun run = activeRuns.get(runId);
-        if (run == null) {
-            logger.debug("Run {} not found, skip stop", runId);
-            return;
+        List<SubagentRun> cancelled = new ArrayList<>();
+        synchronized (activeRuns) {
+            SubagentRun root = getRunOrCompleted(runId);
+            if (root == null) return;
+            List<SubagentRun> descendants = new ArrayList<>();
+            descendants.add(root);
+            for (SubagentRun candidate : activeRuns.values()) {
+                if (candidate != root && isDescendantOf(candidate, root)) descendants.add(candidate);
+            }
+            for (SubagentRun run : descendants) {
+                if (run.tryCancel("Stopped by caller; cascade root " + runId)) cancelled.add(run);
+                finish(run);
+            }
         }
+        for (SubagentRun run : cancelled) {
+            announce(announcer, StreamEvent.subagentCancelled(run.getRunId(), run.getErrorMessage()));
+        }
+    }
 
-        logger.info("Stopping subagent: runId={}", runId);
+    private boolean isDescendantOf(SubagentRun candidate, SubagentRun root) {
+        if (candidate.getRequest().ownerScope() == null) {
+            // Legacy administrative requests encode ancestry in the session key.
+            return candidate.getSessionKey().startsWith(root.getSessionKey() + ":subagent:");
+        }
+        // Keep following actual parents after they have left the active/cache tables.
+        for (SubagentRun parent = candidate.getRequest().parentRun(); parent != null;
+             parent = parent.getRequest().parentRun()) {
+            if (parent == root) return true;
+        }
+        return false;
+    }
 
-        // 先停子 agent 的子 agent（级联：key 以当前 sessionKey 为前缀的都停）
-        String prefix = run.getSessionKey();
-        activeRuns.values().stream()
-                .filter(r -> r.getSessionKey().startsWith(prefix) && !r.getRunId().equals(runId))
-                .forEach(child -> {
-                    child.cancel("Cascade stop from parent " + runId);
-                    announcer.accept(StreamEvent.subagentCancelled(child.getRunId(),
-                            "Cascade stop from parent " + runId));
-                    activeRuns.remove(child.getRunId());
-                });
+    SubagentRun getOwnedRun(String runId, TaskScope ownerScope) {
+        SubagentRun run = getRunOrCompleted(runId);
+        return run != null && ownerScope.equals(run.getRequest().ownerScope()) ? run : null;
+    }
 
-        // 停当前
-        run.cancel("Stopped by caller");
-        announcer.accept(StreamEvent.subagentCancelled(runId, "Stopped by caller"));
-        activeRuns.remove(runId);
+    /** Session clearing also stops independent descendants after their foreground has completed. */
+    void stopForRootSession(String rootSessionKey) {
+        synchronized (activeRuns) {
+            for (SubagentRun run : List.copyOf(activeRuns.values())) {
+                TaskScope owner = run.getRequest().ownerScope();
+                if (owner != null && owner.rootSessionKey().equals(rootSessionKey)) {
+                    run.tryCancel("Root session was cleared");
+                    finish(run);
+                }
+            }
+        }
+    }
+
+    List<SubagentRun> getOwnedActiveRuns(TaskScope ownerScope) {
+        return getActiveRuns().stream().filter(run -> ownerScope.equals(run.getRequest().ownerScope())).toList();
+    }
+
+    boolean stopOwned(String runId, TaskScope ownerScope) {
+        synchronized (activeRuns) {
+            if (getOwnedRun(runId, ownerScope) == null) return false;
+            stop(runId);
+            return true;
+        }
     }
 
     /**
      * 停止所有活跃 subagent
      */
     public void stopAll() {
-        activeRuns.values().forEach(run -> run.cancel("Runtime shutdown"));
-        activeRuns.clear();
+        synchronized (activeRuns) {
+            for (SubagentRun run : List.copyOf(activeRuns.values())) {
+                run.cancel("Runtime shutdown");
+                finish(run);
+            }
+        }
     }
 
     /**
@@ -182,17 +279,11 @@ public class SubagentRuntime {
     }
 
     /**
-     * 等待指定 run 完成（测试用）
+     * 等待指定 run 的终态信号
      */
     public boolean waitForCompletion(String runId, long timeout, TimeUnit unit) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + unit.toMillis(timeout);
-        while (System.currentTimeMillis() < deadline) {
-            SubagentRun run = activeRuns.get(runId);
-            if (run == null) return true;  // 已从 activeRuns 移除 = 完成
-            if (!run.isRunning()) return true;
-            Thread.sleep(50);
-        }
-        return false;
+        SubagentRun run = getRunOrCompleted(runId);
+        return run == null || run.await(timeout, unit);
     }
 
     public int getActiveCount() { return activeRuns.size(); }
@@ -212,7 +303,7 @@ public class SubagentRuntime {
     }
 
     /**
-     * 已完成的 run 结果缓存（带 TTL 自动清理，防止内存泄漏）
+     * 已完成的 run 结果缓存（按数量设上限，防止无限增长）
      *
      * key=runId, value=SubagentRun
      * 缓存上限 MAX_COMPLETED_CACHE，超过时删除最旧的。

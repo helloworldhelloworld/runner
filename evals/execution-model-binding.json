@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "execution-model-binding",
+  "module": "agent-web",
+  "tests": [
+    "com.lightweightai.web.config.ModelBindingAssemblyAcceptanceTest",
+    "com.lightweightai.web.config.DynamicLLMProviderTest",
+    "com.lightweightai.web.config.SubagentScopeAssemblyTest",
+    "com.lightweightai.kernel.core.ExecutionModelBindingTest"
+  ],
+  "timeoutSeconds": 300,
+  "requiredEvidence": [
+    {"file": "model-binding-sync.json", "caseId": "model-binding-sync"},
+    {"file": "model-binding-reactive.json", "caseId": "model-binding-reactive"}
+  ],
+  "feedback": [
+    {
+      "source": "developer: ADR-022 pre-fix HTTP/SSE acceptance failures",
+      "observation": "Updating model configuration during an active tool call changed the next HTTP requests of the same root from model-v1 to model-v2; later children also read the global source.",
+      "expected": "Retain the selected model throughout the execution and same-source descendants; concurrent new executions and implicit resumes select the updated model."
+    }
+  ],
+  "changeScope": [
+    "ExecutionScopedLLMProvider and ExecutionModelScope",
+    "ToolExecutionContext inheritance and AgentLoop execution boundary",
+    "Synchronous, asynchronous and reactive ToolCallingLoop binding",
+    "DynamicLLMProvider and ResilientLLMProvider composition",
+    "Real Spring native assembly, MVC model configuration and HTTP/SSE requests"
+  ]
+}

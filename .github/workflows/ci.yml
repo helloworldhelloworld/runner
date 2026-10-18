@@ -25,6 +25,12 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Test candidate evidence workflow
+        run: python3 -B -m unittest discover -s scripts/tests -v
+
+      - name: Run frozen native candidate
+        run: python3 -B scripts/improvement_loop.py run --repo . --spec evals/foreground-cancellation.json --output "$RUNNER_TEMP/runner-cancellation-evidence"
+
       - name: Build and Test
         id: build
         continue-on-error: true

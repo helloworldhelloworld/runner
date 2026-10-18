@@ -180,6 +180,17 @@ public class ToolRegistry {
         }
     }
 
+    /** Freeze the selected implementations and definitions, retaining live revocation checks. */
+    public ToolRegistry snapshot(com.lightweightai.kernel.core.ExecutionConfigurationScope scope, DeviceContext device) {
+        return new SnapshotToolRegistry(this, this, device);
+    }
+
+    /** Resolve a tool implementation; execution snapshots override this without changing Tool. */
+    public Tool resolveForExecution(String name, DeviceContext device) {
+        Tool tool = get(name).orElse(null);
+        return tool instanceof DispatchingTool dispatching ? dispatching.resolve(device) : tool;
+    }
+
     // ==================== 查询 ====================
 
     /**
@@ -287,6 +298,12 @@ public class ToolRegistry {
         return getEnabled().stream()
             .map(this::toToolDefinition)
             .collect(Collectors.toList());
+    }
+
+    /** Execution-time policy hook. Discovery and enabled-state checks remain separate. */
+    public boolean isExecutionAllowed(String name, Tool resolvedTool, Map<String, Object> args,
+                                     com.lightweightai.kernel.core.ToolExecutionContext context) {
+        return true;
     }
 
     /**

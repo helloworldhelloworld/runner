@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "foreground-cancellation",
+  "module": "agent-kernel",
+  "tests": [
+    "com.lightweightai.kernel.orchestrator.HarnessEvidenceAcceptanceTest",
+    "com.lightweightai.kernel.orchestrator.ForegroundSubagentCancellationAcceptanceTest",
+    "com.lightweightai.kernel.orchestrator.SubagentLifecycleAcceptanceTest",
+    "com.lightweightai.kernel.core.CancellationTokenTest"
+  ],
+  "timeoutSeconds": 240,
+  "requiredEvidence": [
+    {"file": "cancelled-descendant.json", "caseId": "cancelled-descendant"},
+    {"file": "independent-child.json", "caseId": "independent-child"}
+  ],
+  "feedback": [
+    {
+      "source": "developer: ADR-020 pre-fix acceptance failures",
+      "observation": "Foreground cancellation or failure left active descendants able to attempt device operations; replacing the foreground also left its old child running.",
+      "expected": "Cancel active descendants of that execution, deny late tool calls, preserve the resumed execution and children of a normally completed foreground."
+    }
+  ],
+  "changeScope": [
+    "CancellationToken and ToolExecutionContext propagation",
+    "InterruptibleRun and SubagentRuntime lifecycle",
+    "ToolExecutor cancellation checks",
+    "Native assembly and deterministic downstream acceptance assertions"
+  ]
+}

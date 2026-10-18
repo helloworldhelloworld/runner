@@ -39,6 +39,8 @@ public class SkillVersionRepository {
                     )
                     """);
             }
+            PublicationSchema.columns(connection, "skill_versions", Map.of("candidate_digest", "TEXT", "evaluation_digest", "TEXT",
+                    "report_digest", "TEXT", "required_pass_rate", "REAL DEFAULT 1.0"));
         } catch (SQLException e) {
             logger.error("Failed to initialize skill version database: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to initialize skill version database", e);
@@ -52,7 +54,7 @@ public class SkillVersionRepository {
         return connection;
     }
 
-    public SkillVersion save(SkillVersion version) {
+    public synchronized SkillVersion save(SkillVersion version) {
         if (version.getId() == null || version.getId().isBlank()) {
             version.setId(UUID.randomUUID().toString());
         }
@@ -60,8 +62,8 @@ public class SkillVersionRepository {
             version.setCreatedAt(Instant.now());
         }
         String sql = """
-            INSERT INTO skill_versions (id, skill_id, version_tag, snapshot_json, test_run_id, status, created_at, activated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO skill_versions (id, skill_id, version_tag, snapshot_json, test_run_id, status, created_at, activated_at, candidate_digest, evaluation_digest, report_digest, required_pass_rate)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 status = excluded.status,
                 activated_at = excluded.activated_at
@@ -75,6 +77,10 @@ public class SkillVersionRepository {
             ps.setString(6, version.getStatus());
             ps.setString(7, version.getCreatedAt().toString());
             ps.setString(8, version.getActivatedAt() != null ? version.getActivatedAt().toString() : null);
+            ps.setString(9, version.getCandidateDigest());
+            ps.setString(10, version.getEvaluationDigest());
+            ps.setString(11, version.getReportDigest());
+            ps.setDouble(12, version.getRequiredPassRate());
             ps.executeUpdate();
         } catch (Exception e) {
             logger.error("Failed to save skill version: {}", e.getMessage(), e);
@@ -83,7 +89,7 @@ public class SkillVersionRepository {
         return version;
     }
 
-    public Optional<SkillVersion> findById(String id) {
+    public synchronized Optional<SkillVersion> findById(String id) {
         try (PreparedStatement ps = getConnection().prepareStatement(
                 "SELECT * FROM skill_versions WHERE id = ?")) {
             ps.setString(1, id);
@@ -96,7 +102,7 @@ public class SkillVersionRepository {
         return Optional.empty();
     }
 
-    public List<SkillVersion> findBySkillId(String skillId) {
+    public synchronized List<SkillVersion> findBySkillId(String skillId) {
         List<SkillVersion> results = new ArrayList<>();
         try (PreparedStatement ps = getConnection().prepareStatement(
                 "SELECT * FROM skill_versions WHERE skill_id = ? ORDER BY created_at DESC")) {
@@ -110,7 +116,7 @@ public class SkillVersionRepository {
         return results;
     }
 
-    public Optional<SkillVersion> findActiveBySkillId(String skillId) {
+    public synchronized Optional<SkillVersion> findActiveBySkillId(String skillId) {
         try (PreparedStatement ps = getConnection().prepareStatement(
                 "SELECT * FROM skill_versions WHERE skill_id = ? AND status = 'active' LIMIT 1")) {
             ps.setString(1, skillId);
@@ -123,7 +129,7 @@ public class SkillVersionRepository {
         return Optional.empty();
     }
 
-    public void updateStatus(String id, String status) {
+    public synchronized void updateStatus(String id, String status) {
         String activatedAt = "active".equals(status) ? Instant.now().toString() : null;
         try (PreparedStatement ps = getConnection().prepareStatement(
                 "UPDATE skill_versions SET status = ?, activated_at = COALESCE(?, activated_at) WHERE id = ?")) {
@@ -136,6 +142,54 @@ public class SkillVersionRepository {
         }
     }
 
+    /** Durable active content only; legacy unbound versions remain queryable in history. */
+    public synchronized List<SkillVersion> findActiveVersions() {
+        List<SkillVersion> results = new ArrayList<>();
+        try (PreparedStatement query = getConnection().prepareStatement(
+                "SELECT * FROM skill_versions WHERE status = 'active' AND candidate_digest IS NOT NULL ORDER BY skill_id, id");
+             ResultSet rows = query.executeQuery()) {
+            while (rows.next()) results.add(fromResultSet(rows));
+        } catch (SQLException e) { throw new IllegalStateException("Cannot read active publication", e); }
+        return results;
+    }
+
+    synchronized SkillVersion activateAtomically(String id, String expectedActive, boolean conditional,
+                                                java.util.function.Consumer<SkillVersion> validate) {
+        boolean transaction = false;
+        try (Statement transactionControl = getConnection().createStatement()) {
+            transactionControl.execute("BEGIN IMMEDIATE");
+            transaction = true;
+            SkillVersion target = findById(id).orElseThrow(() -> new IllegalArgumentException("Version not found: " + id));
+            validate.accept(target);
+            String current = findActiveBySkillId(target.getSkillId()).map(SkillVersion::getId).orElse(null);
+            if (conditional && !Objects.equals(expectedActive, current))
+                throw new IllegalStateException("Active version changed; refresh before activating");
+            try (PreparedStatement archive = connection.prepareStatement(
+                    "UPDATE skill_versions SET status = 'archived' WHERE skill_id = ? AND status = 'active' AND id <> ?")) {
+                archive.setString(1, target.getSkillId());
+                archive.setString(2, id);
+                archive.executeUpdate();
+            }
+            try (PreparedStatement activate = connection.prepareStatement(
+                    "UPDATE skill_versions SET status = 'active', activated_at = ? WHERE id = ?")) {
+                activate.setString(1, Instant.now().toString());
+                activate.setString(2, id);
+                if (activate.executeUpdate() != 1) throw new IllegalStateException("Activation target disappeared");
+            }
+            SkillVersion result = findById(id).orElseThrow();
+            transactionControl.execute("COMMIT");
+            transaction = false;
+            return result;
+        } catch (SQLException e) {
+            throw new IllegalStateException("Cannot activate publication", e);
+        } finally {
+            if (transaction) {
+                try (Statement rollback = connection.createStatement()) { rollback.execute("ROLLBACK"); }
+                catch (SQLException e) { logger.error("Publication rollback failed", e); }
+            }
+        }
+    }
+
     private SkillVersion fromResultSet(ResultSet rs) throws SQLException {
         SkillVersion v = new SkillVersion();
         v.setId(rs.getString("id"));
@@ -144,6 +198,10 @@ public class SkillVersionRepository {
         v.setSnapshotJson(rs.getString("snapshot_json"));
         v.setTestRunId(rs.getString("test_run_id"));
         v.setStatus(rs.getString("status"));
+        v.setCandidateDigest(rs.getString("candidate_digest"));
+        v.setEvaluationDigest(rs.getString("evaluation_digest"));
+        v.setReportDigest(rs.getString("report_digest"));
+        v.setRequiredPassRate(rs.getDouble("required_pass_rate"));
         String createdAt = rs.getString("created_at");
         if (createdAt != null) v.setCreatedAt(Instant.parse(createdAt));
         String activatedAt = rs.getString("activated_at");

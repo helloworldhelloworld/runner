@@ -20,6 +20,38 @@ class InMemoryProviderTest {
         provider = new InMemoryProvider();
     }
 
+    @Test
+    void concurrentRunsCanWriteAndSearchWithoutLosingRecords() throws Exception {
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(4);
+        var start = new java.util.concurrent.CyclicBarrier(4);
+        try {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+            for (int worker = 0; worker < 4; worker++) {
+                int id = worker;
+                futures.add(executor.submit(() -> {
+                    start.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                    for (int i = 0; i < 200; i++) {
+                        String content = "record-" + id + "-" + i;
+                        provider.addMessage("shared", Message.user(content));
+                        provider.writeEphemeral(content);
+                        provider.writeDurable("shared", content);
+                        assertTrue(provider.search(content).stream().anyMatch(r -> content.equals(r.getContent())));
+                        assertFalse(provider.getHistory("shared", 10).isEmpty());
+                        assertTrue(provider.readTodayEphemeral().contains(content));
+                        assertTrue(provider.readDurable().contains(content));
+                    }
+                    return null;
+                }));
+            }
+            for (var future : futures) future.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(800, provider.getHistory("shared", 1000).stream().map(Message::getContent).distinct().count());
+            assertEquals(800, provider.readTodayEphemeral().lines().distinct().count());
+            assertEquals(800, provider.search("record-").stream().map(MemorySearchResult::getContent).distinct().count());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     // ==================== 会话管理 ====================
 
     @Test

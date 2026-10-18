@@ -1,6 +1,7 @@
 package com.lightweightai.kernel.orchestrator;
 
 import com.lightweightai.kernel.agent.AgentLoop;
+import com.lightweightai.kernel.core.ToolExecutionContext;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.CancellationToken;
 import com.lightweightai.kernel.core.StreamEvent;
@@ -13,7 +14,9 @@ import com.lightweightai.kernel.memory.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
+import reactor.core.Disposables;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,7 +43,7 @@ public class InterruptibleRun {
 
     private static final Logger logger = LoggerFactory.getLogger(InterruptibleRun.class);
 
-    public enum RunPhase { NEW, RUNNING, INTERRUPTED, COMPLETED }
+    public enum RunPhase { NEW, RUNNING, INTERRUPTED, COMPLETED, FAILED, CANCELLED }
 
     private final String runId;
     private final String sessionId;
@@ -51,10 +54,13 @@ public class InterruptibleRun {
     private final List<ConversationMessage> messages = Collections.synchronizedList(new ArrayList<>());
     private final StringBuilder accumulatedText = new StringBuilder();
     private volatile RunPhase phase = RunPhase.NEW;
+    private volatile RunTermination termination;
 
     // === 打断控制 ===
     private volatile CancellationToken cancellationToken;
     private volatile Disposable activeSubscription;
+    private volatile FluxSink<StreamEvent> activeSink;
+    private volatile Disposable.Composite activeResources = Disposables.composite();
 
     public InterruptibleRun(String runId, String sessionId, AgentLoop agent, MemoryProvider memoryProvider) {
         this.runId = runId;
@@ -69,11 +75,15 @@ public class InterruptibleRun {
     /**
      * 开始或接续执行
      */
-    public Flux<StreamEvent> execute(String input) {
-        if (phase == RunPhase.NEW || phase == RunPhase.COMPLETED) {
-            return startFresh(input);
+    public synchronized Flux<StreamEvent> execute(String input) {
+        return execute(input, null);
+    }
+
+    public synchronized Flux<StreamEvent> execute(String input, ToolExecutionContext context) {
+        if (phase == RunPhase.NEW || phase == RunPhase.COMPLETED || phase == RunPhase.FAILED) {
+            return startFresh(input, context);
         } else if (phase == RunPhase.INTERRUPTED) {
-            return resume(input);
+            return resume(input, context);
         } else {
             // 已在运行中，不应再次 execute
             return Flux.error(new IllegalStateException("Run " + runId + " is already running"));
@@ -84,6 +94,25 @@ public class InterruptibleRun {
      * 打断 — 保存当前状态，cancel 底层 Flux，返回 AGENT_INTERRUPT 事件
      */
     public StreamEvent interrupt() {
+        return interrupt(cancellationToken, CancellationCause.USER_INTERRUPT);
+    }
+
+    private StreamEvent interrupt(CancellationToken expected) {
+        return interrupt(expected, CancellationCause.USER_INTERRUPT);
+    }
+
+    /** Idempotent transport/system cancellation that does not create a resumable interrupt event. */
+    StreamEvent cancel(CancellationCause cause) {
+        return interrupt(cancellationToken, cause);
+    }
+
+    private StreamEvent interrupt(CancellationToken expected, CancellationCause cause) {
+        Disposable subscription;
+        FluxSink<StreamEvent> sink;
+        Disposable.Composite resources;
+        StreamEvent event;
+        synchronized (this) {
+        if (expected != cancellationToken) return null;
         if (phase != RunPhase.RUNNING) {
             logger.debug("Run {} not running (phase={}), skip interrupt", runId, phase);
             return null;
@@ -91,10 +120,9 @@ public class InterruptibleRun {
 
         logger.info("Interrupting run {}, accumulatedText.length={}", runId, accumulatedText.length());
 
-        // 1. 触发 CancellationToken，ToolCallingLoop 在下一个检查点退出
-        if (cancellationToken != null) {
-            cancellationToken.cancel();
-        }
+        // Mark terminal before disposal: synchronous callbacks cannot complete a newer run.
+        phase = cause == CancellationCause.USER_INTERRUPT ? RunPhase.INTERRUPTED : RunPhase.CANCELLED;
+        termination = new RunTermination(cause, System.currentTimeMillis());
 
         // 2. 保存部分文本到 messages
         if (!accumulatedText.isEmpty()) {
@@ -112,71 +140,90 @@ public class InterruptibleRun {
             }
         }
 
-        // 3. Dispose 底层 Flux subscription
-        if (activeSubscription != null && !activeSubscription.isDisposed()) {
-            activeSubscription.dispose();
-        }
-
-        phase = RunPhase.INTERRUPTED;
         String phaseStr = accumulatedText.isEmpty() ? "BEFORE_OUTPUT" : "STREAMING";
-
-        return StreamEvent.agentInterrupt(runId, phaseStr, accumulatedText.length());
+        event = StreamEvent.agentInterrupt(runId, phaseStr, accumulatedText.length());
+        subscription = activeSubscription;
+        sink = activeSink;
+        resources = activeResources;
+        }
+        if (expected != null) expected.cancel();
+        resources.dispose();
+        if (subscription != null) subscription.dispose();
+        if (sink != null) sink.complete();
+        return event;
     }
 
     /**
      * 首次执行
      */
-    private Flux<StreamEvent> startFresh(String input) {
+    private Flux<StreamEvent> startFresh(String input, ToolExecutionContext context) {
         phase = RunPhase.RUNNING;
         accumulatedText.setLength(0);
         cancellationToken = new CancellationToken();
-
-        // 委托 AgentLoop.runReactive 执行完整流程（含 memory search, prompt build 等）
-        // 传入 cancellationToken 使 ToolCallingLoop 可被打断
-        return Flux.create(sink -> {
-            Disposable d = agent.runReactive(input, sessionId, cancellationToken)
-                    .doOnNext(this::trackEvent)
-                    .subscribe(
-                            sink::next,
-                            sink::error,
-                            () -> { phase = RunPhase.COMPLETED; sink.complete(); }
-                    );
-            activeSubscription = d;
-            sink.onDispose(d);
-        });
+        activeResources = Disposables.composite();
+        activeSink = null;
+        activeSubscription = null;
+        return startAgent(input, cancellationToken, context);
     }
 
     /**
      * 从打断处接续执行新输入
      */
-    private Flux<StreamEvent> resume(String newInput) {
+    private Flux<StreamEvent> resume(String newInput, ToolExecutionContext context) {
         logger.info("Resuming run {} with new input, context size={}", runId, messages.size());
 
         // 发出 AGENT_RESUME 事件
         StreamEvent resumeEvent = StreamEvent.agentResume(runId, newInput, messages.size());
 
-        phase = RunPhase.RUNNING;
-        accumulatedText.setLength(0);
-        cancellationToken = new CancellationToken();
+        // AgentLoop owns the user-memory commit; a second write here duplicates input.
+        Flux<StreamEvent> agentFlux = startFresh(newInput, context);
+        CancellationToken token = cancellationToken;
+        return Flux.concat(Flux.just(resumeEvent), agentFlux).doOnCancel(() -> interrupt(token));
+    }
 
-        // 添加新用户消息到 memory
-        memoryProvider.addMessage(sessionId, Message.user(newInput));
-
-        // 使用 AgentLoop.runReactive 重新执行（它会从 memory 加载完整上下文）
-        // 因为 interrupt 时已将部分回答保存到 memory，所以 LLM 能看到完整上下文
-        Flux<StreamEvent> agentFlux = Flux.create(sink -> {
-            Disposable d = agent.runReactive(newInput, sessionId, cancellationToken)
-                    .doOnNext(this::trackEvent)
-                    .subscribe(
-                            sink::next,
-                            sink::error,
-                            () -> { phase = RunPhase.COMPLETED; sink.complete(); }
-                    );
-            activeSubscription = d;
-            sink.onDispose(d);
-        });
-
-        return Flux.concat(Flux.just(resumeEvent), agentFlux);
+    private Flux<StreamEvent> startAgent(String input, CancellationToken token, ToolExecutionContext context) {
+        return Flux.<StreamEvent>create(sink -> {
+            Disposable.Swap subscription = Disposables.swap();
+            synchronized (this) {
+                if (token != cancellationToken || phase != RunPhase.RUNNING) {
+                    sink.complete();
+                    return;
+                }
+                activeSink = sink;
+                activeSubscription = subscription;
+            }
+            sink.onCancel(() -> interrupt(token));
+            sink.onDispose(subscription);
+            if (subscription.isDisposed()) return;
+            ToolExecutionContext executionContext = context == null
+                    ? ToolExecutionContext.serverOnly()
+                    : context;
+            executionContext = executionContext.withResourceRegistrar(activeResources::add);
+            Flux<StreamEvent> execution = agent.runReactive(input, sessionId, token, executionContext);
+            subscription.update(execution.subscribe(
+                    event -> {
+                        synchronized (this) {
+                            if (token != cancellationToken || phase != RunPhase.RUNNING) return;
+                            trackEvent(event);
+                            sink.next(event);
+                        }
+                    },
+                    error -> {
+                        synchronized (this) {
+                            if (token != cancellationToken || phase != RunPhase.RUNNING) return;
+                            phase = RunPhase.FAILED;
+                        }
+                        token.cancel();
+                        sink.error(error);
+                    },
+                    () -> {
+                        synchronized (this) {
+                            if (token != cancellationToken || phase != RunPhase.RUNNING) return;
+                            phase = RunPhase.COMPLETED;
+                        }
+                        sink.complete();
+                    }));
+        }).doOnCancel(() -> interrupt(token));
     }
 
     private void trackEvent(StreamEvent event) {
@@ -191,6 +238,7 @@ public class InterruptibleRun {
     public RunPhase getPhase() { return phase; }
     public long getCreatedAt() { return createdAt; }
     public String getRunId() { return runId; }
+    RunTermination getTermination() { return termination; }
     public List<ConversationMessage> getMessages() { return Collections.unmodifiableList(messages); }
 
     /**

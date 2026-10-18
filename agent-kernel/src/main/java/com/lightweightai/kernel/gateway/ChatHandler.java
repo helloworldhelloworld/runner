@@ -32,7 +32,7 @@ public interface ChatHandler {
      */
     default Flux<StreamEvent> chatStreamReactive(GatewayRequest request) {
         return Flux.create(sink -> {
-            chatStream(request, new StreamCallback() {
+            CompletableFuture<GatewayResponse> future = chatStream(request, new StreamCallback() {
                 @Override
                 public void onDelta(String delta, Map<String, Object> metadata) {
                     sink.next(StreamEvent.textDelta(delta, metadata));
@@ -40,7 +40,19 @@ public interface ChatHandler {
 
                 @Override
                 public void onComplete(GatewayResponse response) {
-                    sink.next(StreamEvent.llmComplete(null));
+                    if (response.isError()) {
+                        sink.error(new IllegalStateException(response.getErrorMessage()));
+                        return;
+                    }
+                    if ("budget_exhausted".equals(response.getMetadata().get("stopReason"))) {
+                        Map<String, Object> usage = new java.util.LinkedHashMap<>();
+                        if (response.getMetadata().get("usage") instanceof Map<?, ?> values) {
+                            values.forEach((key, value) -> { if (key instanceof String name) usage.put(name, value); });
+                        }
+                        sink.next(StreamEvent.budgetStopped(usage));
+                    } else {
+                        sink.next(StreamEvent.llmComplete(null));
+                    }
                     sink.complete();
                 }
 
@@ -49,6 +61,10 @@ public interface ChatHandler {
                     sink.error(error);
                 }
             });
+            if (future != null) {
+                sink.onCancel(() -> future.cancel(true));
+                future.whenComplete((response, error) -> { if (error != null) sink.error(error); });
+            }
         });
     }
 
@@ -73,6 +89,16 @@ public interface ChatHandler {
      * metadata 传递业务特有的附加信息（如 emotion、confidence 等），
      * 避免在接口中暴露领域特定字段。
      */
+    default StreamEvent interrupt(String principalId, String sessionId) {
+        if (principalId == null) return interrupt(sessionId);
+        throw new UnsupportedOperationException("Authenticated interruption is unsupported by this handler");
+    }
+
+    /** Additive lifecycle cancellation for transport replacement/disconnect. */
+    default void cancel(String principalId, String sessionId, String cause) {
+        interrupt(principalId, sessionId);
+    }
+
     interface StreamCallback {
         void onDelta(String delta, Map<String, Object> metadata);
         void onComplete(GatewayResponse response);

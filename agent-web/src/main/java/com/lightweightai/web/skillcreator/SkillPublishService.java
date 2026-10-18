@@ -1,185 +1,167 @@
 package com.lightweightai.web.skillcreator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolRegistry;
-import com.lightweightai.kernel.prompt.PromptEngine;
-import com.lightweightai.kernel.prompt.Skill;
+import com.lightweightai.kernel.core.ConfigurationContent;
+import com.lightweightai.kernel.prompt.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Instant;
 import java.util.*;
 
-/**
- * Skill 发布服务
- *
- * 管理版本快照、灰度发布、激活、回滚。
- */
-public class SkillPublishService {
-
+/** Content-bound publication. Durable active versions are the native prompt source. */
+public class SkillPublishService implements PromptSource {
     private static final Logger logger = LoggerFactory.getLogger(SkillPublishService.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     private final SkillRepository skillRepository;
     private final SkillVersionRepository versionRepository;
     private final TestRunRepository testRunRepository;
+    private final SkillTestCaseRepository testCaseRepository;
     private final PromptEngine promptEngine;
     private final ToolRegistry toolRegistry;
     private final com.lightweightai.kernel.instruction.InstructionRegistry instructionRegistry;
 
-    public SkillPublishService(SkillRepository skillRepository,
-                               SkillVersionRepository versionRepository,
-                               TestRunRepository testRunRepository,
-                               PromptEngine promptEngine,
-                               ToolRegistry toolRegistry,
-                               com.lightweightai.kernel.instruction.InstructionRegistry instructionRegistry) {
-        this.skillRepository = skillRepository;
-        this.versionRepository = versionRepository;
-        this.testRunRepository = testRunRepository;
-        this.promptEngine = promptEngine;
-        this.toolRegistry = toolRegistry;
-        this.instructionRegistry = instructionRegistry;
+    public SkillPublishService(SkillRepository skills, SkillVersionRepository versions, TestRunRepository runs,
+                               PromptEngine prompts, ToolRegistry tools,
+                               com.lightweightai.kernel.instruction.InstructionRegistry instructions) {
+        this(skills, versions, runs, prompts, tools, instructions, new SkillTestCaseRepository(skills.databasePath()));
     }
 
-    /**
-     * 创建灰度版本（staged）
-     * 校验：最新 TestRun passRate >= 阈值
-     */
-    public SkillVersion stage(String skillId, double requiredPassRate) {
+    public SkillPublishService(SkillRepository skills, SkillVersionRepository versions, TestRunRepository runs,
+                               PromptEngine prompts, ToolRegistry tools,
+                               com.lightweightai.kernel.instruction.InstructionRegistry instructions,
+                               SkillTestCaseRepository cases) {
+        skillRepository = skills;
+        versionRepository = versions;
+        testRunRepository = runs;
+        testCaseRepository = cases;
+        promptEngine = prompts;
+        toolRegistry = tools;
+        instructionRegistry = instructions;
+    }
+
+    public synchronized SkillVersion stage(String skillId, double requiredPassRate) {
         SkillDraft draft = skillRepository.findById(skillId)
-            .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
-
-        // 校验测试通过率
+                .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
         List<TestRun> runs = testRunRepository.findRunsBySkillId(skillId);
-        if (runs.isEmpty()) {
-            throw new IllegalStateException("No test runs found for skill: " + skillId);
-        }
-        TestRun latestRun = runs.get(0);
-        if (!"completed".equals(latestRun.getStatus())) {
-            throw new IllegalStateException("Latest test run is not completed: " + latestRun.getStatus());
-        }
-        if (latestRun.getPassRate() < requiredPassRate) {
-            throw new IllegalStateException(String.format(
-                "Pass rate %.1f%% is below threshold %.1f%%",
-                latestRun.getPassRate() * 100, requiredPassRate * 100));
-        }
-
-        // 计算版本号
-        String versionTag = nextVersionTag(skillId);
-
-        // 创建不可变快照
+        if (runs.isEmpty()) throw new IllegalStateException("No test runs found for skill: " + skillId);
+        TestRun report = runs.get(0);
+        SkillPublicationContent.validate(report, testRunRepository.findCaseResultsByRunId(report.getId()), draft,
+                testCaseRepository.findBySkillId(skillId), requiredPassRate);
         SkillVersion version = new SkillVersion();
         version.setSkillId(skillId);
-        version.setVersionTag(versionTag);
-        version.setTestRunId(latestRun.getId());
+        version.setVersionTag(nextVersionTag(skillId));
+        version.setSnapshotJson(report.getCandidateJson());
+        version.setCandidateDigest(report.getCandidateDigest());
+        version.setEvaluationDigest(report.getEvaluationDigest());
+        version.setReportDigest(report.getReportDigest());
+        version.setRequiredPassRate(requiredPassRate);
+        version.setTestRunId(report.getId());
         version.setStatus("staged");
-        try {
-            version.setSnapshotJson(MAPPER.writeValueAsString(draft.toMap()));
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize skill draft", e);
-        }
-
-        versionRepository.save(version);
-        logger.info("Skill {} staged as version {}", draft.getName(), versionTag);
-        return version;
+        return versionRepository.save(version);
     }
 
-    /**
-     * 激活版本（注册到 PromptEngine，归档旧版本）
-     */
-    public SkillVersion activate(String versionId) {
-        SkillVersion version = versionRepository.findById(versionId)
-            .orElseThrow(() -> new IllegalArgumentException("Version not found: " + versionId));
+    public SkillVersion activate(String versionId) { return activate(versionId, null, false, null); }
 
-        // 归档当前活跃版本
-        versionRepository.findActiveBySkillId(version.getSkillId())
-            .ifPresent(active -> versionRepository.updateStatus(active.getId(), "archived"));
-
-        // 激活新版本
-        versionRepository.updateStatus(versionId, "active");
-
-        // 反序列化快照并注册到 PromptEngine
-        registerVersionToPromptEngine(version);
-
-        // 更新 SkillDraft 状态
-        skillRepository.updateStatus(version.getSkillId(), "active");
-
-        logger.info("Version {} activated for skill {}", version.getVersionTag(), version.getSkillId());
-        return versionRepository.findById(versionId).orElse(version);
+    /** Conditional publication; null means that no active version is expected. */
+    public SkillVersion activate(String versionId, String expectedActiveVersionId) {
+        return activate(versionId, expectedActiveVersionId, true, null);
     }
 
-    /**
-     * 回滚到指定版本
-     */
     public SkillVersion rollback(String skillId, String targetVersionId) {
-        return activate(targetVersionId);
+        return activate(targetVersionId, null, false, Objects.requireNonNull(skillId));
     }
 
-    /**
-     * 获取版本历史
-     */
-    public List<SkillVersion> getVersionHistory(String skillId) {
-        return versionRepository.findBySkillId(skillId);
+    private SkillVersion activate(String versionId, String expectedActive, boolean conditional, String expectedSkill) {
+        SkillVersion activated = versionRepository.activateAtomically(versionId, expectedActive, conditional, version -> {
+            if (expectedSkill != null && !expectedSkill.equals(version.getSkillId()))
+                throw new IllegalArgumentException("Rollback target belongs to another skill");
+            if (!Set.of("staged", "active", "archived").contains(version.getStatus()))
+                throw new IllegalStateException("Version cannot be activated from status: " + version.getStatus());
+            SkillDraft draft = validatedCandidate(version, true);
+            buildSkill(version, draft, true);
+        });
+        // Compatibility views follow the committed source; native execution reads the durable version directly.
+        SkillDraft draft = SkillPublicationContent.draft(activated.getSnapshotJson());
+        try {
+            promptEngine.registerSkill(buildSkill(activated, draft, false));
+            skillRepository.updateStatus(activated.getSkillId(), "active");
+            if (instructionRegistry != null) {
+                if (instructionRegistry.getPackage(draft.getName()) != null) instructionRegistry.deactivatePackage(draft.getName());
+                instructionRegistry.registerPackage(new SimpleInstructionPackage(draft.getName(), draft.getDescription(), draft.getSystemPrompt()));
+                instructionRegistry.activatePackage(draft.getName());
+            }
+        } catch (Exception e) {
+            logger.warn("Publication committed; compatibility view refresh failed for {}", activated.getId(), e);
+        }
+        return activated;
     }
 
+    public List<SkillVersion> getVersionHistory(String skillId) { return versionRepository.findBySkillId(skillId); }
+
+    @Override
+    public PromptSnapshot snapshot() {
+        List<PromptSnapshot.Fragment> content = new ArrayList<>(promptEngine.snapshot().getFragments().stream()
+                .filter(f -> !f.metadata().containsKey("publishedSkillId")).toList());
+        Set<String> names = new HashSet<>(content.stream().map(PromptSnapshot.Fragment::name).toList());
+        for (SkillVersion version : versionRepository.findActiveVersions()) {
+            SkillDraft draft = validatedCandidate(version, false);
+            if (!names.add(draft.getName())) throw new IllegalStateException("Published prompt name conflicts: " + draft.getName());
+            content.add(fragment(version, draft));
+        }
+        return new PromptSnapshot(content);
+    }
+
+    private SkillDraft validatedCandidate(SkillVersion version, boolean publication) {
+        SkillDraft draft = SkillPublicationContent.draft(version.getSnapshotJson());
+        if (!version.getSkillId().equals(draft.getId()) || version.getCandidateDigest() == null
+                || !version.getCandidateDigest().equals(SkillPublicationContent.candidateDigest(draft)))
+            throw new IllegalStateException("Version content is unbound or changed");
+        TestRun report = testRunRepository.findRunById(version.getTestRunId())
+                .orElseThrow(() -> new IllegalStateException("Bound test report not found"));
+        if (!version.getSkillId().equals(report.getSkillId())
+                || !Objects.equals(version.getCandidateDigest(), report.getCandidateDigest())
+                || !Objects.equals(version.getEvaluationDigest(), report.getEvaluationDigest())
+                || !Objects.equals(version.getReportDigest(), report.getReportDigest()))
+            throw new IllegalStateException("Version does not match its test report");
+        var results = testRunRepository.findCaseResultsByRunId(report.getId());
+        if (publication) SkillPublicationContent.validate(report, results, draft,
+                testCaseRepository.findBySkillId(version.getSkillId()), version.getRequiredPassRate());
+        else SkillPublicationContent.validateStored(report, results, draft, version.getRequiredPassRate());
+        return draft;
+    }
+
+    private Skill buildSkill(SkillVersion version, SkillDraft draft, boolean validateTools) {
+        if (!draft.isValid()) throw new IllegalStateException("Published skill requires a name, description and prompt");
+        promptEngine.getSkill(draft.getName()).ifPresent(existing -> {
+            Object owner = existing.getMetadata().get("publishedSkillId");
+            if (!version.getSkillId().equals(owner)) throw new IllegalStateException("Prompt name is already registered: " + draft.getName());
+        });
+        Skill.Builder builder = Skill.builder().name(draft.getName()).description(draft.getDescription())
+                .systemPrompt(draft.getSystemPrompt()).triggers(draft.getTriggers()).priority(draft.getPriority());
+        for (String toolName : draft.getToolNames()) {
+            Optional<Tool> tool = toolRegistry.get(toolName);
+            if (validateTools && tool.isEmpty()) throw new IllegalStateException("Published tool is unavailable: " + toolName);
+            if (validateTools) ConfigurationContent.map(tool.orElseThrow().getSchema().toMap());
+            tool.ifPresent(builder::addTool);
+        }
+        metadata(version, draft).forEach(builder::metadata);
+        return builder.build();
+    }
+    private PromptSnapshot.Fragment fragment(SkillVersion version, SkillDraft draft) {
+        return new PromptSnapshot.Fragment(draft.getName(), draft.getSystemPrompt(), draft.getTriggers(), draft.getPriority(), metadata(version, draft));
+    }
+    private Map<String, Object> metadata(SkillVersion version, SkillDraft draft) {
+        Map<String, Object> result = new LinkedHashMap<>(draft.getMetadata());
+        result.put("publishedSkillId", version.getSkillId());
+        result.put("publishedVersionId", version.getId());
+        result.put("candidateDigest", version.getCandidateDigest());
+        result.put("evaluationDigest", version.getEvaluationDigest());
+        return ConfigurationContent.map(result);
+    }
     private String nextVersionTag(String skillId) {
         List<SkillVersion> versions = versionRepository.findBySkillId(skillId);
         if (versions.isEmpty()) return "1.0.0";
-
-        // 解析最新版本号并递增 patch
-        String latest = versions.get(0).getVersionTag();
-        String[] parts = latest.split("\\.");
-        if (parts.length == 3) {
-            int patch = Integer.parseInt(parts[2]) + 1;
-            return parts[0] + "." + parts[1] + "." + patch;
-        }
-        return "1.0.0";
-    }
-
-    @SuppressWarnings("unchecked")
-    private void registerVersionToPromptEngine(SkillVersion version) {
-        try {
-            Map<String, Object> snapshot = MAPPER.readValue(version.getSnapshotJson(), Map.class);
-            String name = (String) snapshot.get("name");
-            String description = (String) snapshot.getOrDefault("description", "");
-            String systemPrompt = (String) snapshot.getOrDefault("systemPrompt", "");
-            List<String> triggers = (List<String>) snapshot.getOrDefault("triggers", List.of());
-            List<String> toolNames = (List<String>) snapshot.getOrDefault("toolNames", List.of());
-            int priority = snapshot.containsKey("priority") ? ((Number) snapshot.get("priority")).intValue() : 10;
-
-            Skill.Builder builder = Skill.builder()
-                .name(name)
-                .description(description)
-                .systemPrompt(systemPrompt)
-                .triggers(triggers)
-                .priority(priority);
-
-            for (String toolName : toolNames) {
-                Optional<Tool> runtimeTool = toolRegistry.get(toolName);
-                runtimeTool.ifPresent(builder::addTool);
-            }
-
-            Skill skill = builder.build();
-            promptEngine.registerSkill(skill);
-
-            // 同时注册到 InstructionRegistry（技能列表页面可见）
-            if (instructionRegistry != null) {
-                final String sName = name;
-                final String sDesc = description;
-                final String sPrompt = systemPrompt;
-                try {
-                    if (instructionRegistry.getPackage(sName) != null) {
-                        instructionRegistry.deactivatePackage(sName);
-                    }
-                    instructionRegistry.registerPackage(new SimpleInstructionPackage(sName, sDesc, sPrompt));
-                    instructionRegistry.activatePackage(sName);
-                } catch (Exception ex) {
-                    logger.debug("InstructionRegistry registration: {}", ex.getMessage());
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Failed to register version to PromptEngine: {}", e.getMessage(), e);
-        }
+        String[] parts = versions.get(0).getVersionTag().split("\\.");
+        return parts.length == 3 ? parts[0] + "." + parts[1] + "." + (Integer.parseInt(parts[2]) + 1) : "1.0.0";
     }
 }

@@ -58,6 +58,8 @@ public class VertxWebSocketServer implements SmartLifecycle {
         HttpServerOptions options = new HttpServerOptions()
             .setPort(port)
             .setHost("0.0.0.0")
+            // Connection and dispatcher indexes use textHandlerID; Vert.x 4.5 disables these IDs by default.
+            .setRegisterWebSocketWriteHandlers(true)
             // 生产级别参数
             .setMaxWebSocketMessageSize(64 * 1024)     // 64KB 单条消息上限
             .setMaxWebSocketFrameSize(64 * 1024)       // 64KB 帧大小上限
@@ -68,6 +70,7 @@ public class VertxWebSocketServer implements SmartLifecycle {
             .setAcceptBacklog(1024);                   // 连接等待队列
 
         httpServer = vertx.createHttpServer(options);
+        httpServer.exceptionHandler(error -> logger.error("WebSocket HTTP server failure", error));
 
         // 统一通过 requestHandler 处理所有 HTTP 请求（包括 WebSocket Upgrade）
         httpServer.requestHandler(req -> {
@@ -80,12 +83,21 @@ public class VertxWebSocketServer implements SmartLifecycle {
                     return;
                 }
 
+                if (!handler.authorizedQuery(req.query())) {
+                    req.response().setStatusCode(401).end("Authentication required");
+                    return;
+                }
                 // 执行 WebSocket 升级
                 req.toWebSocket().onSuccess(ws -> {
-                    handler.onConnect(ws);
-                    ws.textMessageHandler(msg -> handler.onMessage(ws, msg));
-                    ws.closeHandler(v -> handler.onClose(ws));
                     ws.exceptionHandler(err -> handler.onError(ws, err));
+                    try {
+                        handler.onConnect(ws);
+                        ws.textMessageHandler(msg -> handler.onMessage(ws, msg));
+                        ws.closeHandler(v -> handler.onClose(ws));
+                    } catch (RuntimeException error) {
+                        logger.error("WebSocket connection initialization failed", error);
+                        ws.close();
+                    }
                 }).onFailure(err -> {
                     logger.error("WebSocket upgrade failed", err);
                     req.response().setStatusCode(400).end("WebSocket upgrade failed");

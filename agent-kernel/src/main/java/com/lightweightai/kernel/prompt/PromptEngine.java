@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * - 自动检测：通过 triggers 匹配用户消息
  * - 按优先级排序：priority 小的先加载
  */
-public class PromptEngine {
+public class PromptEngine implements PromptSource {
 
     private final MemoryProvider memoryProvider;
     private final Map<String, Skill> skillRegistry;
@@ -46,15 +46,15 @@ public class PromptEngine {
     /**
      * 注册模块化 Prompt 片段
      */
-    public void registerSection(PromptSection section) {
+    public synchronized void registerSection(PromptSection section) {
         sections.add(section);
     }
 
     /**
      * 获取所有已注册的 section
      */
-    public List<PromptSection> getSections() {
-        return Collections.unmodifiableList(sections);
+    public synchronized List<PromptSection> getSections() {
+        return List.copyOf(sections);
     }
 
     // ==================== Skill 管理 ====================
@@ -62,43 +62,49 @@ public class PromptEngine {
     /**
      * 注册 Skill
      */
-    public void registerSkill(Skill skill) {
+    public synchronized void registerSkill(Skill skill) {
         skillRegistry.put(skill.getName(), skill);
     }
 
     /**
      * 批量注册 Skill
      */
-    public void registerSkills(List<Skill> skills) {
+    public synchronized void registerSkills(List<Skill> skills) {
         skills.forEach(this::registerSkill);
     }
 
     /**
      * 检查是否有指定 Skill
      */
-    public boolean hasSkill(String name) {
+    public synchronized boolean hasSkill(String name) {
         return skillRegistry.containsKey(name);
     }
 
     /**
      * 获取所有注册的 Skill 名称
      */
-    public List<String> getRegisteredSkills() {
+    public synchronized List<String> getRegisteredSkills() {
         return new ArrayList<>(skillRegistry.keySet());
     }
 
     /**
      * 获取所有注册的 Skill 对象（统一入口）
      */
-    public List<Skill> getSkillObjects() {
+    public synchronized List<Skill> getSkillObjects() {
         return new ArrayList<>(skillRegistry.values());
     }
 
     /**
      * 获取 Skill
      */
-    public Optional<Skill> getSkill(String name) {
+    public synchronized Optional<Skill> getSkill(String name) {
         return Optional.ofNullable(skillRegistry.get(name));
+    }
+
+    @Override
+    public synchronized PromptSnapshot snapshot() {
+        return new PromptSnapshot(skillRegistry.values().stream().map(skill -> new PromptSnapshot.Fragment(
+                skill.getName(), skill.getSystemPrompt(), skill.getTriggers(), skill.getPriority(), skill.getMetadata())).toList());
     }
 
     // ==================== Prompt 构建 ====================
@@ -106,7 +112,7 @@ public class PromptEngine {
     /**
      * 构建 Prompt 上下文
      */
-    public PromptContext build(PromptRequest request) {
+    public synchronized PromptContext build(PromptRequest request) {
         PromptContext.Builder contextBuilder = PromptContext.builder();
         contextBuilder.userMessage(request.getUserMessage());
 

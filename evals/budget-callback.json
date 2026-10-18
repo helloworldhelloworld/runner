@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "budget-callback",
+  "module": "agent-kernel",
+  "tests": [
+    "com.lightweightai.kernel.orchestrator.BudgetCallbackAcceptanceTest",
+    "com.lightweightai.kernel.orchestrator.ForegroundSubagentCancellationAcceptanceTest",
+    "com.lightweightai.kernel.orchestrator.HarnessEvidenceAcceptanceTest",
+    "com.lightweightai.kernel.orchestrator.SubagentToolsTest",
+    "com.lightweightai.kernel.orchestrator.ExecutionBudgetAcceptanceTest"
+  ],
+  "timeoutSeconds": 3600,
+  "requiredEvidence": [
+    {
+      "file": "budget-callback.json",
+      "caseId": "budget-callback"
+    }
+  ],
+  "feedback": [
+    {
+      "source": "developer: ADR-026 callback boundary review",
+      "observation": "AgentLoop.runStream bypasses the budgeted tool loop; callback adapters discard budget stop metadata and can finish with an empty success.",
+      "expected": "All callback paths apply the same budget, return budget_exhausted with usage, and never present synthetic control text as model output."
+    }
+  ],
+  "changeScope": [
+    "AgentLoop callback bridge",
+    "Gateway and Orchestrator callback final responses",
+    "Budget stop and usage propagation"
+  ]
+}

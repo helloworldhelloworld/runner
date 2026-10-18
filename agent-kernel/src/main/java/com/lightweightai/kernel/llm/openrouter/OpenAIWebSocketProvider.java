@@ -155,11 +155,12 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                     ? options.getToolDefinitions().size() : 0;
                 logger.info("WS streaming: {} messages, {} tools, model={}",
                     messages.size(), toolCount, model);
-                logger.debug("WS streaming request body: {}", requestBody);
+                logger.debug("WS streaming request body length: {}", requestBody.length());
 
                 StringBuilder textContent = new StringBuilder();
                 Map<Integer, ToolCallAccumulator> toolCallMap = new LinkedHashMap<>();
                 String[] finishReason = {null};
+                LLMResponse.UsageInfo[] usage = {null};
 
                 CompletableFuture<Void> doneFuture = new CompletableFuture<>();
 
@@ -188,8 +189,8 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                         }
 
                         // Strip SSE prefix if present (some backends send SSE-style over WS)
-                        if (trimmed.startsWith("data: ")) {
-                            trimmed = trimmed.substring(6).trim();
+                        if (trimmed.startsWith("data:")) {
+                            trimmed = trimmed.substring(5).trim();
                             if ("[DONE]".equals(trimmed)) {
                                 logger.debug("WS stream: received data: [DONE]");
                                 webSocket.close(1000, "done");
@@ -205,6 +206,11 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                                 logger.warn("WS: double-encoded JSON, unwrapping");
                                 eventData = objectMapper.readTree(eventData.asText());
                             }
+
+                            if (eventData.hasNonNull("error")) {
+                                throw new IOException(eventData.path("error").path("message").asText("WebSocket model error"));
+                            }
+                            if (eventData.has("usage")) usage[0] = OpenRouterProvider.readUsage(eventData.get("usage"));
 
                             JsonNode choices = eventData.get("choices");
                             if (choices == null || !choices.isArray() || choices.isEmpty()) {
@@ -272,6 +278,8 @@ public class OpenAIWebSocketProvider implements LLMProvider {
 
                         } catch (Exception e) {
                             logger.warn("WS: failed to parse frame: {}", e.getMessage(), e);
+                            doneFuture.completeExceptionally(e);
+                            webSocket.cancel();
                         }
                     }
 
@@ -309,6 +317,7 @@ public class OpenAIWebSocketProvider implements LLMProvider {
                     .message(responseMessage)
                     .toolCalls(toolCalls)
                     .stopReason(finishReason[0])
+                    .usage(usage[0])
                     .build();
 
                 logger.info("WS stream complete: textLen={}, toolCalls={}, stopReason={}",
@@ -512,13 +521,7 @@ public class OpenAIWebSocketProvider implements LLMProvider {
             .textContent(content)
             .build();
 
-        JsonNode usage = root.get("usage");
-        LLMResponse.UsageInfo usageInfo = null;
-        if (usage != null) {
-            int promptTokens = usage.has("prompt_tokens") ? usage.get("prompt_tokens").asInt() : 0;
-            int completionTokens = usage.has("completion_tokens") ? usage.get("completion_tokens").asInt() : 0;
-            usageInfo = new LLMResponse.UsageInfo(promptTokens, completionTokens);
-        }
+        LLMResponse.UsageInfo usageInfo = OpenRouterProvider.readUsage(root.get("usage"));
 
         String finishReason = firstChoice.has("finish_reason") ? firstChoice.get("finish_reason").asText() : null;
 

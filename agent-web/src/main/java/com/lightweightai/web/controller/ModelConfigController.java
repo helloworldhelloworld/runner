@@ -3,6 +3,7 @@ package com.lightweightai.web.controller;
 import com.lightweightai.kernel.llm.LLMProvider;
 import com.lightweightai.web.config.AgentConfig;
 import com.lightweightai.web.config.DynamicLLMProvider;
+import com.lightweightai.web.config.ModelPresetStore;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,7 @@ public class ModelConfigController {
 
     private final DynamicLLMProvider dynamicProvider;
     private final AgentConfig agentConfig;
+    private final ModelPresetStore presetStore;
 
     // Store the current runtime config (not persisted across restarts)
     private volatile String currentProviderType = "";
@@ -34,9 +36,17 @@ public class ModelConfigController {
     // Saved configuration presets: name -> config map
     private final Map<String, Map<String, String>> savedPresets = new ConcurrentHashMap<>();
 
-    public ModelConfigController(DynamicLLMProvider dynamicProvider, AgentConfig agentConfig) {
+    public ModelConfigController(DynamicLLMProvider dynamicProvider, AgentConfig agentConfig, ModelPresetStore presetStore) {
         this.dynamicProvider = dynamicProvider;
         this.agentConfig = agentConfig;
+        this.presetStore = presetStore;
+        this.savedPresets.putAll(presetStore.snapshot());
+    }
+
+    /** Compatibility constructor for standalone callers; presets remain process-local. */
+    public ModelConfigController(DynamicLLMProvider dynamicProvider, AgentConfig agentConfig) {
+        this(dynamicProvider, agentConfig, new ModelPresetStore(java.nio.file.Path.of(
+                System.getProperty("java.io.tmpdir"), "runner-model-presets-test.json")));
     }
 
     /**
@@ -136,6 +146,7 @@ public class ModelConfigController {
         preset.put("model", currentModel);
         preset.put("baseUrl", currentBaseUrl);
         savedPresets.put(name, preset);
+        presetStore.put(name, preset);
 
         logger.info("Saved model config preset: {}", name);
 
@@ -159,7 +170,8 @@ public class ModelConfigController {
         }
 
         String providerType = preset.get("providerType");
-        String apiKey = preset.get("apiKey");
+        String apiKey = Optional.ofNullable(preset.get("apiKey"))
+                .filter(value -> !value.isBlank()).orElse(currentApiKey);
         String model = preset.get("model");
         String baseUrl = preset.get("baseUrl");
 
@@ -193,6 +205,7 @@ public class ModelConfigController {
         if (savedPresets.remove(name) == null) {
             throw new IllegalArgumentException("预设 \"" + name + "\" 不存在");
         }
+        presetStore.remove(name);
         logger.info("Deleted model config preset: {}", name);
 
         Map<String, Object> result = new LinkedHashMap<>();

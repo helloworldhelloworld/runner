@@ -37,6 +37,8 @@ public class AgentProfile {
     private final ToolPolicy toolPolicy;
     private final int maxToolIterations;
     private final int maxSpawnDepth;
+    private final int maxTokens;
+    private final int maxBudgetTokens;
     private final Map<String, Object> metadata;
 
     private AgentProfile(Builder builder) {
@@ -49,6 +51,9 @@ public class AgentProfile {
         this.toolPolicy = compilePolicy(builder);
         this.maxToolIterations = builder.maxToolIterations;
         this.maxSpawnDepth = builder.maxSpawnDepth;
+        if (builder.maxTokens <= 0 || builder.maxBudgetTokens < 0) throw new IllegalArgumentException("Invalid token limits");
+        this.maxTokens = builder.maxTokens;
+        this.maxBudgetTokens = builder.maxBudgetTokens;
         this.metadata = Collections.unmodifiableMap(new LinkedHashMap<>(builder.metadata));
     }
 
@@ -75,6 +80,8 @@ public class AgentProfile {
     public Set<String> getToolDenyList() { return toolDenyList; }
     public ToolPolicy getToolPolicy() { return toolPolicy; }
     public int getMaxToolIterations() { return maxToolIterations; }
+    public int getMaxTokens() { return maxTokens; }
+    public int getMaxBudgetTokens() { return maxBudgetTokens; }
     public int getMaxSpawnDepth() { return maxSpawnDepth; }
     public Map<String, Object> getMetadata() { return metadata; }
 
@@ -90,6 +97,8 @@ public class AgentProfile {
         private ToolPolicy toolPolicy;
         private int maxToolIterations = 10;
         private int maxSpawnDepth = 0;
+        private int maxTokens = 4096;
+        private int maxBudgetTokens = 0;
         private final Map<String, Object> metadata = new LinkedHashMap<>();
 
         public Builder agentId(String agentId) { this.agentId = agentId; return this; }
@@ -100,6 +109,8 @@ public class AgentProfile {
         public Builder toolDenyList(Set<String> toolDenyList) { this.toolDenyList = toolDenyList; return this; }
         public Builder toolPolicy(ToolPolicy toolPolicy) { this.toolPolicy = toolPolicy; return this; }
         public Builder maxToolIterations(int maxToolIterations) { this.maxToolIterations = maxToolIterations; return this; }
+        public Builder maxTokens(int value) { maxTokens = value; return this; }
+        public Builder maxBudgetTokens(int value) { maxBudgetTokens = value; return this; }
         public Builder maxSpawnDepth(int maxSpawnDepth) { this.maxSpawnDepth = maxSpawnDepth; return this; }
         public Builder metadata(String key, Object value) { this.metadata.put(key, value); return this; }
 

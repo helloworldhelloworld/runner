@@ -117,6 +117,53 @@ class SkillTestExecutionServiceTest {
 
     // ==================== Setup helpers ====================
 
+    @Test void missingOrDuplicateCaseResultsCannotCompleteARun() {
+        String id = setupSkillWithTestCases(1);
+        List<SkillTestContext> received = new ArrayList<>();
+        for (int count : List.of(0, 2)) {
+            TestExecutor executor = context -> {
+                received.add(context);
+                return Flux.range(0, count).map(i -> StreamEvent.postProcessData("test_case_result", Map.of("llmOutput", "done")));
+            };
+            var broken = new SkillTestExecutionService(executor, skillRepository, testCaseRepository, testRunRepository);
+            assertThrows(RuntimeException.class, () -> broken.executeAll(id).blockLast());
+            assertEquals("failed", broken.getLatestReport(id).orElseThrow().getStatus());
+        }
+        assertEquals(2, received.size());
+        assertEquals("user input 0", received.get(0).getUserInput());
+    }
+
+    @Test void cancellationPersistsATerminalUnpublishableRun() {
+        String id = setupSkillWithTestCases(1);
+        List<SkillTestContext> received = new ArrayList<>();
+        var controlled = new SkillTestExecutionService(context -> {
+            received.add(context);
+            return Flux.never();
+        }, skillRepository, testCaseRepository, testRunRepository);
+        var subscription = controlled.executeAll(id).subscribe();
+        assertEquals("user input 0", received.get(0).getUserInput());
+        subscription.dispose();
+        var run = controlled.getLatestReport(id).orElseThrow();
+        assertEquals("cancelled", run.getStatus());
+        assertNotNull(run.getCompletedAt());
+        assertNull(run.getReportDigest());
+    }
+
+    @Test void failingToSaveCompletionDoesNotLeaveARunningReport() {
+        String id = setupSkillWithTestCases(1);
+        var failing = new TestRunRepository(tempDb.toString()) {
+            @Override public synchronized TestRun saveRun(TestRun run) {
+                if ("completed".equals(run.getStatus())) throw new IllegalStateException("completion write failed");
+                return super.saveRun(run);
+            }
+        };
+        var controlled = new SkillTestExecutionService(new MockTestExecutor(), skillRepository, testCaseRepository, failing);
+        var error = assertThrows(IllegalStateException.class, () -> controlled.executeAll(id).blockLast());
+        assertEquals("completion write failed", error.getMessage());
+        assertEquals("failed", controlled.getLatestReport(id).orElseThrow().getStatus());
+        assertNull(controlled.getLatestReport(id).orElseThrow().getReportDigest());
+    }
+
     private String setupSkillWithTestCases(int count) {
         SkillDraft draft = new SkillDraft();
         draft.setId("skill-" + UUID.randomUUID().toString().substring(0, 8));

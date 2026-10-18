@@ -13,6 +13,8 @@ import com.lightweightai.kernel.trace.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
+import reactor.core.Disposables;
+import reactor.core.Disposable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +40,7 @@ public class ToolCallingLoop {
     private final CancellationToken cancellationToken;
     private final com.lightweightai.kernel.context.CostTracker costTracker;
     private java.util.List<com.lightweightai.kernel.agent.AgentObserver> observers;
+    private com.lightweightai.kernel.context.ContextCompactor contextCompactor;
 
     /**
      * Create a new ToolCallingLoop
@@ -98,12 +101,13 @@ public class ToolCallingLoop {
      * @return Final LLM response after tool calling loop completes
      */
     public LLMResponse executeWithTools(List<ConversationMessage> messages, LLMOptions options) {
+        ExecutionBinding binding = bindExecution(options);
         List<ConversationMessage> conversation = new ArrayList<>(messages);
         int iteration = 0;
 
         while (iteration < maxIterations) {
             // 打断检查
-            if (cancellationToken != null && cancellationToken.isCancelled()) {
+            if (binding.context().getCancellationToken().isCancelled()) {
                 logger.debug("ToolCallingLoop cancelled at sync iteration {}", iteration);
                 return LLMResponse.builder()
                         .message(ConversationMessage.builder()
@@ -115,7 +119,10 @@ public class ToolCallingLoop {
             }
 
             // Call LLM
-            LLMResponse response = provider.complete(conversation, options);
+            compactConversation(conversation);
+            LLMResponse response;
+            try { response = binding.provider().complete(conversation, options); }
+            catch (com.lightweightai.kernel.context.BudgetStoppedException stopped) { return budgetResponse(); }
 
             // Check if LLM wants to call tools
             if (!response.hasToolCalls()) {
@@ -125,9 +132,7 @@ public class ToolCallingLoop {
 
             // Execute all tool calls (with client-side routing if context present)
             List<ToolCall> toolCalls = response.getToolCalls();
-            List<ToolResult> toolResults = executionContext != null
-                ? toolExecutor.executeToolCalls(toolCalls, executionContext)
-                : toolExecutor.executeToolCalls(toolCalls);
+            List<ToolResult> toolResults = toolExecutor.executeToolCalls(toolCalls, binding.context());
 
             // Add assistant's response (with tool calls) to conversation
             conversation.add(enrichWithToolCalls(response));
@@ -161,7 +166,12 @@ public class ToolCallingLoop {
         List<ConversationMessage> messages,
         LLMOptions options
     ) {
-        return executeWithToolsAsync(new ArrayList<>(messages), options, 0);
+        ExecutionBinding binding = bindExecution(options);
+        CompletableFuture<LLMResponse> result = executeWithToolsAsync(new ArrayList<>(messages), options, 0, binding);
+        result.whenComplete((value, error) -> {
+            if (result.isCancelled()) binding.context().getCancellationToken().cancel();
+        });
+        return result;
     }
 
     /**
@@ -170,7 +180,8 @@ public class ToolCallingLoop {
     private CompletableFuture<LLMResponse> executeWithToolsAsync(
         List<ConversationMessage> conversation,
         LLMOptions options,
-        int iteration
+        int iteration,
+        ExecutionBinding binding
     ) {
         // Check iteration limit
         if (iteration >= maxIterations) {
@@ -182,8 +193,13 @@ public class ToolCallingLoop {
             );
         }
 
+        if (binding.context().getCancellationToken().isCancelled()) {
+            return CompletableFuture.failedFuture(new java.util.concurrent.CancellationException("Execution cancelled"));
+        }
+
         // Step 1: Call LLM asynchronously (non-blocking)
-        return provider.completeAsync(conversation, options)
+        compactConversation(conversation);
+        return binding.provider().completeAsync(conversation, options)
             .thenCompose(response -> {
                 // Step 2: Check if LLM wants to use tools
                 if (!response.hasToolCalls() || response.getToolCalls().isEmpty()) {
@@ -193,9 +209,8 @@ public class ToolCallingLoop {
 
                 // Step 3: Execute tools asynchronously (with client-side routing if context present)
                 List<ToolCall> toolCalls = response.getToolCalls();
-                CompletableFuture<List<ToolResult>> toolFuture = executionContext != null
-                    ? toolExecutor.executeToolCallsAsync(toolCalls, executionContext)
-                    : toolExecutor.executeToolCallsAsync(toolCalls);
+                CompletableFuture<List<ToolResult>> toolFuture =
+                    toolExecutor.executeToolCallsAsync(toolCalls, binding.context());
                 return toolFuture
                     .thenCompose(toolResults -> {
                         // Step 4: Add assistant's response and tool results to conversation
@@ -208,11 +223,13 @@ public class ToolCallingLoop {
                         // Step 5: Recursively continue the conversation (async)
                         // This is the key: we chain dependent async operations
                         // without blocking any thread
-                        return executeWithToolsAsync(conversation, options, iteration + 1);
+                        return executeWithToolsAsync(conversation, options, iteration + 1, binding);
                     });
             })
             .exceptionally(error -> {
-                // Handle any errors in the chain
+                Throwable cause = error;
+                while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null) cause = cause.getCause();
+                if (cause instanceof com.lightweightai.kernel.context.BudgetStoppedException) return budgetResponse();
                 throw new RuntimeException("Tool calling loop failed: " + error.getMessage(), error);
             });
     }
@@ -231,16 +248,19 @@ public class ToolCallingLoop {
      */
     public Flux<StreamEvent> executeWithToolsReactive(
             List<ConversationMessage> messages, LLMOptions options) {
-        return executeReactiveLoop(new ArrayList<>(messages), options, 0);
+        return Flux.defer(() -> executeReactiveLoop(new ArrayList<>(messages), options, 0, bindExecution(options)))
+                .onErrorResume(com.lightweightai.kernel.context.BudgetStoppedException.class,
+                        stopped -> Flux.just(StreamEvent.budgetStopped(stopped.getUsage())));
     }
 
     private Flux<StreamEvent> executeReactiveLoop(
             List<ConversationMessage> conversation,
             LLMOptions options,
-            int iteration) {
+            int iteration,
+            ExecutionBinding binding) {
 
         // 打断检查：CancellationToken 触发后优雅退出
-        if (cancellationToken != null && cancellationToken.isCancelled()) {
+        if (binding.context().getCancellationToken().isCancelled()) {
             logger.debug("ToolCallingLoop cancelled at iteration {}", iteration);
             return Flux.empty();
         }
@@ -258,6 +278,7 @@ public class ToolCallingLoop {
         }
 
         return Flux.deferContextual(ctx -> {
+            compactConversation(conversation);
             // 从 Reactor Context 读取父 span，创建迭代子 span
             SpanContext parentSpan = TraceContext.current(ctx);
             SpanContext iterationSpan = parentSpan != null
@@ -272,7 +293,13 @@ public class ToolCallingLoop {
             // LLM 流子 span
             SpanContext llmSpan = iterationSpan.createChild("llm.stream");
 
-            return provider.completeStreamReactive(conversation, options)
+            Flux<StreamEvent> providerStream = binding.provider().completeStreamReactive(conversation, options);
+            if (binding.context().getResourceRegistrar() != null) {
+                providerStream = providerStream.doOnSubscribe(subscription ->
+                        binding.context().getResourceRegistrar().accept(
+                                (Disposable) subscription::cancel));
+            }
+            return providerStream
                 .doOnNext(accumulated::add)
                 .doOnComplete(() -> {
                     llmSpan.setAttribute("eventCount", accumulated.size());
@@ -318,24 +345,27 @@ public class ToolCallingLoop {
                         .doOnNext(tc -> firePreToolUse(tc.getName(), tc.getArguments()))
                         .map(StreamEvent::toolCallStart);
 
-                    // Step 3b: 并行执行工具，使用 cache() 缓存并共享同一执行
-                    Flux<ToolResultChunk> sharedToolExec = toolExecutor
-                        .executeToolCallsReactive(toolCalls, executionContext)
+                    // One subscription forwards events and collects final results.
+                    // Cancellation must reach pending tools; cache() would retain their subscription.
+                    List<ToolResult> toolResults = new ArrayList<>();
+                    Flux<ToolResultChunk> toolExec = toolExecutor
+                        .executeToolCallsReactive(toolCalls, binding.context())
                         .doOnNext(chunk -> {
                             // PostToolUse hook on COMPLETE/ERROR（按 callId 查回 args）
                             Map<String, Object> args = argsByCallId.getOrDefault(
                                     chunk.getToolCallId(), Map.of());
                             if (chunk.getType() == ToolResultChunk.ChunkType.COMPLETE && chunk.getResult() != null) {
                                 firePostToolUse(chunk.getToolName(), args, chunk.getResult());
+                                toolResults.add(chunk.getResult().withToolUseId(chunk.getToolCallId()));
                             } else if (chunk.getType() == ToolResultChunk.ChunkType.ERROR) {
                                 firePostToolUse(chunk.getToolName(), args,
                                         ToolResult.error(chunk.getMessage()));
+                                toolResults.add(ToolResult.error(chunk.getToolCallId(), chunk.getMessage()));
                             }
-                        })
-                        .cache();
+                        });
 
                     // 流式发出 TOOL_PROGRESS / TOOL_LOG / TOOL_RESULT 事件
-                    Flux<StreamEvent> toolExecEvents = sharedToolExec
+                    Flux<StreamEvent> toolExecEvents = toolExec
                         .map(chunk -> switch (chunk.getType()) {
                             case PROGRESS -> StreamEvent.toolProgress(chunk);
                             case LOG -> StreamEvent.toolLog(chunk);
@@ -344,27 +374,46 @@ public class ToolCallingLoop {
                         });
 
                     // Step 3c: 收集工具结果，加入对话，递归下一轮
-                    Flux<StreamEvent> nextRound = sharedToolExec
-                        .filter(c -> c.getType() == ToolResultChunk.ChunkType.COMPLETE
-                                  || c.getType() == ToolResultChunk.ChunkType.ERROR)
-                        .map(c -> {
-                            if (c.getType() == ToolResultChunk.ChunkType.COMPLETE) {
-                                return c.getResult().withToolUseId(c.getToolCallId());
-                            }
-                            return ToolResult.error(c.getToolCallId(), c.getMessage());
-                        })
-                        .collectList()
-                        .flatMapMany(results -> {
-                            for (ToolResult result : results) {
-                                appendToolResultMessages(conversation, result);
-                            }
-                            tracer.endSpan(iterationSpan);
-                            return executeReactiveLoop(conversation, options, iteration + 1);
-                        });
+                    Flux<StreamEvent> nextRound = Flux.defer(() -> {
+                        for (ToolResult result : toolResults) {
+                            appendToolResultMessages(conversation, result);
+                        }
+                        tracer.endSpan(iterationSpan);
+                        return executeReactiveLoop(conversation, options, iteration + 1, binding);
+                    });
 
                     return Flux.concat(toolStartEvents, toolExecEvents, nextRound);
                 }));
         });
+    }
+
+    private record ExecutionBinding(LLMProvider provider, ToolExecutionContext context) {}
+
+    private void compactConversation(List<ConversationMessage> conversation) {
+        if (contextCompactor == null) return;
+        List<ConversationMessage> compacted = new ArrayList<>(contextCompactor.compact(conversation));
+        conversation.clear();
+        conversation.addAll(compacted);
+    }
+
+    private ExecutionBinding bindExecution(LLMOptions options) {
+        ToolExecutionContext context = executionContext != null ? executionContext : ToolExecutionContext.serverOnly();
+        if (context.getModelScope() == null) context = context.withModelScope(new ExecutionModelScope());
+        if (cancellationToken != null) context = context.withCancellationToken(cancellationToken);
+        if (context.getCancellationToken() == null) context = context.withCancellationToken(new CancellationToken());
+        if (context.getUsageScope() == null) {
+            int budget = options != null && options.getMaxBudgetTokens() != null ? options.getMaxBudgetTokens()
+                    : costTracker != null ? costTracker.getMaxBudgetTokens() : 0;
+            context = context.withUsageScope(new com.lightweightai.kernel.context.ExecutionUsageScope(budget, costTracker));
+        }
+        LLMProvider selected = context.getModelScope().resolve(provider);
+        return new ExecutionBinding(com.lightweightai.kernel.llm.UsageTrackingLLMProvider.bind(selected,
+                context.getUsageScope(), context.getCancellationToken()), context);
+    }
+
+    private static LLMResponse budgetResponse() {
+        return LLMResponse.builder().message(ConversationMessage.builder()
+                .role(MessageRole.ASSISTANT).textContent("").build()).stopReason("budget_exhausted").build();
     }
 
     /**
@@ -456,6 +505,7 @@ public class ToolCallingLoop {
         private Tracer tracer;
         private CancellationToken cancellationToken;
         private com.lightweightai.kernel.context.CostTracker costTracker;
+        private com.lightweightai.kernel.context.ContextCompactor contextCompactor;
         private java.util.List<com.lightweightai.kernel.agent.AgentObserver> observers = new java.util.ArrayList<>();
 
         public Builder provider(LLMProvider provider) {
@@ -507,10 +557,16 @@ public class ToolCallingLoop {
             return this;
         }
 
+        public Builder contextCompactor(com.lightweightai.kernel.context.ContextCompactor compactor) {
+            this.contextCompactor = compactor;
+            return this;
+        }
+
         public ToolCallingLoop build() {
             ToolCallingLoop loop = new ToolCallingLoop(provider, toolExecutor, maxIterations,
                     executionContext, tracer, cancellationToken, costTracker);
             loop.observers = observers != null ? java.util.List.copyOf(observers) : java.util.List.of();
+            loop.contextCompactor = contextCompactor;
             return loop;
         }
     }

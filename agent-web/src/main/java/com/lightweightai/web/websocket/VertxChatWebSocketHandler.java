@@ -16,6 +16,7 @@ import com.lightweightai.kernel.agent.directive.ClientManifest;
 import com.lightweightai.kernel.agent.directive.DefaultDirectiveManager;
 import com.lightweightai.kernel.agent.directive.DirectiveToolBridge;
 import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.ToolExecutionContext;
 import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.gateway.Gateway;
 import com.lightweightai.kernel.gateway.GatewayRequest;
@@ -134,10 +135,45 @@ public class VertxChatWebSocketHandler {
         this.clientToolSessionBinder = new ClientToolSessionBinder(toolRegistry);
     }
 
+    private com.lightweightai.web.service.AuthSessionService authSessionService;
+    private final Map<String, String> authTokens = new ConcurrentHashMap<>();
+    private final Map<String, String> principals = new ConcurrentHashMap<>();
+    private final Map<String, Disposable> observers = new ConcurrentHashMap<>();
+    private final SessionStreamRegistry streamRegistry = new SessionStreamRegistry();
+
+    public void setAuthSessionService(com.lightweightai.web.service.AuthSessionService auth) { authSessionService = auth; }
+    boolean authorizedQuery(String query) {
+        return authSessionService == null || authSessionService.resolveSession(queryToken(query)).isPresent();
+    }
+    private String queryToken(String query) {
+        if (query != null) for (String parameter : query.split("&")) {
+            String[] parts = parameter.split("=", 2);
+            if (parts.length == 2 && parts[0].equals("token"))
+                return java.net.URLDecoder.decode(parts[1], java.nio.charset.StandardCharsets.UTF_8);
+        }
+        return null;
+    }
+    private String principal(ServerWebSocket ws) { return principals.get(ws.textHandlerID()); }
+    private boolean authenticated(ServerWebSocket ws) {
+        return authSessionService == null || authSessionService.resolveSession(authTokens.get(ws.textHandlerID())).isPresent();
+    }
+    private SessionManager sessionManager(ServerWebSocket ws, JsonNode payload) {
+        SessionManager manager = gateway.getSessionManager();
+        return manager == null || principal(ws) == null ? manager : manager.forScope(principal(ws), payload.path("agentId").asText(null));
+    }
+
     /**
      * 处理新 WebSocket 连接
      */
     public void onConnect(ServerWebSocket ws) {
+        if (authSessionService != null) {
+            String query = java.net.URI.create(ws.uri()).getRawQuery();
+            String token = queryToken(query);
+            var identity = authSessionService.resolveSession(token);
+            if (identity.isEmpty()) { ws.reject(401); return; }
+            authTokens.put(ws.textHandlerID(), token);
+            principals.put(ws.textHandlerID(), identity.get().getUserId());
+        }
         // 连接数限制
         if (activeConnections.get() >= MAX_CONNECTIONS) {
             logger.warn("Connection rejected: max connections ({}) reached", MAX_CONNECTIONS);
@@ -164,6 +200,7 @@ public class VertxChatWebSocketHandler {
      */
     public void onMessage(ServerWebSocket ws, String message) {
         String socketId = ws.textHandlerID();
+        if (!authenticated(ws)) { ws.close((short) 1008, "Authentication expired"); return; }
         totalMessagesReceived.incrementAndGet();
 
         try {
@@ -176,6 +213,7 @@ public class VertxChatWebSocketHandler {
             }
 
             JsonNode payload = MAPPER.readTree(message);
+            if (principal(ws) != null && payload instanceof com.fasterxml.jackson.databind.node.ObjectNode node) node.put("userId", principal(ws));
             String type = payload.path("type").asText("chat");
 
             String requestId = payload.path("requestId").asText(null);
@@ -189,6 +227,21 @@ public class VertxChatWebSocketHandler {
                 case "get_history" -> handleGetHistory(ws, payload, requestId);
                 case "get_summary" -> handleGetSummary(ws, payload, requestId);
                 case "clear_session" -> handleClearSession(ws, payload, requestId);
+                case "interrupt", "barge_in" -> {
+                    var interrupted = gateway.interrupt(principal(ws), payload.path("sessionId").asText(socketId));
+                    if (interrupted != null) safeSend(ws, StreamEventSerializer.serialize(interrupted));
+                }
+                case "observe" -> {
+                    String rawSession = payload.path("sessionId").asText("");
+                    Disposable previous = observers.remove(socketId);
+                    if (previous != null) previous.dispose();
+                    observers.put(socketId, streamRegistry.observe(com.lightweightai.kernel.gateway.SessionKeys.slot(principal(ws), rawSession))
+                            .subscribe(event -> {
+                                String frame = StreamEventSerializer.serialize(event);
+                                if (frame != null) safeSend(ws, frame);
+                            }));
+                    sendResponse(ws, "observing", requestId, Map.of("sessionId", rawSession));
+                }
                 // Skills & Tools
                 case "get_skills" -> handleGetSkills(ws, requestId);
                 case "get_tools" -> handleGetTools(ws, requestId);
@@ -266,9 +319,10 @@ public class VertxChatWebSocketHandler {
         }
 
         // 解析公共字段（含 agentId → metadata，供 MetadataAgentRouter 路由到 persona，如 minion）
-        GatewayRequest.Builder builder = WsChatRequests.baseBuilder(payload, socketId);
+        GatewayRequest.Builder builder = WsChatRequests.baseBuilder(payload, socketId).principalId(principal(ws));
         // 注入设备上下文（从端侧 Manifest 提取）
         VertxWebSocketClientToolDispatcher dispatcher = dispatchers.get(ws.textHandlerID());
+        builder.toolExecutionContext(new ToolExecutionContext(dispatcher, 60_000));
         if (dispatcher != null && dispatcher.hasManifest()) {
             builder.deviceContext(DeviceContext.fromManifest(dispatcher.getManifest()));
         }
@@ -301,6 +355,7 @@ public class VertxChatWebSocketHandler {
             .doOnSubscribe(s -> logger.info("[WS-STREAM] Flux subscribed for session={}", sessionId))
             .subscribe(
                 event -> {
+                    streamRegistry.publish(com.lightweightai.kernel.gateway.SessionKeys.slot(request.getPrincipalId(), sessionId), event);
                     logger.info("[WS-STREAM] Event received: type={} session={} wsClosed={}",
                         event.getType(), sessionId, ws.isClosed());
                     if (event.getType() == StreamEvent.EventType.TEXT_DELTA) {
@@ -470,14 +525,14 @@ public class VertxChatWebSocketHandler {
 
     private void handleGetHistory(ServerWebSocket ws, JsonNode payload, String requestId) {
         String sessionId = payload.path("sessionId").asText("");
-        SessionManager sm = gateway.getSessionManager();
+        SessionManager sm = sessionManager(ws, payload);
         List<Map<String, String>> history = (sm != null) ? sm.getSessionHistory(sessionId) : List.of();
         sendResponse(ws, "history", requestId, history);
     }
 
     private void handleGetSummary(ServerWebSocket ws, JsonNode payload, String requestId) {
         String sessionId = payload.path("sessionId").asText("");
-        SessionManager sm = gateway.getSessionManager();
+        SessionManager sm = sessionManager(ws, payload);
         Map<String, Object> summary = (sm != null)
             ? sm.getSessionSummary(sessionId)
             : Map.of("sessionId", sessionId);
@@ -486,7 +541,7 @@ public class VertxChatWebSocketHandler {
 
     private void handleClearSession(ServerWebSocket ws, JsonNode payload, String requestId) {
         String sessionId = payload.path("sessionId").asText("");
-        SessionManager sm = gateway.getSessionManager();
+        SessionManager sm = sessionManager(ws, payload);
         if (sm != null) {
             sm.clearSession(sessionId);
         }
@@ -610,7 +665,9 @@ public class VertxChatWebSocketHandler {
         String query = payload.path("query").asText("");
         int topK = payload.path("topK").asInt(10);
         try {
-            List<Map<String, Object>> results = soulComfortChatService.searchMemory(query, topK);
+            Object results = principal(ws) == null ? soulComfortChatService.searchMemory(query, topK)
+                    : sessionManager(ws, payload).getMemoryProvider().search(query,
+                        com.lightweightai.kernel.memory.MemoryProvider.SearchOptions.defaults().topK(topK));
             sendResponse(ws, "memory_results", requestId, results);
         } catch (Exception e) {
             logger.error("Memory search failed", e);
@@ -622,7 +679,8 @@ public class VertxChatWebSocketHandler {
         String section = payload.path("section").asText("");
         String content = payload.path("content").asText("");
         try {
-            soulComfortChatService.rememberDurable(section, content);
+            if (principal(ws) == null) soulComfortChatService.rememberDurable(section, content);
+            else sessionManager(ws, payload).getMemoryProvider().writeDurable(section, content);
             sendResponse(ws, "remember_result", requestId, Map.of("status", "saved", "section", section));
         } catch (Exception e) {
             logger.error("Remember durable failed", e);
@@ -842,6 +900,7 @@ public class VertxChatWebSocketHandler {
      * 无需外部同步。写入失败时仅记录日志，不影响其他连接。
      */
     private void safeSend(ServerWebSocket ws, String json) {
+        if (!authenticated(ws)) { ws.close((short) 1008, "Authentication expired"); return; }
         if (ws.isClosed()) {
             logger.warn("[WS-STREAM] safeSend DROPPED (ws closed): {}",
                 json.substring(0, Math.min(120, json.length())));
@@ -1077,9 +1136,12 @@ public class VertxChatWebSocketHandler {
     // ==================== 资源清理 ====================
 
     private void cleanup(String socketId) {
-        sessions.remove(socketId);
+        boolean registered = sessions.remove(socketId) != null;
+        authTokens.remove(socketId); principals.remove(socketId);
+        Disposable observer = observers.remove(socketId);
+        if (observer != null) observer.dispose();
         rateLimiters.remove(socketId);
-        activeConnections.decrementAndGet();
+        if (registered) activeConnections.decrementAndGet();
 
         // 取消正在进行的 reactive 流，防止 WebSocket 断开后继续消耗资源
         Disposable stream = activeStreams.remove(socketId);

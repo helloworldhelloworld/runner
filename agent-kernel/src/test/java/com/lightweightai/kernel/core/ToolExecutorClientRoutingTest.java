@@ -32,6 +32,49 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("ToolExecutor - 客户端路由与禁用工具")
 class ToolExecutorClientRoutingTest {
 
+    @Test
+    void reactiveClientCancellationCancelsThePendingDispatch() {
+        toolRegistry.register(createClientSideTool("camera"));
+        CompletableFuture<ToolResult> pending = new CompletableFuture<>();
+        java.util.concurrent.atomic.AtomicReference<Directive> received = new java.util.concurrent.atomic.AtomicReference<>();
+        ToolExecutionContext context = new ToolExecutionContext((id, name, directive) -> {
+            received.set(directive);
+            return pending;
+        }, 5000);
+        StepVerifier.create(executor.executeToolCallReactive(new ToolCall("photo", "camera", Map.of("mode", "photo")), context))
+                .then(() -> assertEquals(Map.of("mode", "photo"), received.get().getPayload()))
+                .thenCancel().verify();
+        assertTrue(pending.isCancelled(), "dispatcher completion hook must release the pending slot");
+    }
+
+    @Test
+    void reactiveTimeoutCancelsPendingDispatchAndPreservesCallId() {
+        toolRegistry.register(createClientSideTool("camera"));
+        CompletableFuture<ToolResult> pending = new CompletableFuture<>();
+        ToolExecutionContext context = new ToolExecutionContext((id, name, directive) -> pending, 5000);
+        StepVerifier.withVirtualTime(() -> executor.executeToolCallReactive(new ToolCall("photo", "camera", Map.of()), context))
+                .thenAwait(java.time.Duration.ofSeconds(5))
+                .assertNext(chunk -> {
+                    assertEquals(ToolResultChunk.ChunkType.ERROR, chunk.getType());
+                    assertEquals("photo", chunk.getToolCallId());
+                }).verifyComplete();
+        assertTrue(pending.isCancelled());
+    }
+
+    @Test
+    void disabledClientToolCannotDispatchInEitherExecutionMode() {
+        toolRegistry.register(createClientSideTool("camera"));
+        toolRegistry.disable("camera");
+        ToolExecutionContext context = new ToolExecutionContext((id, name, directive) -> {
+            fail("disabled tool reached client dispatcher with " + directive.getPayload());
+            return null;
+        }, 5000);
+        ToolCall call = new ToolCall("photo", "camera", Map.of());
+        assertTrue(executor.executeToolCall(call, context).isError());
+        StepVerifier.create(executor.executeToolCallReactive(call, context))
+                .assertNext(chunk -> assertEquals(ToolResultChunk.ChunkType.ERROR, chunk.getType())).verifyComplete();
+    }
+
     private ToolRegistry toolRegistry;
     private ToolExecutor executor;
 
@@ -123,7 +166,7 @@ class ToolExecutorClientRoutingTest {
     // ==================== 禁用工具测试 ====================
 
     @Test
-    @DisplayName("禁用的工具不执行，fallback 到 legacy")
+    @DisplayName("禁用的工具不执行，也不回退绕过禁用")
     void shouldNotExecuteDisabledTool() {
         toolRegistry.register(createServerTool("weather"));
         toolRegistry.disable("weather");
@@ -131,7 +174,7 @@ class ToolExecutorClientRoutingTest {
         ToolCall call = new ToolCall("tc1", "weather", Map.of());
         ToolResult result = executor.executeToolCall(call);
 
-        // Tool is disabled so it won't be found in registry, falls through to legacy
+        // Registered but disabled tools cannot fall through to a legacy implementation.
         assertTrue(result.isError());
         assertTrue(result.getContent().contains("Tool not found"));
     }

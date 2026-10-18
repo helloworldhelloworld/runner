@@ -43,6 +43,8 @@ class ChatControllerTest {
 
     @BeforeEach
     void setUp() {
+        // These are direct Java calls; another MockMvc fixture must not impersonate an active servlet request.
+        org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
         controller = new ChatController(chatService, gateway, llmProvider, new ObjectMapper());
     }
 

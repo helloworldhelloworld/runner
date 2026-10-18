@@ -161,6 +161,65 @@ class InterruptibleRunTest {
 
     // ==================== Helper classes ====================
 
+    @Test
+    void interruptCompletesOuterStreamAndResumeCommitsInputOnce() throws Exception {
+        AtomicBoolean first = new AtomicBoolean(true);
+        agent = buildAgent(new SimpleMockProvider("B reply") {
+            @Override public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> m, LLMOptions o) {
+                return first.getAndSet(false)
+                        ? Flux.concat(Flux.just(StreamEvent.textDelta("A partial")), Flux.never())
+                        : super.completeStreamReactive(m, o);
+            }
+        });
+        InterruptibleRun run = new InterruptibleRun("run", "session", agent, memory);
+        AtomicBoolean complete = new AtomicBoolean();
+        CountDownLatch output = new CountDownLatch(1);
+        run.execute("A").subscribe(e -> {
+            if (e.getType() == StreamEvent.EventType.TEXT_DELTA) output.countDown();
+        }, e -> fail(e), () -> complete.set(true));
+        assertTrue(output.await(2, TimeUnit.SECONDS));
+        assertNotNull(run.interrupt());
+        assertTrue(complete.get(), "Interrupt must terminate the outer response without another chunk");
+        run.execute("完整的 B 输入").blockLast(Duration.ofSeconds(2));
+        assertEquals(1, memory.getHistory("session", 100).stream()
+                .filter(m -> "完整的 B 输入".equals(m.getContent())).count());
+    }
+
+    @Test
+    void downstreamDisposalTerminatesRunAndPreservesPartial() throws Exception {
+        agent = buildAgent(new SimpleMockProvider("unused") {
+            @Override public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> m, LLMOptions o) {
+                return Flux.concat(Flux.just(StreamEvent.textDelta("partial")), Flux.never());
+            }
+        });
+        InterruptibleRun run = new InterruptibleRun("run", "session", agent, memory);
+        CountDownLatch output = new CountDownLatch(1);
+        var subscription = run.execute("A").subscribe(e -> {
+            if (e.getType() == StreamEvent.EventType.TEXT_DELTA) output.countDown();
+        });
+        assertTrue(output.await(2, TimeUnit.SECONDS));
+        subscription.dispose();
+        assertFalse(run.isRunning());
+        assertTrue(memory.getHistory("session", 100).stream()
+                .anyMatch(m -> m.getContent().contains("partial")));
+    }
+
+    @Test
+    void failedExecutionLeavesRunningAndCanStartAgain() {
+        AtomicBoolean first = new AtomicBoolean(true);
+        agent = buildAgent(new SimpleMockProvider("recovered") {
+            @Override public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> m, LLMOptions o) {
+                return first.getAndSet(false) ? Flux.error(new IllegalStateException("remote disconnected"))
+                        : super.completeStreamReactive(m, o);
+            }
+        });
+        InterruptibleRun run = new InterruptibleRun("run", "session", agent, memory);
+        assertThrows(RuntimeException.class, () -> run.execute("A").blockLast(Duration.ofSeconds(2)));
+        assertEquals(InterruptibleRun.RunPhase.FAILED, run.getPhase());
+        run.execute("B").blockLast(Duration.ofSeconds(2));
+        assertEquals(InterruptibleRun.RunPhase.COMPLETED, run.getPhase());
+    }
+
     private void sleep(long ms) {
         try { Thread.sleep(ms); } catch (InterruptedException ignored) {}
     }

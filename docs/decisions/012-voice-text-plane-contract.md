@@ -1,6 +1,8 @@
 # ADR-012：语音文本平面契约 + 入站 barge-in（Voice Gateway ⟷ runner WS）
 
 状态：Accepted（2026-06-16）
+
+后续增量：[ADR-015](015-voice-turn-cancellation.md) 定义可选 turnId、旧轮终态和本地取消。
 关联：[ADR-006 D2 双平面分离](006-minion-embodiment-architecture.md)、[ADR-005 StreamEvent 闭合协议](005-streamevent-closed-protocol.md)
 
 ## Context

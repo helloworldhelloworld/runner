@@ -56,6 +56,7 @@ public class GatewayResponse {
             .text(agentResponse.getText())
             .latencyMs(latencyMs)
             .metadata("stopReason", agentResponse.getStopReason())
+            .metadata("usage", agentResponse.getUsage())
             .metadata("toolCallCount", agentResponse.getToolCalls().size())
             .build();
     }

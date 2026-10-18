@@ -39,7 +39,7 @@ class CliExecutorAcceptanceTest {
 
         List<ExecEvent> events = new LocalProcessExecutor()
                 .exec(new ExecRequest(
-                        List.of(script.toAbsolutePath().toString()),
+                        List.of("/bin/bash", script.toAbsolutePath().toString()),
                         tempDir,
                         Map.of(),
                         Duration.ofSeconds(5)))
@@ -60,7 +60,7 @@ class CliExecutorAcceptanceTest {
 
         List<ExecEvent> events = new LocalProcessExecutor()
                 .exec(new ExecRequest(
-                        List.of(script.toAbsolutePath().toString()),
+                        List.of("/bin/bash", script.toAbsolutePath().toString()),
                         tempDir,
                         Map.of(),
                         Duration.ofSeconds(5)))
@@ -117,7 +117,7 @@ class CliExecutorAcceptanceTest {
 
         List<ExecEvent> events = new LocalProcessExecutor()
                 .exec(new ExecRequest(
-                        List.of(script.toAbsolutePath().toString()),
+                        List.of("/bin/bash", script.toAbsolutePath().toString()),
                         tempDir,
                         Map.of("RUNNER_TEST_VAR", "hello-env"),
                         Duration.ofSeconds(5)))
@@ -136,7 +136,7 @@ class CliExecutorAcceptanceTest {
 
         List<ExecEvent> events = new LocalProcessExecutor()
                 .exec(new ExecRequest(
-                        List.of(script.toAbsolutePath().toString()),
+                        List.of("/bin/bash", script.toAbsolutePath().toString()),
                         tempDir,
                         Map.of(),
                         Duration.ofSeconds(5)))

@@ -1,6 +1,7 @@
 package com.lightweightai.kernel.gateway;
 
 import com.lightweightai.kernel.agent.DeviceContext;
+import com.lightweightai.kernel.core.ToolExecutionContext;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,6 +20,8 @@ public class GatewayRequest {
     private final String message;
     private final Map<String, Object> metadata;
     private final long timestamp;
+    private final ToolExecutionContext toolExecutionContext;
+    private final String principalId;
 
     private GatewayRequest(Builder builder) {
         this.requestId = builder.requestId != null ? builder.requestId : UUID.randomUUID().toString();
@@ -26,10 +29,13 @@ public class GatewayRequest {
         this.message = Objects.requireNonNull(builder.message, "Message required");
         this.metadata = new HashMap<>(builder.metadata);
         this.timestamp = System.currentTimeMillis();
+        this.toolExecutionContext = builder.toolExecutionContext;
+        this.principalId = builder.principalId;
     }
 
     public String getRequestId() { return requestId; }
     public String getSessionId() { return sessionId; }
+    public String getPrincipalId() { return principalId; }
     public String getMessage() { return message; }
     public Map<String, Object> getMetadata() { return new HashMap<>(metadata); }
     public long getTimestamp() { return timestamp; }
@@ -39,7 +45,14 @@ public class GatewayRequest {
      */
     public DeviceContext getDeviceContext() {
         Object ctx = metadata.get("deviceContext");
-        return ctx instanceof DeviceContext ? (DeviceContext) ctx : DeviceContext.DEFAULT;
+        return ctx instanceof DeviceContext ? (DeviceContext) ctx
+                : toolExecutionContext != null ? toolExecutionContext.getDeviceContext() : DeviceContext.DEFAULT;
+    }
+
+    /** Server-bound execution context; never deserialize a dispatcher from client input. */
+    public ToolExecutionContext getToolExecutionContext() {
+        return (toolExecutionContext != null ? toolExecutionContext : ToolExecutionContext.serverOnly())
+                .withDeviceContext(getDeviceContext()).withPrincipalId(principalId);
     }
 
     public static Builder builder() {
@@ -50,6 +63,15 @@ public class GatewayRequest {
         private String requestId;
         private String sessionId;
         private String message;
+        private ToolExecutionContext toolExecutionContext;
+        private String principalId;
+
+        /** Only transport authentication or a trusted server caller may set the principal. */
+        public Builder principalId(String principalId) {
+            if (principalId != null && principalId.isBlank()) throw new IllegalArgumentException("principalId cannot be blank");
+            this.principalId = principalId;
+            return this;
+        }
         private Map<String, Object> metadata = new HashMap<>();
 
         public Builder requestId(String requestId) {
@@ -79,6 +101,11 @@ public class GatewayRequest {
 
         public Builder deviceContext(DeviceContext deviceContext) {
             this.metadata.put("deviceContext", deviceContext);
+            return this;
+        }
+
+        public Builder toolExecutionContext(ToolExecutionContext context) {
+            this.toolExecutionContext = context;
             return this;
         }
 

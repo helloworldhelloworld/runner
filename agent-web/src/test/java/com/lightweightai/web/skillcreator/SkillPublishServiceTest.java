@@ -6,7 +6,8 @@ import org.junit.jupiter.api.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
+import com.lightweightai.kernel.core.StreamEvent;
+import reactor.core.publisher.Flux;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -18,6 +19,7 @@ class SkillPublishServiceTest {
     private SkillRepository skillRepository;
     private SkillVersionRepository versionRepository;
     private TestRunRepository testRunRepository;
+    private SkillTestCaseRepository testCaseRepository;
     private PromptEngine promptEngine;
     private Path tempDb;
 
@@ -28,11 +30,12 @@ class SkillPublishServiceTest {
         skillRepository = new SkillRepository(dbPath);
         versionRepository = new SkillVersionRepository(dbPath);
         testRunRepository = new TestRunRepository(dbPath);
+        testCaseRepository = new SkillTestCaseRepository(dbPath);
         promptEngine = PromptEngine.builder().build();
         ToolRegistry toolRegistry = new ToolRegistry();
 
         publishService = new SkillPublishService(
-            skillRepository, versionRepository, testRunRepository, promptEngine, toolRegistry, null);
+            skillRepository, versionRepository, testRunRepository, promptEngine, toolRegistry, null, testCaseRepository);
     }
 
     @AfterEach
@@ -158,13 +161,25 @@ class SkillPublishServiceTest {
     private String setupSkillWithTestRun(int total, int passed, int failed) {
         String skillId = setupSkillOnly();
 
-        TestRun run = new TestRun(UUID.randomUUID().toString(), skillId);
-        run.setTotal(total);
-        run.setPassed(passed);
-        run.setFailed(failed);
-        run.setStatus("completed");
-        run.setCompletedAt(Instant.now());
-        testRunRepository.saveRun(run);
+        assertEquals(total, passed + failed);
+        for (int i = 0; i < total; i++) {
+            var tc = new SkillTestCase();
+            tc.setId(skillId + "-" + i);
+            tc.setSkillId(skillId);
+            tc.setInput(i < passed ? "pass" : "fail");
+            testCaseRepository.save(tc);
+        }
+        List<String> received = new ArrayList<>();
+        var execution = new SkillTestExecutionService(context -> {
+            received.add(context.getSystemPrompt());
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("llmOutput", "controlled response");
+            if ("fail".equals(context.getUserInput())) payload.put("error", "controlled case failure");
+            return Flux.just(StreamEvent.postProcessData("test_case_result", payload));
+        }, skillRepository, testCaseRepository, testRunRepository);
+        execution.executeAll(skillId).blockLast();
+        assertEquals(Collections.nCopies(total, "You are a test skill."), received);
+        assertEquals(passed, execution.getLatestReport(skillId).orElseThrow().getPassed());
 
         return skillId;
     }

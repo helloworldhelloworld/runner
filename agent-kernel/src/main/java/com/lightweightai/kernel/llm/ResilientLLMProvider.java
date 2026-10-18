@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * 注意：不做 mock fallback —— 用户发消息得到假回复比报错更糟糕。
  * 应该让前端明确知道"模型暂时不可用"，而不是给一个 mock 回复误导用户。
  */
-public class ResilientLLMProvider implements LLMProvider {
+public class ResilientLLMProvider implements ExecutionScopedLLMProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(ResilientLLMProvider.class);
 
@@ -31,13 +31,13 @@ public class ResilientLLMProvider implements LLMProvider {
     private final long initialBackoffMs;
 
     // 健康状态
-    private final AtomicReference<HealthStatus> healthStatus = new AtomicReference<>(HealthStatus.UNKNOWN);
-    private final AtomicLong lastSuccessTime = new AtomicLong(0);
-    private final AtomicLong lastFailureTime = new AtomicLong(0);
-    private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
-    private final AtomicInteger totalRequests = new AtomicInteger(0);
-    private final AtomicInteger totalFailures = new AtomicInteger(0);
-    private final AtomicReference<String> lastError = new AtomicReference<>("");
+    private final AtomicReference<HealthStatus> healthStatus;
+    private final AtomicLong lastSuccessTime;
+    private final AtomicLong lastFailureTime;
+    private final AtomicInteger consecutiveFailures;
+    private final AtomicInteger totalRequests;
+    private final AtomicInteger totalFailures;
+    private final AtomicReference<String> lastError;
 
     public enum HealthStatus {
         UNKNOWN,    // 尚未发起过请求
@@ -51,14 +51,40 @@ public class ResilientLLMProvider implements LLMProvider {
     }
 
     public ResilientLLMProvider(LLMProvider delegate, int maxRetries, long initialBackoffMs) {
+        this(delegate, maxRetries, initialBackoffMs, null);
+    }
+
+    private ResilientLLMProvider(LLMProvider delegate, int maxRetries, long initialBackoffMs,
+                                 ResilientLLMProvider sharedHealth) {
         if (delegate == null) {
             throw new IllegalArgumentException("Delegate LLM provider cannot be null");
         }
+        this.healthStatus = sharedHealth == null ? new AtomicReference<>(HealthStatus.UNKNOWN) : sharedHealth.healthStatus;
+        this.lastSuccessTime = sharedHealth == null ? new AtomicLong(0) : sharedHealth.lastSuccessTime;
+        this.lastFailureTime = sharedHealth == null ? new AtomicLong(0) : sharedHealth.lastFailureTime;
+        this.consecutiveFailures = sharedHealth == null ? new AtomicInteger(0) : sharedHealth.consecutiveFailures;
+        this.totalRequests = sharedHealth == null ? new AtomicInteger(0) : sharedHealth.totalRequests;
+        this.totalFailures = sharedHealth == null ? new AtomicInteger(0) : sharedHealth.totalFailures;
+        this.lastError = sharedHealth == null ? new AtomicReference<>("") : sharedHealth.lastError;
         this.delegate = delegate;
         this.maxRetries = maxRetries;
         this.initialBackoffMs = initialBackoffMs;
         logger.info("ResilientLLMProvider wrapping [{}] with maxRetries={}, initialBackoffMs={}",
             delegate.getProviderName(), maxRetries, initialBackoffMs);
+    }
+
+    @Override
+    public LLMProvider bindToExecution() {
+        LLMProvider selected = ExecutionScopedLLMProvider.bind(delegate);
+        // Production's Dynamic -> Resilient -> fixed provider retains the same health state.
+        return selected == delegate ? this : new ResilientLLMProvider(selected, maxRetries, initialBackoffMs, this);
+    }
+
+    /** Keep retry and health behavior while exposing each actual delegate attempt to the root ledger. */
+    public LLMProvider withUsageAccounting(com.lightweightai.kernel.context.ExecutionUsageScope scope,
+            com.lightweightai.kernel.core.CancellationToken token) {
+        return new ResilientLLMProvider(UsageTrackingLLMProvider.bind(delegate, scope, token),
+                maxRetries, initialBackoffMs, this);
     }
 
     @Override
@@ -76,51 +102,40 @@ public class ResilientLLMProvider implements LLMProvider {
             List<ConversationMessage> messages,
             LLMOptions options,
             StreamEventHandler handler) {
-        // 流式调用：重试整个请求（不能在流中间重试）
-        return CompletableFuture.supplyAsync(() -> {
-            int attempt = 0;
-            while (true) {
-                try {
-                    totalRequests.incrementAndGet();
-                    CompletableFuture<LLMResponse> future = delegate.completeStream(messages, options, handler);
-                    LLMResponse result = future.join();
-                    recordSuccess();
-                    return result;
-                } catch (Exception e) {
-                    Throwable cause = unwrapException(e);
-                    attempt++;
-                    if (attempt > maxRetries || !isRetryable(cause)) {
-                        recordFailure(cause);
-                        throw wrapException(cause, attempt);
-                    }
-                    logger.warn("[{}] completeStream attempt {}/{} failed: {}. Retrying in {}ms...",
-                        delegate.getProviderName(), attempt, maxRetries + 1,
-                        cause.getMessage(), backoffMs(attempt));
-                    sleep(backoffMs(attempt));
-                }
+        AtomicReference<LLMResponse> response = new AtomicReference<>();
+        handler.onStart();
+        return completeStreamReactive(messages, options).doOnNext(event -> {
+            switch (event.getType()) {
+                case TEXT_DELTA -> handler.onTextDelta(event.getTextDelta());
+                case TOOL_CALL_START -> handler.onToolCallDelta(event.getToolCall());
+                case LLM_COMPLETE -> response.set(event.getResponse());
+                default -> { }
             }
-        });
+        }).then(reactor.core.publisher.Mono.fromSupplier(() ->
+                java.util.Objects.requireNonNull(response.get(), "Missing model completion")))
+                .doOnSuccess(handler::onComplete).doOnError(handler::onError).toFuture();
     }
 
     @Override
     public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> messages, LLMOptions options) {
         return Flux.defer(() -> {
-            totalRequests.incrementAndGet();
-            return delegate.completeStreamReactive(messages, options);
-        })
-        .doOnComplete(this::recordSuccess)
-        .retryWhen(reactor.util.retry.Retry
-            .backoff(maxRetries, java.time.Duration.ofMillis(initialBackoffMs))
-            .maxBackoff(java.time.Duration.ofSeconds(10))
-            .filter(this::isRetryable)
-            .doBeforeRetry(signal ->
-                logger.warn("[{}] completeStreamReactive retry #{}: {}",
-                    delegate.getProviderName(),
-                    signal.totalRetries() + 1,
-                    signal.failure().getMessage())
-            )
-        )
-        .doOnError(e -> recordFailure(e));
+            java.util.concurrent.atomic.AtomicBoolean delivered = new java.util.concurrent.atomic.AtomicBoolean();
+            return Flux.defer(() -> {
+                totalRequests.incrementAndGet();
+                return delegate.completeStreamReactive(messages, options);
+            }).doOnNext(event -> {
+                if (event.getType() == StreamEvent.EventType.TEXT_DELTA
+                        || event.getType() == StreamEvent.EventType.TOOL_CALL_START
+                        || event.getType() == StreamEvent.EventType.LLM_COMPLETE) delivered.set(true);
+            }).doOnComplete(this::recordSuccess)
+              .retryWhen(reactor.util.retry.Retry.backoff(maxRetries, java.time.Duration.ofMillis(initialBackoffMs))
+                    .maxBackoff(java.time.Duration.ofSeconds(10))
+                    .filter(error -> !delivered.get() && isRetryable(error)))
+              .doOnError(error -> {
+                  if (error instanceof com.lightweightai.kernel.context.BudgetStoppedException) totalRequests.decrementAndGet();
+                  else if (!(error instanceof java.util.concurrent.CancellationException)) recordFailure(error);
+              });
+        });
     }
 
     @Override
@@ -176,6 +191,11 @@ public class ResilientLLMProvider implements LLMProvider {
                 return result;
             } catch (Exception e) {
                 Throwable cause = unwrapException(e);
+                if (cause instanceof com.lightweightai.kernel.context.BudgetStoppedException stopped) {
+                    totalRequests.decrementAndGet();
+                    throw stopped;
+                }
+                if (cause instanceof java.util.concurrent.CancellationException cancelled) throw cancelled;
                 attempt++;
                 if (attempt > maxRetries || !isRetryable(cause)) {
                     recordFailure(cause);
@@ -196,6 +216,8 @@ public class ResilientLLMProvider implements LLMProvider {
      * 不可重试：4xx（除429）、认证失败、参数错误
      */
     private boolean isRetryable(Throwable e) {
+        if (e instanceof com.lightweightai.kernel.context.BudgetStoppedException
+                || e instanceof java.util.concurrent.CancellationException) return false;
         String msg = e.getMessage();
         if (msg == null) return true;
 

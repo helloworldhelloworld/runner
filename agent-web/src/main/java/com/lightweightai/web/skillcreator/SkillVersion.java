@@ -16,6 +16,11 @@ public class SkillVersion {
     private Instant createdAt;
     private Instant activatedAt;
 
+    private String candidateDigest;
+    private String evaluationDigest;
+    private String reportDigest;
+    private double requiredPassRate = 1.0;
+
     public SkillVersion() {}
 
     public String getId() { return id; }
@@ -41,4 +46,16 @@ public class SkillVersion {
 
     public Instant getActivatedAt() { return activatedAt; }
     public void setActivatedAt(Instant activatedAt) { this.activatedAt = activatedAt; }
+    public String getCandidateDigest() { return candidateDigest; }
+    public void setCandidateDigest(String value) { this.candidateDigest = value; }
+
+    public String getEvaluationDigest() { return evaluationDigest; }
+    public void setEvaluationDigest(String value) { this.evaluationDigest = value; }
+
+    public String getReportDigest() { return reportDigest; }
+    public void setReportDigest(String value) { this.reportDigest = value; }
+
+    public double getRequiredPassRate() { return requiredPassRate; }
+    public void setRequiredPassRate(double value) { this.requiredPassRate = value; }
+
 }

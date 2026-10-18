@@ -25,6 +25,8 @@ public class SkillRepository {
         initDatabase();
     }
 
+    String databasePath() { return dbPath; }
+
     private void initDatabase() {
         try {
             connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);

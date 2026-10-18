@@ -138,6 +138,8 @@ tool calls, visual feedback, interruption and speakable chunks. Start with
 
 - [Agent instructions](AGENTS.md) and [full engineering rules](CLAUDE.md)
 - [Architecture](docs/architecture.md)
+- [Runner and Minion: end-to-end product, architecture and evolution](docs/design/runner-minion-system-evolution.md)
+- [Runner and Minion system architecture: history, current state, target and evolution](docs/system-architecture.md)
 - [Code conventions](docs/conventions.md)
 - [Module responsibilities](docs/modules/)
 - [Architecture decisions](docs/decisions/)

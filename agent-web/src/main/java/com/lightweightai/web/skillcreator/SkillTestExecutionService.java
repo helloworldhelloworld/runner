@@ -45,6 +45,8 @@ public class SkillTestExecutionService {
         return Flux.defer(() -> {
             SkillDraft skill = skillRepository.findById(skillId)
                 .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
+            skill = SkillPublicationContent.draft(SkillPublicationContent.json(SkillPublicationContent.candidate(skill)));
+            final SkillDraft testedSkill = skill;
             List<SkillTestCase> testCases = testCaseRepository.findBySkillId(skillId);
             if (testCases.isEmpty()) {
                 return Flux.error(new IllegalStateException("No test cases for skill: " + skillId));
@@ -52,13 +54,17 @@ public class SkillTestExecutionService {
 
             TestRun run = new TestRun(UUID.randomUUID().toString(), skillId);
             run.setTotal(testCases.size());
+            run.setCandidateJson(SkillPublicationContent.json(SkillPublicationContent.candidate(testedSkill)));
+            run.setCandidateDigest(SkillPublicationContent.candidateDigest(testedSkill));
+            run.setEvaluationJson(SkillPublicationContent.json(SkillPublicationContent.evaluation(testCases)));
+            run.setEvaluationDigest(SkillPublicationContent.evaluationDigest(testCases));
             testRunRepository.saveRun(run);
 
             // Execute test cases sequentially, accumulate results
             List<TestCaseResult> allResults = Collections.synchronizedList(new ArrayList<>());
 
             Flux<StreamEvent> caseFlux = Flux.fromIterable(testCases)
-                .concatMap(tc -> executeSingleCase(skill, tc, run.getId(), allResults));
+                .concatMap(tc -> executeSingleCase(testedSkill, tc, run.getId(), allResults));
 
             // After all cases, emit run complete
             return caseFlux.concatWith(Flux.defer(() -> {
@@ -68,6 +74,7 @@ public class SkillTestExecutionService {
                 run.setFailed(failed);
                 run.setStatus("completed");
                 run.setCompletedAt(Instant.now());
+                run.setReportDigest(SkillPublicationContent.reportDigest(run, allResults));
                 testRunRepository.saveRun(run);
 
                 Map<String, Object> completeData = new LinkedHashMap<>();
@@ -77,9 +84,25 @@ public class SkillTestExecutionService {
                 completeData.put("passed", passed);
                 completeData.put("failed", failed);
                 completeData.put("passRate", run.getPassRate());
+                completeData.put("candidateDigest", run.getCandidateDigest());
+                completeData.put("evaluationDigest", run.getEvaluationDigest());
+                completeData.put("reportDigest", run.getReportDigest());
                 return Flux.just(StreamEvent.postProcessData("test_run_complete", completeData));
-            }));
+            })).doOnError(error -> finishIncomplete(run, "failed"))
+                    .doFinally(signal -> {
+                        if (signal == reactor.core.publisher.SignalType.CANCEL) finishIncomplete(run, "cancelled");
+                    });
         });
+    }
+
+    private void finishIncomplete(TestRun run, String status) {
+        synchronized (run) {
+            if (!"running".equals(run.getStatus()) && !"failed".equals(status)) return;
+            run.setStatus(status);
+            run.setReportDigest(null);
+            run.setCompletedAt(Instant.now());
+            testRunRepository.saveRun(run);
+        }
     }
 
     /**
@@ -128,6 +151,7 @@ public class SkillTestExecutionService {
             .concatWith(testExecutor.executeTestCase(context)
                 .filter(e -> e.getType() == StreamEvent.EventType.POST_PROCESS_DATA
                     && "test_case_result".equals(e.getCategory()))
+                .single()
                 .map(resultEvent -> {
                     Map<String, Object> data = resultEvent.getData();
 

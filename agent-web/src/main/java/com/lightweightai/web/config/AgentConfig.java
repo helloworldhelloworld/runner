@@ -555,6 +555,7 @@ public class AgentConfig {
     }
 
     @Bean
+    @org.springframework.context.annotation.Primary
     public com.lightweightai.web.skillcreator.SkillPublishService skillPublishService(
             SkillRepository skillRepository,
             com.lightweightai.web.skillcreator.SkillVersionRepository skillVersionRepository,
@@ -563,7 +564,8 @@ public class AgentConfig {
             ToolRegistry toolRegistry,
             com.lightweightai.kernel.instruction.InstructionRegistry instructionRegistry) {
         return new com.lightweightai.web.skillcreator.SkillPublishService(
-            skillRepository, skillVersionRepository, testRunRepository, promptEngine, toolRegistry, instructionRegistry);
+            skillRepository, skillVersionRepository, testRunRepository, promptEngine, toolRegistry, instructionRegistry,
+            skillTestCaseRepository());
     }
 
     @Bean

@@ -22,9 +22,15 @@ import java.util.concurrent.TimeUnit;
 public class WaitSubagentTool implements Tool {
 
     private final SubagentRuntime runtime;
+    private final TaskScope ownerScope;
 
     public WaitSubagentTool(SubagentRuntime runtime) {
+        this(runtime, null);
+    }
+
+    WaitSubagentTool(SubagentRuntime runtime, TaskScope ownerScope) {
         this.runtime = runtime;
+        this.ownerScope = ownerScope;
     }
 
     @Override
@@ -32,7 +38,7 @@ public class WaitSubagentTool implements Tool {
 
     @Override
     public String getDescription() {
-        return "Wait for one or more sub-agents to complete and return their results. "
+        return "Wait for one or more " + (ownerScope == null ? "" : "direct child ") + "sub-agents to complete and return their results. "
                 + "Pass comma-separated run IDs.";
     }
 
@@ -53,11 +59,20 @@ public class WaitSubagentTool implements Tool {
     @Override
     public ToolResult execute(Map<String, Object> args) {
         String runIdsStr = (String) args.get("runIds");
+        if (runIdsStr == null || runIdsStr.isBlank()) return ToolResult.error("runIds required");
         int timeout = args.containsKey("timeoutSeconds")
                 ? ((Number) args.get("timeoutSeconds")).intValue()
                 : 60;
 
         String[] runIds = runIdsStr.split(",");
+        // Authorize the whole batch before waiting or returning any task details.
+        if (ownerScope != null) {
+            for (String runId : runIds) {
+                if (runtime.getOwnedRun(runId.trim(), ownerScope) == null) {
+                    return ToolResult.error("wait_subagent", "[" + runId.trim() + "] Not found");
+                }
+            }
+        }
         StringBuilder result = new StringBuilder();
         boolean allCompleted = true;
 
@@ -91,6 +106,7 @@ public class WaitSubagentTool implements Tool {
                 Thread.currentThread().interrupt();
                 result.append("[").append(runId).append("] Interrupted\n\n");
                 allCompleted = false;
+                break;
             }
         }
 

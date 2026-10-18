@@ -35,7 +35,7 @@ import java.util.concurrent.Executors;
 @RestController
 @RequestMapping("/api")
 @CrossOrigin(origins = "*")
-public class ChatController {
+public class ChatController implements AutoCloseable {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
 
@@ -44,6 +44,10 @@ public class ChatController {
     private final LLMProvider llmProvider;
     private final ObjectMapper compactMapper;
     private final ExecutorService executor = Executors.newCachedThreadPool();
+
+    @Override
+    @jakarta.annotation.PreDestroy
+    public void close() { executor.shutdownNow(); }
 
     public ChatController(ChatService chatService,
                          Gateway gateway,
@@ -61,12 +65,14 @@ public class ChatController {
      */
     @PostMapping("/chat")
     public ChatResponse chat(@RequestBody ChatRequest request) {
+        String principalId = com.lightweightai.web.service.AuthenticatedRequests.currentPrincipal();
         logger.info("Received chat request (soul comfort mode: {})", request.isSoulComfortMode());
 
-        GatewayRequest gatewayRequest = GatewayRequest.builder()
+        GatewayRequest gatewayRequest = GatewayRequest.builder().principalId(principalId)
             .sessionId(request.getSessionId())
             .message(request.getMessage())
             .metadata("model", request.getModel())
+                    .metadata("agentId", request.getAgentId())
             .build();
 
         GatewayResponse response = gateway.handle(gatewayRequest);
@@ -96,6 +102,7 @@ public class ChatController {
      */
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(@RequestBody ChatRequest request) {
+        String principalId = com.lightweightai.web.service.AuthenticatedRequests.currentPrincipal();
         logger.info("Received streaming chat request (session: {})", request.getSessionId());
 
         SseEmitter emitter = new SseEmitter(60000L);
@@ -104,10 +111,11 @@ public class ChatController {
             try {
                 String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
 
-                GatewayRequest gatewayRequest = GatewayRequest.builder()
+                GatewayRequest gatewayRequest = GatewayRequest.builder().principalId(principalId)
                     .sessionId(sessionId)
                     .message(request.getMessage())
                     .metadata("model", request.getModel())
+                    .metadata("agentId", request.getAgentId())
                     .metadata("debug", request.isDebug())
                     .build();
 
@@ -159,6 +167,20 @@ public class ChatController {
                     }
 
                     @Override
+                    public void onBudgetStopped(Map<String, Object> usage) {
+                        try {
+                            Map<String, Object> event = new java.util.LinkedHashMap<>();
+                            event.put("type", "budget_stopped");
+                            Map<String, Object> data = new java.util.LinkedHashMap<>();
+                            data.put("reason", "budget_exhausted");
+                            if (usage != null) data.putAll(usage);
+                            event.put("data", data);
+                            emitter.send(SseEmitter.event().name("budget_stopped")
+                                    .data(compactMapper.writeValueAsString(event)));
+                        } catch (IOException e) { emitter.completeWithError(e); }
+                    }
+
+                    @Override
                     public void onError(Throwable error) {
                         logger.error("Streaming chat error", error);
                         try {
@@ -196,6 +218,7 @@ public class ChatController {
      */
     @PostMapping(value = "/chat/stream/reactive", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStreamReactive(@RequestBody ChatRequest request) {
+        String principalId = com.lightweightai.web.service.AuthenticatedRequests.currentPrincipal();
         logger.info("Received reactive streaming chat request (session: {})", request.getSessionId());
 
         SseEmitter emitter = new SseEmitter(120000L);
@@ -204,10 +227,11 @@ public class ChatController {
             try {
                 String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
 
-                GatewayRequest gatewayRequest = GatewayRequest.builder()
+                GatewayRequest gatewayRequest = GatewayRequest.builder().principalId(principalId)
                     .sessionId(sessionId)
                     .message(request.getMessage())
                     .metadata("model", request.getModel())
+                    .metadata("agentId", request.getAgentId())
                     .metadata("debug", request.isDebug())
                     .build();
 
@@ -310,6 +334,7 @@ public class ChatController {
                 }
             }
             case LLM_COMPLETE -> map.put("complete", true);
+            case BUDGET_STOPPED -> map.put("data", event.getData());
             case ERROR -> {
                 if (event.getError() != null) {
                     map.put("message", event.getError().getMessage());
@@ -371,13 +396,20 @@ public class ChatController {
         return result;
     }
 
+    private SessionManager scopedSessionManager() {
+        SessionManager manager = gateway.getSessionManager();
+        String principal = com.lightweightai.web.service.AuthenticatedRequests.currentPrincipal();
+        return manager == null || principal == null ? manager
+                : manager.forScope(principal, com.lightweightai.web.service.AuthenticatedRequests.currentAgent());
+    }
+
     /**
      * Get session history
      */
     @GetMapping("/session/{sessionId}/history")
     public List<Map<String, String>> getSessionHistory(@PathVariable("sessionId") String sessionId) {
         logger.info("Getting session history for: {}", sessionId);
-        SessionManager sm = gateway.getSessionManager();
+        SessionManager sm = scopedSessionManager();
         if (sm == null) {
             return List.of();
         }
@@ -390,7 +422,7 @@ public class ChatController {
     @GetMapping("/session/{sessionId}/summary")
     public Map<String, Object> getSessionSummary(@PathVariable("sessionId") String sessionId) {
         logger.info("Getting session summary for: {}", sessionId);
-        SessionManager sm = gateway.getSessionManager();
+        SessionManager sm = scopedSessionManager();
         if (sm == null) {
             return Map.of("sessionId", sessionId);
         }
@@ -403,7 +435,7 @@ public class ChatController {
     @DeleteMapping("/session/{sessionId}")
     public Map<String, Object> clearSession(@PathVariable("sessionId") String sessionId) {
         logger.info("Clearing session: {}", sessionId);
-        SessionManager sm = gateway.getSessionManager();
+        SessionManager sm = scopedSessionManager();
         if (sm != null) {
             sm.clearSession(sessionId);
         }

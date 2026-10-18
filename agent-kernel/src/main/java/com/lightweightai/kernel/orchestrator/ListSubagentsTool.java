@@ -13,9 +13,15 @@ import java.util.Map;
 public class ListSubagentsTool implements Tool {
 
     private final SubagentRuntime runtime;
+    private final TaskScope ownerScope;
 
     public ListSubagentsTool(SubagentRuntime runtime) {
+        this(runtime, null);
+    }
+
+    ListSubagentsTool(SubagentRuntime runtime, TaskScope ownerScope) {
         this.runtime = runtime;
+        this.ownerScope = ownerScope;
     }
 
     @Override
@@ -23,7 +29,8 @@ public class ListSubagentsTool implements Tool {
 
     @Override
     public String getDescription() {
-        return "List all currently active sub-agents with their status, task, and duration.";
+        return "List " + (ownerScope == null ? "all" : "your direct child")
+                + " currently active sub-agents with their status, task, and duration.";
     }
 
     @Override
@@ -33,7 +40,7 @@ public class ListSubagentsTool implements Tool {
 
     @Override
     public ToolResult execute(Map<String, Object> args) {
-        List<SubagentRun> runs = runtime.getActiveRuns();
+        List<SubagentRun> runs = ownerScope == null ? runtime.getActiveRuns() : runtime.getOwnedActiveRuns(ownerScope);
 
         if (runs.isEmpty()) {
             return ToolResult.success("No active sub-agents.");

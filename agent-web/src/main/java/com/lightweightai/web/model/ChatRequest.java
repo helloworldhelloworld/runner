@@ -8,6 +8,9 @@ import java.util.Map;
  */
 public class ChatRequest {
     private String message;
+    private String agentId;
+    public String getAgentId() { return agentId; }
+    public void setAgentId(String value) { agentId = value; }
     private List<String> activeSkills;
     private boolean useToolCalling;
     private Map<String, Object> options;

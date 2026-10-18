@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import java.nio.file.Path;
 
 /**
  * Multi-Agent Orchestrator 装配
@@ -57,12 +58,19 @@ public class OrchestratorConfig {
     @Value("${app.orchestrator.max-concurrent-subagents:5}")
     private int maxConcurrentSubagents;
 
+    @Value("${app.orchestrator.max-output-tokens:4096}")
+    private int maxOutputTokens = 4096;
+
+    @Value("${app.orchestrator.max-budget-tokens:0}")
+    private int maxBudgetTokens;
+
     @Bean
     public AgentRegistry agentRegistry() {
         AgentRegistry registry = new AgentRegistry();
 
         registry.register(AgentProfile.builder()
                 .agentId("default")
+                .maxTokens(maxOutputTokens).maxBudgetTokens(maxBudgetTokens)
                 .displayName("默认助手")
                 .maxSpawnDepth(1)
                 .maxToolIterations(10)
@@ -70,6 +78,7 @@ public class OrchestratorConfig {
 
         registry.register(AgentProfile.builder()
                 .agentId("worker")
+                .maxTokens(maxOutputTokens).maxBudgetTokens(maxBudgetTokens)
                 .displayName("工作 Agent")
                 .systemPrompt("你是一个专注执行具体任务的工作助手。直接完成任务，不要 spawn 子 agent。")
                 .maxSpawnDepth(0)
@@ -81,6 +90,7 @@ public class OrchestratorConfig {
         // 此处的风险闸是它们能被 LLM 看见的前提（内核接线见 MinionToolWiringAcceptanceTest）。
         registry.register(AgentProfile.builder()
                 .agentId("minion")
+                .maxTokens(maxOutputTokens).maxBudgetTokens(maxBudgetTokens)
                 .displayName("小黄人")
                 .systemPrompt(MINION_PERSONA)
                 .toolPolicy(ToolPolicy.byRiskLevel(RiskLevel.SYSTEM))
@@ -93,11 +103,18 @@ public class OrchestratorConfig {
         return registry;
     }
 
-    @Bean
     public AgentFactory agentFactory(LLMProvider llmProvider,
                                      MemoryProvider memoryProvider,
                                      ToolRegistry toolRegistry) {
         return new AgentFactory(llmProvider, memoryProvider, toolRegistry);
+    }
+
+    @Bean
+    public AgentFactory agentFactory(LLMProvider llmProvider, MemoryProvider memoryProvider, ToolRegistry toolRegistry,
+            org.springframework.beans.factory.ObjectProvider<com.lightweightai.kernel.prompt.PromptSource> prompts,
+            org.springframework.beans.factory.ObjectProvider<com.lightweightai.kernel.agent.AgentObserver> observers) {
+        return new AgentFactory(llmProvider, memoryProvider, toolRegistry, prompts.getIfAvailable(),
+                observers.orderedStream().toList());
     }
 
     @Bean(destroyMethod = "shutdown")
@@ -108,18 +125,32 @@ public class OrchestratorConfig {
     }
 
     @Bean
+    public com.lightweightai.kernel.task.DurableTaskService durableTaskService(
+            @Value("${app.tasks.store-file:${java.io.tmpdir}/runner-tasks.json}") String storeFile) {
+        return new com.lightweightai.kernel.task.DurableTaskService(
+                new com.lightweightai.kernel.task.FileTaskStore(Path.of(storeFile)));
+    }
+
+    @Bean
+    public com.lightweightai.kernel.feedback.FeedbackIndex feedbackIndex(
+            @Value("${app.feedback.store-file:${java.io.tmpdir}/runner-feedback.json}") String storeFile) {
+        return new com.lightweightai.kernel.feedback.FileFeedbackIndex(Path.of(storeFile));
+    }
+
+    @Bean
+    public ModelPresetStore modelPresetStore(
+            @Value("${app.model-config.store-file:${java.io.tmpdir}/runner-model-presets.json}") String storeFile) {
+        return new ModelPresetStore(Path.of(storeFile));
+    }
+
+    @Bean
     @Primary
     @ConditionalOnProperty(name = "app.brain.type", havingValue = "native", matchIfMissing = true)
     public ChatHandler orchestratorChatHandler(AgentRegistry agentRegistry,
                                                 AgentFactory agentFactory,
                                                 SubagentRuntime subagentRuntime,
                                                 ToolRegistry toolRegistry) {
-        // 注册 subagent 工具到全局 ToolRegistry
-        // 注意：SpawnSubagentTool 需要 parentSessionKey，这在运行时通过 Orchestrator 动态注入
-        // 这里先注册 wait 和 list 工具（它们不需要 session 上下文）
-        toolRegistry.register(new WaitSubagentTool(subagentRuntime));
-        toolRegistry.register(new ListSubagentsTool(subagentRuntime));
-        logger.info("Registered subagent tools: wait_subagent, list_subagents");
+        // Native task controls are bound locally by SubagentRuntime for every run.
 
         MetadataAgentRouter router = new MetadataAgentRouter(agentRegistry);
         this.orchestratorInstance = new Orchestrator(agentRegistry, agentFactory, router, subagentRuntime);
@@ -128,6 +159,14 @@ public class OrchestratorConfig {
     }
 
     private Orchestrator orchestratorInstance;
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(name = "app.brain.type", havingValue = "native", matchIfMissing = true)
+    public com.lightweightai.kernel.gateway.SessionManager nativeSessionManager(MemoryProvider memory,
+            AgentRegistry agents, ChatHandler handler) {
+        return new NativeSessionManager(memory, agents, handler);
+    }
 
     @jakarta.annotation.PreDestroy
     public void shutdownOrchestrator() {

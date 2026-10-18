@@ -43,16 +43,34 @@ class SubagentToolsTest {
 
     @Test
     @DisplayName("spawn_subagent 立即返回 runId")
-    void spawnReturnsImmediately() {
-        SpawnSubagentTool spawnTool = new SpawnSubagentTool(runtime, "agent:worker:main:s1", events::add);
-
-        long start = System.currentTimeMillis();
-        ToolResult result = spawnTool.execute(Map.of("task", "搜索文档"));
-        long elapsed = System.currentTimeMillis() - start;
-
-        assertFalse(result.isError());
-        assertTrue(result.getContent().contains("Run ID:"));
-        assertTrue(elapsed < 100, "spawn should be non-blocking, took " + elapsed + "ms");
+    void spawnReturnsImmediately() throws Exception {
+        var pending = new CompletableFuture<LLMResponse>();
+        var received = new CompletableFuture<List<ConversationMessage>>();
+        var registry = new AgentRegistry();
+        registry.register(AgentProfile.builder().agentId("worker").maxSpawnDepth(1).build());
+        var provider = com.lightweightai.kernel.testsupport.CapturingLLMProvider.responding((messages, options) -> {
+            received.complete(List.copyOf(messages));
+            return pending.join();
+        });
+        var controlled = new SubagentRuntime(new AgentFactory(provider, new com.lightweightai.kernel.memory.InMemoryProvider(), new ToolRegistry()), registry, 1);
+        try {
+            var spawnTool = new SpawnSubagentTool(controlled, "agent:worker:main:s1", events::add);
+            // Observe the real return while the remote result is still unresolved; no timing approximation or sleep.
+            var submission = CompletableFuture.supplyAsync(() -> spawnTool.execute(Map.of("task", "搜索文档")));
+            ToolResult result = submission.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertFalse(result.isError());
+            String id = result.getContent().split("Run ID: ")[1].split(" ")[0];
+            assertFalse(pending.isDone());
+            assertEquals(SubagentRun.Status.RUNNING, controlled.getRunOrCompleted(id).getStatus());
+            assertTrue(received.get(5, java.util.concurrent.TimeUnit.SECONDS).stream()
+                    .anyMatch(message -> "搜索文档".equals(message.getTextContent())));
+            pending.complete(SubagentScopeAcceptanceTest.end("controlled result"));
+            assertTrue(controlled.waitForCompletion(id, 5, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals("controlled result", controlled.getRunOrCompleted(id).getResult().getText());
+        } finally {
+            pending.complete(SubagentScopeAcceptanceTest.end("cleanup"));
+            controlled.shutdown();
+        }
     }
 
     @Test

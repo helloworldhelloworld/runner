@@ -149,4 +149,21 @@ class DynamicLLMProviderTest {
         assertEquals("claude", result);
         verify(initialProvider).getProviderName();
     }
+    @Test
+    void bindingIsStableAcrossSwapsAndKeepsTheResilienceWrapper() {
+        var resilient = new com.lightweightai.kernel.llm.ResilientLLMProvider(initialProvider, 0, 0);
+        dynamicProvider.setDelegate(resilient);
+        LLMProvider selected = dynamicProvider.bindToExecution();
+        dynamicProvider.setDelegate(secondProvider);
+        assertSame(resilient, selected);
+        assertSame(secondProvider, dynamicProvider.bindToExecution());
+    }
+
+    @Test
+    void nullUpdateCannotDestroyTheCurrentConfiguration() {
+        assertThrows(NullPointerException.class, () -> new DynamicLLMProvider(null));
+        assertThrows(NullPointerException.class, () -> dynamicProvider.setDelegate(null));
+        assertSame(initialProvider, dynamicProvider.bindToExecution());
+    }
+
 }

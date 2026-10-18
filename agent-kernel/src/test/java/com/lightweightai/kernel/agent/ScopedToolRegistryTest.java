@@ -13,6 +13,64 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("ScopedToolRegistry - per-Agent 工具权限过滤")
 class ScopedToolRegistryTest {
 
+    @Test
+    void riskDeniedToolCannotReappearThroughLegacyFallback() {
+        Tool risky = new Tool() {
+            public String getName() { return "dangerous"; }
+            public String getDescription() { return "dangerous"; }
+            public ToolSchema getSchema() { return ToolSchema.empty(); }
+            public RiskLevel riskLevel() { return RiskLevel.SYSTEM; }
+            public ToolResult execute(Map<String, Object> args) { return ToolResult.success("native side effect"); }
+        };
+        parent.register(risky);
+        ScopedToolRegistry scoped = new ScopedToolRegistry(parent,
+                AgentProfile.builder().agentId("safe").toolPolicy(ToolPolicy.byRiskLevel(RiskLevel.SAFE)).build());
+        assertFalse(scoped.has("dangerous"));
+        var executor = new com.lightweightai.kernel.core.ToolExecutor(scoped);
+        var received = new java.util.concurrent.atomic.AtomicReference<Map<String, Object>>();
+        executor.registerFunction("dangerous", new com.lightweightai.kernel.plugin.PluginFunction() {
+            public String getName() { return "dangerous"; }
+            public String getDescription() { return "legacy"; }
+            public java.util.List<com.lightweightai.kernel.plugin.FunctionParameter> getParameters() { return java.util.List.of(); }
+            public Map<String, Object> toJsonSchema() { return Map.of(); }
+            public com.lightweightai.kernel.plugin.FunctionResult execute(Map<String, Object> args) {
+                received.set(args);
+                return com.lightweightai.kernel.plugin.FunctionResult.success("legacy side effect");
+            }
+        });
+        ToolResult result = executor.executeToolCall(new com.lightweightai.kernel.llm.ToolCall("call", "dangerous", Map.of("target", "device")));
+        assertTrue(result.isError(), "filtered tool must not reach a legacy side effect");
+        assertTrue(result.getContent().contains("denied"));
+        assertNull(received.get());
+    }
+
+    @Test
+    void localBindingShadowsOnlyItsOwnScopeAndAppearsOnceInDefinitions() {
+        AgentProfile profile = AgentProfile.builder().agentId("parent").build();
+        ScopedToolRegistry a = new ScopedToolRegistry(parent, profile);
+        ScopedToolRegistry b = new ScopedToolRegistry(parent, profile);
+        Tool original = parent.get("spawn_subagent").orElseThrow();
+        Tool local = simpleTool("spawn_subagent");
+        a.registerLocal(local);
+        assertSame(local, a.get("spawn_subagent").orElseThrow());
+        assertSame(original, b.get("spawn_subagent").orElseThrow());
+        assertSame(original, parent.get("spawn_subagent").orElseThrow());
+        assertEquals(1, a.getToolDefinitions().stream().filter(d -> "spawn_subagent".equals(d.get("name"))).count());
+        assertEquals(5, a.enabledCount());
+    }
+
+    @Test
+    void localBindingsRemainSubjectToProfileDenial() {
+        ScopedToolRegistry scoped = new ScopedToolRegistry(parent,
+                AgentProfile.builder().agentId("restricted").toolDenyList(Set.of("private_tool")).build());
+        scoped.registerLocal(simpleTool("private_tool"));
+        assertFalse(scoped.has("private_tool"));
+        assertFalse(scoped.isEnabled("private_tool"));
+        assertTrue(scoped.get("private_tool").isEmpty());
+        assertTrue(scoped.getToolDefinitions().stream().noneMatch(d -> "private_tool".equals(d.get("name"))));
+        assertFalse(scoped.isExecutionAllowed("private_tool", null, Map.of(), null));
+    }
+
     private ToolRegistry parent;
 
     @BeforeEach

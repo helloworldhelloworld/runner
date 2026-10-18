@@ -14,15 +14,23 @@ public class AgentResponse {
     private final String text;
     private final List<ToolCallRecord> toolCalls;
     private final String stopReason;
+    private final Map<String, Object> usage;
 
     public AgentResponse(String text) {
         this(text, new ArrayList<>(), "end_turn");
     }
 
     public AgentResponse(String text, List<ToolCallRecord> toolCalls, String stopReason) {
+        this(text, toolCalls, stopReason, Map.of());
+    }
+
+    public AgentResponse(String text, List<ToolCallRecord> toolCalls, String stopReason,
+                         Map<String, Object> usage) {
         this.text = text;
         this.toolCalls = toolCalls != null ? toolCalls : new ArrayList<>();
         this.stopReason = stopReason;
+        this.usage = java.util.Collections.unmodifiableMap(
+                new java.util.LinkedHashMap<>(usage != null ? usage : Map.of()));
     }
 
     public String getText() {
@@ -36,6 +44,8 @@ public class AgentResponse {
     public String getStopReason() {
         return stopReason;
     }
+
+    public Map<String, Object> getUsage() { return usage; }
 
     public boolean hasToolCalls() {
         return toolCalls != null && !toolCalls.isEmpty();
@@ -53,11 +63,13 @@ public class AgentResponse {
         private String text;
         private List<ToolCallRecord> toolCalls = new ArrayList<>();
         private String stopReason = "end_turn";
+        private Map<String, Object> usage = Map.of();
 
         public Builder text(String text) { this.text = text; return this; }
         public Builder toolCalls(List<ToolCallRecord> toolCalls) { this.toolCalls = toolCalls; return this; }
         public Builder stopReason(String stopReason) { this.stopReason = stopReason; return this; }
-        public AgentResponse build() { return new AgentResponse(text, toolCalls, stopReason); }
+        public Builder usage(Map<String, Object> usage) { this.usage = usage; return this; }
+        public AgentResponse build() { return new AgentResponse(text, toolCalls, stopReason, usage); }
     }
 
     /**

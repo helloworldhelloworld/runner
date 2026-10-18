@@ -18,7 +18,7 @@ import java.util.Map;
  * 风险 {@link RiskLevel#WRITE}（≤ SYSTEM，过 minion 的 {@code byRiskLevel(SYSTEM)} 闸）。
  * 写进 durable 后，AgentLoop 每轮的 {@code memoryProvider.search(input)} 会把它捞回上文 → 跨会话记得。
  */
-class MemoryWriteTool implements Tool {
+class MemoryWriteTool implements com.lightweightai.kernel.agent.ContextAwareTool {
 
     private final WriteMemoryTool delegate;
 
@@ -53,6 +53,20 @@ class MemoryWriteTool implements Tool {
     public ToolResult execute(Map<String, Object> args) {
         WriteMemoryTool.WriteMemoryResult r = delegate.execute(args);
         return r.success() ? ToolResult.success(r.message()) : ToolResult.error(r.error());
+    }
+
+    @Override public ToolResult execute(Map<String, Object> args, com.lightweightai.kernel.core.ToolExecutionContext context) {
+        if (context == null || context.getMemoryProvider() == null) {
+            if (context != null && context.getPrincipalId() != null) return ToolResult.error("Authenticated memory is not bound");
+            return execute(args);
+        }
+        var memory = context.getMemoryProvider();
+        Object content = args.get("content");
+        if (!(content instanceof String text) || text.isBlank()) return ToolResult.error("content is required");
+        if ("durable".equals(args.getOrDefault("type", "ephemeral")))
+            memory.writeDurable(String.valueOf(args.getOrDefault("section", "用户信息")), text);
+        else memory.writeEphemeral(text);
+        return ToolResult.success("Memory saved");
     }
 
     @Override

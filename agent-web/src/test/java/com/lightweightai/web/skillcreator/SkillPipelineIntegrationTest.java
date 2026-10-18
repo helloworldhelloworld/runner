@@ -39,11 +39,21 @@ class SkillPipelineIntegrationTest {
         simulationRepository = new SimulationRepository(dbPath);
         promptEngine = PromptEngine.builder().build();
         ToolRegistry toolRegistry = new ToolRegistry();
+        toolRegistry.register(new com.lightweightai.kernel.agent.Tool() {
+            public String getName() { return "Navigate"; }
+            public String getDescription() { return "Controlled navigation capability"; }
+            public com.lightweightai.kernel.agent.ToolSchema getSchema() {
+                return com.lightweightai.kernel.agent.ToolSchema.withRequired(Map.of("dest", Map.of("type", "string")), "dest");
+            }
+            public com.lightweightai.kernel.llm.ToolResult execute(Map<String, Object> args) {
+                return com.lightweightai.kernel.llm.ToolResult.success("arrived at " + args.get("dest"));
+            }
+        });
 
         testExecutionService = new SkillTestExecutionService(
             new MockTestExecutor(), skillRepository, testCaseRepository, testRunRepository);
         publishService = new SkillPublishService(
-            skillRepository, versionRepository, testRunRepository, promptEngine, toolRegistry, null);
+            skillRepository, versionRepository, testRunRepository, promptEngine, toolRegistry, null, testCaseRepository);
     }
 
     @AfterEach

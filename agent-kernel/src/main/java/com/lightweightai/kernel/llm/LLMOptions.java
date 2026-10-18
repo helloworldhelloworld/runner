@@ -51,6 +51,15 @@ public class LLMOptions {
         return maxBudgetTokens;
     }
 
+    /** Deep immutable snapshot for one execution; ordinary builder/getter compatibility is unchanged. */
+    @SuppressWarnings("unchecked")
+    public LLMOptions snapshot() {
+        LLMOptions copy = builder().from(this).build();
+        copy.tools = List.copyOf(tools);
+        copy.toolDefinitions = (List<Map<String, Object>>) com.lightweightai.kernel.core.ConfigurationContent.freeze(toolDefinitions);
+        return copy;
+    }
+
     public static Builder builder() {
         return new Builder();
     }

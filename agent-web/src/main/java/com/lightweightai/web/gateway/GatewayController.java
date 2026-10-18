@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import com.lightweightai.web.service.AuthenticatedRequests;
 
 /**
  * Gateway Controller - 纯协议适配器
@@ -160,6 +161,16 @@ public class GatewayController {
                     }
 
                     @Override
+                    public void onBudgetStopped(Map<String, Object> usage) {
+                        try {
+                            UnifiedChatResponse stopped = UnifiedChatResponse.error(requestId, "budget_exhausted");
+                            stopped.setMetadata(Map.of("stopReason", "budget_exhausted", "usage", usage));
+                            emitter.send(SseEmitter.event().name("budget_stopped")
+                                    .data(compactMapper.writeValueAsString(stopped)));
+                        } catch (IOException e) { emitter.completeWithError(e); }
+                    }
+
+                    @Override
                     public void onError(Throwable error) {
                         try {
                             UnifiedChatResponse errorResponse = UnifiedChatResponse.error(
@@ -289,7 +300,7 @@ public class GatewayController {
     @GetMapping("/session/{sessionId}/history")
     public Map<String, Object> getSessionHistory(@PathVariable("sessionId") String sessionId) {
         logger.info("Gateway get history - session: {}", sessionId);
-        SessionManager sm = gateway.getSessionManager();
+        SessionManager sm = scopedSessionManager();
         if (sm == null) {
             return Map.of("sessionId", sessionId, "history", List.of());
         }
@@ -305,7 +316,7 @@ public class GatewayController {
     @GetMapping("/session/{sessionId}/summary")
     public Map<String, Object> getSessionSummary(@PathVariable("sessionId") String sessionId) {
         logger.info("Gateway get summary - session: {}", sessionId);
-        SessionManager sm = gateway.getSessionManager();
+        SessionManager sm = scopedSessionManager();
         if (sm == null) {
             return Map.of("sessionId", sessionId);
         }
@@ -318,7 +329,7 @@ public class GatewayController {
     @DeleteMapping("/session/{sessionId}")
     public Map<String, Object> clearSession(@PathVariable("sessionId") String sessionId) {
         logger.info("Gateway clear session: {}", sessionId);
-        SessionManager sm = gateway.getSessionManager();
+        SessionManager sm = scopedSessionManager();
         if (sm != null) {
             sm.clearSession(sessionId);
         }
@@ -331,7 +342,8 @@ public class GatewayController {
         GatewayRequest.Builder builder = GatewayRequest.builder()
             .requestId(requestId)
             .sessionId(unified.getSessionId())
-            .message(unified.getMessage());
+            .message(unified.getMessage())
+            .principalId(AuthenticatedRequests.currentPrincipal());
 
         if (unified.getModel() != null) {
             builder.metadata("model", unified.getModel());
@@ -344,6 +356,16 @@ public class GatewayController {
         }
 
         return builder.build();
+    }
+
+    private SessionManager scopedSessionManager() {
+        SessionManager sm = gateway.getSessionManager();
+        String principal = AuthenticatedRequests.currentPrincipal();
+        if (sm != null && principal != null) {
+            try { return sm.forScope(principal, "default"); }
+            catch (UnsupportedOperationException ignored) { }
+        }
+        return sm;
     }
 
     private UnifiedChatResponse toUnifiedResponse(GatewayResponse response, String sessionId, long startTime) {

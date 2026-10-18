@@ -17,6 +17,20 @@ import java.util.List;
  */
 public interface MemoryProvider {
 
+    /** Select a server-authenticated owner. Unsupported stores must not expose their global data. */
+    default MemoryProvider forScope(String principalId, String agentId) {
+        if (principalId == null) return this;
+        throw new UnsupportedOperationException("This memory provider does not support authenticated scopes");
+    }
+
+    /** Bind the provenance of derived memory to a runtime-owned session. */
+    default MemoryProvider forSession(String sessionId) { return this; }
+
+    /** Clear a root session and its derived child sessions across agent partitions. */
+    default void clearExecutionTree(String principalId, String agentId, String sessionId) {
+        forScope(principalId, agentId).clearSession(sessionId);
+    }
+
     // ==================== 会话记忆 ====================
 
     /**

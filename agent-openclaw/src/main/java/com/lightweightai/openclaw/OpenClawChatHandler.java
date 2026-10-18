@@ -45,6 +45,10 @@ public final class OpenClawChatHandler implements ChatHandler {
 
     @Override
     public Flux<StreamEvent> chatStreamReactive(GatewayRequest request) {
+        if (request.getPrincipalId() != null) {
+            return Flux.error(new UnsupportedOperationException(
+                    "OpenClaw authenticated workspace and memory isolation is not configured; use the native backend"));
+        }
         String sessionId = request.getSessionId();
         OpenClawRun run = new OpenClawRun(sessionId);
         // 同 session 已有在途 run → 隐式打断（对齐 Orchestrator "新消息打断在途"行为）

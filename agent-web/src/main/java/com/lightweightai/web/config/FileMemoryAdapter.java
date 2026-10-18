@@ -31,6 +31,13 @@ public class FileMemoryAdapter implements MemoryProvider {
 
     private final FileMemoryManager fileMemoryManager;
     private final ConversationMemory conversationMemory;
+    private final java.util.Map<List<String>, MemoryProvider> scoped = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @Override public MemoryProvider forScope(String principalId, String agentId) {
+        if (principalId == null) return this;
+        return scoped.computeIfAbsent(List.of(principalId, agentId), key ->
+                new SqliteScopedMemory(fileMemoryManager.getAgentRoot().resolve("scoped-memory.db"), principalId, agentId));
+    }
 
     public FileMemoryAdapter(FileMemoryManager fileMemoryManager) {
         this.fileMemoryManager = fileMemoryManager;

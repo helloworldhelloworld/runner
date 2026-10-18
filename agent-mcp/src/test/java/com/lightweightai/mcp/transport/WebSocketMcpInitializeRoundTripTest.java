@@ -40,18 +40,25 @@ class WebSocketMcpInitializeRoundTripTest {
             McpToolClient client = McpToolClient.builder()
                 .serverName("mini")
                 .transport(transport)
-                .requestTimeout(Duration.ofSeconds(5))
                 .build();
 
             // 修复前：SDK 在握手完成前 fire-and-forget connect 后立即 sendRequest(initialize)，
             // sendMessage 因 connected=false 直接报 "WebSocket not connected"，被包成
             // "Client failed to initialize by explicit API call"。
             // 修复后：sendMessage 会等 openFuture（onOpen）完成再发，往返成功。
-            assertDoesNotThrow(client::initialize,
-                "initialize() 应在 WebSocket 往返后正常完成，而非抛 'failed to initialize'");
-            assertTrue(client.isConnected(), "初始化完成后 transport 应处于连接状态");
-
-            client.close();
+            try {
+                assertDoesNotThrow(client::initialize,
+                    "initialize() 应在 WebSocket 往返后正常完成，而非抛 'failed to initialize'");
+                assertTrue(client.isConnected(), "初始化完成后 transport 应处于连接状态");
+                var json = new com.fasterxml.jackson.databind.ObjectMapper();
+                var request = server.received.stream().map(raw -> {
+                    try { return json.readTree(raw); }
+                    catch (java.io.IOException e) { throw new IllegalStateException(e); }
+                }).filter(frame -> "initialize".equals(frame.path("method").asText())).findFirst().orElseThrow();
+                assertEquals("2.0", request.path("jsonrpc").asText());
+                assertTrue(request.hasNonNull("id"));
+                assertTrue(request.path("params").hasNonNull("protocolVersion"));
+            } finally { client.close(); }
         }
     }
 
@@ -71,7 +78,6 @@ class WebSocketMcpInitializeRoundTripTest {
             McpToolClient client = McpToolClient.builder()
                 .serverName("mini")
                 .transport(transport)
-                .requestTimeout(Duration.ofSeconds(5))
                 .build()
                 .initialize();
 

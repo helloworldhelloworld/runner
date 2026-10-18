@@ -171,6 +171,8 @@ public class ClaudeProvider implements LLMProvider {
                     // Parse SSE stream incrementally — read line by line as data arrives
                     // so that onTextDelta() fires in real-time instead of after full response
                     StringBuilder fullText = new StringBuilder();
+                    ObjectNode accumulatedUsage = objectMapper.createObjectNode();
+                    String stopReason = null;
                     List<ToolCall> toolCalls = new ArrayList<>();
                     // tool_use accumulation: id, name, partial JSON
                     String currentToolId = null;
@@ -190,6 +192,21 @@ public class ClaudeProvider implements LLMProvider {
                             String type = event.has("type") ? event.get("type").asText() : "";
 
                             switch (type) {
+                                case "message_start": {
+                                    JsonNode usage = event.path("message").path("usage");
+                                    if (usage.isObject()) accumulatedUsage.setAll((ObjectNode) usage);
+                                    break;
+                                }
+                                case "message_delta": {
+                                    JsonNode usage = event.path("usage");
+                                    if (usage.isObject()) accumulatedUsage.setAll((ObjectNode) usage);
+                                    if (event.path("delta").hasNonNull("stop_reason")) {
+                                        stopReason = event.path("delta").path("stop_reason").asText();
+                                    }
+                                    break;
+                                }
+                                case "error":
+                                    throw new IOException("Claude stream error: " + event.path("error").path("message").asText("unknown error"));
                                 case "content_block_start": {
                                     JsonNode block = event.get("content_block");
                                     if (block != null && "tool_use".equals(block.get("type").asText())) {
@@ -239,6 +256,8 @@ public class ClaudeProvider implements LLMProvider {
                     LLMResponse result = LLMResponse.builder()
                         .message(message)
                         .toolCalls(toolCalls)
+                        .stopReason(stopReason)
+                        .usage(readUsage(accumulatedUsage))
                         .build();
 
                     if (handler != null) handler.onComplete(result);
@@ -249,6 +268,25 @@ public class ClaudeProvider implements LLMProvider {
                 throw new RuntimeException("Streaming failed", e);
             }
         });
+    }
+
+    private static LLMResponse.UsageInfo readUsage(JsonNode usage) {
+        Integer input = usageCount(usage, "input_tokens"), output = usageCount(usage, "output_tokens");
+        if (input == null || output == null) return null;
+        long totalInput = input;
+        for (String field : java.util.List.of("cache_creation_input_tokens", "cache_read_input_tokens")) {
+            if (usage.has(field)) {
+                Integer cached = usageCount(usage, field);
+                if (cached == null) return null;
+                totalInput += cached;
+            }
+        }
+        return totalInput <= Integer.MAX_VALUE ? new LLMResponse.UsageInfo((int) totalInput, output) : null;
+    }
+
+    private static Integer usageCount(JsonNode usage, String field) {
+        JsonNode value = usage.path(field);
+        return value.isIntegralNumber() && value.canConvertToInt() && value.asInt() >= 0 ? value.asInt() : null;
     }
 
     @Override
@@ -433,12 +471,7 @@ public class ClaudeProvider implements LLMProvider {
 
         // Extract usage info
         JsonNode usage = root.get("usage");
-        LLMResponse.UsageInfo usageInfo = null;
-        if (usage != null) {
-            int inputTokens = usage.get("input_tokens").asInt();
-            int outputTokens = usage.get("output_tokens").asInt();
-            usageInfo = new LLMResponse.UsageInfo(inputTokens, outputTokens);
-        }
+        LLMResponse.UsageInfo usageInfo = readUsage(root.get("usage"));
 
         // Extract stop reason
         String stopReason = root.has("stop_reason") ? root.get("stop_reason").asText() : null;

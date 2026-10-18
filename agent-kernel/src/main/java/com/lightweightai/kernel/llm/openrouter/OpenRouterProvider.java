@@ -123,8 +123,8 @@ public class OpenRouterProvider implements LLMProvider {
                 }
             }
             Request request = reqBuilder.build();
-            logger.info("OpenRouter API request: POST {} (model: {}, customGateway: {}, headers: {})", requestUrl, model, isCustomBaseUrl(), request.headers());
-            logger.info("OpenRouter request body: {}", requestBody);
+            logger.info("OpenRouter API request: POST {} (model: {}, customGateway: {})", requestUrl, model, isCustomBaseUrl());
+            logger.debug("OpenRouter request body length: {}", requestBody.length());
             try (Response response = httpClient.newCall(request).execute()) {
                 logger.debug("Got response: {}", response.code());
                 if (!response.isSuccessful()) {
@@ -180,8 +180,8 @@ public class OpenRouterProvider implements LLMProvider {
                     }
                 }
                 Request request = reqBuilder.build();
-                logger.info("OpenRouter streaming request: POST {} (model: {}, headers: {})", requestUrl, model, request.headers());
-                logger.debug("OpenRouter streaming request body: {}", requestBody);
+                logger.info("OpenRouter streaming request: POST {} (model: {})", requestUrl, model);
+                logger.debug("OpenRouter streaming request body length: {}", requestBody.length());
                 handler.onStart();
 
                 try (Response response = httpClient.newCall(request).execute()) {
@@ -490,13 +490,7 @@ public class OpenRouterProvider implements LLMProvider {
             .build();
 
         // Extract usage info
-        JsonNode usage = root.get("usage");
-        LLMResponse.UsageInfo usageInfo = null;
-        if (usage != null) {
-            int promptTokens = usage.has("prompt_tokens") ? usage.get("prompt_tokens").asInt() : 0;
-            int completionTokens = usage.has("completion_tokens") ? usage.get("completion_tokens").asInt() : 0;
-            usageInfo = new LLMResponse.UsageInfo(promptTokens, completionTokens);
-        }
+        LLMResponse.UsageInfo usageInfo = readUsage(root.get("usage"));
 
         // Extract stop reason
         String finishReason = firstChoice.has("finish_reason") ? firstChoice.get("finish_reason").asText() : null;
@@ -519,6 +513,7 @@ public class OpenRouterProvider implements LLMProvider {
     private LLMResponse parseStreamingResponse(ResponseBody responseBody, StreamEventHandler handler) throws IOException {
         StringBuilder textContent = new StringBuilder();
         String finishReason = null;
+        LLMResponse.UsageInfo usageInfo = null;
 
         // Tool call chunks are keyed by their index
         Map<Integer, ToolCallAccumulator> toolCallMap = new LinkedHashMap<>();
@@ -534,17 +529,28 @@ public class OpenRouterProvider implements LLMProvider {
             while ((line = reader.readLine()) != null) {
                 rawBody.append(line).append('\n');
 
-                if (line.startsWith("data: ")) {
+                if (line.startsWith("data:")) {
                     isSse = true;
-                    String data = line.substring(6).trim();
+                    String data = line.substring(5).trim();
+                    if (data.isBlank()) continue;
 
                     if (data.equals("[DONE]")) {
                         logger.debug("OpenRouter SSE stream: [DONE]");
                         break;
                     }
 
+                    JsonNode eventData;
                     try {
-                        JsonNode eventData = objectMapper.readTree(data);
+                        eventData = objectMapper.readTree(data);
+                    } catch (com.fasterxml.jackson.core.JsonProcessingException malformed) {
+                        continue;
+                    }
+                    if (eventData == null || !eventData.isObject()) continue;
+                    if (eventData.hasNonNull("error")) {
+                        throw new IOException("OpenRouter stream error: " + eventData.path("error").path("message").asText("unknown error"));
+                    }
+                    if (eventData.hasNonNull("usage")) usageInfo = readUsage(eventData.get("usage"));
+                    {
                         JsonNode choices = eventData.get("choices");
 
                         if (choices != null && choices.isArray() && choices.size() > 0) {
@@ -590,8 +596,6 @@ public class OpenRouterProvider implements LLMProvider {
                                 finishReason = firstChoice.get("finish_reason").asText();
                             }
                         }
-                    } catch (Exception e) {
-                        // Ignore parsing errors for individual events
                     }
                 }
             }
@@ -654,7 +658,16 @@ public class OpenRouterProvider implements LLMProvider {
             .message(message)
             .toolCalls(toolCalls)
             .stopReason(finishReason)
+            .usage(usageInfo)
             .build();
+    }
+
+    static LLMResponse.UsageInfo readUsage(JsonNode usage) {
+        if (usage == null) return null;
+        JsonNode input = usage.path("prompt_tokens"), output = usage.path("completion_tokens");
+        if (!input.isIntegralNumber() || !input.canConvertToInt() || input.asInt() < 0
+                || !output.isIntegralNumber() || !output.canConvertToInt() || output.asInt() < 0) return null;
+        return new LLMResponse.UsageInfo(input.asInt(), output.asInt());
     }
 
     /** 是否使用了自定义 base URL（非默认 OpenRouter） */

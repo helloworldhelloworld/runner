@@ -12,6 +12,7 @@
       "required": ["type", "message"],
       "properties": {
         "type": { "const": "chat" },
+        "turnId": { "type": "string", "minLength": 1, "description": "可选，客户端生成的唯一轮次标识；ADR-015" },
         "sessionId": { "type": "string", "description": "会话标识；缺省时 runner 用 WS 连接 id" },
         "message": { "type": "string", "description": "STT 转写文本" },
         "agentId": { "type": "string", "description": "可选 persona 路由键（如 \"minion\"）；缺省走默认 agent" },
@@ -27,6 +28,7 @@
       "required": ["type"],
       "properties": {
         "type": { "enum": ["interrupt", "barge_in"] },
+        "turnId": { "type": "string", "minLength": 1, "description": "目标轮次，迟到的打断不得取消新轮" },
         "sessionId": { "type": "string", "description": "要打断的会话；缺省时 runner 用 WS 连接 id" },
         "requestId": { "type": "string" }
       },
@@ -51,6 +53,7 @@
       "required": ["type", "data"],
       "properties": {
         "type": { "const": "speakable_chunk" },
+        "turnId": { "type": "string", "minLength": 1 },
         "data": {
           "type": "object",
           "required": ["text", "index", "emotion"],
@@ -73,6 +76,7 @@
       "required": ["type", "data"],
       "properties": {
         "type": { "const": "speech_interrupted" },
+        "turnId": { "type": "string", "minLength": 1 },
         "data": {
           "type": "object",
           "required": ["runId", "reason"],
@@ -87,6 +91,29 @@
       "additionalProperties": true
     },
 
+    "outbound.budget_stopped": {
+      "title": "出站：目标轮预算停止",
+      "type": "object",
+      "required": ["type", "data"],
+      "properties": {
+        "type": { "const": "budget_stopped" },
+        "turnId": { "type": "string", "minLength": 1 },
+        "data": {
+          "type": "object",
+          "required": ["reason", "maxBudgetTokens", "knownTokens", "unknownAttempts"],
+          "properties": {
+            "reason": { "const": "budget_exhausted" },
+            "maxBudgetTokens": { "type": "integer", "minimum": 0 },
+            "knownTokens": { "type": "integer", "minimum": 0 },
+            "unknownAttempts": { "type": "integer", "minimum": 0 },
+            "remainingTokens": { "type": ["integer", "null"], "minimum": 0 }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+
     "outbound.stream_end": {
       "title": "出站：本轮流式结束",
       "type": "object",
@@ -97,6 +124,7 @@
           "type": "object",
           "required": ["emotion"],
           "properties": {
+            "turnId": { "type": "string", "minLength": 1 },
             "emotion": { "type": "string", "description": "整轮情绪（可空串）" }
           },
           "additionalProperties": true

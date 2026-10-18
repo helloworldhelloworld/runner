@@ -114,10 +114,19 @@ public class Gateway {
     public void handleStream(GatewayRequest request, GatewayStreamHandler handler) {
         long startTime = System.currentTimeMillis();
         StringBuilder fullText = new StringBuilder();
+        Map<String, Object> completionMetadata = new java.util.LinkedHashMap<>();
 
         handleStreamReactive(request)
             .subscribe(
-                event -> dispatchEvent(event, handler, fullText),
+                event -> {
+                    if (event.getType() == StreamEvent.EventType.BUDGET_STOPPED) {
+                        completionMetadata.put("stopReason", "budget_exhausted");
+                        completionMetadata.put("usage", event.getData());
+                    } else if (event.getType() == StreamEvent.EventType.LLM_COMPLETE && event.getResponse() != null) {
+                        completionMetadata.put("stopReason", event.getResponse().getStopReason());
+                    }
+                    dispatchEvent(event, handler, fullText);
+                },
                 handler::onError,
                 () -> {
                     long latencyMs = System.currentTimeMillis() - startTime;
@@ -126,6 +135,7 @@ public class Gateway {
                         .sessionId(request.getSessionId())
                         .text(fullText.toString())
                         .latencyMs(latencyMs)
+                        .metadata(completionMetadata)
                         .build();
                     handler.onComplete(response);
                 }
@@ -178,6 +188,7 @@ public class Gateway {
                 // LLM 完成但可能还有后续工具调用轮次
                 // 最终 onComplete 由 Flux.onComplete 触发
             }
+            case BUDGET_STOPPED -> handler.onBudgetStopped(event.getData());
             case ERROR -> {
                 if (event.getError() != null) {
                     handler.onError(event.getError());
@@ -247,6 +258,14 @@ public class Gateway {
      */
     public com.lightweightai.kernel.core.StreamEvent interrupt(String sessionId) {
         return chatHandler.interrupt(sessionId);
+    }
+
+    public com.lightweightai.kernel.core.StreamEvent interrupt(String principalId, String sessionId) {
+        return chatHandler.interrupt(principalId, sessionId);
+    }
+
+    public void cancel(String principalId, String sessionId, String cause) {
+        chatHandler.cancel(principalId, sessionId, cause);
     }
 
     // ==================== Builder ====================
@@ -321,7 +340,8 @@ public class Gateway {
         public GatewayResponse chat(GatewayRequest request) {
             AgentResponse agentResponse = agentLoop.run(
                 request.getMessage(),
-                request.getSessionId()
+                request.getSessionId(),
+                request.getToolExecutionContext()
             );
 
             return GatewayResponse.fromAgentResponse(
@@ -334,24 +354,20 @@ public class Gateway {
 
         @Override
         public CompletableFuture<GatewayResponse> chatStream(GatewayRequest request, StreamCallback callback) {
-            StringBuilder fullText = new StringBuilder();
+            return reactor.core.publisher.Mono.fromFuture(() -> agentLoop.runStream(
+                    request.getMessage(), request.getSessionId(),
+                    delta -> callback.onDelta(delta, Collections.emptyMap()), request.getToolExecutionContext()))
+                    .map(agentResponse -> GatewayResponse.fromAgentResponse(agentResponse,
+                            request.getRequestId(), request.getSessionId(), 0))
+                    .doOnNext(callback::onComplete)
+                    .doOnError(callback::onError)
+                    .toFuture();
+        }
 
-            return agentLoop.runStream(
-                request.getMessage(),
-                request.getSessionId(),
-                delta -> {
-                    fullText.append(delta);
-                    callback.onDelta(delta, Collections.emptyMap());
-                }
-            ).thenApply(agentResponse -> {
-                GatewayResponse response = GatewayResponse.builder()
-                    .requestId(request.getRequestId())
-                    .sessionId(request.getSessionId())
-                    .text(fullText.toString())
-                    .build();
-                callback.onComplete(response);
-                return response;
-            });
+        @Override
+        public Flux<StreamEvent> chatStreamReactive(GatewayRequest request) {
+            return agentLoop.runReactive(request.getMessage(), request.getSessionId(), null,
+                    request.getToolExecutionContext());
         }
     }
 }

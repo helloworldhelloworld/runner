@@ -32,6 +32,12 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(name = "app.websocket.provider", havingValue = "vertx")
 public class VertxWebSocketConfig {
 
+    private com.lightweightai.web.service.AuthSessionService authSessionService;
+    public VertxWebSocketConfig() {}
+    @Autowired public VertxWebSocketConfig(com.lightweightai.web.service.AuthSessionService auth) {
+        authSessionService = auth;
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(VertxWebSocketConfig.class);
 
     @Bean(destroyMethod = "close")
@@ -55,9 +61,11 @@ public class VertxWebSocketConfig {
             UserService userService,
             LLMProvider llmProvider,
             @Autowired(required = false) McpConfig.McpToolRegistrar mcpToolRegistrar) {
-        return new VertxChatWebSocketHandler(gateway, crisisDetector, toolRegistry,
+        var handler = new VertxChatWebSocketHandler(gateway, crisisDetector, toolRegistry,
             chatService, soulComfortChatService, skillCreatorService, assessmentService, userService,
             llmProvider, mcpToolRegistrar);
+        handler.setAuthSessionService(authSessionService);
+        return handler;
     }
 
     @Bean

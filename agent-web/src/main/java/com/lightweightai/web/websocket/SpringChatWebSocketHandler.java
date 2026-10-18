@@ -12,6 +12,7 @@ import com.lightweightai.kernel.agent.Tool;
 import com.lightweightai.kernel.agent.ToolMetadata;
 import com.lightweightai.kernel.agent.ToolRegistry;
 import com.lightweightai.kernel.core.StreamEvent;
+import com.lightweightai.kernel.core.ToolExecutionContext;
 import com.lightweightai.kernel.core.ToolResultChunk;
 import com.lightweightai.kernel.gateway.Gateway;
 import com.lightweightai.kernel.gateway.GatewayRequest;
@@ -85,6 +86,10 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     public void setSkillTestCaseGenerationService(com.lightweightai.web.skillcreator.SkillTestCaseGenerationService svc) { this.skillTestCaseGenerationService = svc; }
 
     private final Map<String, Disposable> activeStreams = new ConcurrentHashMap<>();
+    private final Map<String, VoiceChatTurn> voiceTurns = new ConcurrentHashMap<>();
+    /** Active turn by logical principal/session, so reconnecting clients replace the old transport. */
+    private final Map<String, VoiceChatTurn> logicalVoiceTurns = new ConcurrentHashMap<>();
+    private final Map<String, Disposable> logicalSubscriptions = new ConcurrentHashMap<>();
     // 全链路 trace：把每个 StreamEvent 按 sessionId 广播给只读 viewer（observe）；见 SessionStreamRegistry。
     private final SessionStreamRegistry streamRegistry = new SessionStreamRegistry();
     private final Map<String, Disposable> observeStreams = new ConcurrentHashMap<>();
@@ -131,6 +136,21 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         throw new UnsupportedOperationException("Use the full constructor");
     }
 
+    @jakarta.annotation.PreDestroy
+    public void shutdown() {
+        voiceTurns.values().forEach(VoiceChatTurn::cancel);
+        voiceTurns.clear();
+        logicalVoiceTurns.values().forEach(VoiceChatTurn::cancel);
+        logicalVoiceTurns.clear();
+        logicalSubscriptions.values().forEach(Disposable::dispose);
+        logicalSubscriptions.clear();
+        activeStreams.values().forEach(Disposable::dispose);
+        activeStreams.clear();
+        observeStreams.values().forEach(Disposable::dispose);
+        observeStreams.clear();
+        chatExecutor.shutdownNow();
+    }
+
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         logger.error("WS transport error session={}: {}", session.getId(), exception.getMessage(), exception);
@@ -141,7 +161,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         // Validate token from query param: /ws/chat?token=xxx
         String query = rawSession.getUri() != null ? rawSession.getUri().getQuery() : null;
         String token = extractQueryParam(query, "token");
-        if (token != null && !token.isEmpty() && authSessionService != null) {
+        if (authSessionService != null) {
             var session_info = authSessionService.resolveSession(token);
             if (session_info.isEmpty()) {
                 logger.warn("WS connection rejected: invalid token");
@@ -149,6 +169,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
             // Store userId in session attributes for downstream use
+            rawSession.getAttributes().put("authToken", token);
             rawSession.getAttributes().put("userId", session_info.get().getUserId());
             rawSession.getAttributes().put("userRole", session_info.get().getRole());
         }
@@ -179,7 +200,15 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        sessions.remove(session.getId());
+        boolean registered = sessions.remove(session.getId()) != null;
+        VoiceChatTurn turn = voiceTurns.remove(session.getId());
+        if (turn != null) {
+            gateway.cancel(principal(session), turn.sessionId, "CLIENT_DISCONNECTED");
+            logicalVoiceTurns.remove(logicalTurnKey(principal(session), turn.sessionId), turn);
+            if (turn.attached != null)
+                logicalSubscriptions.remove(logicalTurnKey(principal(session), turn.sessionId), turn.attached);
+            turn.cancel();
+        }
         Disposable d = activeStreams.remove(session.getId());
         if (d != null && !d.isDisposed()) d.dispose();
         Disposable obs = observeStreams.remove(session.getId());  // 清理 trace viewer 订阅
@@ -192,7 +221,7 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
         }
         sessionAwareDispatcher.clearDelegate();
 
-        activeConnections.decrementAndGet();
+        if (registered) activeConnections.decrementAndGet();
         logger.info("Spring WS disconnected: {} status={} (active: {})", session.getId(), status, activeConnections.get());
     }
 
@@ -200,26 +229,57 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession rawSession, TextMessage message) {
         WebSocketSession session = sessions.getOrDefault(rawSession.getId(), rawSession);
         try {
+            if (authSessionService != null && (!sessions.containsKey(session.getId())
+                    || authSessionService.resolveSession((String) session.getAttributes().get("authToken")).isEmpty())) {
+                session.close(CloseStatus.POLICY_VIOLATION);
+                return;
+            }
             JsonNode payload = MAPPER.readTree(message.getPayload());
+            if (principal(session) != null && payload instanceof ObjectNode node) node.put("userId", principal(session));
             String type = payload.path("type").asText("chat");
             String requestId = payload.path("requestId").asText(null);
 
             switch (type) {
-                case "chat" -> chatExecutor.submit(() -> {
-                    try {
-                        handleChat(session, payload);
-                    } catch (Exception e) {
-                        logger.error("handleChat EXCEPTION", e);
-                        safeSend(session, errorJson("处理失败: " + e.getMessage()));
+                case "chat" -> {
+                    VoiceChatTurn turn = new VoiceChatTurn(
+                            payload.path("sessionId").asText(session.getId()),
+                            payload.path("turnId").asText(null));
+                    String logicalKey = logicalTurnKey(principal(session), turn.sessionId);
+                    VoiceChatTurn previousLogical = logicalVoiceTurns.put(logicalKey, turn);
+                    Disposable previousSubscription = logicalSubscriptions.remove(logicalKey);
+                    if (previousSubscription != null) previousSubscription.dispose();
+                    if (previousLogical != null) {
+                        previousLogical.cancel();
+                        // Dispose the connection-facing subscription even when the old
+                        // executor has not yet published its concrete Disposable.
+                        previousLogical.subscription.dispose();
+                        // The old transport may already have handed its subscription to the
+                        // gateway; interrupt by logical session as well so the remote sink sees
+                        // cancellation during connection handoff.
+                        gateway.cancel(principal(session), turn.sessionId, "CONNECTION_REPLACED");
                     }
-                });
+                    VoiceChatTurn old = voiceTurns.put(session.getId(), turn);
+                    if (old != null) old.cancel();
+                    Disposable prev = activeStreams.put(session.getId(), turn.subscription);
+                    if (prev != null) prev.dispose();
+                    chatExecutor.submit(() -> {
+                        try {
+                            handleChat(session, payload, turn);
+                        } catch (Exception e) {
+                            logger.error("handleChat EXCEPTION", e);
+                            if (turn.ended.compareAndSet(false, true))
+                                sendTurnFrame(session, errorJson("处理失败: " + e.getMessage()), turn.turnId);
+                            finishTurn(session, turn);
+                        }
+                    });
+                }
                 case "interrupt", "barge_in" -> handleInterrupt(session, payload);
                 case "observe" -> {
                     // 只读订阅某 session 的实时调用链（全链路 trace viewer）
                     String observeSid = payload.path("sessionId").asText("");
                     Disposable oldObs = observeStreams.remove(session.getId());
                     if (oldObs != null) oldObs.dispose();
-                    Disposable obs = streamRegistry.observe(observeSid).subscribe(ev -> {
+                    Disposable obs = streamRegistry.observe(com.lightweightai.kernel.gateway.SessionKeys.slot(principal(session), observeSid)).subscribe(ev -> {
                         try {
                             String j = StreamEventSerializer.serialize(ev);
                             if (j != null) safeSend(session, j);
@@ -229,12 +289,12 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                     sendResponse(session, "observing", requestId, Map.of("sessionId", observeSid));
                 }
                 case "get_history" -> sendResponse(session, "history", requestId,
-                    getSessionManager().map(sm -> sm.getSessionHistory(payload.path("sessionId").asText(""))).orElse(List.of()));
+                    getSessionManager(session, payload).map(sm -> sm.getSessionHistory(payload.path("sessionId").asText(""))).orElse(List.of()));
                 case "get_summary" -> sendResponse(session, "summary", requestId,
-                    getSessionManager().map(sm -> sm.getSessionSummary(payload.path("sessionId").asText(""))).orElse(Map.of()));
+                    getSessionManager(session, payload).map(sm -> sm.getSessionSummary(payload.path("sessionId").asText(""))).orElse(Map.of()));
                 case "clear_session" -> {
                     String sid = payload.path("sessionId").asText("");
-                    getSessionManager().ifPresent(sm -> sm.clearSession(sid));
+                    getSessionManager(session, payload).ifPresent(sm -> sm.clearSession(sid));
                     sendResponse(session, "session_cleared", requestId, Map.of("status", "cleared", "sessionId", sid));
                 }
                 case "get_skills" -> sendResponse(session, "skills", requestId, chatService.getAvailableSkills());
@@ -280,14 +340,19 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                 case "search_memory" -> {
                     try {
                         sendResponse(session, "memory_results", requestId,
-                            soulComfortChatService.searchMemory(payload.path("query").asText(""), payload.path("topK").asInt(10)));
+                            principal(session) == null
+                                ? soulComfortChatService.searchMemory(payload.path("query").asText(""), payload.path("topK").asInt(10))
+                                : getSessionManager(session, payload).orElseThrow().getMemoryProvider().search(payload.path("query").asText(""),
+                                    com.lightweightai.kernel.memory.MemoryProvider.SearchOptions.defaults().topK(payload.path("topK").asInt(10))));
                     } catch (Exception e) {
                         sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
                     }
                 }
                 case "remember_durable" -> {
                     try {
-                        soulComfortChatService.rememberDurable(payload.path("section").asText(""), payload.path("content").asText(""));
+                        if (principal(session) == null) soulComfortChatService.rememberDurable(payload.path("section").asText(""), payload.path("content").asText(""));
+                        else getSessionManager(session, payload).orElseThrow().getMemoryProvider()
+                                .writeDurable(payload.path("section").asText(""), payload.path("content").asText(""));
                         sendResponse(session, "remember_result", requestId, Map.of("status", "saved"));
                     } catch (Exception e) {
                         sendResponse(session, "error_response", requestId, Map.of("error", e.getMessage()));
@@ -548,12 +613,15 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
 
     // ==================== Chat Streaming ====================
 
-    private void handleChat(WebSocketSession session, JsonNode payload) {
+    private void handleChat(WebSocketSession session, JsonNode payload, VoiceChatTurn turn) {
+        if (turn.ended.get()) return;
         String sessionId = payload.path("sessionId").asText(session.getId());
         String message = payload.path("message").asText("").trim();
 
         if (message.isEmpty()) {
-            safeSend(session, errorJson("消息不能为空"));
+            sendTurnFrame(session, errorJson("消息不能为空"), turn.turnId);
+            turn.ended.set(true);
+            finishTurn(session, turn);
             return;
         }
 
@@ -564,44 +632,55 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
                 msg.put("type", "crisis_alert");
                 msg.set("resources", MAPPER.valueToTree(safety.resources()));
                 safeSend(session, MAPPER.writeValueAsString(msg));
+                if (turn.turnId != null)
+                    sendTurnFrame(session, errorJson("本轮已由安全策略处理"), turn.turnId);
             } catch (Exception e) { logger.error("Failed to send crisis alert", e); }
+            turn.ended.set(true);
+            finishTurn(session, turn);
             return;
         }
 
         // 解析公共字段（含 agentId → metadata，供 MetadataAgentRouter 路由到 persona，如 minion）
-        GatewayRequest.Builder builder = WsChatRequests.baseBuilder(payload, sessionId);
+        GatewayRequest.Builder builder = WsChatRequests.baseBuilder(payload, sessionId).principalId(principal(session))
+                .toolExecutionContext(new ToolExecutionContext(dispatchers.get(session.getId()), 60_000));
 
         String sid = session.getId();
-        Disposable prev = activeStreams.remove(sid);
-        if (prev != null && !prev.isDisposed()) prev.dispose();
-
         logger.info("handleChat: building flux, session={}", sid);
-        reactor.core.publisher.Flux<StreamEvent> flux = gateway.handleStreamReactive(builder.build());
+        reactor.core.publisher.Flux<StreamEvent> flux = reactor.core.publisher.Flux.defer(() -> {
+            synchronized (turn) {
+                return turn.ended.get() ? reactor.core.publisher.Flux.empty()
+                        : gateway.handleStreamReactive(builder.build());
+            }
+        });
         logger.info("handleChat: flux built, subscribing, session={}", sid);
         Disposable sub = flux
             .doOnError(e -> logger.error("handleChat: flux error session={}", sid, e))
             .subscribe(
                 event -> {
-                    handleStreamEvent(session, event);
-                    streamRegistry.publish(sessionId, event);  // 广播给 trace viewer（全链路可观测）
+                    if (turn.ended.get()) return;
+                    sendTurnFrame(session, StreamEventSerializer.serialize(event), turn.turnId);
+                    streamRegistry.publish(com.lightweightai.kernel.gateway.SessionKeys.slot(principal(session), sessionId), event);  // 广播给 trace viewer（全链路可观测）
                 },
                 error -> {
                     logger.error("handleChat: subscribe error session={}", sid, error);
-                    safeSend(session, errorJson("处理失败: " + error.getMessage()));
-                    activeStreams.remove(sid);
+                    if (turn.ended.compareAndSet(false, true))
+                        sendTurnFrame(session, errorJson("处理失败: " + error.getMessage()), turn.turnId);
+                    finishTurn(session, turn);
                 },
                 () -> {
+                    if (!turn.ended.compareAndSet(false, true)) return;
                     try {
                         ObjectNode msg = MAPPER.createObjectNode();
                         msg.put("type", "stream_end");
                         msg.set("meta", MAPPER.createObjectNode().put("emotion", ""));
-                        safeSend(session, MAPPER.writeValueAsString(msg));
+                        sendTurnFrame(session, MAPPER.writeValueAsString(msg), turn.turnId);
                     } catch (Exception e) { logger.error("Failed to send stream_end", e); }
-                    streamRegistry.publish(sessionId, StreamEvent.trace("turn", "stream_end"));  // viewer 看轮次边界
-                    activeStreams.remove(sid);
+                    streamRegistry.publish(com.lightweightai.kernel.gateway.SessionKeys.slot(principal(session), sessionId), StreamEvent.trace("turn", "stream_end"));  // viewer 看轮次边界
+                    finishTurn(session, turn);
                 }
             );
-        activeStreams.put(sid, sub);
+        turn.attach(sub);
+        logicalSubscriptions.put(logicalTurnKey(principal(session), sessionId), sub);
         logger.info("handleChat: subscribed, disposed={}, session={}", sub.isDisposed(), sid);
     }
 
@@ -613,16 +692,58 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
      */
     private void handleInterrupt(WebSocketSession session, JsonNode payload) {
         String sessionId = payload.path("sessionId").asText(session.getId());
-
-        StreamEvent interrupted = gateway.interrupt(sessionId);
-
-        // 取消转发在途流（停止继续把已打断 run 的事件推给客户端）
-        Disposable sub = activeStreams.remove(session.getId());
-        if (sub != null && !sub.isDisposed()) sub.dispose();
+        String target = payload.path("turnId").asText(null);
+        VoiceChatTurn turn = logicalVoiceTurns.get(logicalTurnKey(principal(session), sessionId));
+        boolean matches = turn != null && sessionId.equals(turn.sessionId)
+                && (target == null || target.equals(turn.turnId));
+        StreamEvent interrupted = null;
+        if (matches) {
+            synchronized (turn) {
+                turn.ended.set(true); // suppress completion caused by the explicit interrupt
+                interrupted = gateway.interrupt(principal(session), sessionId);
+                turn.cancel();
+            }
+            finishTurn(session, turn);
+        } else if (target == null && turn == null) {
+            interrupted = gateway.interrupt(principal(session), sessionId);
+        }
+        // A queued/already-generated turn still needs an output-cancellation receipt.
+        // Empty runId means no active brain execution was available; it is NOT the turnId.
+        if (interrupted == null && target != null)
+            interrupted = StreamEvent.speechInterrupted("", "barge-in");
 
         if (interrupted != null) {
-            handleStreamEvent(session, interrupted);          // → SPEECH_INTERRUPTED 帧
-            streamRegistry.publish(sessionId, interrupted);   // 全链路 trace viewer 可见
+            sendTurnFrame(session, StreamEventSerializer.serialize(interrupted),
+                    target != null ? target : (matches ? turn.turnId : null));
+            streamRegistry.publish(com.lightweightai.kernel.gateway.SessionKeys.slot(principal(session), sessionId), interrupted);   // 全链路 trace viewer 可见
+        }
+    }
+
+    private void finishTurn(WebSocketSession session, VoiceChatTurn turn) {
+        voiceTurns.remove(session.getId(), turn);
+        logicalVoiceTurns.remove(logicalTurnKey(principal(session), turn.sessionId), turn);
+        if (turn.attached != null)
+            logicalSubscriptions.remove(logicalTurnKey(principal(session), turn.sessionId), turn.attached);
+        activeStreams.remove(session.getId(), turn.subscription);
+    }
+
+    private String logicalTurnKey(String principal, String sessionId) {
+        return (principal == null ? "_anonymous" : principal) + "\u0000" + sessionId;
+    }
+
+    private void sendTurnFrame(WebSocketSession session, String json, String turnId) {
+        if (json == null) return;
+        if (turnId == null) { safeSend(session, json); return; }
+        try {
+            ObjectNode frame = (ObjectNode) MAPPER.readTree(json);
+            switch (frame.path("type").asText()) {
+                case "stream_end" -> ((ObjectNode) frame.get("meta")).put("turnId", turnId);
+                case "speakable_chunk", "speech_interrupted", "budget_stopped", "error" -> frame.put("turnId", turnId);
+                default -> { } // preserve strict legacy token envelope
+            }
+            safeSend(session, MAPPER.writeValueAsString(frame));
+        } catch (IOException e) {
+            logger.error("Failed to serialize correlated voice frame", e);
         }
     }
 
@@ -799,8 +920,12 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
 
     // ==================== Helpers ====================
 
-    private Optional<SessionManager> getSessionManager() {
-        return Optional.ofNullable(gateway.getSessionManager());
+    private Optional<SessionManager> getSessionManager(WebSocketSession session, JsonNode payload) {
+        return Optional.ofNullable(gateway.getSessionManager()).map(manager -> principal(session) == null ? manager
+                : manager.forScope(principal(session), payload.path("agentId").asText(null)));
+    }
+    private String principal(WebSocketSession session) {
+        return authSessionService == null ? null : (String) session.getAttributes().get("userId");
     }
 
     private void sendResponse(WebSocketSession session, String type, String requestId, Object data) {
@@ -818,6 +943,10 @@ public class SpringChatWebSocketHandler extends TextWebSocketHandler {
     private void safeSend(WebSocketSession session, String json) {
         if (!session.isOpen()) return;
         try {
+            if (authSessionService != null && authSessionService.resolveSession((String) session.getAttributes().get("authToken")).isEmpty()) {
+                session.close(CloseStatus.POLICY_VIOLATION);
+                return;
+            }
             // session 已由 ConcurrentWebSocketSessionDecorator 包装，内部线程安全
             session.sendMessage(new TextMessage(json));
         } catch (IOException e) {

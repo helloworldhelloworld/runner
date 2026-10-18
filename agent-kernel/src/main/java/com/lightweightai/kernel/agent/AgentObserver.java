@@ -24,6 +24,10 @@ import java.util.Map;
  */
 public interface AgentObserver {
 
+    /** Actual execution configuration, before user memory is added to model messages. */
+    default void onExecutionAssembly(String sessionId, ExecutionAssembly assembly) {}
+
+
     /**
      * Prompt 构建完成时调用
      *

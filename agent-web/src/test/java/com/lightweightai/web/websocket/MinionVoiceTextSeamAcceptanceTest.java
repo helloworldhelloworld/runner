@@ -155,6 +155,17 @@ class MinionVoiceTextSeamAcceptanceTest {
 
     // ==================== schema 校验 helpers ====================
 
+    @Test
+    void correlatedChatEchoesTurnOnSpeechAndEnd() throws Exception {
+        handler.handleTextMessage(session, new TextMessage("""
+                {"type":"chat","sessionId":"voice-1","turnId":"B","message":"完整的新问题。"}
+                """));
+        assertTrue(streamEnd.await(5, TimeUnit.SECONDS));
+        assertEquals("B", framesOfType("speakable_chunk").get(0).path("turnId").asText(),
+                "下游需要原始 turnId，不能把晚到的可说块分配给当前轮");
+        assertEquals("B", framesOfType("stream_end").get(0).path("meta").path("turnId").asText());
+    }
+
     /** 校验出站帧符合 $defs/<def>：type const + 顶层 required + data 嵌套 required。 */
     private void assertFrameConforms(JsonNode frame, String defName) {
         JsonNode def = SCHEMA_DEFS.get(defName);

@@ -37,8 +37,13 @@ public interface ToolPolicy {
             String toolName,
             Tool tool,
             Map<String, Object> args,
-            AgentProfile profile
-    ) {}
+            AgentProfile profile,
+            com.lightweightai.kernel.core.ToolExecutionContext executionContext
+    ) {
+        public ToolPolicyRequest(String toolName, Tool tool, Map<String, Object> args, AgentProfile profile) {
+            this(toolName, tool, args, profile, null);
+        }
+    }
 
     // ---- 工厂 ----
 
@@ -79,6 +84,20 @@ public interface ToolPolicy {
                 if (d != Decision.ABSTAIN) return d;
             }
             return Decision.ABSTAIN;
+        };
+    }
+
+    /** Permission intersection: no ALLOW can override another layer's DENY. */
+    static ToolPolicy intersection(ToolPolicy... layers) {
+        ToolPolicy[] copy = layers.clone();
+        return req -> {
+            Decision result = Decision.ABSTAIN;
+            for (ToolPolicy layer : copy) {
+                Decision decision = layer.evaluate(req);
+                if (decision == Decision.DENY) return Decision.DENY;
+                if (decision == Decision.ALLOW) result = Decision.ALLOW;
+            }
+            return result;
         };
     }
 }

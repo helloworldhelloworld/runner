@@ -6,6 +6,7 @@ import com.lightweightai.kernel.agent.AgentRegistry;
 import com.lightweightai.kernel.core.StreamEvent;
 import com.lightweightai.kernel.agent.AgentResponse;
 import com.lightweightai.kernel.gateway.ChatHandler;
+import com.lightweightai.kernel.gateway.SessionKeys;
 import com.lightweightai.kernel.gateway.GatewayRequest;
 import com.lightweightai.kernel.gateway.GatewayResponse;
 import com.lightweightai.kernel.memory.MemoryProvider;
@@ -40,7 +41,7 @@ public class Orchestrator implements ChatHandler {
     private final SubagentRuntime subagentRuntime;
 
     // per-session 的活跃执行
-    private final Map<String, InterruptibleRun> activeRuns = new ConcurrentHashMap<>();
+    private final ActiveRunCoordinator activeRuns = new ActiveRunCoordinator();
 
     // 已订阅的主动触发源
     private final Map<String, Disposable> activeTriggers = new ConcurrentHashMap<>();
@@ -75,6 +76,7 @@ public class Orchestrator implements ChatHandler {
         cleanupExecutor.shutdown();
         activeTriggers.values().forEach(Disposable::dispose);
         activeTriggers.clear();
+        activeRuns.cancelAll(CancellationCause.SYSTEM_SHUTDOWN);
         logger.info("Orchestrator cleanup executor shut down");
     }
 
@@ -116,12 +118,11 @@ public class Orchestrator implements ChatHandler {
 
     private void cleanupStaleRuns() {
         long now = System.currentTimeMillis();
-        activeRuns.entrySet().removeIf(entry -> {
-            InterruptibleRun run = entry.getValue();
+        activeRuns.removeIf(run -> {
             if (run.isRunning()) return false; // 正在运行的不清理
             // INTERRUPTED / COMPLETED 超过 TTL 则清理
             if (now - run.getCreatedAt() > RUN_TTL_MS) {
-                logger.debug("Cleaning up stale run: session={}, phase={}", entry.getKey(), run.getPhase());
+                logger.debug("Cleaning up stale run: phase={}", run.getPhase());
                 return true;
             }
             return false;
@@ -132,10 +133,11 @@ public class Orchestrator implements ChatHandler {
     public GatewayResponse chat(GatewayRequest request) {
         // 同步路径：直接委托
         String agentId = router.route(request);
-        AgentLoop agent = agentFactory.create(agentRegistry.get(agentId).orElseGet(agentRegistry::getDefault));
+        AgentLoop agent = createAgent(agentRegistry.get(agentId).orElseGet(agentRegistry::getDefault),
+                SessionKeys.main(request.getPrincipalId(), agentId, request.getSessionId()));
 
         long start = System.currentTimeMillis();
-        var result = agent.run(request.getMessage(), resolveSessionKey(agentId, request.getSessionId()));
+        var result = agent.run(request.getMessage(), SessionKeys.main(request.getPrincipalId(), agentId, request.getSessionId()), request.getToolExecutionContext());
         return GatewayResponse.fromAgentResponse(result, request.getRequestId(),
                 request.getSessionId(), System.currentTimeMillis() - start);
     }
@@ -144,41 +146,52 @@ public class Orchestrator implements ChatHandler {
     public CompletableFuture<GatewayResponse> chatStream(GatewayRequest request, StreamCallback callback) {
         // 桥接 reactive → callback
         StringBuilder text = new StringBuilder();
+        Map<String, Object> completionMetadata = new java.util.LinkedHashMap<>();
         return chatStreamReactive(request)
                 .doOnNext(event -> {
                     if (event.getType() == StreamEvent.EventType.TEXT_DELTA) {
                         String delta = event.getTextDelta();
                         text.append(delta != null ? delta : "");
                         callback.onDelta(delta, Map.of());
+                    } else if (event.getType() == StreamEvent.EventType.BUDGET_STOPPED) {
+                        completionMetadata.put("stopReason", "budget_exhausted");
+                        completionMetadata.put("usage", event.getData());
+                    } else if (event.getType() == StreamEvent.EventType.LLM_COMPLETE && event.getResponse() != null) {
+                        completionMetadata.put("stopReason", event.getResponse().getStopReason());
                     }
                 })
-                .then()
-                .toFuture()
-                .thenApply(v -> {
+                .then(reactor.core.publisher.Mono.fromSupplier(() -> {
                     GatewayResponse resp = GatewayResponse.builder()
                             .requestId(request.getRequestId())
                             .sessionId(request.getSessionId())
                             .text(text.toString())
+                            .metadata(completionMetadata)
                             .build();
                     callback.onComplete(resp);
                     return resp;
-                })
-                .exceptionally(e -> {
+                }))
+                .onErrorResume(e -> {
                     callback.onError(e);
-                    return GatewayResponse.error(request.getRequestId(),
-                            request.getSessionId(), e.getMessage());
-                });
+                    return reactor.core.publisher.Mono.just(GatewayResponse.error(request.getRequestId(),
+                            request.getSessionId(), e.getMessage()));
+                }).toFuture();
     }
 
     @Override
     public Flux<StreamEvent> chatStreamReactive(GatewayRequest request) {
-        String sessionId = request.getSessionId();
+        // Gateway emits its own prefix first; merely building this Flux must not
+        // allocate or interrupt a run that might never receive a subscription.
+        return Flux.defer(() -> startStream(request));
+    }
+
+    private Flux<StreamEvent> startStream(GatewayRequest request) {
+        String sessionId = SessionKeys.slot(request.getPrincipalId(), request.getSessionId());
         String agentId = router.route(request);
 
         logger.info("Orchestrator routing: session={} → agent={}", sessionId, agentId);
 
         // AGENT_ROUTE 事件
-        StreamEvent routeEvent = StreamEvent.agentRoute(agentId, sessionId);
+        StreamEvent routeEvent = StreamEvent.agentRoute(agentId, request.getSessionId());
 
         // 检查是否有活跃的 run（打断接续）
         InterruptibleRun existing = activeRuns.get(sessionId);
@@ -196,41 +209,36 @@ public class Orchestrator implements ChatHandler {
                     Flux.just(routeEvent),
                     interruptEvent != null ? Flux.just(interruptEvent) : Flux.empty(),
                     speechInterrupted != null ? Flux.just(speechInterrupted) : Flux.empty(),
-                    existing.execute(request.getMessage())
-            );
+                    Flux.defer(() -> existing.execute(request.getMessage(), request.getToolExecutionContext()))
+            ).doFinally(sig -> releaseFinishedRun(sessionId, existing));
         }
 
         // 新建或复用已完成的 run
         String runId = UUID.randomUUID().toString();
-        String sessionKey = resolveSessionKey(agentId, sessionId);
+        String sessionKey = SessionKeys.main(request.getPrincipalId(), agentId, request.getSessionId());
         AgentProfile profile = agentRegistry.get(agentId).orElseGet(agentRegistry::getDefault);
-        AgentLoop agent = agentFactory.create(profile);
+        AgentLoop agent = createAgent(profile, sessionKey);
 
-        // 如果 profile 允许 spawn 且 runtime 存在，动态注册 spawn_subagent 工具
-        if (subagentRuntime != null && profile.getMaxSpawnDepth() > 0) {
-            // spawn 事件通过 announcer 回调注入到当前 run 的事件流
-            // 这里用一个简单的事件收集器，在 Flux 链中注入
-            agent.getToolRegistry().register(
-                    new SpawnSubagentTool(subagentRuntime, sessionKey, event -> {
-                        logger.debug("Subagent event in session {}: {}", sessionId, event.getType());
-                    }));
-        }
-
-        InterruptibleRun run = new InterruptibleRun(runId, sessionKey, agent, getMemoryProvider(agent));
+        InterruptibleRun run = new InterruptibleRun(runId, sessionKey, agent, agent.getExecutionMemory(request.getToolExecutionContext(), sessionKey));
         activeRuns.put(sessionId, run);
 
         return Flux.concat(
                 Flux.just(routeEvent),
-                run.execute(request.getMessage())
-                        .doFinally(sig -> {
-                            // 完成后从 activeRuns 移除（除非被打断）
-                            InterruptibleRun current = activeRuns.get(sessionId);
-                            if (current != null && !current.isRunning()
-                                    && current.getPhase() != InterruptibleRun.RunPhase.INTERRUPTED) {
-                                activeRuns.remove(sessionId);
-                            }
-                        })
-        );
+                Flux.defer(() -> run.execute(request.getMessage(), request.getToolExecutionContext()))
+        ).doFinally(sig -> releaseFinishedRun(sessionId, run));
+    }
+
+    private AgentLoop createAgent(AgentProfile profile, String sessionKey) {
+        return subagentRuntime == null ? agentFactory.create(profile)
+                : subagentRuntime.createRootAgent(agentFactory, profile, sessionKey);
+    }
+
+    private void releaseFinishedRun(String sessionId, InterruptibleRun run) {
+        // Include cancellation during the route prefix, before execute() starts.
+        // Identity guards cleanup against a replacement run for the same session.
+        if (!run.isRunning() && run.getPhase() != InterruptibleRun.RunPhase.INTERRUPTED) {
+            activeRuns.remove(sessionId, run);
+        }
     }
 
     /**
@@ -260,17 +268,30 @@ public class Orchestrator implements ChatHandler {
         return StreamEvent.speechInterrupted(existing.getRunId(), "barge-in");
     }
 
-    private String resolveSessionKey(String agentId, String sessionId) {
-        // 命名空间化：agent:<agentId>:main:<sessionId>
-        return "agent:" + agentId + ":main:" + sessionId;
+    @Override
+    public StreamEvent interrupt(String principalId, String sessionId) {
+        return interrupt(SessionKeys.slot(principalId, sessionId));
     }
 
-    /**
-     * 从 AgentLoop 获取 MemoryProvider（通过 AgentFactory 注入的共享实例）
-     */
-    private MemoryProvider getMemoryProvider(AgentLoop agent) {
-        // AgentLoop 当前没有暴露 memoryProvider getter
-        // 暂时通过 AgentFactory 的共享引用获取
-        return agentFactory.getSharedMemory();
+    @Override
+    public void cancel(String principalId, String sessionId, String cause) {
+        if (sessionId == null) return;
+        InterruptibleRun run = activeRuns.get(SessionKeys.slot(principalId, sessionId));
+        if (run == null) return;
+        CancellationCause cancellationCause;
+        try {
+            cancellationCause = CancellationCause.valueOf(cause == null ? "CLIENT_DISCONNECTED" : cause);
+        } catch (IllegalArgumentException ignored) {
+            cancellationCause = CancellationCause.CLIENT_DISCONNECTED;
+        }
+        run.cancel(cancellationCause);
     }
+
+    void clearExecutionScope(String principalId, String agentId, String sessionId) {
+        interrupt(principalId, sessionId);
+        if (subagentRuntime != null) {
+            subagentRuntime.stopForRootSession(SessionKeys.main(principalId, agentId, sessionId));
+        }
+    }
+
 }

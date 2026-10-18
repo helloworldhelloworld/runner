@@ -44,6 +44,8 @@ public class CapturingLLMProvider implements LLMProvider {
     /** 脚本化模式：每次调用依次返回一个响应（用于 tool_use → end_turn 多轮场景） */
     private final List<LLMResponse> scriptedResponses;
     private final AtomicInteger scriptedIndex = new AtomicInteger(0);
+    private java.util.function.BiFunction<List<ConversationMessage>, LLMOptions, Flux<StreamEvent>> reactiveResponder;
+    private java.util.function.BiFunction<List<ConversationMessage>, LLMOptions, LLMResponse> responder;
 
     private CapturingLLMProvider(String responseText, String stopReason) {
         this.responseText = responseText;
@@ -60,6 +62,21 @@ public class CapturingLLMProvider implements LLMProvider {
     /** 常用工厂：返回一条普通文本并以 end_turn 结束（不触发 tool_use 循环） */
     public static CapturingLLMProvider endTurn(String text) {
         return new CapturingLLMProvider(text, "end_turn");
+    }
+
+    public static CapturingLLMProvider responding(
+            java.util.function.BiFunction<List<ConversationMessage>, LLMOptions, LLMResponse> responder) {
+        CapturingLLMProvider provider = endTurn("done");
+        provider.responder = java.util.Objects.requireNonNull(responder);
+        return provider;
+    }
+
+    /** Controlled remote responses for interleaving tests; all actual inputs are still captured. */
+    public static CapturingLLMProvider reactive(
+            java.util.function.BiFunction<List<ConversationMessage>, LLMOptions, Flux<StreamEvent>> responder) {
+        CapturingLLMProvider provider = endTurn("done");
+        provider.reactiveResponder = java.util.Objects.requireNonNull(responder);
+        return provider;
     }
 
     /**
@@ -121,6 +138,7 @@ public class CapturingLLMProvider implements LLMProvider {
     @Override
     public LLMResponse complete(List<ConversationMessage> messages, LLMOptions options) {
         capture(messages, options);
+        if (responder != null) return responder.apply(List.copyOf(messages), options);
         return buildResponse();
     }
 
@@ -141,6 +159,8 @@ public class CapturingLLMProvider implements LLMProvider {
     @Override
     public Flux<StreamEvent> completeStreamReactive(List<ConversationMessage> messages, LLMOptions options) {
         capture(messages, options);
+        if (reactiveResponder != null) return reactiveResponder.apply(List.copyOf(messages), options);
+        if (responder != null) return Flux.just(StreamEvent.llmComplete(responder.apply(List.copyOf(messages), options)));
         return Flux.just(StreamEvent.llmComplete(buildResponse()));
     }
 

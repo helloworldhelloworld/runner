@@ -24,6 +24,7 @@ public class StreamEvent {
         TOOL_ERROR,        // 工具执行错误
         LLM_COMPLETE,      // LLM 最终响应(无更多工具调用)
         ERROR,             // 管道错误
+        BUDGET_STOPPED,    // 根预算拒绝下一次模型调用
         POST_PROCESS_DATA, // 后处理器注入数据 (卡片、标注、风控信号等)
         TRACE,             // 调用链追踪日志
 
@@ -152,6 +153,13 @@ public class StreamEvent {
 
     public static StreamEvent llmComplete(LLMResponse response) {
         return new StreamEvent(EventType.LLM_COMPLETE, null, null, null, response, null);
+    }
+
+    public static StreamEvent budgetStopped(Map<String,Object> usage) {
+        Map<String,Object> data = new java.util.LinkedHashMap<>(usage);
+        data.put("reason", "budget_exhausted");
+        return new StreamEvent(EventType.BUDGET_STOPPED, null, null, null, null, null,
+                "budget", Collections.unmodifiableMap(data));
     }
 
     public static StreamEvent error(Throwable error) {

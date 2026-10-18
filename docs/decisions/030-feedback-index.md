@@ -1,0 +1,8 @@
+# ADR-030：可追溯反馈索引
+
+- 日期：2026-09-12
+- 状态：Accepted
+
+反馈以追加记录保存，不修改历史 trace。每条记录绑定 task/run/candidate/evaluation 身份和
+来源，索引只用于检索和候选分析，不直接修改线上 Prompt、Skill 或模型配置。文件写入采用
+临时文件原子替换；重复 `feedbackId` 幂等。

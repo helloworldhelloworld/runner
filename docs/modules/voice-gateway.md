@@ -41,6 +41,14 @@ Device ⟷ Voice Gateway ⟷ 厂商流式 STT/TTS        Voice Gateway ⟷ runne
 
 ## Rules
 
+当前 Pi 同机组合入口的轮次契约见 [ADR-015](../decisions/015-voice-turn-cancellation.md)：
+`chat.turnId` / `interrupt.turnId` 关联可说块与终态，`speech_interrupted` 即结束旧轮；
+本地停止等待、abort 播放与保留插话不等待网络确认。STT 的多个句级 final 聚合后才提交。
+ADR-026 增加 `budget_stopped`：保留根预算与已知/未知用量，按 turnId 路由并立即结束目标轮，
+无需等待 stream_end。TextBridge 抛出携带 usage 的 BudgetStoppedError，并触发轮次取消和播放
+abort；迟到的旧轮停止不能影响新轮。无关联字段的终态在关联模式下明确报协议不兼容。
+语音仓保留旧无 turnId 接口；新双工入口需要支持关联字段的 Spring `/ws/chat`。
+
 - **不得**把原始音频字节路由进 runner(JVM) 或其 WebSocket/StreamEvent 通道
 - 语言不限，倾向非 JVM（贴近实时音频）；与 runner 间只走文本协议
 - viseme/口型同步数据下发给**设备 Realizer**，Gateway 自身不做表情对齐

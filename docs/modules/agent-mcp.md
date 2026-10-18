@@ -13,3 +13,10 @@ MCP protocol bridge. Wraps MCP tools as `Tool` interface.
 
 ## Dependencies
 agent-kernel only.
+
+## Framework acceptance
+
+WebSocket initialize/list-tools acceptance uses the public builder's production request deadline
+(30 seconds), including cold JDK HTTP client initialization. It does not pre-connect or wait for
+readiness outside the SDK. Separate connection-refused/disconnect tests verify prompt failure and
+preservation of the actual cause; success tests assert the received JSON-RPC payload and correlated result.

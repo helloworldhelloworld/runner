@@ -55,6 +55,8 @@ public class TestRunRepository {
                     )
                     """);
             }
+            PublicationSchema.columns(connection, "skill_test_runs", Map.of("candidate_json", "TEXT", "candidate_digest", "TEXT",
+                    "evaluation_json", "TEXT", "evaluation_digest", "TEXT", "report_digest", "TEXT"));
         } catch (SQLException e) {
             logger.error("Failed to initialize test run database: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to initialize test run database", e);
@@ -70,19 +72,20 @@ public class TestRunRepository {
 
     // ==================== TestRun CRUD ====================
 
-    public TestRun saveRun(TestRun run) {
+    public synchronized TestRun saveRun(TestRun run) {
         if (run.getId() == null || run.getId().isBlank()) {
             run.setId(UUID.randomUUID().toString());
         }
         String sql = """
-            INSERT INTO skill_test_runs (id, skill_id, started_at, completed_at, total, passed, failed, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO skill_test_runs (id, skill_id, started_at, completed_at, total, passed, failed, status, candidate_json, candidate_digest, evaluation_json, evaluation_digest, report_digest)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 completed_at = excluded.completed_at,
                 total = excluded.total,
                 passed = excluded.passed,
                 failed = excluded.failed,
-                status = excluded.status
+                status = excluded.status,
+                report_digest = excluded.report_digest
             """;
         try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
             ps.setString(1, run.getId());
@@ -93,6 +96,11 @@ public class TestRunRepository {
             ps.setInt(6, run.getPassed());
             ps.setInt(7, run.getFailed());
             ps.setString(8, run.getStatus());
+            ps.setString(9, run.getCandidateJson());
+            ps.setString(10, run.getCandidateDigest());
+            ps.setString(11, run.getEvaluationJson());
+            ps.setString(12, run.getEvaluationDigest());
+            ps.setString(13, run.getReportDigest());
             ps.executeUpdate();
         } catch (Exception e) {
             logger.error("Failed to save test run: {}", e.getMessage(), e);
@@ -101,7 +109,7 @@ public class TestRunRepository {
         return run;
     }
 
-    public Optional<TestRun> findRunById(String id) {
+    public synchronized Optional<TestRun> findRunById(String id) {
         try (PreparedStatement ps = getConnection().prepareStatement(
                 "SELECT * FROM skill_test_runs WHERE id = ?")) {
             ps.setString(1, id);
@@ -114,7 +122,7 @@ public class TestRunRepository {
         return Optional.empty();
     }
 
-    public List<TestRun> findRunsBySkillId(String skillId) {
+    public synchronized List<TestRun> findRunsBySkillId(String skillId) {
         List<TestRun> results = new ArrayList<>();
         try (PreparedStatement ps = getConnection().prepareStatement(
                 "SELECT * FROM skill_test_runs WHERE skill_id = ? ORDER BY started_at DESC")) {
@@ -128,7 +136,7 @@ public class TestRunRepository {
         return results;
     }
 
-    public void updateRunStatus(String runId, String status) {
+    public synchronized void updateRunStatus(String runId, String status) {
         try (PreparedStatement ps = getConnection().prepareStatement(
                 "UPDATE skill_test_runs SET status = ?, completed_at = ? WHERE id = ?")) {
             ps.setString(1, status);
@@ -142,7 +150,7 @@ public class TestRunRepository {
 
     // ==================== TestCaseResult CRUD ====================
 
-    public TestCaseResult saveCaseResult(TestCaseResult result) {
+    public synchronized TestCaseResult saveCaseResult(TestCaseResult result) {
         if (result.getId() == null || result.getId().isBlank()) {
             result.setId(UUID.randomUUID().toString());
         }
@@ -175,7 +183,7 @@ public class TestRunRepository {
         return result;
     }
 
-    public List<TestCaseResult> findCaseResultsByRunId(String runId) {
+    public synchronized List<TestCaseResult> findCaseResultsByRunId(String runId) {
         List<TestCaseResult> results = new ArrayList<>();
         try (PreparedStatement ps = getConnection().prepareStatement(
                 "SELECT * FROM skill_test_case_results WHERE run_id = ?")) {
@@ -203,6 +211,11 @@ public class TestRunRepository {
         run.setPassed(rs.getInt("passed"));
         run.setFailed(rs.getInt("failed"));
         run.setStatus(rs.getString("status"));
+        run.setCandidateJson(rs.getString("candidate_json"));
+        run.setCandidateDigest(rs.getString("candidate_digest"));
+        run.setEvaluationJson(rs.getString("evaluation_json"));
+        run.setEvaluationDigest(rs.getString("evaluation_digest"));
+        run.setReportDigest(rs.getString("report_digest"));
         return run;
     }
 

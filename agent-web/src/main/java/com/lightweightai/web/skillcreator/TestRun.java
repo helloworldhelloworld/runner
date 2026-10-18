@@ -16,6 +16,12 @@ public class TestRun {
     private int failed;
     private String status; // running | completed | failed
 
+    private String candidateJson;
+    private String candidateDigest;
+    private String evaluationJson;
+    private String evaluationDigest;
+    private String reportDigest;
+
     public TestRun() {}
 
     public TestRun(String id, String skillId) {
@@ -48,6 +54,17 @@ public class TestRun {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getCandidateJson() { return candidateJson; }
+    public void setCandidateJson(String value) { this.candidateJson = value; }
+    public String getCandidateDigest() { return candidateDigest; }
+    public void setCandidateDigest(String value) { this.candidateDigest = value; }
+    public String getEvaluationJson() { return evaluationJson; }
+    public void setEvaluationJson(String value) { this.evaluationJson = value; }
+    public String getEvaluationDigest() { return evaluationDigest; }
+    public void setEvaluationDigest(String value) { this.evaluationDigest = value; }
+    public String getReportDigest() { return reportDigest; }
+    public void setReportDigest(String value) { this.reportDigest = value; }
 
     public double getPassRate() {
         return total > 0 ? (double) passed / total : 0.0;
