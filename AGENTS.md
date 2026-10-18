@@ -8,14 +8,22 @@ here.
 ## Before changing code
 
 1. Read [CLAUDE.md](CLAUDE.md).
-2. Read the relevant architecture and module documentation:
+2. Read the current implementation status and remaining work in
+   [docs/design/runner-completion-plan.md](docs/design/runner-completion-plan.md).
+   Sections explicitly labeled as historical are evidence, not the current
+   work queue.
+3. Read the relevant architecture and module documentation:
    - [docs/architecture.md](docs/architecture.md)
    - [docs/conventions.md](docs/conventions.md)
    - [docs/modules/](docs/modules/)
    - [docs/decisions/](docs/decisions/)
-3. Confirm the baseline is green with `mvn clean test` when the change can
+4. Confirm the baseline is green with `mvn clean test` when the change can
    affect shared interfaces or cross-module wiring.
-4. Search every caller before changing a signature or shared payload.
+5. Search every caller before changing a signature or shared payload.
+
+For Dot/Codex handoffs, name one work package from the completion plan and
+require the result to report the commit, tests run, skipped external checks,
+and remaining boundary. Do not infer current work from the historical log.
 
 ## Non-negotiable rules
 

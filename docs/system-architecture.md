@@ -1,10 +1,10 @@
 # Runner 与 Minion 系统架构：历史、现状、目标与演进
 
-更新：2026-09-06。范围：runner、voice-gateway、minion-body、minion-eyes，以及“小黄人/files”的产品和实体设计资料。
+更新：2026-10-18。范围：runner、voice-gateway、minion-body、minion-eyes，以及“小黄人/files”的产品和实体设计资料。当前实施状态与下一批工作以[实施清单](design/runner-completion-plan.md)为唯一入口；历史 review 和旧验证记录不作为当前待办。
 
 **整体方向：runner 统一智能执行、会话与能力管理，Pi 对现场交互和设备执行负责，眼睛 MCU 持续渲染；以轮次、播放和执行结果连接三者，逐步交付可靠交流、自然表达、连续陪伴和真实身体。**
 
-项目已经从“分别做出大脑、语音和眼睛”进入“共同管理一次完整交流”的阶段。当前工作区已完成一批轮次与取消修复，并有真实 Java/Python WebSocket 自动化证据；完整实机体验、统一持久化和真实运动能力仍需分阶段验收。
+项目已经从“分别做出大脑、语音和眼睛”进入“共同管理一次完整交流”的阶段。runner 已完成轮次取消、认证会话、统一持久记忆、执行装配、Skill 发布、共享预算和持久任务基础；完整 Pi 播放事实、实机体验和真实运动能力仍需分阶段验收。
 
 全局演进主方案见 [Runner 与 Minion：端到端产品、架构与演进方案](design/runner-minion-system-evolution.md)，按产品设计、架构全景、runner 详细设计、现场交互、数据协议与实施工作包展开。本文保留历史路线、四仓现状证据和 Minion 场景分析；其中设备交付阶段服务于局部验收，全局实施优先级以主方案为准。[runner 内部架构](architecture.md)维护 Java 模块和依赖规则。历史发现保留在[联合 review](reviews/2026-09-06-minion-system-review.md)，当前取消实现以[ADR-015](decisions/015-voice-turn-cancellation.md)为准。本地运行时及状态归属记为[ADR-016 提案](decisions/016-local-interaction-runtime.md)，尚不代表全部实现或部署完成。
 
@@ -94,28 +94,29 @@ flowchart LR
 
 | 能力 | 当前实现 | 证据与剩余差距 |
 | --- | --- | --- |
-| Agent / Tool 主链 | Gateway → Orchestrator → AgentLoop → ToolCallingLoop → Provider / ToolExecutor | 全量 Java 回归通过；用户、设备、授权参数、预算尚未统一贯穿。见 [AgentLoop](../agent-kernel/src/main/java/com/lightweightai/kernel/agent/AgentLoop.java) |
+| Agent / Tool 主链 | Gateway → Orchestrator → AgentLoop → ToolCallingLoop → Provider / ToolExecutor | native 主链已贯通服务器主体、会话记忆、设备上下文、实际参数授权、执行快照和共享预算；真实设备身份及 OpenClaw workspace 仍未统一。见 [AgentLoop](../agent-kernel/src/main/java/com/lightweightai/kernel/agent/AgentLoop.java) |
 | 轮次与取消 | Spring WS 可选 turnId；本地取消；旧轮隔离；完整 B 输入；取消覆盖订阅前事件 | [ADR-015](decisions/015-voice-turn-cancellation.md)及 Java/Python 真 WS 往返通过；Pi 声学体验未验收 |
 | 输入与插话检测 | 单采集源扇出、边采边转、final 聚合；当前脚本依据云 STT 出字触发插话 | 本地取消执行已解耦网络确认；插话判定仍依赖 STT，不能称为全本地检测。见 [入口](../../voice-gateway/scripts/gateway_voice_duplex.py)、[capture](../../voice-gateway/src/voice_gateway/capture.py) |
 | 语音输出 | 云 TTS 流式适配、AplayPlayer、正常 drain / 取消 abort | 主入口首声统计是 write 前的时间；缺真实播放游标。见 [player](../../voice-gateway/src/voice_gateway/player.py) |
 | 表达同步 | speakable_chunk 支持 emotion；身体仓已有 Realizer | 缺省 classifier 为 neutral；主入口未接 Realizer，persona 仍先调 set_eyes。见 [装配](../agent-web/src/main/java/com/lightweightai/web/config/PostProcessorConfig.java)、[Realizer](../../minion-body/src/minion_body/realize.py) |
 | 设备与视觉 | MCP、风险映射、图像回灌、眼睛串口适配 | 真实舵机和相机仍可走 LoudFakeDevice；模拟成功未收敛成能力状态。见 [device](../../minion-body/src/minion_body/device.py) |
 | 眼睛固件 | EMOTION、BLINK、IDLE 与自治渲染 | LOOK 分支仍回 OK 而不执行；本次未构建或刷写。见 [固件入口](../../minion-eyes/src/main.cpp) |
-| 会话和记忆 | 内存会话历史、文件/SQLite 检索、长期记忆工具 | native 写入与旧历史管理路径不统一；生成文本未融合播放事实。见 [FileMemoryAdapter](../agent-web/src/main/java/com/lightweightai/web/config/FileMemoryAdapter.java)、[GatewayService](../agent-web/src/main/java/com/lightweightai/web/gateway/GatewayService.java) |
-| Skill、预算和权限 | 相关组件与基础测试已有 | Skill 发布未统一注入 native prompt；CostTracker 缺 usage 接线；ADR-018 已补执行前实际参数校验；ADR-019 已接通子任务权限与设备上下文继承；认证身份与根预算仍待完成。见 [历史 review](reviews/2026-09-06-minion-system-review.md)、[ScopedToolRegistry](../agent-kernel/src/main/java/com/lightweightai/kernel/agent/ScopedToolRegistry.java) |
-| 模型热切换 | [ADR-022](decisions/022-execution-model-binding.md)：一轮及同源子任务固定 Provider，新执行/接续采用新配置 | 真实 Spring/MVC 与 HTTP/SSE 往返通过；完整运行装配清单、配置持久化与发布核对仍待接通 |
+| 会话和记忆 | 认证 native 会话与旧 `/gateway` 入口使用主体分区的 SQLite 历史、摘要、检索和长期记忆工具 | 重启、清空和同名 session 隔离已验收；旧未归属数据不自动迁移，生成文本尚未融合实际播放事实。见 [FileMemoryAdapter](../agent-web/src/main/java/com/lightweightai/web/config/FileMemoryAdapter.java)、[ADR-025](decisions/025-authenticated-session-memory.md) |
+| Skill、预算和权限 | Skill 持久发布进入 native prompt；实际参数授权、父子权限、Provider usage、共享根预算和结构化停止已接通 | 受控 HTTP/SSE/WS 与全量 Java 回归通过；真实付费模型账单、设备授权服务及 Pi 现场仍需外部验证。见 [ADR-024](decisions/024-content-bound-skill-publication.md)、[ADR-026](decisions/026-execution-usage-budget-compaction.md) |
+| 模型热切换 | 一轮及同源子任务固定 Provider，新执行采用新配置；模型预设元数据持久化且密钥不落盘 | 真实 Spring/MVC 与 HTTP/SSE 往返及重启恢复通过；部署级密钥、外部服务版本和完整发布清单仍需独立管理。见 [ADR-022](decisions/022-execution-model-binding.md)、[ADR-031](decisions/031-persistent-model-config.md) |
+| 持久任务与反馈 | 文件任务存储、检查点、有界 runner、主体隔离 API、持久投递队列及反馈索引/API | 未知运行重启后进入 `RECOVERY_REQUIRED`；真实外部副作用核对、生产触发器、部署侧 consumer 和通用线上 trace 摄取仍待接入。见 [ADR-029](decisions/029-durable-task-checkpoints.md)、[ADR-030](decisions/030-feedback-index.md) |
 | 可替换大脑 | agent-openclaw 实现 ChatHandler 与协议适配 | 假远端往返已有；真实鉴权、长期连接与历史管理仍待验证。见 [模块状态](modules/agent-openclaw.md) |
 
 ### 3.3 当前证据是什么版本
 
 | 仓库 | 核对时 HEAD | 工作区 | 当前可引用证据 |
 | --- | --- | --- | --- |
-| runner | `f4f6e11` | 有未提交增量 | 2026-09-06 23:50:10 全量 `mvn clean test`：2303 项，2283 通过、20 跳过，0 失败/错误；13 模块成功，Python 往返显式启用并通过。新增 ADR-022 的执行级模型绑定验收；原 ADR-021 的 15 项脚本测试、23 项冻结候选验收保持历史有效范围 |
+| runner | `2c3b9f1` | 文档收口前代码已提交 | 2026-10-18 全量 `mvn clean test`：2380 项，2358 通过、22 跳过、0 失败/错误；13 模块成功。默认环境未启用可选跨仓 Python voice-gateway 探针；实机与付费服务不在本次证据范围内 |
 | voice-gateway | `4f084a7` | 有较多未提交增量 | 本次 Python 3.14 unittest：144 项，136 通过、8 跳过 |
 | minion-body | `370942c` | 有未提交增量 | 本次 Python 3.14 unittest：120 项，115 通过、5 跳过 |
 | minion-eyes | `50d1340` | 有未提交固件增量 | 本次静态核对；未发现 pio 命令，未构建、刷写或现场检查 |
 
-Python 跳过项包括可选 jsonschema、语音 SDK 或设备依赖；voice-gateway 运行还出现未关闭事件循环的 ResourceWarning，需在持续运行验收中追踪。schema 两仓副本本次比对一致。上述 HEAD 仅标识增量基座，复现还需包含工作区补丁；没有据此认定这四个提交就是已发布的配套版本。
+Python 历史跳过项包括可选 jsonschema、语音 SDK 或设备依赖；voice-gateway 运行还出现未关闭事件循环的 ResourceWarning，需在持续运行验收中追踪。schema 两仓副本的历史比对一致。四仓尚未形成一次正式配套发布，其他仓库的历史 HEAD 不能代表当前已部署组合。
 
 ## 4. 目标架构：三个执行区域，六项职责
 
@@ -206,7 +207,7 @@ native 运行时的目标链为：
 
 工具目录可共享，会话专属工具绑定须局部化。发现工具时的可见性过滤与执行时的参数授权分别验证。压缩覆盖每轮工具循环新增的上下文，预算消费来自实际 usage。Minion 的专用策略由装配和 Profile 提供，公共契约保持 additive-only。
 
-这条链需要同时区分三种状态：全局共享的工具/模型目录；每次运行冻结的身份、Profile/Skill 版本和模型配置；执行中变化的取消、预算和设备在线状态。当前 `ScopedToolRegistry.register()` 已有委托父目录的语义，ADR-018 已增加 registerLocal 并迁移 native spawn 装配；客户端 dispatcher 与设备上下文已接入请求执行链。ADR-019 已接通子 Agent 的祖先权限交集、设备上下文继承与局部任务控制；消息按子任务键分支。认证归属、存储命名空间隔离和根预算尚待接通，增加并发前仍需证明多用户不会交叉消费历史与轨迹。
+这条链需要同时区分三种状态：全局共享的工具/模型目录；每次运行冻结的身份、Profile/Skill 版本和模型配置；执行中变化的取消、预算和设备在线状态。`ScopedToolRegistry.registerLocal()`、执行装配快照、认证会话命名空间和共享根预算已接入 native 链；子 Agent 继承祖先权限、设备上下文、模型/配置快照和预算。剩余边界是经过认证的具体设备身份、OpenClaw workspace 隔离、生产 trace，以及 Pi 对播放和设备状态的现场事实。
 
 ### 4.4 四类数据各走适合的通路
 
@@ -335,7 +336,7 @@ MCP 的取消机制本身不保证撤销操作：接收方可能因任务已完�
 | V0 可复现原型 | 四仓/固件/协议组合清单、统一入口说明、硬件与配置基线、真实/模拟能力表 | 新环境能按记录启动；测试和实机证据可以定位到配套版本 | 工作区核对和测试已有，配套发布与现场盘点待完成 |
 | V1 可靠交流 | 收尾 ADR-015 的完整 Pi 链路；输入/生成/播放三状态、故障收尾、有界缓存 | 首声前与播放中插话、多段 B、旧 A 晚到、满队列、断网、SDK 失败均不串轮、不遗留等待 | runner 与跨仓 WS 自动化通过；可选 SDK、持续运行及实机验收仍需补齐 |
 | V2 自然表达 | 唤醒/插话判定优化、AEC、播放游标、语句表达、Realizer 接主链 | 端到端首响与停播分布合格；眼睛随对应语句；长时运行无积压 | 分句、流式适配、Realizer 组件可复用；时钟和装配尚未闭合 |
-| V3 连续陪伴 | 统一会话持久化、播放事实、用户作用域、Skill 配置消费、预算与压缩 | 重启、查询、更正、清空一致；未播出内容不当作已交流；实际请求使用正确版本和预算 | 组件基础已有，主链整合待实施 |
+| V3 连续陪伴 | 统一会话持久化、播放事实、用户作用域、Skill 配置消费、预算与压缩 | 重启、查询、更正、清空一致；未播出内容不当作已交流；实际请求使用正确版本和预算 | 会话、用户作用域、Skill、预算与压缩已接主链；播放事实和完整遗忘管理待实施 |
 | V4 完整实体 | STS3215 腰转/双臂、按需真实视觉、动作反馈、整机装配和声学 | 动作完成/失败/停止可证明；真实图像到模型；走线、间隙、电源、温升与噪声经过实测 | 目标硬件已记录，驱动/安装/整机状态需核验 |
 
 这些是交付门槛，不是相互阻塞的五个瀑布阶段。软件主线依赖轮次→播放→交流事实；硬件验证可以提前并行。会话专属工具隔离、真实参数授权、设备上下文与预算，按所开放的能力优先接通，不能等多用户或运动功能全部上线才处理。

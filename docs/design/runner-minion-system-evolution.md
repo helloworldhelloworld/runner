@@ -87,12 +87,12 @@ flowchart TB
 | 领域 | 当前可保留的基础 | 当前缺口或证据边界 | 演进含义 |
 |---|---|---|---|
 | Runner 分层 | kernel 基座、web 装配、统一 Flux 事件、ChatHandler | 多种入口和管理路径仍存在历史分叉 | 保留分层，统一应用语义 |
-| Agent 执行 | native 传递主体、设备、dispatcher、超时与权限；执行固定 Provider、提示和工具快照 | 根预算、完整持久谱系、Profile/model 管理扩展仍待补齐 | 在已贯通的作用域上继续加入预算与任务状态 |
-| 工具与子 Agent | 局部任务控制、父子权限交集、深度与取消；主体继承、清空停止独立后代已有验收 | 根预算、持久任务与外部副作用恢复仍待实施 | 继续补齐完整任务治理 |
-| 记忆 | 新认证 native 会话的历史、摘要、检索和工具写入共用 SQLite 分区；重启与清空已有验收 | 全量回归待收口；旧未归属数据未自动迁移，通用遗忘管理仍需补齐 | 保持单一来源，继续完善数据生命周期 |
+| Agent 执行 | native 传递主体、设备、dispatcher、超时、权限和共享预算；执行固定 Provider、提示和工具快照 | 具体设备身份、OpenClaw workspace、完整持久谱系与 Profile 管理扩展仍待补齐 | 在已贯通作用域上继续接生产设备和任务事实 |
+| 工具与子 Agent | 局部任务控制、父子权限交集、深度、取消和根预算；持久任务存储、runner 与投递队列已有验收 | 真实外部副作用核对、生产触发器和部署侧投递 consumer 仍待实施 | 从基础任务治理推进到真实交付 |
+| 记忆 | 认证 native 与旧 `/gateway` 的历史、摘要、检索和工具写入共用主体分区 SQLite；重启与清空已有验收 | 旧未归属数据未自动迁移，播放事实与通用遗忘管理仍需补齐 | 保持单一来源，继续完善数据生命周期 |
 | 技能 | 候选/评测/报告绑定、原子激活与回滚、重启恢复、实际提示消费已通过 ADR-024 验收 | Skill 发布范围不能涵盖全部运行代码与部署配置 | 扩展全框架候选与生产装配核对 |
-| 持续改进 | 源码冻结、受控执行、报告/证据绑定、replay 与同评测候选比较已实现 | 线上轨迹/反馈归属、完整生产发布与最终候选样本仍待完成 | 让受控证据与生产装配、反馈形成持续循环 |
-| 长任务 | TriggerSource、SubagentRuntime、异步运行 | 尚不能据此证明任务跨重启恢复 | 增加持久任务边界 |
+| 持续改进 | 源码冻结、受控执行、报告/证据绑定、replay、同评测候选比较和主体反馈索引已实现 | 通用线上 trace 摄取、自动分析、完整生产发布与当前源码候选样本仍待完成 | 让受控证据与生产装配、反馈形成持续循环 |
+| 长任务 | 文件任务存储、检查点、服务、有界 runner、主体隔离 API 和持久投递队列 | 重启可识别未知运行但不能自动核对外部副作用；生产触发和投递通道未装配 | 先保证不盲重做，再接真实调度与交付 |
 | 大脑替换 | native 主线、OpenClaw 流式适配 | OpenClaw 的远端鉴权及 workspace 隔离未验证，有主体请求明确拒绝 | 对齐完整契约后再开放认证入口 |
 | 语音轮次 | turnId、取消、旧帧过滤、完整 STT 聚合与输入交接 | 自动化与 Pi 声学验收尚有距离 | 将现有取消作为基线 |
 | 语音表现 | 分句、TTS 事件、Realizer 组件 | 双工主入口未把 TTS 事件完整接入 Realizer | 用实际播放时间连接表现 |
@@ -106,7 +106,7 @@ voice-gateway 当前 `capture_realtime()` 已持续向 STT 送音频，`collect_
 
 第一类是**共享状态与执行状态混在一起**。`ScopedToolRegistry.register()` 为兼容仍委托 parent；ADR-018 已新增 `registerLocal()` 并迁移 native spawn 装配，消除了该路径把父会话绑定写入全局表的问题。`ToolExecutionContext` 现已传递主体、记忆视图、取消以及模型/配置作用域；DeviceContext 仍只描述设备类型和版本，具体设备 ID 与持久运行身份仍需补齐。不能把这个类型的存在等同于完整上下文已实现。[ScopedToolRegistry](../../agent-kernel/src/main/java/com/lightweightai/kernel/agent/ScopedToolRegistry.java)、[ToolExecutionContext](../../agent-kernel/src/main/java/com/lightweightai/kernel/core/ToolExecutionContext.java)、[DeviceContext](../../agent-kernel/src/main/java/com/lightweightai/kernel/agent/DeviceContext.java)
 
-第二类是**管理配置需要通过实际消费验证**。ADR-023/024 已把持久 Skill 版本与统一 PromptSource 接入 AgentLoop，并记录执行装配清单，修复发布与实际提示脱节。Profile/model 管理扩展、真实 usage 与预算接线仍需继续。这些问题应通过检查模型请求与执行结果解决，不能用“页面显示 active”或“builder 不为空”代替。[AgentLoop](../../agent-kernel/src/main/java/com/lightweightai/kernel/agent/AgentLoop.java)、[SkillPublishService](../../agent-web/src/main/java/com/lightweightai/web/skillcreator/SkillPublishService.java)、[ToolCallingLoop](../../agent-kernel/src/main/java/com/lightweightai/kernel/core/ToolCallingLoop.java)
+第二类是**管理配置需要通过实际消费验证**。ADR-023/024 已把持久 Skill 版本与统一 PromptSource 接入 AgentLoop，并记录执行装配清单；ADR-026 将 Provider usage、共享预算与循环压缩接入真实请求边界；ADR-031 持久化模型预设元数据。Profile 管理扩展和部署级配置仍需继续。这些问题应通过检查模型请求与执行结果解决，不能用“页面显示 active”或“builder 不为空”代替。[AgentLoop](../../agent-kernel/src/main/java/com/lightweightai/kernel/agent/AgentLoop.java)、[SkillPublishService](../../agent-web/src/main/java/com/lightweightai/web/skillcreator/SkillPublishService.java)、[ToolCallingLoop](../../agent-kernel/src/main/java/com/lightweightai/kernel/core/ToolCallingLoop.java)
 
 第三类是**事实需要一致的读写方**。ADR-025 为新认证 native 请求接入同一 SQLite 分区与 NativeSessionManager，历史、检索、工具写入和清空已有往返验收。旧 GatewayService 与未归属文件保留为兼容路径；不能把它们的记录当作新用户或外部 backend 的真实上下文。[FileMemoryAdapter](../../agent-web/src/main/java/com/lightweightai/web/config/FileMemoryAdapter.java)、[GatewayService](../../agent-web/src/main/java/com/lightweightai/web/gateway/GatewayService.java)
 
@@ -742,7 +742,7 @@ kernel 保留事件、上下文、观察与导出端口；存储适配保留证�
 | I. 装配快照与生命周期 | web 配置、Factory、局部注册、资源关闭 | 同一配置可重建；A 清理不删除 B；发布 v2 后运行实际采用 v2 | 清单从阶段 0 开始，机制与 A—C、E 配合 |
 | J. 证据驱动的改进闭环 | 整套候选清单、trace/反馈/用例索引、候选执行器、报告和发布适配 | 失败→用例→实际运行候选→内容绑定发布→下一轮验证；改动代码/工具/配置后旧报告失效 | 受控样本可独立开始；在线用户证据依赖 A/D；发布依赖 I 及变更对应的装配，现场评测依赖 F/H |
 
-近期主干优先 A→B，并同步推进 E。原因是同一份运行身份与设备所有权支撑之后所有能力；若这两处继续分散，新增任务、技能和身体动作会放大串会话和控制冲突。C、D 随后把“配置能生效、结果能保存”变为可靠基础。现有 turnId 取消实现进入配套发布与实机验收，不重新当作尚未开始的设计项。
+截至 2026-10-18，A—D 与 I 的 runner 核心链已经实现并通过自动化，G/J 已完成存储与受控工作流基础。近期主干转为 E→F：收敛 Pi 唯一设备实例、播放游标、Realizer 和播放回执；同时补齐 G 的真实外部副作用核对与部署侧投递，以及 J 的通用线上 trace 摄取。现有 turnId 取消、身份、预算和持久化进入配套发布与实机验收，不重新当作尚未开始的设计项。
 
 I、J 是贯穿主线的工程能力，先记录完整运行框架的候选版本、失败样本和有效反馈；待真实执行与配置消费一致后接通候选发布。可从系统级受控样本推进，无需等待所有 Skill 或认证改造完成；在线用户轨迹仍受身份与存储边界约束。DSH 与 OpenAI 的参考不要求先迁移整个框架。
 
@@ -756,7 +756,9 @@ I、J 是贯穿主线的工程能力，先记录完整运行框架的候选版�
 
 ### 12.4 2026-09-06 实施进展与续接点
 
-**2026-09-07 续接更新**：全部未完成事项按[完整实施清单](runner-completion-plan.md)推进。
+> 本节是 2026-09-06—09-12 的历史实施记录。当前状态和下一批工作只看[实施清单](runner-completion-plan.md)，编码 Agent 不应从本节推断当前待办。
+
+**2026-09-07 续接更新**：当时未完成事项按[完整实施清单](runner-completion-plan.md)推进。
 原下文的 9 月 6 日结果保留为历史证据。新增 [ADR-023](../decisions/023-execution-assembly-snapshot.md)
 已贯通真实模型请求、工具实现/设备定义、提示快照和执行装配观察；同源子任务继承旧快照，新根执行采用更新。
 [ADR-024](../decisions/024-content-bound-skill-publication.md) 已实现候选/评测/报告内容绑定、事务激活、条件更新、
@@ -777,9 +779,9 @@ OpenClaw 未验证隔离时的明确拒绝边界也已通过下游输入验收�
 后续仍有真实 usage/共享预算、循环中压缩、持久任务、线上反馈证据、Pi 唯一设备实例、播放回执和
 实机验收；本轮成果不限于 Skill，也不替代这些剩余工作。
 
-**续接入口：先读本节，再按第 12.2 节选择工作包。** 架构分析已完成；随后实施 ADR-018 请求工具边界、ADR-019 子任务继承与所有权，以及 ADR-020 前台取消联动。改进闭环按整个运行框架设计，Skill 只是其中一类候选；[独立实施设计](runner-improvement-loop-implementation.md)已记录内容绑定、取消链和模型切换两个系统级样本。ADR-021 已实现 I/J 的仓库级候选冻结、受控执行、证据/报告绑定与 replay；ADR-022 已固定生产执行及同源子任务的 Provider 选择；A/B 的认证身份与根预算、D 的统一存储，以及完整装配快照、在线证据和发布仍待完成。没有安装 DSH、HALO 或 Promptfoo。
+**历史续接点：** 当时的下一步是 ADR-018—022 及 A/B/D/I/J；这些项目的后续结果已汇总到当前[实施清单](runner-completion-plan.md)。本段只说明决策演进，不能覆盖 ADR-023—031 和 2026-10-18 的全量回归。没有安装 DSH、HALO 或 Promptfoo。
 
-| 项目 | 当前状态 | 证据 / 后续动作 |
+| 项目 | 当时状态 | 证据 / 后续动作 |
 |---|---|---|
 | ADR-015 轮次与取消 | runner 工作区实现及自动化已完成 | 订阅前取消、完整 B、真实 Java/Python WS；本批追加客户端工具等待阶段取消；Pi 验收待完成 |
 | 整体架构与演进方案 | 本文、历史分析及 OpenAI/DSH 对照已形成 | 本文保持全局实施顺序入口；外部框架仅作为参考 |
@@ -872,15 +874,7 @@ mvn clean test -Dvoice.gateway.root=/Users/hello/Documents/sourcecode/voice-gate
 
 历史配套证据保持原有效范围：voice-gateway 144 项、136 通过、8 跳过；minion-body 120 项、115 通过、5 跳过。本批没有重跑它们各自的完整测试套件；runner 构建中的 Python 探针只证明规定的跨仓接缝。跳过项、ResourceWarning、eyes 未构建/刷写和实机边界见[四仓证据](../system-architecture.md#33-当前证据是什么版本)。原架构文档的 6 张 Mermaid 图渲染记录保留，本批没有修改图结构。
 
-下一次从以下内容继续：
-
-1. 读取本节和 CLAUDE.md、ADR-015—022，核对工作区补丁与配套仓版本；前台取消、候选冻结/受控执行/证据绑定/replay 及执行级 Provider 选择已完成，认证与存储隔离仍未完成。
-2. I/J 按[完整运行框架落地设计](runner-improvement-loop-implementation.md)继续接完整生产装配快照和可复用观察端口：Provider 选择已按执行固定，下一步将 Profile/Prompt/工具实现/策略/LLMOptions 纳入共同清单，并记录真实消费。Profile.modelOverride、模型管理配置持久化/原子元数据、连接池释放仍未完成。现有脚本与受控证据包作为验收基础；不得把源码快照等同于已接通的线上装配，也不局限于 Skill。
-3. A/D 按[认证续接检查](../reviews/2026-09-06-auth-session-followup.md)联合设计服务器身份、运行槽位和存储迁移；两用户使用相同 sessionId、伪造内部键、读取摘要/长期记忆必须在真实传输与实际 Provider 请求上验证隔离。仅增加 userId 或只改历史键不够；旧未归属数据迁移规则先确定。接通真实 usage 后再共享根预算，E 的 Pi 所有权收敛可独立推进。
-4. C/I 证明“发布候选 → 下一轮 Provider 收到同一候选”，固定整套配置/用例内容摘要；Skill 发布链是其中一个接入场景。当前 stage 按 skillId 最近报告判断、激活注册错误被日志捕获，需用失败用例验证并修复。D 同步收敛历史查询/清空；J 的线上用户证据接入需等待身份与存储边界齐备。
-5. Pi、真云语音和真实设备验收单独记录；媒体保持绕开 JVM，新增生命周期采用类型化事件，Tool/ToolSourceProvider/MCP 旧公共 API 保持兼容。
-
-尚待决定：认证运行身份的承载与迁移、统一会话存储、生产装配/证据的存储与消费接口、线上候选执行适配、Pi 音频后端。ADR-021 已确定受控开发包 v1 格式和 Maven 执行入口；ADR-018—020 的运行接线保持有效，无需为后续工作安装外部框架或替换 native Agent Loop。
+以上“下一次”事项是当时的续接清单，已由 ADR-023—031 和后续实现部分或全部完成。当前不得继续执行这份旧清单；应从[当前实施状态与剩余工作](runner-completion-plan.md)选择 E/F/G/J/H 中的一个边界。Pi、真云语音和真实设备验收仍须单独记录；媒体保持绕开 JVM，新增生命周期采用类型化事件，Tool/ToolSourceProvider/MCP 旧公共 API 保持兼容。
 
 ## 13. 当前确定的方向与后续决策点
 
@@ -888,7 +882,7 @@ mvn clean test -Dvoice.gateway.root=/Users/hello/Documents/sourcecode/voice-gate
 
 架构补充方向是可检查的运行装配和证据驱动的改进闭环：先让配置真正生效、运行可复现，再增加优化自动化；对应 ADR-017 保持提案状态，具体接口由工作包实施验证。
 
-以下选择在对应阶段根据验证决定，不阻塞前述主干：持久任务存储的具体模块与表设计；最终音频后端和播放游标精度；本地唤醒与插话阈值；I2S 输出及 AEC 参考接法；舵机停止策略和标定动作集；外部大脑能否满足同一契约。每项都有明确决策依据，无需为了画出完整架构提前冻结尚未验证的技术。
+以下选择在对应阶段根据验证决定，不阻塞前述主干：持久任务的生产存储与外部副作用账本；最终音频后端和播放游标精度；本地唤醒与插话阈值；I2S 输出及 AEC 参考接法；舵机停止策略和标定动作集；外部大脑能否满足同一契约。每项都有明确决策依据，无需为了画出完整架构提前冻结尚未验证的技术。
 
 是否引入 LiveKit/Pipecat、完整 ROS 2、多进程 Pi 或多实例 runner，分别由语音运行时维护负担、机器人能力复杂度、驱动隔离需求和实际负载触发。端到端语音模型也通过相同的中文交流、工具、取消、输出记录和费用场景比较后决定。替换组件时继续保留会话、任务、控制和结果的产品语义。
 
@@ -904,7 +898,7 @@ mvn clean test -Dvoice.gateway.root=/Users/hello/Documents/sourcecode/voice-gate
 - [实体决策](/Users/hello/Documents/小黄人/files/decisions.md)、[早期对话 MVP](/Users/hello/Documents/小黄人/files/04-dialogue-mvp.md)、[后续实体阶段](/Users/hello/Documents/小黄人/files/future-phases.md)：产品、装配和硬件约束。
 - 业界资料于 2026-09-06 查阅：第 3 节架构参考、第 6 节 MCP 取消、第 8 节 ReSpeaker、第 11 节 OpenTelemetry，原始链接均紧邻对应论点。
 - 本轮新增参考：[OpenAI Agent Improvement Loop](https://developers.openai.com/cookbook/examples/agents_sdk/agent_improvement_loop)；第 3 节链接的 DeepSeek Harness 官方架构、scope、工具链与 session 文档固定到 `d347e703908d`。第 11.4 节的本项目适配和验收设计不是对这些项目现成能力的声明。
-- [ADR-017：运行装配与改进闭环](../decisions/017-versioned-harness-improvement-loop.md)记录新增目标取舍；[实施进展](#124-2026-09-06-实施进展与续接点)用于下次恢复工作。
+- [ADR-017：运行装配与改进闭环](../decisions/017-versioned-harness-improvement-loop.md)记录新增目标取舍；[当前实施状态与剩余工作](runner-completion-plan.md)用于恢复工作，本文件第 12.4 节只保存历史证据。
 - [完整运行框架改进闭环落地设计](runner-improvement-loop-implementation.md)：候选范围、内容锁定、取消链系统样本与下一批顺序。
 
 后续维护方式：实现一个工作包，就更新第 2 节现状、第 12 节完成证据及对应模块/ADR。原始 review 保持历史记录，本文保持一份不断校准的全局演进主方案。

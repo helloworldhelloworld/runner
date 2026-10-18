@@ -20,3 +20,10 @@
 
 本 ADR 交付 kernel 的任务模型、存储 SPI、文件实现和恢复判定；调度器、Web API、Pi 投递和
 真实外部副作用核对属于后续增量。旧前台 Gateway/ChatHandler API 不变。
+
+## 后续实施状态
+
+2026-09-12 已在该决策之上增加 `DurableTaskRunner`、主体隔离的 Web API、持久
+`TaskDeliveryStore` 和失败可重试的 `TaskDeliveryDispatcher`。当前仍未完成的是生产触发器、
+按真实外部系统回查的持久副作用账本、部署侧投递 consumer 和 Pi 投递；这些边界以
+[当前实施状态](../design/runner-completion-plan.md)为准。
