@@ -59,7 +59,7 @@ def safe_path(root, name):
 
 def source_path(name):
     parts = PurePosixPath(name).parts
-    return not any(p in ('.git', 'target', '__pycache__') for p in parts) and parts[0] != 'ci-results'
+    return not any(p in ('.git', 'target', '__pycache__') for p in parts) and parts[0] not in ('ci-results', '.worktrees')
 
 
 def file_record(root, name):

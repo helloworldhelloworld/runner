@@ -19,6 +19,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Initialize current CI result
+        run: |
+          python3 -B scripts/ci_results.py init \
+            --output-dir ci-results \
+            --trigger-sha "${{ github.sha }}" \
+            --branch "${{ github.ref_name }}" \
+            --run-id "${{ github.run_id }}"
+
       - uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -26,46 +34,83 @@ jobs:
           cache: 'maven'
 
       - name: Test candidate evidence workflow
+        id: candidate_workflow_tests
+        continue-on-error: true
         run: python3 -B -m unittest discover -s scripts/tests -v
 
       - name: Run frozen native candidate
-        run: python3 -B scripts/improvement_loop.py run --repo . --spec evals/foreground-cancellation.json --output "$RUNNER_TEMP/runner-cancellation-evidence"
+        id: frozen_candidate
+        if: steps.candidate_workflow_tests.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set +e
+          python3 -B scripts/improvement_loop.py run \
+            --repo . \
+            --spec evals/foreground-cancellation.json \
+            --output "$RUNNER_TEMP/runner-cancellation-evidence"
+          CANDIDATE_EXIT=$?
+          echo "exit_code=$CANDIDATE_EXIT" >> "$GITHUB_OUTPUT"
+          exit "$CANDIDATE_EXIT"
 
       - name: Build and Test
         id: build
+        if: always()
         continue-on-error: true
         run: |
-          mkdir -p ci-results
-          mvn -B package --no-transfer-progress 2>&1 | tee ci-results/build.log; BUILD_EXIT=${PIPESTATUS[0]}
-          TEST_SUMMARY=$(grep -E "Tests run:" ci-results/build.log | tail -10 | tr '\n' '|' || echo "N/A")
-          echo "exit_code=$BUILD_EXIT" >> $GITHUB_OUTPUT
-          echo "test_summary=$TEST_SUMMARY" >> $GITHUB_OUTPUT
-          exit $BUILD_EXIT
-        env:
-          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          set +e
+          mvn -B package --no-transfer-progress 2>&1 | tee -a ci-results/build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          grep -E "Tests run:" ci-results/build.log | tail -10 > "$RUNNER_TEMP/test-summary.txt" || true
+          echo "exit_code=$BUILD_EXIT" >> "$GITHUB_OUTPUT"
+          exit "$BUILD_EXIT"
+
+      - name: Finalize CI result
+        id: finalize
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 -B scripts/ci_results.py finalize \
+            --output-dir ci-results \
+            --trigger-sha "${{ github.sha }}" \
+            --branch "${{ github.ref_name }}" \
+            --run-id "${{ github.run_id }}" \
+            --artifact-name "runner-ci-${{ github.run_id }}-${{ github.sha }}" \
+            --workflow-tests-outcome "${{ steps.candidate_workflow_tests.outcome }}" \
+            --candidate-outcome "${{ steps.frozen_candidate.outcome }}" \
+            --candidate-exit-code "${{ steps.frozen_candidate.outputs.exit_code }}" \
+            --candidate-bundle "$RUNNER_TEMP/runner-cancellation-evidence" \
+            --build-outcome "${{ steps.build.outcome }}" \
+            --build-exit-code "${{ steps.build.outputs.exit_code }}" \
+            --test-summary-file "$RUNNER_TEMP/test-summary.txt"
+
+      - name: Upload current CI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-ci-${{ github.run_id }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/runner-cancellation-evidence
+            ci-results/latest.json
+            ci-results/build.log
+          if-no-files-found: error
+          retention-days: 30
 
       # 仅在 push 事件回写 ci-results：PR 触发时 checkout 的是 pull/<n>/merge 这个
       # detached HEAD，git push 无分支可推（exit 128）。PR 不该污染 ci-results，故跳过。
       - name: Write CI results back to repo
         if: always() && github.event_name == 'push'
         run: |
-          mkdir -p ci-results
-          [ ! -f ci-results/build.log ] && echo "(build did not start)" > ci-results/build.log
-
-          EXIT="${{ steps.build.outputs.exit_code }}"
-          [ -z "$EXIT" ] && EXIT=1
-
-          printf '{\n  "trigger_sha": "%s",\n  "exit_code": %s,\n  "timestamp": "%s",\n  "branch": "%s",\n  "run_id": "%s",\n  "test_summary": "%s"\n}\n' \
-            "${{ github.sha }}" "$EXIT" \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            "${{ github.ref_name }}" \
-            "${{ github.run_id }}" \
-            "${{ steps.build.outputs.test_summary }}" \
-            > ci-results/latest.json
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f ci-results/
+          git add -f ci-results/build.log ci-results/latest.json
           git status
           git commit -m "ci-results: ${{ github.sha }} [skip ci]" || echo "nothing to commit"
           git push
+
+      - name: Enforce required CI stages
+        if: always()
+        run: |
+          python3 -B scripts/ci_results.py verify \
+            --output-dir ci-results \
+            --trigger-sha "${{ github.sha }}" \
+            --run-id "${{ github.run_id }}"

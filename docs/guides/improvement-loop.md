@@ -54,8 +54,31 @@ capture 后 verify 返回 captured，只说明输入完整；执行通过才返�
 执行前后源码内容一致。verify 核对保存的证据，带 --repo 时还核对当前工作区。通过只覆盖声明的
 受控场景，不是发布批准；任何源码、评测或报告内容变化都需要重新验证。
 
-原始运行包可含测试输入和日志，不作为线上用户数据采集入口。忽略文件与 ci-results 不进入副本；
+原始运行包可含测试输入和日志，不作为线上用户数据采集入口。忽略文件、ci-results 与本地
+`.worktrees/` 容器不进入副本；
 使用声明过的测试配置，勿依赖未记录的本地运行数据。首次构建仍可能下载 Maven 依赖。
+
+## CI 结果与失败取证
+
+CI 分别记录候选工具自检、冻结 native 候选和全仓构建三个阶段。`ci-results/latest.json` 必须绑定
+触发提交 SHA、分支及 GitHub run ID，每个阶段只使用 `passed`、`failed` 或 `skipped`；冻结候选
+同时记录候选/评测摘要，全仓构建记录本次退出码和测试摘要。
+
+工作流在运行测试前初始化 `ci-results/`，所以即使前序阶段失败，`build.log` 也只能是本次构建输出
+或带当前 SHA/run ID 的明确未运行说明，不能沿用仓库中的旧日志。完整候选包和 CI 摘要通过名含
+run ID 与触发 SHA 的 artifact 在成功、失败时都上传；排障时先下载该 artifact，检查候选包内的
+`report.json`、`handoff.md`、`build.log` 和 `evidence/`，不要只根据 job 的退出码推断测试原因。
+
+本地可用以下命令验证阶段摘要的生成与 SHA 绑定；它不会调用模型或硬件：
+
+```bash
+python3 -B -m unittest discover -s scripts/tests -v
+python3 -B scripts/ci_results.py --help
+```
+
+2026-10-18 本地复验：脚本自检 23 项通过；冻结 native 候选 23 项通过并产出两份绑定证据；
+20 轮压力运行共 460 次用例执行无失败；全仓 clean test 为 2380 项、2358 通过、22 项环境条件跳过。
+原 CI 39095202090 因旧工作流未上传候选包，无法恢复其内部失败详情；该事实必须与本地复验区分。
 
 ## 自检
 

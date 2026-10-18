@@ -70,11 +70,12 @@ class CandidateCliTest(unittest.TestCase):
         self.put('target/stale.xml', 'stale success')
         self.put('.env', 'DO_NOT_COPY')
         self.put('ci-results/latest.json', 'generated')
+        self.put('.worktrees/issue-200/local.txt', 'separate worktree')
         candidate = self.capture()
         snapshot = self.bundle / 'snapshot'
         self.assertIn('version = 2', (snapshot / 'agent-kernel/src/main/java/Loop.java').read_text())
         self.assertTrue((snapshot / 'agent-kernel/src/main/java/NewTool.java').exists())
-        for ignored in ['target', '.env', '.git', 'ci-results']:
+        for ignored in ['target', '.env', '.git', 'ci-results', '.worktrees']:
             self.assertFalse((snapshot / ignored).exists(), ignored)
         self.assertEqual(64, len(candidate['digest']))
         evaluation = json.loads((self.bundle / 'evaluation.json').read_text())
