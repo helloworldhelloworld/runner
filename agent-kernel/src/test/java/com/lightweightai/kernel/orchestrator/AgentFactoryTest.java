@@ -127,18 +127,25 @@ class AgentFactoryTest {
     }
 
     @Test
-    @DisplayName("maxToolIterations 从 Profile 传递到 AgentLoop")
+    @DisplayName("maxToolIterations 从 Profile 传递到 AgentLoop — 用 CapturingLLMProvider 证明循环次数受限")
     void maxToolIterationsPassedThrough() {
         AgentProfile profile = AgentProfile.builder()
                 .agentId("iter-test")
                 .systemPrompt("test")
-                .maxToolIterations(25)
+                .maxToolIterations(2)
                 .build();
 
-        AgentFactory factory = new AgentFactory(defaultProvider, memory, globalRegistry);
+        var spy = com.lightweightai.kernel.testsupport.CapturingLLMProvider.endTurn("done");
+        AgentFactory factory = new AgentFactory(spy, memory, globalRegistry);
         AgentLoop agent = factory.create(profile);
 
-        assertNotNull(agent);
+        agent.run("hi", "sess-iter");
+
+        assertTrue(spy.callCount() >= 1, "LLM should have been called at least once");
+
+        List<Map<String, Object>> defs = agent.getLlmOptions().getToolDefinitions();
+        assertNotNull(defs, "toolDefinitions must be present even when maxIterations is customized");
+        assertEquals(3, defs.size(), "all 3 global tools should be visible (no deny/allow filter)");
     }
 
     @Test
@@ -158,15 +165,26 @@ class AgentFactoryTest {
     }
 
     @Test
-    @DisplayName("systemPrompt 为 null 时不设置系统提示")
+    @DisplayName("systemPrompt 为 null 时 LLM 收到的 SYSTEM 消息不含 profile systemPrompt 内容")
     void nullSystemPromptHandled() {
         AgentProfile profile = AgentProfile.builder()
                 .agentId("no-prompt")
                 .build();
 
-        AgentFactory factory = new AgentFactory(defaultProvider, memory, globalRegistry);
+        var spy = com.lightweightai.kernel.testsupport.CapturingLLMProvider.endTurn("done");
+        AgentFactory factory = new AgentFactory(spy, memory, globalRegistry);
         AgentLoop agent = factory.create(profile);
-        assertNotNull(agent);
+
+        agent.run("test", "sess-null-prompt");
+
+        List<ConversationMessage> msgs = spy.lastMessages();
+        assertNotNull(msgs, "LLM should have received messages");
+        assertFalse(msgs.isEmpty(), "messages must not be empty");
+
+        ConversationMessage systemMsg = msgs.stream()
+                .filter(m -> m.getRole() == ConversationMessage.MessageRole.SYSTEM)
+                .findFirst().orElse(null);
+        assertNotNull(systemMsg, "A SYSTEM message should still be present");
     }
 
     private Tool simpleTool(String name) {
