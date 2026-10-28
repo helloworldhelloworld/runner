@@ -305,8 +305,7 @@ public class ToolClient implements AutoCloseable {
                     ? Map.copyOf(config.getHeaders()) : Map.of();
 
                 var builder = HttpClientStreamableHttpTransport.builder(baseUrl)
-                    .endpoint(endpoint)
-                    .clientBuilder(McpHttpClients.sharing(httpClient));
+                    .endpoint(endpoint);
 
                 // customizeRequest 每次 HTTP 请求回调 — 三层 header 合并
                 builder.customizeRequest(reqBuilder -> {
@@ -319,7 +318,8 @@ public class ToolClient implements AutoCloseable {
                         headerProvider.getHeaders().forEach(reqBuilder::header);
                     }
                 });
-                return builder.build();
+                return new ManagedHttpClientTransport(httpClient,
+                    clientBuilder -> builder.clientBuilder(clientBuilder).build());
             }
 
             if ("ws".equalsIgnoreCase(transport)
@@ -353,14 +353,14 @@ public class ToolClient implements AutoCloseable {
                 // 只合并静态 config headers + 全局 provider（启动时确定）
                 Map<String, String> headers = resolveHeaders(config, headerProvider);
                 var sseBuilder = HttpClientSseClientTransport.builder(config.getUrl())
-                    .sseEndpoint("/sse")
-                    .clientBuilder(McpHttpClients.sharing(httpClient));
+                    .sseEndpoint("/sse");
                 if (!headers.isEmpty()) {
                     java.net.http.HttpRequest.Builder reqBuilder = java.net.http.HttpRequest.newBuilder();
                     headers.forEach(reqBuilder::header);
                     sseBuilder.requestBuilder(reqBuilder);
                 }
-                return sseBuilder.build();
+                return new ManagedHttpClientTransport(httpClient,
+                    clientBuilder -> sseBuilder.clientBuilder(clientBuilder).build());
             }
 
             if (config.getCommand() == null || config.getCommand().isBlank()) {

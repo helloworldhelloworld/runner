@@ -54,6 +54,31 @@ WS transport 经 `WebSocketMcpClientTransport.Builder.httpClient(client)` 注入
 `mcpToolRegistrar` 在 `registerTools` 失败时同样 close。这修的是本仓库启动装配的慢泄漏，
 不是 DialogManager 的 Full GC 主因。
 
+### D5. HTTP 请求由各 transport 独立取消（2026-10-28）
+
+SDK 0.17.0 的 HTTP GET / POST 在响应头到达前尚未注册 body subscription 的取消回调，
+而 `sendAsync` future 没有随外层订阅取消。此时 session 即使已 close，后端仍可能要等
+首次响应（例如延迟刷新的 SSE 响应头）才观察到断连。另外，SDK 等 DELETE 完成后才
+dispose 活跃流，DELETE 阻塞或失败会阻止这一步。
+
+`createTransport` 返回 `ManagedHttpClientTransport` 包装的 HTTP / SSE transport，
+通过每 transport 一个 `RequestTrackingHttpClient` 跟踪原始 HTTP future。该 facade
+不创建网络客户端，仍委托 D1 的共享实例或调用方注入的实例：
+
+- close 开始即取消本 transport 的在途请求，包括尚未收到响应头的 GET / POST；
+- 关闭期间只允许会话 DELETE，随后拒绝全部新请求；
+- DELETE 清理最多等待 5 秒，无论成功、异常或超时都会取消剩余请求；
+- 并发 / 重复 close 共享一次清理操作；调用方取消等待不会中断清理；
+- 不关闭共享 HttpClient，也不取消其他 transport 的请求。
+
+`close()` 仍为异步发起关闭；需要等待清理完成的调用方可订阅 transport 的
+`closeGracefully()`。直接使用 SDK builder 或仅使用 `McpHttpClients.sharing(...)`
+不会获得这层请求管理，应改走 `ToolClient.Builder.createTransport`。
+
+`HttpTransportCloseTest` 经生产工厂创建实际 SDK client，并用真实 HTTP/1.1 socket
+断言后端收到 EOF / reset：覆盖延迟响应头、无状态会话、卡住或失败的 DELETE、
+并发关闭、共享实例隔离和旧版 SSE。测试不依赖后端心跳触发清理。
+
 ## Consequences
 
 - **Positive**：走 `createTransport` 的调用方（含 `McpConfig`、升库后的消费侧）默认不再
@@ -63,4 +88,4 @@ WS transport 经 `WebSocketMcpClientTransport.Builder.httpClient(client)` 注入
   不会自动修好，必须改走 `createTransport` 或 `McpHttpClients.sharing(...)`。
 - **Trade-off**：共享 client 在进程退出前不关；测试若需要隔离，传入自定义 `HttpClient`。
 - **Verification**：`SharedHttpClientTransmissionAcceptanceTest` 从生产 `createTransport`
-  断言两个 HTTP transport 持有同一 `HttpClient` 实例（payload，不是“方法被调用”）。
+  断言两个 HTTP transport 最终委托同一 `HttpClient` 实例（payload，不是“方法被调用”）。

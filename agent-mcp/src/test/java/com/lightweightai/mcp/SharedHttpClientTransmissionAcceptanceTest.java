@@ -94,6 +94,9 @@ class SharedHttpClientTransmissionAcceptanceTest {
      * 把 client 存在私有字段 {@code httpClient} 上——这就是下游真正消费的实例。
      */
     static HttpClient extractHttpClient(McpClientTransport transport) {
+        if (transport instanceof ManagedHttpClientTransport managed) {
+            return managed.sharedHttpClient();
+        }
         Class<?> type = transport.getClass();
         while (type != null) {
             try {
