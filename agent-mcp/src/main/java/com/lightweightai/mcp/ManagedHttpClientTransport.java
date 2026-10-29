@@ -29,8 +29,17 @@ final class ManagedHttpClientTransport implements McpClientTransport {
 
     ManagedHttpClientTransport(HttpClient sharedClient,
                               Function<HttpClient.Builder, McpClientTransport> factory) {
-        this.httpClient = new RequestTrackingHttpClient(sharedClient);
-        this.delegate = factory.apply(McpHttpClients.sharing(httpClient));
+        this(new RequestTrackingHttpClient(sharedClient), factory);
+    }
+
+    private ManagedHttpClientTransport(RequestTrackingHttpClient httpClient,
+                                       Function<HttpClient.Builder, McpClientTransport> factory) {
+        this(httpClient, factory.apply(McpHttpClients.sharing(httpClient)));
+    }
+
+    ManagedHttpClientTransport(RequestTrackingHttpClient httpClient, McpClientTransport delegate) {
+        this.httpClient = httpClient;
+        this.delegate = delegate;
         this.close = Mono.defer(() -> {
             // Cancel GET/POST even before headers arrive. Only the session DELETE
             // may start once closing begins; no shared-client shutdown is involved.

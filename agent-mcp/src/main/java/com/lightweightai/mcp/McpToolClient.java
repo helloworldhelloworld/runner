@@ -55,11 +55,11 @@ public class McpToolClient implements ToolSource, AutoCloseable {
 
     private McpToolClient(Builder builder) {
         this.serverName = builder.serverName;
-        this.transport = builder.transport;
+        this.transport = SdkHttpTransportAdapter.manage(builder.transport);
         this.progressRouter = new ProgressNotificationRouter();
         this.loggingRouter = new LoggingNotificationRouter();
 
-        McpClient.AsyncSpec clientSpec = McpClient.async(builder.transport)
+        McpClient.AsyncSpec clientSpec = McpClient.async(this.transport)
             .requestTimeout(builder.timeout)
             .progressConsumer(notification -> {
                 progressRouter.route(notification);

@@ -72,12 +72,24 @@ dispose 活跃流，DELETE 阻塞或失败会阻止这一步。
 - 不关闭共享 HttpClient，也不取消其他 transport 的请求。
 
 `close()` 仍为异步发起关闭；需要等待清理完成的调用方可订阅 transport 的
-`closeGracefully()`。直接使用 SDK builder 或仅使用 `McpHttpClients.sharing(...)`
-不会获得这层请求管理，应改走 `ToolClient.Builder.createTransport`。
+`closeGracefully()`。
 
-`HttpTransportCloseTest` 经生产工厂创建实际 SDK client，并用真实 HTTP/1.1 socket
+2026-10-29 补齐调用方自建 transport 的入口：`McpToolClient` 在连接前自动管理
+传入的 SDK HTTP / SSE transport，因此 `.transport(...)`、builder 和运行时的
+`.addMcpServer(...)` 均不需要调用方调整创建方式或 `close()` 调用。已由工厂管理的
+transport 不重复包装，WebSocket、stdio 和自定义 transport 按原逻辑处理。
+
+SDK 0.17.0 没有公开 HttpClient getter / setter，`SdkHttpTransportAdapter` 仅对
+这两个已知 SDK 类的 `httpClient` 字段进行内部适配，保留原 transport 的地址、
+鉴权、mapper、customizer 和底层 HttpClient。若 SDK 字段结构或访问权限不兼容，
+构建时明确失败，不静默退回有泄漏风险的实现；升级 SDK 必须运行回归用例。
+完全绕过 runner、直接使用 SDK `McpClient` 的客户端不在此修复覆盖范围内。
+
+`HttpTransportCloseTest` 同时通过生产工厂和调用方原有 SDK builder 创建客户端，
+并用真实 HTTP/1.1 socket
 断言后端收到 EOF / reset：覆盖延迟响应头、无状态会话、卡住或失败的 DELETE、
-并发关闭、共享实例隔离和旧版 SSE。测试不依赖后端心跳触发清理。
+并发关闭、共享实例隔离和旧版 SSE；额外验证默认 SDK HttpClient，以及 builder / 运行时
+添加自建 transport 后仍保留自定义 endpoint 和鉴权 header。测试不依赖后端心跳触发清理。
 
 ## Consequences
 
@@ -85,7 +97,9 @@ dispose 活跃流，DELETE 阻塞或失败会阻止这一步。
   per-request 新建 `HttpClient` + `SelectorManager`。公共契约 additive-only。
 - **Positive**：每请求仍新建 transport，动态 header snapshot 行为不变。
 - **Trade-off**：直接 `HttpClientStreamableHttpTransport.builder(...).build()` 的消费侧
-  不会自动修好，必须改走 `createTransport` 或 `McpHttpClients.sharing(...)`。
+  仍会创建独立 HttpClient；复用线程资源需使用 `createTransport` 或
+  `McpHttpClients.sharing(...)`。这与 close 修复独立：传给 runner 的自建 transport
+  已自动获得关闭时的请求取消管理。
 - **Trade-off**：共享 client 在进程退出前不关；测试若需要隔离，传入自定义 `HttpClient`。
 - **Verification**：`SharedHttpClientTransmissionAcceptanceTest` 从生产 `createTransport`
   断言两个 HTTP transport 最终委托同一 `HttpClient` 实例（payload，不是“方法被调用”）。
