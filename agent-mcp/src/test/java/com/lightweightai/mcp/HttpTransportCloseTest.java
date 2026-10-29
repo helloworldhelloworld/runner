@@ -80,8 +80,8 @@ class HttpTransportCloseTest {
             await(peer.getReceived);
             client.close();
             await(peer.deleteReceived);
-            await(peer.getClosed); // Must not wait for the five-second DELETE timeout.
-            peer.deleteClosed.get(7, TimeUnit.SECONDS);
+            await(peer.getClosed); // Active streams are cancelled before DELETE cleanup.
+            peer.deleteClosed.get(2, TimeUnit.SECONDS);
         }
     }
 

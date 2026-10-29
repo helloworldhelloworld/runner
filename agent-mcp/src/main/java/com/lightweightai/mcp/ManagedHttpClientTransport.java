@@ -21,7 +21,7 @@ import java.util.function.Function;
  */
 final class ManagedHttpClientTransport implements McpClientTransport {
     private static final Logger logger = LoggerFactory.getLogger(ManagedHttpClientTransport.class);
-    private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(1);
 
     private final RequestTrackingHttpClient httpClient;
     private final McpClientTransport delegate;
